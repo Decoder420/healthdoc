@@ -1,21 +1,20 @@
 /**
- * Design tokens — gold / dark theme (single source of truth for HMIS UI colors).
+ * Meridian design tokens — navy / light HMIS theme (single source of truth).
  */
 export const meridian = {
-  brandGold: "#d4af37",
-  brandGoldBright: "#f5cc50",
-  brandGoldDeep: "#b8962e",
-  brandGoldLight: "#fff8e7",
-  canvas: "#000000",
-  surface: "#0a0a08",
-  surfaceElevated: "#0c0c0a",
-  textPrimary: "#f5cc50",
-  textSecondary: "rgba(220, 215, 200, 0.75)",
-  textMuted: "rgba(220, 215, 200, 0.65)",
-  success: "#4ade80",
-  warning: "#f5cc50",
-  danger: "#f87171",
-  border: "rgba(212, 175, 55, 0.22)",
+  brandPrimary: "#001f54",
+  brandDeep: "#001536",
+  canvas: "#ffffff",
+  surface: "#ffffff",
+  muted: "#f4f6f9",
+  textPrimary: "#001f54",
+  textSecondary: "#4a6282",
+  textMuted: "#4a6282",
+  border: "#d6dee8",
+  success: "#166534",
+  warning: "#b45309",
+  danger: "#b91c1c",
+  info: "#001f54",
 } as const;
 
 export type MeridianColor = keyof typeof meridian;

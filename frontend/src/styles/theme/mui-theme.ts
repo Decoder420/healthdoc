@@ -4,28 +4,31 @@ import { meridian } from "./meridian";
 export const muiTheme = createTheme({
   modularCssLayers: true,
   palette: {
-    mode: "dark",
+    mode: "light",
     primary: {
-      main: meridian.brandGold,
-      light: meridian.brandGoldBright,
-      dark: meridian.brandGoldDeep,
-      contrastText: "#1a1000",
+      main: meridian.brandPrimary,
+      dark: meridian.brandDeep,
+      contrastText: "#ffffff",
     },
     secondary: {
-      main: meridian.brandGoldBright,
-      contrastText: "#1a1000",
+      main: meridian.textSecondary,
+      contrastText: "#ffffff",
     },
     success: {
       main: meridian.success,
-      contrastText: "#042f1a",
+      contrastText: "#ffffff",
     },
     warning: {
       main: meridian.warning,
-      contrastText: "#1a1000",
+      contrastText: "#ffffff",
     },
     error: {
       main: meridian.danger,
-      contrastText: "#1a1000",
+      contrastText: "#ffffff",
+    },
+    info: {
+      main: meridian.info,
+      contrastText: "#ffffff",
     },
     text: {
       primary: meridian.textPrimary,
@@ -39,14 +42,14 @@ export const muiTheme = createTheme({
     divider: meridian.border,
   },
   typography: {
-    fontFamily: "var(--font-inter), Inter, system-ui, sans-serif",
+    fontFamily: 'var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif',
     button: {
       textTransform: "none",
-      fontWeight: 500,
+      fontWeight: 600,
     },
   },
   shape: {
-    borderRadius: 10,
+    borderRadius: 8,
   },
   components: {
     MuiButton: {
@@ -55,13 +58,6 @@ export const muiTheme = createTheme({
           boxShadow: "none",
           "&:hover": {
             boxShadow: "none",
-          },
-        },
-        containedPrimary: {
-          background: "linear-gradient(135deg, #f5cc50 0%, #d4af37 55%, #b8962e 100%)",
-          color: "#1a1000",
-          "&:hover": {
-            background: "linear-gradient(135deg, #fff8e7 0%, #f5cc50 55%, #d4af37 100%)",
           },
         },
       },
@@ -82,7 +78,7 @@ export const muiTheme = createTheme({
         root: {
           backgroundColor: meridian.surface,
           color: meridian.textPrimary,
-          boxShadow: "0 1px 3px 0 rgb(212 175 55 / 0.12)",
+          boxShadow: "0 1px 3px 0 rgb(0 31 84 / 0.06)",
           borderBottom: `1px solid ${meridian.border}`,
         },
       },
