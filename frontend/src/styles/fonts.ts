@@ -1,19 +1,16 @@
-import { Syne, Afacad } from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 
-/** Syne = large/display text */
-export const syne = Syne({
-  variable: "--font-syne",
+export const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-/** Afacad = small/body text */
-export const afacad = Afacad({
-  variable: "--font-afacad",
+export const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
-export const fontVariables = `${syne.variable} ${afacad.variable}`;
+export const fontVariables = `${inter.variable} ${ibmPlexMono.variable}`;

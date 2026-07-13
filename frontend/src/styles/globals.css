@@ -1,4 +1,4 @@
-/* Syne = large/display text · Afacad = small/body text */
+/* Inter = sans/body · IBM Plex Mono = mono */
 @layer theme, base, mui, components, utilities;
 @import "tailwindcss";
 
@@ -13,8 +13,10 @@
     #fff8e7 100%
   );
 
-  --font-display: var(--font-syne), Syne, system-ui, sans-serif;
-  --font-body: var(--font-afacad), Afacad, system-ui, sans-serif;
+  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: var(--font-sans);
+  --font-body: var(--font-sans);
 
   --background: #000000;
   --foreground: #f5cc50;
@@ -80,8 +82,9 @@
   --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);
 
-  --font-sans: var(--font-body);
-  --font-display: var(--font-display);
+  --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-display: var(--font-sans);
   --radius-lg: var(--radius);
 }
 
@@ -110,7 +113,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Large typography → Syne */
+/* Headings use Inter + gold gradient */
 h1,
 h2,
 h3,
@@ -129,7 +132,7 @@ h6,
   color: transparent;
 }
 
-/* Small / body typography → Afacad */
+/* Body typography → Inter */
 p,
 li,
 label,
@@ -139,6 +142,14 @@ blockquote,
 td,
 th {
   font-family: var(--font-body);
+}
+
+code,
+kbd,
+pre,
+samp,
+.font-mono {
+  font-family: var(--font-mono);
 }
 
 a {
@@ -214,13 +225,12 @@ a {
   pointer-events: none;
 }
 
-.font-display,
-.font-syne {
+.font-display {
   font-family: var(--font-display) !important;
 }
 
 .font-body,
-.font-afacad {
+.font-sans {
   font-family: var(--font-body) !important;
 }
 

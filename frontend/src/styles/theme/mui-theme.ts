@@ -39,13 +39,7 @@ export const muiTheme = createTheme({
     divider: meridian.border,
   },
   typography: {
-    fontFamily: "var(--font-afacad), Afacad, system-ui, sans-serif",
-    h1: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
-    h2: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
-    h3: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
-    h4: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
-    h5: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
-    h6: { fontFamily: "var(--font-syne), Syne, system-ui, sans-serif", fontWeight: 600 },
+    fontFamily: "var(--font-inter), Inter, system-ui, sans-serif",
     button: {
       textTransform: "none",
       fontWeight: 500,
