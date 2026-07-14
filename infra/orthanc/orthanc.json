@@ -1,0 +1,14 @@
+{
+  "Name": "HealthDoc PACS (dev)",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "IndexDirectory": "/var/lib/orthanc/db",
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "DicomServerEnabled": true,
+  "DicomAet": "HEALTHDOC",
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "DicomModalities": {},
+  "OverwriteInstances": false,
+  "StableAge": 60
+}
