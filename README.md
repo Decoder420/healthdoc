@@ -16,7 +16,7 @@ Module ownership is enforced via `.github/CODEOWNERS` — see
    ```
    git init && git add -A && git commit -m "chore: repo skeleton"
    git branch -M main
-   git remote add origin git@github.com:YOUR_ORG/healthdoc.git
+   git remote add origin git@github-work:solutionsiui/healthdoc.git
    git push -u origin main
    git checkout -b staging && git push -u origin staging
    ```
@@ -49,3 +49,15 @@ Max 400 lines per PR. No self-merges. Migration PRs reviewed by Tech Lead.
 Each milestone description contains the week's exit checklist.
 The milestone closes only when every item is checked. Unchecked items
 become `carry-over` issues in the next milestone.
+
+
+
+## Local development
+
+```bash
+make setup   # first time: .env + dev certs + build + start + migrate
+make up      # thereafter
+```
+
+Full guide: [docs/dev-setup.md](docs/dev-setup.md) — service URLs, dev logins,
+module conventions, daily commands.
