@@ -70,7 +70,7 @@ export const ChartWrapper = forwardRef<HTMLDivElement, ChartWrapperProps>(
       <Paper
         ref={ref}
         elevation={elevation}
-        className={["surface-card", className].filter(Boolean).join(" ")}
+        className={className}
         sx={{
           borderRadius: "16px",
           border: `1px solid ${meridian.border}`,
@@ -150,11 +150,14 @@ export const ChartWrapper = forwardRef<HTMLDivElement, ChartWrapperProps>(
             px: 2,
             pb: 2.5,
             pt: showHeader ? 2 : 2.5,
-            "& .recharts-cartesian-axis-tick-value": {
-              fill: meridian.textSecondary,
-              fontSize: 11,
-              fontFamily: "var(--font-ibm-plex-mono), monospace",
-              fontWeight: 500,
+            "& .recharts-cartesian-axis-tick text, & .recharts-text": {
+              fill: `${meridian.textSecondary} !important`,
+              stroke: "none !important",
+              fontSize: "11px !important",
+              fontWeight: "500 !important",
+              fontFamily:
+                'var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif !important',
+              paintOrder: "fill",
             },
             "& .recharts-cartesian-grid-horizontal line, & .recharts-cartesian-grid-vertical line":
               {

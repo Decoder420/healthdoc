@@ -19,13 +19,11 @@ export default function BedGrid({
   }
 
   return (
-   // <div className="grid grid-cols-2 gap-4">
-   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {beds.map((bed) => (
         <div
           key={bed.id}
           className="surface-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
-          // className="surface-card p-4"
         >
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold">

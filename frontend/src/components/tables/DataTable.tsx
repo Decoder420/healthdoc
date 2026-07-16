@@ -11,6 +11,7 @@ import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
+import { meridian } from "@/styles/theme";
 
 export interface DataTableColumn<T> {
   /** Unique key. If it matches a key on T, sorting works automatically. */
@@ -104,7 +105,18 @@ export function DataTable<T>({
   };
 
   return (
-    <Paper variant="outlined" sx={{ width: "100%", overflow: "hidden" }}>
+    <Paper
+      elevation={0}
+      sx={{
+        width: "100%",
+        overflow: "hidden",
+        borderRadius: "16px",
+        border: `1px solid ${meridian.border}`,
+        background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
+        boxShadow:
+          "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
+      }}
+    >
       <TableContainer sx={{ maxHeight: 640 }}>
         <Table stickyHeader size="small" aria-label="data table">
           <TableHead>
@@ -113,13 +125,32 @@ export function DataTable<T>({
                 <TableCell
                   key={col.key}
                   align={col.align ?? "left"}
-                  sx={{ width: col.width }}
+                  sx={{
+                    width: col.width,
+                    backgroundColor: meridian.muted,
+                    borderBottom: `1px solid ${meridian.border}`,
+                    color: meridian.textSecondary,
+                    fontWeight: 700,
+                    fontSize: "0.6875rem",
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    fontFamily:
+                      'var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif',
+                    py: 1.5,
+                    px: 2,
+                  }}
                 >
                   {col.sortable ? (
                     <TableSortLabel
                       active={sortKey === col.key}
                       direction={sortKey === col.key ? sortDir : "asc"}
                       onClick={() => handleSort(col.key)}
+                      sx={{
+                        color: "inherit !important",
+                        "& .MuiTableSortLabel-icon": {
+                          color: `${meridian.brandPrimary} !important`,
+                        },
+                      }}
                     >
                       {col.label}
                     </TableSortLabel>
@@ -136,7 +167,7 @@ export function DataTable<T>({
               Array.from({ length: rowsPerPage ?? 5 }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
                   {columns.map((col) => (
-                    <TableCell key={col.key}>
+                    <TableCell key={col.key} sx={{ px: 2, py: 1.5 }}>
                       <Skeleton variant="text" />
                     </TableCell>
                   ))}
@@ -145,8 +176,15 @@ export function DataTable<T>({
 
             {!loading && sortedRows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
+                <TableCell
+                  colSpan={columns.length}
+                  align="center"
+                  sx={{ py: 6, px: 2 }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ color: meridian.textSecondary, fontWeight: 500 }}
+                  >
                     {emptyMessage}
                   </Typography>
                 </TableCell>
@@ -159,13 +197,34 @@ export function DataTable<T>({
                   key={getRowId(row)}
                   hover={!!onRowClick}
                   onClick={() => onRowClick?.(row)}
-                  sx={{ cursor: onRowClick ? "pointer" : "default" }}
+                  sx={{
+                    cursor: onRowClick ? "pointer" : "default",
+                    "&:last-child td": { borderBottom: 0 },
+                    "&:hover td": onRowClick
+                      ? { backgroundColor: "rgb(0 31 84 / 0.03)" }
+                      : undefined,
+                  }}
                 >
                   {columns.map((col) => (
-                    <TableCell key={col.key} align={col.align ?? "left"}>
+                    <TableCell
+                      key={col.key}
+                      align={col.align ?? "left"}
+                      sx={{
+                      px: 2,
+                      py: 1.6,
+                      borderBottom: `1px solid rgb(0 31 84 / 0.06)`,
+                      color: meridian.textPrimary,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                      verticalAlign: "middle",
+                    }}
+                    >
                       {col.render
                         ? col.render(row)
-                        : String((row as Record<string, unknown>)[col.key] ?? "—")}
+                        : String(
+                            (row as Record<string, unknown>)[col.key] ?? "—",
+                          )}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -175,7 +234,12 @@ export function DataTable<T>({
       </TableContainer>
 
       {isPaginated && (
-        <Box sx={{ borderTop: "1px solid", borderColor: "divider" }}>
+        <Box
+          sx={{
+            borderTop: `1px solid ${meridian.border}`,
+            backgroundColor: "rgb(244 246 249 / 0.65)",
+          }}
+        >
           <TablePagination
             component="div"
             count={totalCount!}
@@ -186,6 +250,39 @@ export function DataTable<T>({
             onRowsPerPageChange={(e) =>
               onRowsPerPageChange?.(parseInt(e.target.value, 10))
             }
+            sx={{
+              color: meridian.textSecondary,
+              overflow: "hidden",
+              "& .MuiToolbar-root": {
+                flexWrap: "wrap",
+                gap: 1,
+                minHeight: 56,
+                px: 2,
+              },
+              "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
+                {
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  margin: 0,
+                },
+              "& .MuiTablePagination-input": {
+                marginRight: 2,
+                marginLeft: 1,
+              },
+              "& .MuiTablePagination-select": {
+                borderRadius: "8px",
+                border: `1px solid ${meridian.border}`,
+                backgroundColor: meridian.surface,
+                paddingRight: "24px !important",
+              },
+              "& .MuiTablePagination-actions": {
+                marginLeft: 1.5,
+              },
+              "& .MuiIconButton-root": {
+                color: meridian.brandPrimary,
+                borderRadius: "8px",
+              },
+            }}
           />
         </Box>
       )}

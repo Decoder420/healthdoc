@@ -154,7 +154,7 @@ export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
         <Paper
           ref={ref}
           elevation={elevation}
-          className={["surface-card", className].filter(Boolean).join(" ")}
+          className={className}
           sx={{
             ...cardSurface,
             p: tokens.pad,
@@ -185,7 +185,7 @@ export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
       <Paper
         ref={ref}
         elevation={elevation}
-        className={["surface-card", className].filter(Boolean).join(" ")}
+        className={className}
         onClick={onClick}
         onKeyDown={handleKeyDown}
         role={interactive ? "button" : undefined}
