@@ -24,7 +24,7 @@ export default function ConsumablesProgress() {
         {consumables.map((item) => (
           <div key={item.name}>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-sm font-medium text-foreground"> 
                 {item.name}
               </span>
 
