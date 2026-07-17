@@ -1,4 +1,4 @@
-import { ROLES, type Role } from "./roles";
+import { ROLES, canonicalRole, type Role } from "./roles";
 
 export type NavItem = {
   label: string;
@@ -11,37 +11,50 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Dashboard",
     href: "/lab/dashboard",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Test Queue",
     href: "/lab/test_queue",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Barcode",
     href: "/lab/pathology/barcode",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Sample",
     href: "/lab/pathology/sample",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Lab Results",
     href: "/lab/pathology/lab_results",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Verification",
     href: "/lab/pathology/verification",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
   {
     label: "Settings",
     href: "/lab/pathology/settings",
-    roles: [ROLES.LAB],
+    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
+  },
+  {
+    label: "Home",
+    href: "/dashboard",
+    roles: [
+      ROLES.ADMIN,
+      ROLES.RECEPTIONIST,
+      ROLES.DOCTOR,
+      ROLES.NURSE,
+      ROLES.PHARMACIST,
+      ROLES.PHARMACY,
+      ROLES.ACCOUNTANT,
+    ],
   },
   {
     label: "Reception",
@@ -61,7 +74,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: "Pharmacy",
     href: "/pharmacy/prescription-queue",
-    roles: [ROLES.PHARMACY, ROLES.ADMIN],
+    roles: [ROLES.PHARMACY, ROLES.PHARMACIST, ROLES.ADMIN],
   },
   {
     label: "Admin",
@@ -70,6 +83,14 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export function navItemsForRole(role: Role): NavItem[] {
+export function navItemsForRole(role: Role | null | undefined): NavItem[] {
+  if (!role) return [];
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
 }
+
+/** Alias used by shared sidebar layout. */
+export function getNavigationForRole(role: Role | null | undefined): NavItem[] {
+  return navItemsForRole(role);
+}
+
+export { canonicalRole };

@@ -1,8 +1,12 @@
 "use client";
 
-import LabDashboard from "@/components/dashboard/lab/Lab_Dashboard";
+import { LabTechnicianDashboard } from "@/components/dashboard/lab-technician";
 
 /** Lab employee home dashboard screen. */
-export default function LabDashboardScreen() {
-  return <LabDashboard />;
+export default function LabDashboardScreen({
+  userName = "Dr. Sharma",
+}: {
+  userName?: string;
+}) {
+  return <LabTechnicianDashboard userName={userName} />;
 }

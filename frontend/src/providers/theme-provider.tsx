@@ -15,6 +15,7 @@ const STORAGE_KEY = "healthdoc-theme";
 
 type ThemeContextValue = {
   theme: ThemeMode;
+  resolvedTheme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
 };
@@ -41,13 +42,11 @@ function applyTheme(theme: ThemeMode) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeMode>("light");
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const initial = readStoredTheme();
     setThemeState(initial);
     applyTheme(initial);
-    setReady(true);
   }, []);
 
   const setTheme = useCallback((next: ThemeMode) => {
@@ -66,25 +65,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ theme, setTheme, toggleTheme }),
+    () => ({
+      theme,
+      resolvedTheme: theme,
+      setTheme,
+      toggleTheme,
+    }),
     [theme, setTheme, toggleTheme]
   );
-
-  if (!ready) {
-    return (
-      <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-    );
-  }
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 }
 
-export function useThemeMode() {
+function useThemeContext() {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error("useThemeMode must be used within ThemeProvider");
+    throw new Error("useTheme must be used within ThemeProvider");
   }
   return ctx;
+}
+
+/** Preferred API for new layout components. */
+export function useTheme() {
+  return useThemeContext();
+}
+
+/** Alias kept for earlier Meridian wiring. */
+export function useThemeMode() {
+  return useThemeContext();
 }

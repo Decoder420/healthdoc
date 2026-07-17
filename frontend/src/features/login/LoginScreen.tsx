@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import { ROLES, type Role } from "@/config/roles";
 
 const DEV_ROLES: { role: Role; label: string; href: string }[] = [
-  { role: ROLES.LAB, label: "Lab Employee", href: "/lab/dashboard" },
+  { role: ROLES.LAB_TECHNICIAN, label: "Lab Employee", href: "/lab/dashboard" },
   { role: ROLES.DOCTOR, label: "Doctor", href: "/doctor/dashboard" },
-  { role: ROLES.RECEPTIONIST, label: "Receptionist", href: "/receptionist/registration" },
+  { role: ROLES.RECEPTIONIST, label: "Receptionist", href: "/dashboard" },
   { role: ROLES.NURSE, label: "Nurse", href: "/nurse/ward-dashboard" },
-  { role: ROLES.PHARMACY, label: "Pharmacy", href: "/pharmacy/prescription-queue" },
+  { role: ROLES.PHARMACIST, label: "Pharmacy", href: "/pharmacy/prescription-queue" },
   { role: ROLES.ADMIN, label: "Admin", href: "/admin/users" },
 ];
 

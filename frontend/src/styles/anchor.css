@@ -1,0 +1,59 @@
+/**
+ * Anchor / link design rules — loaded after Bootstrap so underlines stay off.
+ */
+a,
+a:link,
+a:visited,
+a:hover,
+a:active,
+a:focus,
+a:focus-visible {
+  text-decoration: none !important;
+  text-underline-offset: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* Utility: only when a link should look like a text link, still no underline */
+.link-primary,
+.link-muted,
+.link-plain {
+  text-decoration: none !important;
+}
+
+.link-primary {
+  font-weight: 600;
+  color: var(--primary);
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.link-primary:hover,
+.link-primary:focus-visible {
+  opacity: 0.85;
+  text-decoration: none !important;
+}
+
+.dark .link-primary {
+  color: var(--info);
+}
+
+.link-muted {
+  color: var(--muted-foreground);
+}
+
+.link-muted:hover {
+  color: var(--foreground);
+}
+
+/* Next.js Link / nav items */
+nav a,
+aside a,
+header a,
+.sidebar a,
+.list-group-item,
+.list-group-item-action,
+.dropdown-item {
+  text-decoration: none !important;
+}

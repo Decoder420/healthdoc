@@ -1,37 +1,54 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { AuthUser } from "@/lib/auth";
 import type { Role } from "@/config/roles";
 import { ROLES } from "@/config/roles";
-
-type AuthUser = {
-  id: string;
-  name: string;
-  role: Role;
-};
 
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  updateUser: (patch: Partial<AuthUser>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   isAuthenticated: false,
+  isLoading: false,
+  updateUser: () => undefined,
 });
 
-/** Dev stub — defaults to lab role until Keycloak (F1-W1-03) lands. */
+const DEFAULT_USER: AuthUser = {
+  id: "dev-lab",
+  name: "Dr. Sharma",
+  email: "lab.sharma@hospital.com",
+  role: ROLES.LAB_TECHNICIAN,
+};
+
+/** Dev stub — defaults to lab technician until Keycloak (F1-W1-03) lands. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(DEFAULT_USER);
+
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
+    setUser((current) => (current ? { ...current, ...patch } : current));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: {
-        id: "dev-lab",
-        name: "Dr. Sharma",
-        role: ROLES.LAB,
-      },
-      isAuthenticated: true,
+      user,
+      isAuthenticated: Boolean(user),
+      isLoading: false,
+      updateUser,
     }),
-    []
+    [user, updateUser]
   );
 
   return (
@@ -41,4 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+export function useUserRole(): Role | null {
+  return useAuth().user?.role ?? null;
 }

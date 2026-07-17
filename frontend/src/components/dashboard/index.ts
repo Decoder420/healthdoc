@@ -17,6 +17,10 @@ export const dashboardByRole: Partial<Record<Role, DashboardComponent>> = {
   [ROLES.NURSE]: NurseDashboard,
   [ROLES.RECEPTIONIST]: ReceptionistDashboard,
   [ROLES.PHARMACIST]: PharmacistDashboard,
+  [ROLES.PHARMACY]: PharmacistDashboard,
   [ROLES.LAB_TECHNICIAN]: LabTechnicianDashboard,
+  [ROLES.LAB]: LabTechnicianDashboard,
   [ROLES.ACCOUNTANT]: AccountantDashboard,
 };
+
+export { LabTechnicianDashboard };

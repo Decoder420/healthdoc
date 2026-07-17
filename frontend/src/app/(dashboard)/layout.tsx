@@ -1,15 +1,9 @@
-import Navbar from "@/components/layout/Navbar";
+import { DashboardShell } from "@/components/layout/DashboardShell";
 
-/** Authenticated staff shell — navbar + page content. */
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Navbar />
-      <main>{children}</main>
-    </div>
-  );
+  return <DashboardShell>{children}</DashboardShell>;
 }

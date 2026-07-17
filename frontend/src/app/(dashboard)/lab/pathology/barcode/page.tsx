@@ -31,7 +31,7 @@ export default function BarcodePage() {
 
       <Link
         href="/dashboard/pathology"
-        className="link-primary text-sm underline-offset-2 hover:underline"
+        className="link-primary text-sm"
       >
         ← Back to Pathology Dashboard
       </Link>
