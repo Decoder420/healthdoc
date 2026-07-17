@@ -1,0 +1,571 @@
+/* Strict clinical pathology report layout */
+
+.pr-page {
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto;
+  background: #fff;
+  color: #111;
+  border: 1px solid #9aa4b2;
+  font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.pr-page *,
+.pr-page *::before,
+.pr-page *::after {
+  box-sizing: border-box;
+}
+
+.pr-page table {
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+
+.pr-page td,
+.pr-page th {
+  border-top: 0;
+}
+
+.pr-inner {
+  padding: 10px 12px 0;
+}
+
+.pr-header {
+  display: grid;
+  grid-template-columns: 64px 1fr 190px;
+  column-gap: 12px;
+  align-items: start;
+  min-height: 74px;
+}
+
+.pr-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid #0b2f6b;
+  object-fit: cover;
+  display: block;
+}
+
+.pr-lab-name {
+  margin: 0;
+  color: #0b2f6b;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+
+.pr-tagline {
+  margin: 4px 0 0;
+  color: #445;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pr-address {
+  margin: 5px 0 0;
+  color: #555;
+  font-size: 10.5px;
+  line-height: 1.35;
+  max-width: 420px;
+}
+
+.pr-nabl {
+  margin: 3px 0 0;
+  color: #0b5cab;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pr-contact {
+  text-align: right;
+  font-size: 11.5px;
+  color: #222;
+  padding-top: 2px;
+}
+
+.pr-contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+
+.pr-contact-row span.icon {
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.pr-contact-row.email {
+  font-weight: 600;
+  color: #0b2f6b;
+}
+
+.pr-band {
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  height: 26px;
+  margin-top: 8px;
+  overflow: hidden;
+  background: #0b2f6b;
+}
+
+.pr-band-stripes {
+  background: repeating-linear-gradient(
+    -45deg,
+    #fff 0 8px,
+    #0b2f6b 8px 16px
+  );
+}
+
+.pr-band-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pr-band-footer {
+  position: relative;
+  margin-top: 0;
+}
+
+.pr-band-footer .pr-band-left-label,
+.pr-band-footer .pr-band-right-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 1;
+}
+
+.pr-band-footer .pr-band-left-label {
+  left: 10px;
+  background: #fff;
+  color: #0b2f6b;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+}
+
+.pr-band-footer .pr-band-right-label {
+  right: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Patient block — rigid 3-column table */
+.pr-patient {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 2px;
+  border-bottom: 1px solid #b8c0cc;
+}
+
+.pr-patient td {
+  vertical-align: top;
+  padding: 10px 8px;
+  border-right: 1px solid #c5ced9;
+}
+
+.pr-patient td:last-child {
+  border-right: 0;
+}
+
+.pr-patient-left {
+  width: 34%;
+}
+
+.pr-patient-mid {
+  width: 36%;
+}
+
+.pr-patient-right {
+  width: 30%;
+}
+
+.pr-patient-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111;
+}
+
+.pr-kv {
+  margin: 4px 0 0;
+  color: #333;
+  font-size: 11.5px;
+}
+
+.pr-kv strong {
+  color: #111;
+  font-weight: 700;
+}
+
+.pr-patient-row {
+  display: grid;
+  grid-template-columns: 1fr 70px;
+  gap: 8px;
+  align-items: start;
+}
+
+.pr-qr {
+  width: 70px;
+  height: 70px;
+  border: 1px solid #d0d7e2;
+  padding: 3px;
+  background: #fff;
+}
+
+.pr-label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #111;
+}
+
+.pr-muted {
+  margin: 3px 0 0;
+  color: #555;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.pr-barcode-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+  min-height: 40px;
+}
+
+.pr-time-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.pr-time-table td {
+  padding: 1px 0;
+  border: 0;
+  vertical-align: baseline;
+}
+
+.pr-time-table td:first-child {
+  font-weight: 700;
+  color: #111;
+  width: 48%;
+  white-space: nowrap;
+}
+
+.pr-time-table td:last-child {
+  text-align: right;
+  color: #444;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-title {
+  margin: 12px 0 6px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: #111;
+}
+
+.pr-results-wrap {
+  position: relative;
+  min-height: 280px;
+}
+
+.pr-watermark {
+  pointer-events: none;
+  position: absolute;
+  inset: 40px 0 auto;
+  text-align: center;
+  opacity: 0.05;
+  color: #0b2f6b;
+  font-size: 64px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  z-index: 0;
+  user-select: none;
+}
+
+.pr-results {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.pr-results thead th {
+  border-top: 1.5px solid #222;
+  border-bottom: 1.5px solid #222;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+  background: #fff;
+}
+
+.pr-results th:nth-child(1),
+.pr-results td:nth-child(1) {
+  width: 40%;
+  text-align: left;
+}
+
+.pr-results th:nth-child(2),
+.pr-results td:nth-child(2) {
+  width: 22%;
+  text-align: center;
+}
+
+.pr-results th:nth-child(3),
+.pr-results td:nth-child(3) {
+  width: 22%;
+  text-align: center;
+}
+
+.pr-results th:nth-child(4),
+.pr-results td:nth-child(4) {
+  width: 16%;
+  text-align: center;
+}
+
+.pr-group td {
+  padding: 10px 6px 3px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #111;
+}
+
+.pr-row td {
+  padding: 3px 6px;
+  vertical-align: top;
+  color: #222;
+  font-size: 12px;
+  border-bottom: 1px dotted #e5e7eb;
+}
+
+.pr-row:last-child td {
+  border-bottom: 0;
+}
+
+.pr-test-name {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.pr-test-note {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.pr-val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-val-normal {
+  color: #111;
+}
+
+.pr-val-high {
+  color: #d61f26;
+}
+
+.pr-val-low {
+  color: #1d4ed8;
+}
+
+.pr-val-borderline {
+  color: #ea580c;
+}
+
+.pr-val-critical {
+  color: #d61f26;
+}
+
+.pr-flag {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pr-notes {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #d1d5db;
+  font-size: 11.5px;
+  color: #333;
+}
+
+.pr-notes p {
+  margin: 0 0 4px;
+}
+
+.pr-notes strong {
+  color: #111;
+}
+
+.pr-end {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 10px 0 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #222;
+}
+
+.pr-end span:last-child {
+  text-align: right;
+}
+
+.pr-signs {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 8px;
+  border-top: 1px solid #c5ced9;
+}
+
+.pr-signs td {
+  width: 33.33%;
+  text-align: center;
+  vertical-align: bottom;
+  padding: 14px 8px 10px;
+}
+
+.pr-sign-img {
+  height: 42px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  margin: 0 auto 4px;
+  display: block;
+}
+
+.pr-sign-name {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #111;
+}
+
+.pr-sign-qual {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: #444;
+}
+
+.pr-sign-role {
+  margin: 1px 0 0;
+  font-size: 10px;
+  color: #666;
+}
+
+.pr-gen {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 2px 8px;
+  font-size: 10.5px;
+  color: #555;
+}
+
+.pr-gen strong {
+  color: #222;
+}
+
+/* Preview shell around the paper */
+.pr-shell {
+  min-height: 100vh;
+  background: #e8edf3;
+  padding: 20px 16px 48px;
+}
+
+.pr-toolbar {
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pr-toolbar h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0b2f6b;
+  font-family: var(--font-report-sans), Arial, sans-serif;
+}
+
+.pr-toolbar p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.pr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pr-btn-print {
+  border: 1px solid #c5ced9;
+  background: #fff;
+  color: #0b2f6b;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pr-paper-shadow {
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
+@media print {
+  .pr-shell {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  .pr-paper-shadow {
+    box-shadow: none !important;
+  }
+
+  .pr-page {
+    border: none !important;
+    width: 100% !important;
+  }
+}
