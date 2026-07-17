@@ -1,0 +1,26 @@
+"""Async SQLAlchemy session + declarative base. Modules define models on Base."""
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+from app.common.config import get_settings
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency: yields a session, commits on success, rolls back on error."""
+    async with SessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
