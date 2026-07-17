@@ -1,7 +1,7 @@
 "use client";
 
 import QRCode from "react-qr-code";
-import BarcodeDisplay from "@/components/pathology/week1/barcodeDisplay";
+import BarcodeDisplay from "@/components/shared/BarcodeDisplay";
 import { formatDateTime } from "./utils";
 
 interface PatientMetaProps {

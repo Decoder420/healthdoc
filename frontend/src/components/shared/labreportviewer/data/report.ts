@@ -1,4 +1,4 @@
-import { ReportData } from "@/components/pathology/week1/reportviewer/types/report";
+import type { ReportData } from "../types/report";
 
 export const report: ReportData = {
   status: "VERIFIED",

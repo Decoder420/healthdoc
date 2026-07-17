@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { fontVariables } from "@/styles/fonts";
-import { Providers } from "@/components/providers";
-import "@/styles/globals.css";
+import { AppProviders } from "@/providers";
+import BootstrapClient from "@/components/BootstrapClient";
+import { ThemeScript } from "@/providers/theme-script";
+import "./globals.css";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 export const metadata: Metadata = {
   title: "HealthDoc HMIS",
@@ -14,10 +17,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={fontVariables}>
-      <body>
-        <Providers>{children}</Providers>
-
+    <html lang="en" className={fontVariables} suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
+      <body suppressHydrationWarning>
+        <BootstrapClient />
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

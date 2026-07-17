@@ -6,9 +6,9 @@ import { Fragment } from "react";
 import { Printer } from "lucide-react";
 import QRCode from "react-qr-code";
 import Barcode from "react-barcode";
-import DownloadPdfButton from "@/components/pathology/week1/reportviewer/DownloadPdfButton";
-import { formatDateTime } from "@/components/pathology/week1/reportviewer/utils";
-import type { ReportData } from "@/components/pathology/week1/reportviewer/types/report";
+import DownloadPdfButton from "./DownloadPdfButton";
+import { formatDateTime } from "./utils";
+import type { ReportData } from "./types/report";
 
 interface ReportProps {
   report: ReportData;
