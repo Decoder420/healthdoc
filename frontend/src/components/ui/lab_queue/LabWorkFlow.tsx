@@ -1,4 +1,4 @@
-import { StatusStep } from "./StatusStepper/types";
+import { StatusStep } from "@/components/shared/StatusStepper/types";
 
 export const pathologyWorkflow: StatusStep[] = [
   {

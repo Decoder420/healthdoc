@@ -9,10 +9,12 @@ import { useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import LocalHospitalOutlinedIcon from "@mui/icons-material/LocalHospitalOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import {
   Area,
   AreaChart,
@@ -30,6 +32,17 @@ import { Badge } from "@/components/ui/Badge";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
+import StockLevelBadge from "@/components/ui/StockLevelBadge";
+import ExpiryChip from "@/components/ui/ExpiryChip";
+import FEFOIndicator from "@/components/ui/FEFOindicator";
+import LabCalendar from "@/components/ui/Lab_Calendar";
+import DynamicCard from "@/components/ui/Lab_KpiCards";
+import PatientLineChart from "@/components/ui/Lab_LineCharts";
+import GenderPieChart from "@/components/ui/Lab_GenderPieChart";
+import UrgencyPieChart from "@/components/ui/Lab_Urgency_Pi_Chart";
+import PatientInfo from "@/components/ui/PatientInfo";
+import PathologyQueueClient from "@/components/ui/lab_queue/LabQueue";
+import { pathologyWorkflow } from "@/components/ui/lab_queue/LabWorkFlow";
 import { DataTable, type DataTableColumn } from "@/components/tables/DataTable";
 import BedGrid from "@/components/BedGrid";
 import type { Bed } from "@/components/BedGrid";
@@ -37,6 +50,20 @@ import VitalsTimeline from "@/components/VitalsTimeline";
 import type { VitalRecord } from "@/components/VitalsTimeline";
 import EMARTable from "@/components/tables/EMARTable";
 import type { MedicationRecord } from "@/components/tables/EMARTable";
+import BarcodeDisplay from "@/components/shared/BarcodeDisplay";
+import WorkflowStatusStepper from "@/components/shared/StatusStepper/WorkflowStatusStepper";
+import WorkflowStatusAction from "@/components/shared/StatusStepper/WorkflowStatusAction";
+import StatusAlert from "@/components/shared/StatusStepper/StatusAlert";
+import WorkflowStatusChip from "@/components/shared/StatusStepper/StatusChip";
+import ConfirmationDialog from "@/components/shared/StatusStepper/dialog/ConfirmationDialog";
+import ReasonSelectionDialog from "@/components/shared/StatusStepper/dialog/ReasonSelectionDialog";
+import FormDialog from "@/components/shared/StatusStepper/dialog/FormDialog";
+import StatusDecisionDialog from "@/components/shared/StatusStepper/dialog/StatusDecisionDialog";
+import type {
+  StatusChangePayload,
+  WorkflowAction,
+} from "@/components/shared/StatusStepper/types";
+import { patients as labPatients } from "@/lib/mock/lab_data";
 import { meridian } from "@/styles/theme";
 
 const chartData = [
@@ -168,6 +195,14 @@ const medications: MedicationRecord[] = [
   },
 ];
 
+const queuePatients = labPatients.slice(0, 4).map((p) => ({
+  ...p,
+  order: {
+    ...p.order,
+    priority: p.order.priority as "emergency" | "urgent" | "elective",
+  },
+}));
+
 function Section({
   title,
   description,
@@ -219,6 +254,13 @@ export function SharedUiPreview() {
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [workflowStatus, setWorkflowStatus] = useState("QUEUE");
+  const [calendarDate, setCalendarDate] = useState("2026-07-15");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [formNote, setFormNote] = useState("");
 
   const columns = useMemo<DataTableColumn<InvoiceRow>[]>(
     () => [
@@ -246,6 +288,24 @@ export function SharedUiPreview() {
     ],
     [],
   );
+
+  const handleWorkflowChange = (payload: StatusChangePayload) => {
+    setWorkflowStatus(payload.to);
+    toast.info("Status updated", `${payload.from} → ${payload.to}`);
+  };
+
+  const handleWorkflowAction = (action: WorkflowAction) => {
+    if (action.requiresReason) {
+      setReasonOpen(true);
+      return;
+    }
+    if (action.requiresConfirmation) {
+      setConfirmOpen(true);
+      return;
+    }
+    setWorkflowStatus(action.nextStatus);
+    toast.success(action.label, `Moved to ${action.nextStatus}`);
+  };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 4, mt: 2, pb: 4 }}>
@@ -371,10 +431,9 @@ export function SharedUiPreview() {
       <Section title="Badge + StatusChip">
         <Stack
           direction="row"
-          flexWrap="wrap"
           useFlexGap
           spacing={1.25}
-          sx={{ gap: 1.25 }}
+          sx={{ gap: 1.25, flexWrap: "wrap" }}
         >
           <Badge>New</Badge>
           <Badge variant="secondary">Secondary</Badge>
@@ -389,13 +448,38 @@ export function SharedUiPreview() {
         </Stack>
       </Section>
 
+      <Section
+        title="Inventory chips"
+        description="StockLevelBadge, ExpiryChip, FEFOIndicator"
+      >
+        <Stack
+          direction="row"
+          useFlexGap
+          spacing={1.25}
+          sx={{ gap: 1.25, flexWrap: "wrap", alignItems: "center" }}
+        >
+          <StockLevelBadge quantity={0} minimumQuantity={10} />
+          <StockLevelBadge quantity={8} minimumQuantity={10} />
+          <StockLevelBadge quantity={42} minimumQuantity={10} />
+          <ExpiryChip daysLeft={-2} />
+          <ExpiryChip daysLeft={12} />
+          <ExpiryChip daysLeft={60} />
+          <ExpiryChip daysLeft={180} />
+          <FEFOIndicator fefo />
+          <FEFOIndicator fefo={false} />
+        </Stack>
+      </Section>
+
+      <Section title="BarcodeDisplay">
+        <BarcodeDisplay value="LAB-20260713-001" height={64} />
+      </Section>
+
       <Section title="Modal + Toast">
         <Stack
           direction="row"
-          flexWrap="wrap"
           useFlexGap
           spacing={1.25}
-          sx={{ gap: 1.25 }}
+          sx={{ gap: 1.25, flexWrap: "wrap" }}
         >
           <Button variant="contained" onClick={() => setModalOpen(true)}>
             Open Modal
@@ -467,6 +551,180 @@ export function SharedUiPreview() {
 
       <Section title="EMARTable">
         <EMARTable medications={medications} />
+      </Section>
+
+      <Section
+        title="StatusStepper"
+        description="WorkflowStatusStepper, WorkflowStatusAction, StatusChip, StatusAlert"
+      >
+        <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
+          <WorkflowStatusChip status={workflowStatus} workflow={pathologyWorkflow} />
+          <StatusAlert status={workflowStatus} workflow={pathologyWorkflow} />
+          <WorkflowStatusStepper
+            currentStatus={workflowStatus}
+            workflow={pathologyWorkflow}
+            onStatusChange={handleWorkflowChange}
+            actions={
+              <WorkflowStatusAction
+                currentStatus={workflowStatus}
+                workflow={pathologyWorkflow}
+                onAction={handleWorkflowAction}
+              />
+            }
+          />
+          <Stack direction="row" spacing={1} useFlexGap sx={{ gap: 1, flexWrap: "wrap" }}>
+            <Button size="small" variant="outlined" onClick={() => setWorkflowStatus("QUEUE")}>
+              Reset to Queue
+            </Button>
+            <Button size="small" variant="outlined" onClick={() => setWorkflowStatus("NO_SHOW")}>
+              Show alert (No Show)
+            </Button>
+          </Stack>
+        </Stack>
+      </Section>
+
+      <Section
+        title="StatusStepper dialogs"
+        description="Confirmation, Reason, Form, Decision"
+      >
+        <Stack direction="row" useFlexGap spacing={1.25} sx={{ gap: 1.25, flexWrap: "wrap" }}>
+          <Button variant="outlined" onClick={() => setConfirmOpen(true)}>
+            ConfirmationDialog
+          </Button>
+          <Button variant="outlined" onClick={() => setReasonOpen(true)}>
+            ReasonSelectionDialog
+          </Button>
+          <Button variant="outlined" onClick={() => setFormOpen(true)}>
+            FormDialog
+          </Button>
+          <Button variant="outlined" onClick={() => setDecisionOpen(true)}>
+            StatusDecisionDialog
+          </Button>
+        </Stack>
+
+        <ConfirmationDialog
+          open={confirmOpen}
+          title="Remove from queue?"
+          description="This marks the sample as removed."
+          confirmText="Remove"
+          confirmColor="error"
+          onConfirm={() => {
+            setConfirmOpen(false);
+            setWorkflowStatus("REMOVED");
+            toast.success("Removed from queue");
+          }}
+          onClose={() => setConfirmOpen(false)}
+        />
+
+        <ReasonSelectionDialog
+          open={reasonOpen}
+          title="Reject sample"
+          reasons={[
+            { label: "Hemolyzed Sample", value: "hemolyzed" },
+            { label: "Wrong Container", value: "wrong_container" },
+            { label: "Insufficient Quantity", value: "insufficient" },
+          ]}
+          onConfirm={({ reason }) => {
+            setReasonOpen(false);
+            setWorkflowStatus("RECOLLECTION_REQUIRED");
+            toast.warning("Sample rejected", reason);
+          }}
+          onClose={() => setReasonOpen(false)}
+        />
+
+        <FormDialog
+          open={formOpen}
+          title="Add billing note"
+          onSave={() => {
+            setFormOpen(false);
+            toast.success("Note saved", formNote || "(empty)");
+            setFormNote("");
+          }}
+          onClose={() => setFormOpen(false)}
+        >
+          <TextField
+            fullWidth
+            label="Note"
+            value={formNote}
+            onChange={(e) => setFormNote(e.target.value)}
+            multiline
+            minRows={3}
+          />
+        </FormDialog>
+
+        <StatusDecisionDialog
+          open={decisionOpen}
+          title="Choose next step"
+          description="Pick how to continue this order."
+          options={[
+            { label: "Continue processing", value: "PROCESSING" },
+            { label: "Mark ready", value: "READY" },
+          ]}
+          onConfirm={(value) => {
+            setDecisionOpen(false);
+            setWorkflowStatus(value);
+            toast.info("Decision applied", value);
+          }}
+          onClose={() => setDecisionOpen(false)}
+        />
+      </Section>
+
+      <Section title="Lab_Calendar">
+        <Typography sx={{ fontSize: "0.875rem", color: meridian.textSecondary, mb: 1 }}>
+          Selected: {calendarDate}
+        </Typography>
+        <LabCalendar value={calendarDate} onChange={setCalendarDate} />
+      </Section>
+
+      <Section title="Lab KPI + charts" description="DynamicCard, line + pie charts from mock lab data">
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
+            gap: 2,
+            mb: 2,
+          }}
+        >
+          <DynamicCard
+            title="Samples today"
+            text={String(labPatients.length)}
+            icon={<ScienceOutlinedIcon fontSize="large" />}
+          />
+          <DynamicCard title="Verified" text="12" linkText="View" linkHref="/lab/dashboard" />
+          <DynamicCard title="Pending" text="8" />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1.4fr 1fr 1fr" },
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <PatientLineChart patients={labPatients as never} />
+          <GenderPieChart patients={labPatients as never} />
+          <UrgencyPieChart patients={labPatients as never} />
+        </Box>
+      </Section>
+
+      <Section
+        title="Lab queue"
+        description="PathologyQueueClient + PatientQueueTable with StatusStepper"
+      >
+        <PathologyQueueClient initialPatients={queuePatients as never} />
+      </Section>
+
+      <Section title="PatientInfo" description="Uses mock lab patient P006">
+        <Box
+          sx={{
+            border: "1px solid rgb(0 31 84 / 0.08)",
+            borderRadius: 2,
+            overflow: "hidden",
+            "& > div": { p: { xs: 2, md: 3 } },
+          }}
+        >
+          <PatientInfo patientId="P006" />
+        </Box>
       </Section>
     </Box>
   );
