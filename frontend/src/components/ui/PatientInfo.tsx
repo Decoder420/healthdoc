@@ -2,699 +2,261 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-
-import { patients } from "@/lib/mock/lab_data";
-
-import {
-  Avatar,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  Stack,
-  Typography,
-} from "@mui/material";
-
+import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
-import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
-import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+
+import { MetricCard } from "@/components/ui";
+import { patients } from "@/lib/mock/lab_data";
+import { meridian } from "@/styles/theme";
 
 interface PatientInfoProps {
   patientId: string;
 }
 
-interface LabPatient {
-  status: string;
+const cardSx = {
+  borderRadius: "16px",
+  border: `1px solid ${meridian.border}`,
+  background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
+  boxShadow:
+    "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
+};
 
-  patient: {
-    patientId: string;
-    uhid: string;
-    name: string;
-    age: number;
-    gender: string;
-    mobile: string;
-  };
-
-  visit: {
-    visitId: string;
-    visitType: string;
-  };
-
-  doctor: {
-    doctorId: string;
-    name: string;
-    department: string;
-  };
-
-  order: {
-    orderId: string;
-    priority: string;
-    orderedAt: string;
-  };
-
-  sample: {
-    sampleId: string;
-    barcode: string;
-    sampleType: string;
-    container: string;
-    collectedAt: string;
-  };
-
-  requestedTests: string[];
-
-  results: any[];
-}
-
-export default function PatientInfo({
-  patientId,
-}: PatientInfoProps) {
+export default function PatientInfo({ patientId }: PatientInfoProps) {
   const router = useRouter();
 
-  /**
-   * All visits of current patient
-   */
-  const visits = useMemo<LabPatient[]>(() => {
-    return patients.filter(
-      (item) =>
-        item.patient.patientId.trim().toLowerCase() ===
-        patientId.trim().toLowerCase()
-    );
-  }, [patientId]);
+  const visits = useMemo(
+    () =>
+      patients.filter(
+        (item) =>
+          item.patient.patientId.trim().toLowerCase() ===
+          patientId.trim().toLowerCase(),
+      ),
+    [patientId],
+  );
 
-  /**
-   * Current patient
-   */
   const patient = visits[0];
 
   if (!patient) {
     return (
-      <Box
-        sx={{
-          minHeight: "60vh",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <Card
-          sx={{
-            p: 4,
-            borderRadius: 4,
-            textAlign: "center",
-            minWidth: 350,
-          }}
-        >
-          <PersonRoundedIcon
-            sx={{
-              fontSize: 70,
-              color: "text.secondary",
-              mb: 2,
-            }}
-          />
-
-          <Typography
-            variant="h5"
-            fontWeight={700}
-            gutterBottom
-          >
+      <Box sx={{ minHeight: "40vh", display: "grid", placeItems: "center" }}>
+        <Paper elevation={0} sx={{ ...cardSx, p: 4, textAlign: "center", minWidth: 320 }}>
+          <PersonRoundedIcon sx={{ fontSize: 56, color: meridian.textSecondary, mb: 1 }} />
+          <Typography sx={{ fontWeight: 700, color: meridian.textPrimary }}>
             Patient Not Found
           </Typography>
-
-          <Typography color="text.secondary">
-            No patient exists with ID
-            <br />
-            <b>{patientId}</b>
+          <Typography sx={{ mt: 1, color: meridian.textSecondary, fontSize: "0.875rem" }}>
+            No patient exists with ID <b>{patientId}</b>
           </Typography>
-
           <Button
             variant="contained"
             startIcon={<ArrowBackRoundedIcon />}
-            sx={{ mt: 4 }}
-            onClick={() =>
-              router.push("/dashboard/pathology")
-            }
+            sx={{ mt: 3, textTransform: "none", borderRadius: "10px", fontWeight: 600 }}
+            onClick={() => router.push("/lab/dashboard")}
           >
             Back to Dashboard
           </Button>
-        </Card>
+        </Paper>
       </Box>
     );
   }
 
-  /**
-   * Status Colors
-   */
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "VERIFIED":
-        return "success";
-
-      case "PROCESSING":
-        return "warning";
-
-      case "QUEUE":
-        return "info";
-
-      case "COLLECTED":
-        return "secondary";
-
-      case "READY":
-        return "primary";
-
-      default:
-        return "default";
-    }
-  };
-
-  /**
-   * Statistics
-   */
-  const totalTests = visits.reduce(
-    (sum, visit) => sum + visit.requestedTests.length,
-    0
-  );
-
-  const latestVisit =
-    [...visits].sort(
-      (a, b) =>
-        new Date(b.order.orderedAt).getTime() -
-        new Date(a.order.orderedAt).getTime()
-    )[0];
+  const totalTests = visits.reduce((sum, visit) => sum + visit.requestedTests.length, 0);
+  const latestVisit = [...visits].sort(
+    (a, b) => new Date(b.order.orderedAt).getTime() - new Date(a.order.orderedAt).getTime(),
+  )[0];
 
   return (
-    <Box p={4}>
-    {/* ================= HEADER ================= */}
-
-<Stack
-  direction={{ xs: "column", md: "row" }}
-  justifyContent="space-between"
-  alignItems={{ xs: "flex-start", md: "center" }}
-  spacing={2}
-  mb={4}
->
-  <Stack direction="row" spacing={2} alignItems="center">
-    <Button
-      startIcon={<ArrowBackRoundedIcon />}
-      variant="outlined"
-      onClick={() => router.back()}
-    >
-      Back
-    </Button>
-
-    <Typography variant="h4" fontWeight={700}>
-      Patient Profile
-    </Typography>
-  </Stack>
-
-  <Chip
-    label={patient.status}
-    color={getStatusColor(patient.status) as any}
-    sx={{
-      fontWeight: 700,
-      px: 1,
-    }}
-  />
-</Stack>
-
-{/* ================= PATIENT CARD ================= */}
-
-<Card
-  elevation={3}
-  sx={{
-    borderRadius: 4,
-    mb: 4,
-  }}
->
-  <CardContent>
-
-    <Typography
-      variant="h6"
-      fontWeight={700}
-      gutterBottom
-    >
-      Patient Information
-    </Typography>
-
-    <Divider sx={{ mb: 4 }} />
-
-    <Stack
-      direction={{
-        xs: "column",
-        md: "row",
-      }}
-      spacing={4}
-      alignItems={{
-        xs: "center",
-        md: "center",
-      }}
-    >
-
-      <Avatar
+    <Box>
+      <Stack
+        direction={{ xs: "column", md: "row" }}
         sx={{
-          width: 90,
-          height: 90,
-          bgcolor: "primary.main",
-          fontSize: 34,
-          fontWeight: 700,
+          justifyContent: "space-between",
+          alignItems: { xs: "flex-start", md: "center" },
+          gap: 2,
+          mb: 3,
         }}
       >
-        {patient.patient.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .slice(0, 2)}
-      </Avatar>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+          <Button
+            startIcon={<ArrowBackRoundedIcon />}
+            variant="outlined"
+            onClick={() => router.back()}
+            sx={{ textTransform: "none", borderRadius: "10px" }}
+          >
+            Back
+          </Button>
+          <Typography sx={{ fontSize: "1.5rem", fontWeight: 700, color: meridian.textPrimary }}>
+            Patient Profile
+          </Typography>
+        </Stack>
+        <Chip
+          label={patient.status}
+          size="small"
+          sx={{
+            borderRadius: "999px",
+            fontWeight: 700,
+            backgroundColor: "#e8eef5",
+            color: meridian.brandPrimary,
+            border: "1px solid rgb(0 31 84 / 0.14)",
+          }}
+        />
+      </Stack>
 
-      <Box flex={1}>
+      <Paper elevation={0} sx={{ ...cardSx, p: 3, mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, mb: 2, color: meridian.textPrimary }}>
+          Patient Information
+        </Typography>
+        <Divider sx={{ mb: 3, borderColor: "rgb(0 31 84 / 0.08)" }} />
 
-        <Typography
-          variant="h5"
-          fontWeight={700}
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={3}
+          sx={{ alignItems: { xs: "center", md: "center" } }}
         >
-          {patient.patient.name}
-        </Typography>
+          <Avatar
+            sx={{
+              width: 72,
+              height: 72,
+              bgcolor: meridian.brandPrimary,
+              fontWeight: 700,
+            }}
+          >
+            {patient.patient.name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .slice(0, 2)}
+          </Avatar>
 
-        <Typography color="text.secondary">
-          UHID : {patient.patient.uhid}
-        </Typography>
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: "1.25rem", fontWeight: 700, color: meridian.textPrimary }}>
+              {patient.patient.name}
+            </Typography>
+            <Typography sx={{ color: meridian.textSecondary, fontSize: "0.875rem" }}>
+              UHID: {patient.patient.uhid}
+            </Typography>
+            <Typography sx={{ color: meridian.textSecondary, fontSize: "0.875rem" }}>
+              Patient ID: {patient.patient.patientId}
+            </Typography>
+          </Box>
+        </Stack>
 
-        <Typography color="text.secondary">
-          Patient ID : {patient.patient.patientId}
-        </Typography>
+        <Divider sx={{ my: 3, borderColor: "rgb(0 31 84 / 0.08)" }} />
 
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          useFlexGap
+          sx={{ gap: 4, flexWrap: "wrap" }}
+        >
+          {[
+            ["Age", `${patient.patient.age} Years`],
+            ["Gender", patient.patient.gender],
+            ["Mobile", patient.patient.mobile],
+            ["Doctor", patient.doctor.name],
+            ["Department", patient.doctor.department],
+          ].map(([label, value]) => (
+            <Box key={label}>
+              <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>
+                {label}
+              </Typography>
+              <Typography sx={{ fontWeight: 700, color: meridian.textPrimary }}>{value}</Typography>
+            </Box>
+          ))}
+        </Stack>
+      </Paper>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "repeat(4, 1fr)" },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <MetricCard label="Total Visits" value={visits.length} size="sm" />
+        <MetricCard label="Total Tests" value={totalTests} size="sm" />
+        <MetricCard label="Latest Visit" value={latestVisit.visit.visitId} size="sm" />
+        <MetricCard label="Current Status" value={patient.status} size="sm" />
       </Box>
 
-      <Chip
-        label={patient.status}
-        color={getStatusColor(patient.status) as any}
-      />
-
-    </Stack>
-
-    <Divider sx={{ my: 4 }} />
-
-    <Stack
-      direction={{
-        xs: "column",
-        md: "row",
-      }}
-      spacing={6}
-      flexWrap="wrap"
-      useFlexGap
-    >
-
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Age
+      <Paper elevation={0} sx={{ ...cardSx, p: 3 }}>
+        <Typography sx={{ fontWeight: 700, mb: 2, color: meridian.textPrimary }}>
+          Recent Visits
         </Typography>
+        <Divider sx={{ mb: 2, borderColor: "rgb(0 31 84 / 0.08)" }} />
 
-        <Typography fontWeight={700}>
-          {patient.patient.age} Years
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Gender
-        </Typography>
-
-        <Typography fontWeight={700}>
-          {patient.patient.gender}
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Mobile
-        </Typography>
-
-        <Typography fontWeight={700}>
-          {patient.patient.mobile}
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Current Doctor
-        </Typography>
-
-        <Typography fontWeight={700}>
-          {patient.doctor.name}
-        </Typography>
-      </Box>
-
-      <Box>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Department
-        </Typography>
-
-        <Typography fontWeight={700}>
-          {patient.doctor.department}
-        </Typography>
-      </Box>
-
-    </Stack>
-
-  </CardContent>
-</Card>
-
-{/* ================= SUMMARY ================= */}
-
-<Stack
-  direction={{
-    xs: "column",
-    md: "row",
-  }}
-  spacing={3}
-  mb={4}
->
-
-  <Card
-    sx={{
-      flex: 1,
-      borderRadius: 4,
-    }}
-  >
-    <CardContent>
-
-      <Typography
-        color="text.secondary"
-        variant="body2"
-      >
-        Total Visits
-      </Typography>
-
-      <Typography
-        variant="h3"
-        fontWeight={700}
-      >
-        {visits.length}
-      </Typography>
-
-    </CardContent>
-  </Card>
-
-  <Card
-    sx={{
-      flex: 1,
-      borderRadius: 4,
-    }}
-  >
-    <CardContent>
-
-      <Typography
-        color="text.secondary"
-        variant="body2"
-      >
-        Total Tests
-      </Typography>
-
-      <Typography
-        variant="h3"
-        fontWeight={700}
-      >
-        {totalTests}
-      </Typography>
-
-    </CardContent>
-  </Card>
-
-  <Card
-    sx={{
-      flex: 1,
-      borderRadius: 4,
-    }}
-  >
-    <CardContent>
-
-      <Typography
-        color="text.secondary"
-        variant="body2"
-      >
-        Latest Visit
-      </Typography>
-
-      <Typography
-        variant="h6"
-        fontWeight={700}
-      >
-        {latestVisit.visit.visitId}
-      </Typography>
-
-      <Typography
-        variant="body2"
-        color="text.secondary"
-      >
-        {new Date(
-          latestVisit.order.orderedAt
-        ).toLocaleDateString()}
-      </Typography>
-
-    </CardContent>
-  </Card>
-
-  <Card
-    sx={{
-      flex: 1,
-      borderRadius: 4,
-    }}
-  >
-    <CardContent>
-
-      <Typography
-        color="text.secondary"
-        variant="body2"
-      >
-        Current Status
-      </Typography>
-
-      <Chip
-        sx={{ mt: 2 }}
-        label={patient.status}
-        color={getStatusColor(patient.status) as any}
-      />
-
-    </CardContent>
-  </Card>
-
-</Stack>
-
-{/* ================= RECENT VISITS ================= */}
-
-<Card
-  elevation={3}
-  sx={{
-    borderRadius: 4,
-  }}
->
-  <CardContent>
-
-    <Typography
-      variant="h6"
-      fontWeight={700}
-      gutterBottom
-    >
-      Recent Visits
-    </Typography>
-
-    <Divider sx={{ mb: 4 }} />
-
-    {visits.length === 0 ? (
-      <Typography
-        color="text.secondary"
-        textAlign="center"
-        py={6}
-      >
-        No previous visits found.
-      </Typography>
-    ) : (
-      <Stack spacing={3}>
-
-        {visits
-          .sort(
-            (a, b) =>
-              new Date(b.order.orderedAt).getTime() -
-              new Date(a.order.orderedAt).getTime()
-          )
-          .map((visit) => (
-            <Card
-              key={visit.visit.visitId}
-              variant="outlined"
-              sx={{
-                borderRadius: 3,
-                transition: "0.25s",
-                "&:hover": {
-                  boxShadow: 4,
-                  transform: "translateY(-2px)",
-                },
-              }}
-            >
-              <CardContent>
-
+        <Stack spacing={2}>
+          {visits
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(b.order.orderedAt).getTime() -
+                new Date(a.order.orderedAt).getTime(),
+            )
+            .map((visit) => (
+              <Paper
+                key={visit.visit.visitId}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  borderRadius: "12px",
+                  borderColor: meridian.border,
+                }}
+              >
                 <Stack
-                  direction={{
-                    xs: "column",
-                    md: "row",
-                  }}
-                  justifyContent="space-between"
-                  spacing={4}
+                  direction={{ xs: "column", md: "row" }}
+                  sx={{ justifyContent: "space-between", gap: 2 }}
                 >
-
-                  {/* Left */}
-
-                  <Box flex={1}>
-
-                    <Stack
-                      direction="row"
-                      spacing={2}
-                      alignItems="center"
-                      mb={2}
-                    >
-                      <Typography
-                        variant="h6"
-                        fontWeight={700}
-                      >
+                  <Box>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1 }}>
+                      <Typography sx={{ fontWeight: 700, color: meridian.textPrimary }}>
                         {visit.visit.visitId}
                       </Typography>
-
-                      <Chip
-                        size="small"
-                        label={visit.visit.visitType}
-                      />
+                      <Chip size="small" label={visit.visit.visitType} sx={{ borderRadius: "8px" }} />
                     </Stack>
-
-                    <Typography
-                      color="text.secondary"
-                    >
-                      Doctor : {visit.doctor.name}
+                    <Typography sx={{ fontSize: "0.875rem", color: meridian.textSecondary }}>
+                      Doctor: {visit.doctor.name}
                     </Typography>
-
-                    <Typography
-                      color="text.secondary"
-                    >
-                      Department : {visit.doctor.department}
-                    </Typography>
-
-                    <Typography
-                      color="text.secondary"
-                      sx={{ mt: 2 }}
-                    >
-                      Requested Tests
-                    </Typography>
-
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      mt={1}
-                      useFlexGap
-                      flexWrap="wrap"
-                    >
-                      {visit.requestedTests.map(
-                        (test) => (
-                          <Chip
-                            key={test}
-                            label={test}
-                            size="small"
-                            variant="outlined"
-                          />
-                        )
-                      )}
+                    <Stack direction="row" useFlexGap sx={{ gap: 1, mt: 1, flexWrap: "wrap" }}>
+                      {visit.requestedTests.map((test) => (
+                        <Chip
+                          key={test}
+                          size="small"
+                          label={test}
+                          variant="outlined"
+                          sx={{ borderRadius: "8px", borderColor: meridian.border }}
+                        />
+                      ))}
                     </Stack>
-
                   </Box>
-
-                  {/* Right */}
-
-                  <Stack
-                    spacing={2}
-                    alignItems={{
-                      xs: "flex-start",
-                      md: "flex-end",
-                    }}
-                  >
-
-                    <Typography
-                      color="text.secondary"
-                    >
-                      <CalendarMonthRoundedIcon
-                        fontSize="small"
-                        sx={{
-                          mr: 1,
-                          verticalAlign: "middle",
-                        }}
-                      />
-
-                      {new Date(
-                        visit.order.orderedAt
-                      ).toLocaleString()}
+                  <Stack spacing={1} sx={{ alignItems: { xs: "flex-start", md: "flex-end" } }}>
+                    <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
+                      {new Date(visit.order.orderedAt).toLocaleString()}
                     </Typography>
-
                     <Chip
+                      size="small"
                       label={visit.status}
-                      color={
-                        getStatusColor(
-                          visit.status
-                        ) as any
-                      }
+                      sx={{
+                        borderRadius: "999px",
+                        fontWeight: 600,
+                        backgroundColor: "#e8eef5",
+                        color: meridian.brandPrimary,
+                      }}
                     />
-
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                    >
-                      Priority :
-                      <strong>
-                        {" "}
-                        {visit.order.priority}
-                      </strong>
-                    </Typography>
-
-                    <Button
-                      variant="contained"
-                      startIcon={
-                        <VisibilityRoundedIcon />
-                      }
-                      onClick={() =>
-                        router.push(
-                          `/dashboard/pathology/visit/${visit.visit.visitId}`
-                        )
-                      }
-                    >
-                      View Details
-                    </Button>
-
                   </Stack>
-
                 </Stack>
-
-              </CardContent>
-            </Card>
-          ))}
-
-      </Stack>
-    )}
-
-  </CardContent>
-</Card>
-
-</Box>
-);
+              </Paper>
+            ))}
+        </Stack>
+      </Paper>
+    </Box>
+  );
 }

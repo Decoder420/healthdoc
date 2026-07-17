@@ -1,56 +1,32 @@
 "use client";
 
-import { PieChart } from "@mui/x-charts/PieChart";
+import { Cell, Pie, PieChart, Tooltip } from "recharts";
+
+import { ChartWrapper } from "@/components/ui";
+import { meridian } from "@/styles/theme";
 
 const lowStockData = [
-  {
-    id: 0,
-    value: 18,
-    label: "Medicines",
-  },
-  {
-    id: 1,
-    value: 10,
-    label: "Consumables",
-  },
-  {
-    id: 2,
-    value: 7,
-    label: "Equipment",
-  },
-  {
-    id: 3,
-    value: 5,
-    label: "Surgical Items",
-  },
+  { name: "Medicines", value: 18, fill: meridian.brandPrimary },
+  { name: "Consumables", value: 10, fill: "#3B82F6" },
+  { name: "Equipment", value: 7, fill: meridian.warning },
+  { name: "Surgical Items", value: 5, fill: meridian.danger },
 ];
 
 export default function LowStockCategoryChart() {
   return (
-    <div className="chart-card">
-      <h2 className="chart-title">
-        Low Stock Categories
-      </h2>
-
-      <p className="dashboard-subtitle">
-        Distribution of items below reorder level
-      </p>
-
-      <div className="chart-body flex justify-center">
-        <PieChart
-          height={240}
-          width={360}
-          series={[
-            {
-              data: lowStockData,
-              innerRadius: 65,
-              outerRadius: 100,
-              paddingAngle: 3,
-              cornerRadius: 5,
-            },
-          ]}
-        />
-      </div>
-    </div>
+    <ChartWrapper
+      title="Low Stock Categories"
+      description="Distribution of items below reorder level"
+      height={240}
+    >
+      <PieChart>
+        <Pie data={lowStockData} dataKey="value" nameKey="name" outerRadius={80} paddingAngle={3}>
+          {lowStockData.map((entry) => (
+            <Cell key={entry.name} fill={entry.fill} />
+          ))}
+        </Pie>
+        <Tooltip />
+      </PieChart>
+    </ChartWrapper>
   );
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import Button from "@mui/material/Button";
-import { Stack } from "@mui/material";
+import Stack from "@mui/material/Stack";
 
 import StatusChip from "./StatusChip";
-import { WorkflowStatusStepperProps } from "./types";
+import { workflowActionButtonSx } from "./StatusActionMenu";
+import type { WorkflowStatusStepperProps } from "./types";
+import { meridian } from "@/styles/theme";
 
 export default function WorkflowStatusStepper({
   currentStatus,
@@ -15,43 +17,29 @@ export default function WorkflowStatusStepper({
   buttonText,
   actions,
 }: WorkflowStatusStepperProps) {
-  // Find current status configuration
-  const currentStep = workflow.find(
-    (step) => step.value === currentStatus
-  );
+  const currentStep = workflow.find((step) => step.value === currentStatus);
 
-  // Find next status using workflow config
   const nextStep = currentStep?.next
-    ? workflow.find(
-        (step) => step.value === currentStep.next
-      )
+    ? workflow.find((step) => step.value === currentStep.next)
     : undefined;
 
-  // Don't show next button for terminal statuses
   const showNextButton =
-    showButton &&
-    !disabled &&
-    !currentStep?.terminal &&
-    !!nextStep;
+    showButton && !disabled && !currentStep?.terminal && !!nextStep;
 
   return (
     <Stack
-  spacing={2}
-  sx={{
-    alignItems: "center",
-  }}
->
-      {/* Current Status */}
-      <StatusChip
-        status={currentStatus}
-        workflow={workflow}
-      />
+      spacing={1.25}
+      sx={{
+        alignItems: "center",
+      }}
+    >
+      <StatusChip status={currentStatus} workflow={workflow} />
 
-      {/* Next Status Button */}
       {showNextButton && (
         <Button
-          variant="contained"
+          variant="outlined"
           size="small"
+          color="primary"
           onClick={() =>
             onStatusChange({
               from: currentStatus,
@@ -59,15 +47,19 @@ export default function WorkflowStatusStepper({
             })
           }
           sx={{
-            borderRadius: "999px",
-            textTransform: "none",
+            ...workflowActionButtonSx,
+            color: meridian.brandPrimary,
+            "&:hover": {
+              borderColor: meridian.brandPrimary,
+              backgroundColor: meridian.muted,
+              boxShadow: "0 4px 12px rgb(0 31 84 / 0.08)",
+            },
           }}
         >
           {buttonText ?? `Mark ${nextStep.label}`}
         </Button>
       )}
 
-      {/* Custom actions (Accept, Reject, Cancel, etc.) */}
       {actions}
     </Stack>
   );

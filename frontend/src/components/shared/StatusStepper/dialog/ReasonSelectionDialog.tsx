@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
-import {
-  Button,
-  ButtonProps,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Modal } from "@/components/ui/Modal";
+import { meridian } from "@/styles/theme";
 
 export interface ReasonOption {
   label: string;
@@ -21,41 +16,20 @@ export interface ReasonOption {
 
 interface ReasonSelectionDialogProps {
   open: boolean;
-
   title: string;
-
   label?: string;
-
   reasons: ReasonOption[];
-
   defaultValue?: string;
-
   loading?: boolean;
-
   confirmText?: string;
-
   cancelText?: string;
-
   confirmColor?: ButtonProps["color"];
-
-  /** Optional helper text shown below the dropdown */
   helperText?: string;
-
-  /** Show remarks field */
   showRemarks?: boolean;
-
-  /** Default remarks value */
   defaultRemarks?: string;
-
-  /** Remarks label */
   remarksLabel?: string;
-
   onClose: () => void;
-
-  onConfirm: (data: {
-    reason: string;
-    remarks?: string;
-  }) => void;
+  onConfirm: (data: { reason: string; remarks?: string }) => void;
 }
 
 export default function ReasonSelectionDialog({
@@ -86,88 +60,71 @@ export default function ReasonSelectionDialog({
   }, [open, defaultValue, defaultRemarks]);
 
   return (
-    <Dialog
+    <Modal
       open={open}
       onClose={onClose}
-      fullWidth
-      maxWidth="sm"
-    >
-      <DialogTitle>{title}</DialogTitle>
-
-      <DialogContent dividers>
-        <TextField
-          select
-          fullWidth
-          margin="normal"
-          label={label}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        >
-          {reasons.map((item) => (
-            <MenuItem
-              key={item.value}
-              value={item.value}
-            >
-              {item.label}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        {helperText && (
-          <Typography
-            variant="caption"
-            color="text.secondary"
+      title={title}
+      size="sm"
+      loading={loading}
+      actions={
+        <>
+          <Button
+            variant="outlined"
+            onClick={onClose}
+            disabled={loading}
+            sx={{ textTransform: "none", borderRadius: "10px" }}
           >
-            {helperText}
-          </Typography>
-        )}
-
-        {showRemarks && (
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            margin="normal"
-            label={remarksLabel}
-            value={remarks}
-            onChange={(e) =>
-              setRemarks(e.target.value)
+            {cancelText}
+          </Button>
+          <Button
+            variant="contained"
+            color={confirmColor}
+            disabled={!reason || loading}
+            onClick={() =>
+              onConfirm({
+                reason,
+                remarks: showRemarks ? remarks : undefined,
+              })
             }
-          />
-        )}
-      </DialogContent>
+            sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 600 }}
+          >
+            {confirmText}
+          </Button>
+        </>
+      }
+    >
+      <TextField
+        select
+        fullWidth
+        margin="normal"
+        label={label}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      >
+        {reasons.map((item) => (
+          <MenuItem key={item.value} value={item.value}>
+            {item.label}
+          </MenuItem>
+        ))}
+      </TextField>
 
-      <DialogActions>
-        <Button
-          variant="outlined"
-          onClick={onClose}
-          disabled={loading}
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {cancelText}
-        </Button>
+      {helperText ? (
+        <Typography variant="caption" sx={{ color: meridian.textSecondary }}>
+          {helperText}
+        </Typography>
+      ) : null}
 
-        <Button
-          variant="contained"
-          color={confirmColor}
-          disabled={!reason || loading}
-          onClick={() =>
-            onConfirm({
-              reason,
-              remarks: showRemarks
-                ? remarks
-                : undefined,
-            })
-          }
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {confirmText}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      {showRemarks ? (
+        <TextField
+          fullWidth
+          multiline
+          minRows={3}
+          margin="normal"
+          label={remarksLabel}
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+        />
+      ) : null}
+    </Modal>
   );
 }

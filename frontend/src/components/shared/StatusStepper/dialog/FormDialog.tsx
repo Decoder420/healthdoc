@@ -1,37 +1,21 @@
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
+import Button, { type ButtonProps } from "@mui/material/Button";
 
-import {
-  Button,
-  ButtonProps,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-} from "@mui/material";
+import { Modal } from "@/components/ui/Modal";
 
 interface FormDialogProps {
   open: boolean;
-
   title: string;
-
   children: ReactNode;
-
   maxWidth?: "xs" | "sm" | "md" | "lg" | "xl";
-
   loading?: boolean;
-
   saveText?: string;
-
   cancelText?: string;
-
   saveColor?: ButtonProps["color"];
-
   disableSave?: boolean;
-
   onClose: () => void;
-
   onSave: () => void;
 }
 
@@ -49,46 +33,35 @@ export default function FormDialog({
   onSave,
 }: FormDialogProps) {
   return (
-    <Dialog
+    <Modal
       open={open}
-      fullWidth
-      maxWidth={maxWidth}
-      onClose={() => {
-        if (!loading) {
-          onClose();
-        }
-      }}
+      onClose={onClose}
+      title={title}
+      size={maxWidth}
+      loading={loading}
+      actions={
+        <>
+          <Button
+            variant="outlined"
+            onClick={onClose}
+            disabled={loading}
+            sx={{ textTransform: "none", borderRadius: "10px" }}
+          >
+            {cancelText}
+          </Button>
+          <Button
+            variant="contained"
+            color={saveColor}
+            disabled={disableSave || loading}
+            onClick={onSave}
+            sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 600 }}
+          >
+            {saveText}
+          </Button>
+        </>
+      }
     >
-      <DialogTitle>{title}</DialogTitle>
-
-      <DialogContent dividers>
-        {children}
-      </DialogContent>
-
-      <DialogActions>
-        <Button
-          variant="outlined"
-          onClick={onClose}
-          disabled={loading}
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {cancelText}
-        </Button>
-
-        <Button
-          variant="contained"
-          color={saveColor}
-          disabled={disableSave || loading}
-          onClick={onSave}
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {saveText}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      {children}
+    </Modal>
   );
 }

@@ -19,6 +19,11 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -36,10 +41,6 @@ import StockLevelBadge from "@/components/ui/StockLevelBadge";
 import ExpiryChip from "@/components/ui/ExpiryChip";
 import FEFOIndicator from "@/components/ui/FEFOindicator";
 import LabCalendar from "@/components/ui/Lab_Calendar";
-import DynamicCard from "@/components/ui/Lab_KpiCards";
-import PatientLineChart from "@/components/ui/Lab_LineCharts";
-import GenderPieChart from "@/components/ui/Lab_GenderPieChart";
-import UrgencyPieChart from "@/components/ui/Lab_Urgency_Pi_Chart";
 import PatientInfo from "@/components/ui/PatientInfo";
 import PathologyQueueClient from "@/components/ui/lab_queue/LabQueue";
 import { pathologyWorkflow } from "@/components/ui/lab_queue/LabWorkFlow";
@@ -63,6 +64,11 @@ import type {
   StatusChangePayload,
   WorkflowAction,
 } from "@/components/shared/StatusStepper/types";
+import {
+  buildGenderCounts,
+  buildHourlyPatientBuckets,
+  buildPriorityCounts,
+} from "@/lib/lab_chart_data";
 import { patients as labPatients } from "@/lib/mock/lab_data";
 import { meridian } from "@/styles/theme";
 
@@ -98,12 +104,7 @@ const beds: Bed[] = [
     status: "Occupied",
     wardName: "ICU",
   },
-  {
-    id: "b2",
-    bedNumber: "ICU-02",
-    status: "Vacant",
-    wardName: "ICU",
-  },
+  { id: "b2", bedNumber: "ICU-02", status: "Vacant", wardName: "ICU" },
   {
     id: "b3",
     bedNumber: "GW-12",
@@ -111,18 +112,8 @@ const beds: Bed[] = [
     status: "Occupied",
     wardName: "General",
   },
-  {
-    id: "b4",
-    bedNumber: "GW-13",
-    status: "Cleaning",
-    wardName: "General",
-  },
-  {
-    id: "b5",
-    bedNumber: "PR-03",
-    status: "Reserved",
-    wardName: "Private",
-  },
+  { id: "b4", bedNumber: "GW-13", status: "Cleaning", wardName: "General" },
+  { id: "b5", bedNumber: "PR-03", status: "Reserved", wardName: "Private" },
 ];
 
 const vitals: VitalRecord[] = [
@@ -213,13 +204,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 1.75,
-      }}
-    >
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.75 }}>
       <Box>
         <Typography
           sx={{
@@ -261,6 +246,13 @@ export function SharedUiPreview() {
   const [formOpen, setFormOpen] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [formNote, setFormNote] = useState("");
+
+  const hourly = useMemo(
+    () => buildHourlyPatientBuckets(labPatients),
+    [],
+  );
+  const gender = useMemo(() => buildGenderCounts(labPatients), []);
+  const priority = useMemo(() => buildPriorityCounts(labPatients), []);
 
   const columns = useMemo<DataTableColumn<InvoiceRow>[]>(
     () => [
@@ -345,15 +337,11 @@ export function SharedUiPreview() {
         </Typography>
       </Box>
 
-      <Section title="MetricCard" description="KPI tiles with delta / icon">
+      <Section title="MetricCard" description="Canonical KPI tiles">
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              md: "1fr 1fr 1fr",
-            },
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "1fr 1fr 1fr" },
             gap: 2,
           }}
         >
@@ -387,7 +375,7 @@ export function SharedUiPreview() {
           actions={
             <ExportButton
               onExport={async (format) => {
-                toast.info(`Export requested`, `Format: ${format.toUpperCase()}`);
+                toast.info("Export requested", `Format: ${format.toUpperCase()}`);
               }}
             />
           }
@@ -400,13 +388,7 @@ export function SharedUiPreview() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="4 6" vertical={false} />
-            <XAxis
-              dataKey="day"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={10}
-              interval={0}
-            />
+            <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={10} interval={0} />
             <YAxis
               tickLine={false}
               axisLine={false}
@@ -429,12 +411,7 @@ export function SharedUiPreview() {
       </Section>
 
       <Section title="Badge + StatusChip">
-        <Stack
-          direction="row"
-          useFlexGap
-          spacing={1.25}
-          sx={{ gap: 1.25, flexWrap: "wrap" }}
-        >
+        <Stack direction="row" useFlexGap spacing={1.25} sx={{ gap: 1.25, flexWrap: "wrap" }}>
           <Badge>New</Badge>
           <Badge variant="secondary">Secondary</Badge>
           <Badge variant="success">Success</Badge>
@@ -448,10 +425,7 @@ export function SharedUiPreview() {
         </Stack>
       </Section>
 
-      <Section
-        title="Inventory chips"
-        description="StockLevelBadge, ExpiryChip, FEFOIndicator"
-      >
+      <Section title="Inventory chips" description="StockLevelBadge, ExpiryChip, FEFOIndicator">
         <Stack
           direction="row"
           useFlexGap
@@ -475,12 +449,7 @@ export function SharedUiPreview() {
       </Section>
 
       <Section title="Modal + Toast">
-        <Stack
-          direction="row"
-          useFlexGap
-          spacing={1.25}
-          sx={{ gap: 1.25, flexWrap: "wrap" }}
-        >
+        <Stack direction="row" useFlexGap spacing={1.25} sx={{ gap: 1.25, flexWrap: "wrap" }}>
           <Button variant="contained" onClick={() => setModalOpen(true)}>
             Open Modal
           </Button>
@@ -583,10 +552,7 @@ export function SharedUiPreview() {
         </Stack>
       </Section>
 
-      <Section
-        title="StatusStepper dialogs"
-        description="Confirmation, Reason, Form, Decision"
-      >
+      <Section title="StatusStepper dialogs" description="Confirmation, Reason, Form, Decision via Modal">
         <Stack direction="row" useFlexGap spacing={1.25} sx={{ gap: 1.25, flexWrap: "wrap" }}>
           <Button variant="outlined" onClick={() => setConfirmOpen(true)}>
             ConfirmationDialog
@@ -676,7 +642,10 @@ export function SharedUiPreview() {
         <LabCalendar value={calendarDate} onChange={setCalendarDate} />
       </Section>
 
-      <Section title="Lab KPI + charts" description="DynamicCard, line + pie charts from mock lab data">
+      <Section
+        title="Lab KPI + charts"
+        description="MetricCard + ChartWrapper (replaces deleted Lab_KpiCards / Chart.js files)"
+      >
         <Box
           sx={{
             display: "grid",
@@ -685,42 +654,71 @@ export function SharedUiPreview() {
             mb: 2,
           }}
         >
-          <DynamicCard
-            title="Samples today"
-            text={String(labPatients.length)}
-            icon={<ScienceOutlinedIcon fontSize="large" />}
+          <MetricCard
+            label="Samples today"
+            value={String(labPatients.length)}
+            icon={<ScienceOutlinedIcon />}
+            size="sm"
           />
-          <DynamicCard title="Verified" text="12" linkText="View" linkHref="/lab/dashboard" />
-          <DynamicCard title="Pending" text="8" />
+          <MetricCard label="Verified" value="12" size="sm" />
+          <MetricCard label="Pending" value="8" size="sm" />
         </Box>
         <Box
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1.4fr 1fr 1fr" },
             gap: 2,
-            alignItems: "center",
           }}
         >
-          <PatientLineChart patients={labPatients as never} />
-          <GenderPieChart patients={labPatients as never} />
-          <UrgencyPieChart patients={labPatients as never} />
+          <ChartWrapper title="Patients by hour" height={240}>
+            <LineChart data={hourly} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="4 6" vertical={false} />
+              <XAxis dataKey="slot" interval={5} tickLine={false} axisLine={false} />
+              <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke={meridian.brandPrimary}
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ChartWrapper>
+          <ChartWrapper title="Gender mix" height={240} empty={gender.length === 0}>
+            <PieChart>
+              <Pie data={gender} dataKey="value" nameKey="name" outerRadius={70}>
+                {gender.map((entry) => (
+                  <Cell key={entry.name} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ChartWrapper>
+          <ChartWrapper title="Priority mix" height={240} empty={priority.length === 0}>
+            <PieChart>
+              <Pie data={priority} dataKey="value" nameKey="name" outerRadius={70}>
+                {priority.map((entry) => (
+                  <Cell key={entry.name} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ChartWrapper>
         </Box>
       </Section>
 
-      <Section
-        title="Lab queue"
-        description="PathologyQueueClient + PatientQueueTable with StatusStepper"
-      >
+      <Section title="Lab queue" description="PathologyQueueClient + PatientQueueTable">
         <PathologyQueueClient initialPatients={queuePatients as never} />
       </Section>
 
       <Section title="PatientInfo" description="Uses mock lab patient P006">
         <Box
           sx={{
-            border: "1px solid rgb(0 31 84 / 0.08)",
-            borderRadius: 2,
+            border: `1px solid ${meridian.border}`,
+            borderRadius: "16px",
             overflow: "hidden",
-            "& > div": { p: { xs: 2, md: 3 } },
+            p: { xs: 2, md: 3 },
           }}
         >
           <PatientInfo patientId="P006" />

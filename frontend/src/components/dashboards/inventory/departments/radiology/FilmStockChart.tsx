@@ -1,52 +1,39 @@
 "use client";
 
-import { PieChart } from "@mui/x-charts/PieChart";
+import { Cell, Pie, PieChart, Tooltip } from "recharts";
+
+import { ChartWrapper } from "@/components/ui";
+import { meridian } from "@/styles/theme";
 
 const filmData = [
-  { id: 0, value: 140, label: "8×10 Film" },
-  { id: 1, value: 110, label: "10×12 Film" },
-  { id: 2, value: 80, label: "14×17 Film" },
-  { id: 3, value: 60, label: "Laser Film" },
+  { name: "8×10 Film", value: 140, fill: meridian.brandPrimary },
+  { name: "10×12 Film", value: 110, fill: "#3B82F6" },
+  { name: "14×17 Film", value: 80, fill: "#64748b" },
+  { name: "Laser Film", value: 60, fill: "#94a3b8" },
 ];
 
 export default function FilmStockChart() {
   return (
-    <div className="surface-card p-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          X-Ray Film Stock
-        </h2>
-
-        <p className="mt-1 text-sm text-muted-foreground">
-          Distribution of film inventory by size
-        </p>
-      </div>
-
-      {/* Chart */}
-      <div className="mt-6 flex justify-center overflow-x-auto">
-        <PieChart
-          width={360}
-          height={240}
-          series={[
-            {
-              data: filmData,
-              innerRadius: 65,
-              outerRadius: 100,
-              paddingAngle: 3,
-              cornerRadius: 4,
-            },
-          ]}
-          sx={{
-            "& .MuiChartsLegend-label": {
-              fill: "var(--foreground)",
-            },
-            "& .MuiChartsLegend-mark": {
-              stroke: "none",
-            },
-          }}
-        />
-      </div>
-    </div>
+    <ChartWrapper
+      title="X-Ray Film Stock"
+      description="Distribution of film inventory by size"
+      height={260}
+    >
+      <PieChart>
+        <Pie
+          data={filmData}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={60}
+          outerRadius={90}
+          paddingAngle={3}
+        >
+          {filmData.map((entry) => (
+            <Cell key={entry.name} fill={entry.fill} />
+          ))}
+        </Pie>
+        <Tooltip />
+      </PieChart>
+    </ChartWrapper>
   );
 }

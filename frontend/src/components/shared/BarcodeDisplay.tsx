@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
-import React, { memo } from 'react';
-import Barcode from 'react-barcode';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import { memo } from "react";
+import Barcode from "react-barcode";
+import Box from "@mui/material/Box";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
 
+import { meridian } from "@/styles/theme";
 
 interface BarcodeDisplayProps {
   value: string;
@@ -20,32 +22,48 @@ function BarcodeDisplay({
   width = 2,
   height = 80,
   displayValue = true,
-  lineColor = '#000000',
-  background = '#FFFFFF',
+  lineColor = meridian.brandPrimary,
+  background = meridian.surface,
 }: BarcodeDisplayProps) {
   if (!value.trim()) {
     return (
-      <Typography color="error" variant="body2">
+      <Typography sx={{ color: meridian.danger, fontSize: "0.875rem" }}>
         Barcode value is required.
       </Typography>
     );
   }
 
   return (
-    <Box
-        role="img"
+    <Paper
+      elevation={0}
+      role="img"
       aria-label={`Barcode for ${value}`}
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 2,
+        borderRadius: "16px",
+        border: `1px solid ${meridian.border}`,
+        background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
+        boxShadow:
+          "0 1px 2px rgb(0 31 84 / 0.04), 0 8px 24px rgb(0 31 84 / 0.06)",
+      }}
     >
-      <Barcode
-        value={value}
-        format="CODE128"
-        width={width}
-        height={height}
-        displayValue={displayValue}
-        lineColor={lineColor}
-        background={background}
-      />
-    </Box>
+      <Box>
+        <Barcode
+          value={value}
+          format="CODE128"
+          width={width}
+          height={height}
+          displayValue={displayValue}
+          lineColor={lineColor}
+          background={background}
+          font="IBM Plex Mono"
+          fontSize={13}
+        />
+      </Box>
+    </Paper>
   );
 }
 

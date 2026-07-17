@@ -3,7 +3,8 @@
 import Alert from "@mui/material/Alert";
 import Typography from "@mui/material/Typography";
 
-import { StatusStep } from "./types";
+import { meridian } from "@/styles/theme";
+import type { StatusStep } from "./types";
 
 interface StatusAlertProps {
   status: string;
@@ -16,9 +17,7 @@ export default function StatusAlert({
   workflow,
   reason,
 }: StatusAlertProps) {
-  const currentStatus = workflow.find(
-    (step) => step.value === status
-  );
+  const currentStatus = workflow.find((step) => step.value === status);
 
   if (!currentStatus?.alert) {
     return null;
@@ -32,19 +31,19 @@ export default function StatusAlert({
         alignItems: "center",
         justifyContent: "center",
         width: "fit-content",
-        maxWidth: 220,
+        maxWidth: 260,
         minHeight: 32,
-        px: 1,
+        px: 1.25,
         py: 0.5,
         mx: "auto",
-        borderRadius: 2,
-
+        borderRadius: "12px",
+        border: `1px solid ${meridian.border}`,
+        boxShadow: "0 1px 2px rgb(0 31 84 / 0.04)",
         "& .MuiAlert-icon": {
           alignSelf: "center",
           mr: 0.75,
           fontSize: 18,
         },
-
         "& .MuiAlert-message": {
           width: "100%",
           py: 0,
@@ -60,12 +59,13 @@ export default function StatusAlert({
           textAlign: "center",
           fontWeight: 600,
           lineHeight: 1.3,
+          color: meridian.textPrimary,
         }}
       >
         {currentStatus.alert.message}
       </Typography>
 
-      {reason && (
+      {reason ? (
         <Typography
           variant="caption"
           sx={{
@@ -74,11 +74,12 @@ export default function StatusAlert({
             mt: 0.5,
             textAlign: "center",
             lineHeight: 1.3,
+            color: meridian.textSecondary,
           }}
         >
           Reason: {reason}
         </Typography>
-      )}
+      ) : null}
     </Alert>
   );
 }

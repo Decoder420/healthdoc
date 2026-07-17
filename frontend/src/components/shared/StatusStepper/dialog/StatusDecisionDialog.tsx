@@ -1,19 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import Typography from "@mui/material/Typography";
 
-import {
-  Button,
-  ButtonProps,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
-  Typography,
-} from "@mui/material";
+import { Modal } from "@/components/ui/Modal";
+import { meridian } from "@/styles/theme";
 
 export interface DecisionOption {
   label: string;
@@ -22,25 +17,15 @@ export interface DecisionOption {
 
 interface StatusDecisionDialogProps {
   open: boolean;
-
   title: string;
-
   description?: string;
-
   options: DecisionOption[];
-
   defaultValue?: string;
-
   loading?: boolean;
-
   confirmText?: string;
-
   cancelText?: string;
-
   confirmColor?: ButtonProps["color"];
-
   onClose: () => void;
-
   onConfirm: (value: string) => void;
 }
 
@@ -57,8 +42,7 @@ export default function StatusDecisionDialog({
   onClose,
   onConfirm,
 }: StatusDecisionDialogProps) {
-  const [selected, setSelected] =
-    useState(defaultValue);
+  const [selected, setSelected] = useState(defaultValue);
 
   useEffect(() => {
     if (open) {
@@ -67,72 +51,52 @@ export default function StatusDecisionDialog({
   }, [open, defaultValue]);
 
   return (
-    <Dialog
+    <Modal
       open={open}
-      fullWidth
-      maxWidth="xs"
-      onClose={() => {
-        if (!loading) {
-          onClose();
-        }
-      }}
-    >
-      <DialogTitle>{title}</DialogTitle>
-
-      <DialogContent dividers>
-        {description && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mb: 2 }}
+      onClose={onClose}
+      title={title}
+      size="xs"
+      loading={loading}
+      actions={
+        <>
+          <Button
+            variant="outlined"
+            onClick={onClose}
+            disabled={loading}
+            sx={{ textTransform: "none", borderRadius: "10px" }}
           >
-            {description}
-          </Typography>
-        )}
-
-        <RadioGroup
-          value={selected}
-          onChange={(e) =>
-            setSelected(e.target.value)
-          }
+            {cancelText}
+          </Button>
+          <Button
+            variant="contained"
+            color={confirmColor}
+            disabled={!selected || loading}
+            onClick={() => onConfirm(selected)}
+            sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 600 }}
+          >
+            {confirmText}
+          </Button>
+        </>
+      }
+    >
+      {description ? (
+        <Typography
+          sx={{ mb: 2, fontSize: "0.875rem", color: meridian.textSecondary }}
         >
-          {options.map((option) => (
-            <FormControlLabel
-              key={option.value}
-              value={option.value}
-              control={<Radio />}
-              label={option.label}
-            />
-          ))}
-        </RadioGroup>
-      </DialogContent>
+          {description}
+        </Typography>
+      ) : null}
 
-      <DialogActions>
-        <Button
-          variant="outlined"
-          onClick={onClose}
-          disabled={loading}
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {cancelText}
-        </Button>
-
-        <Button
-          variant="contained"
-          color={confirmColor}
-          disabled={!selected || loading}
-          onClick={() =>
-            onConfirm(selected)
-          }
-          sx={{
-            textTransform: "none",
-          }}
-        >
-          {confirmText}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <RadioGroup value={selected} onChange={(e) => setSelected(e.target.value)}>
+        {options.map((option) => (
+          <FormControlLabel
+            key={option.value}
+            value={option.value}
+            control={<Radio />}
+            label={option.label}
+          />
+        ))}
+      </RadioGroup>
+    </Modal>
   );
 }

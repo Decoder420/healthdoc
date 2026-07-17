@@ -3,61 +3,41 @@
 import { useState } from "react";
 
 import PatientQueueTable, {
-  PatientData,
+  type PatientData,
 } from "@/components/ui/lab_queue/PatientQueueTable";
-
-import {
+import type {
   StatusChangePayload,
   WorkflowAction,
 } from "@/components/shared/StatusStepper/types";
-
 import ConfirmationDialog from "@/components/shared/StatusStepper/dialog/ConfirmationDialog";
 import ReasonSelectionDialog, {
-  ReasonOption,
+  type ReasonOption,
 } from "@/components/shared/StatusStepper/dialog/ReasonSelectionDialog";
+import { toast } from "@/components/ui/toast";
 
 interface Props {
   initialPatients: PatientData[];
 }
 
-export default function PathologyQueueClient({
-  initialPatients,
-}: Props) {
-  const [patients, setPatients] =
-    useState(initialPatients);
+export default function PathologyQueueClient({ initialPatients }: Props) {
+  const [patients, setPatients] = useState(initialPatients);
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [selectedAction, setSelectedAction] = useState<WorkflowAction | null>(null);
+  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
+  const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false);
 
-  const [selectedPatientId, setSelectedPatientId] =
-    useState("");
-
-  const [selectedAction, setSelectedAction] =
-    useState<WorkflowAction | null>(null);
-
-  const [reasonDialogOpen, setReasonDialogOpen] =
-    useState(false);
-
-  const [confirmationDialogOpen, setConfirmationDialogOpen] =
-    useState(false);
-
-  const handleStatusChange = (
-    patientId: string,
-    payload: StatusChangePayload
-  ) => {
+  const handleStatusChange = (patientId: string, payload: StatusChangePayload) => {
     setPatients((prev) =>
       prev.map((patient) =>
         patient.patient.patientId === patientId
-          ? {
-              ...patient,
-              status: payload.to,
-            }
-          : patient
-      )
+          ? { ...patient, status: payload.to }
+          : patient,
+      ),
     );
+    toast.success("Status updated", `${payload.from || "—"} → ${payload.to}`);
   };
 
-  const handleWorkflowAction = (
-    patientId: string,
-    action: WorkflowAction
-  ) => {
+  const handleWorkflowAction = (patientId: string, action: WorkflowAction) => {
     setSelectedPatientId(patientId);
     setSelectedAction(action);
 
@@ -78,40 +58,29 @@ export default function PathologyQueueClient({
     });
   };
 
-  const handleReasonSubmit = ({
-  reason,
-  remarks,
-}: {
-  reason: string;
-  remarks?: string;
-}) => {
-  if (!selectedAction) return;
+  const handleReasonSubmit = ({ reason }: { reason: string; remarks?: string }) => {
+    if (!selectedAction) return;
 
-  handleStatusChange(selectedPatientId, {
-    from: "",
-    to: selectedAction.nextStatus,
-    action: selectedAction.id,
-    reason,
-    // if you later extend StatusChangePayload,
-    // you can also save remarks
-  });
+    handleStatusChange(selectedPatientId, {
+      from: "",
+      to: selectedAction.nextStatus,
+      action: selectedAction.id,
+      reason,
+    });
 
-  setReasonDialogOpen(false);
-  setSelectedAction(null);
-  setSelectedPatientId("");
-};
+    setReasonDialogOpen(false);
+    setSelectedAction(null);
+    setSelectedPatientId("");
+  };
 
   const handleConfirm = () => {
     if (!selectedAction) return;
 
-    handleStatusChange(
-      selectedPatientId,
-      {
-        from: "",
-        to: selectedAction.nextStatus,
-        action: selectedAction.id,
-      }
-    );
+    handleStatusChange(selectedPatientId, {
+      from: "",
+      to: selectedAction.nextStatus,
+      action: selectedAction.id,
+    });
 
     setConfirmationDialogOpen(false);
     setSelectedAction(null);
@@ -119,23 +88,17 @@ export default function PathologyQueueClient({
   };
 
   const reasonOptions: ReasonOption[] =
-    selectedAction?.reasons?.map(
-      (reason) => ({
-        label: reason,
-        value: reason,
-      })
-    ) ?? [];
+    selectedAction?.reasons?.map((reason) => ({
+      label: reason,
+      value: reason,
+    })) ?? [];
 
   return (
     <>
       <PatientQueueTable
         patients={patients}
-        onStatusChange={
-          handleStatusChange
-        }
-        onWorkflowAction={
-          handleWorkflowAction
-        }
+        onStatusChange={handleStatusChange}
+        onWorkflowAction={handleWorkflowAction}
       />
 
       <ReasonSelectionDialog

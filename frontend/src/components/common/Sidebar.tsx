@@ -238,6 +238,22 @@ export default function Sidebar({
             {departmentOpen && (
               <div className="ml-7 mt-2 space-y-1 border-l border-gray-200 pl-4">
                 <Link
+                  href="/lab/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
+                >
+                  Lab Dashboard
+                </Link>
+
+                <Link
+                  href="/lab/test_queue"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
+                >
+                  Lab Test Queue
+                </Link>
+
+                <Link
                   href="/inventory/departments/radiology"
                   onClick={() => setOpen(false)}
                   className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"

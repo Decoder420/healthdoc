@@ -1,57 +1,77 @@
+"use client";
+
+import Box from "@mui/material/Box";
 import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import PendingActionsRoundedIcon from "@mui/icons-material/PendingActionsRounded";
 import BiotechRoundedIcon from "@mui/icons-material/BiotechRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import { useRouter } from "next/navigation";
 
-import DynamicCard from "@/components/ui/Lab_KpiCards";
+import { MetricCard } from "@/components/ui";
 
 const cards = [
   {
-    title: "Samples Collected",
-    text: "248",
-    icon: <ScienceRoundedIcon fontSize="large" />,
+    label: "Samples Collected",
+    value: "248",
+    icon: <ScienceRoundedIcon />,
   },
   {
-    title: "Pending Samples",
-    text: "18",
-    icon: <PendingActionsRoundedIcon fontSize="large" />,
+    label: "Pending Samples",
+    value: "18",
+    icon: <PendingActionsRoundedIcon />,
   },
   {
-    title: "In Process",
-    text: "5",
-    icon: <BiotechRoundedIcon fontSize="large" />,
+    label: "In Process",
+    value: "5",
+    icon: <BiotechRoundedIcon />,
   },
   {
-    title: "Rejected Samples",
-    text: "3",
-    icon: <CancelRoundedIcon fontSize="large" />,
+    label: "Rejected Samples",
+    value: "3",
+    icon: <CancelRoundedIcon />,
   },
   {
-    title: "Reports Released",
-    text: "120",
-    icon: <DescriptionRoundedIcon fontSize="large" />,
+    label: "Reports Released",
+    value: "120",
+    icon: <DescriptionRoundedIcon />,
   },
   {
-    title: "Critical Alerts",
-    text: "5",
-    icon: <WarningAmberRoundedIcon fontSize="large" />,
-    linkText: "View →",
-    linkHref: "/pathology/critical_alerts",
+    label: "Critical Alerts",
+    value: "5",
+    icon: <WarningAmberRoundedIcon />,
+    href: "/pathology/critical_alerts",
   },
 ];
 
-export default function DashboardCards(){
-return(
-    <>
-<div className="flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 lg:overflow-visible px-4">
-  {cards.map((card) => (
-    <div key={card.title} className="flex-shrink-0 lg:flex-shrink w-[240px] lg:w-full">
-      <DynamicCard {...card} />
-    </div>
-  ))}
-</div>
-</>
-)
+export default function DashboardCards() {
+  const router = useRouter();
+
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "repeat(1, minmax(0, 1fr))",
+          sm: "repeat(2, minmax(0, 1fr))",
+          lg: "repeat(3, minmax(0, 1fr))",
+          xl: "repeat(6, minmax(0, 1fr))",
+        },
+        gap: 2,
+        px: 2,
+      }}
+    >
+      {cards.map((card) => (
+        <MetricCard
+          key={card.label}
+          label={card.label}
+          value={card.value}
+          icon={card.icon}
+          size="sm"
+          onClick={card.href ? () => router.push(card.href!) : undefined}
+        />
+      ))}
+    </Box>
+  );
 }
