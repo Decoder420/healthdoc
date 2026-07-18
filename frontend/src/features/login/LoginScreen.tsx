@@ -55,6 +55,12 @@ const DEV_USERS: Record<
     email: "accounts@hospital.com",
     role: ROLES.ACCOUNTANT,
   },
+  [ROLES.INVENTORY_MANAGER]: {
+    id: "inventory-1",
+    name: "Inventory Manager",
+    email: "inventory@hospital.com",
+    role: ROLES.INVENTORY_MANAGER,
+  },
 };
 
 export function LoginScreen() {
@@ -93,6 +99,7 @@ export function LoginScreen() {
             { value: ROLES.PHARMACIST, label: "Pharmacist" },
             { value: ROLES.LAB_TECHNICIAN, label: "Lab Technician" },
             { value: ROLES.ACCOUNTANT, label: "Accountant" },
+            { value: ROLES.INVENTORY_MANAGER, label: "Inventory Manager" },
           ]}
         />
         <Button type="button" onClick={handleDevLogin} className="w-full">

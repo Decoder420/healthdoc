@@ -9,6 +9,7 @@ const DEFAULT_ROUTES: Record<Role, string> = {
   [ROLES.PHARMACIST]: "/pharmacy/prescription-queue",
   [ROLES.LAB_TECHNICIAN]: "/lab",
   [ROLES.ACCOUNTANT]: "/reports",
+  [ROLES.INVENTORY_MANAGER]: "/inventory",
 };
 
 export function getDefaultRouteForRole(role: Role): string {

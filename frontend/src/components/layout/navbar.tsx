@@ -10,12 +10,30 @@ import { ThemeToggle } from "./theme-toggle";
 
 function getPageTitle(pathname: string, role: ReturnType<typeof useAuth>["user"]) {
   const navItems = getNavigationForRole(role?.role ?? null);
-  const match = navItems.find(
-    (item) =>
+
+  for (const item of navItems) {
+    const childMatch = item.children?.find(
+      (child) =>
+        pathname === child.href || pathname.startsWith(`${child.href}/`),
+    );
+    if (childMatch) return childMatch.label;
+
+    if (
       pathname === item.href ||
-      (item.href !== "/dashboard" && pathname.startsWith(item.href)),
-  );
-  return match?.label ?? "Dashboard";
+      (item.href !== "/dashboard" &&
+        item.href !== "/inventory" &&
+        !item.children?.length &&
+        pathname.startsWith(item.href))
+    ) {
+      return item.label;
+    }
+  }
+
+  if (pathname === "/inventory" || pathname.startsWith("/inventory/")) {
+    return "Inventory Overview";
+  }
+
+  return "Dashboard";
 }
 
 function formatRole(role?: string) {
