@@ -37,14 +37,15 @@ function BarcodeDisplay({
       aria-label={`Barcode for ${value}`}
     >
       <Barcode
-        value={value}
-        format="CODE128"
-        width={width}
-        height={height}
-        displayValue={displayValue}
-        lineColor={lineColor}
-        background={background}
-      />
+  value={value}
+  format="CODE128"
+  renderer="canvas"
+  width={2}
+  height={80}
+  displayValue={displayValue}
+  lineColor={lineColor}
+  background={background}
+/>
     </Box>
   );
 }

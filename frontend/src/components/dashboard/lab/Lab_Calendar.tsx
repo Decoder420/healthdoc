@@ -16,15 +16,27 @@ export default function CalendarComponent({
 }: Props) {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <DateCalendar
-        value={dayjs(value)}
-        disableFuture
-        onChange={(newValue: Dayjs | null) => {
-          if (newValue) {
-            onChange(newValue.format("YYYY-MM-DD"));
-          }
-        }}
-      />
+      <div className="flex h-full w-full items-center justify-center">
+        <DateCalendar
+          value={dayjs(value)}
+          disableFuture
+          onChange={(newValue: Dayjs | null) => {
+            if (newValue) {
+              onChange(newValue.format("YYYY-MM-DD"));
+            }
+          }}
+          sx={{
+            width: "100%",
+            maxWidth: 320,
+            "& .MuiPickersCalendarHeader-root": {
+              marginBottom: 1,
+            },
+            "& .MuiDayCalendar-weekContainer": {
+              margin: "1px 0",
+            },
+          }}
+        />
+      </div>
     </LocalizationProvider>
   );
 }

@@ -27,15 +27,15 @@ export default function DynamicCard({
       <div className="card-body h-100">
         <div className="row h-100 align-items-center">
           {/* Icon */}
-          <div className="col-auto">
+          <div className="col-auto d-flex align-items-center justify-content-center">
             <div className="theme-icon fs-1">
               {icon}
             </div>
           </div>
 
           {/* Content */}
-          <div className="col">
-            <small className="small-text d-block mb-1">
+          <div className="col d-flex flex-column justify-content-center">
+            <small className="small-text mb-1">
               {title}
             </small>
 
@@ -44,11 +44,14 @@ export default function DynamicCard({
                 {text}
               </h3>
 
-              {linkText && linkHref ? (
-                <Link href={linkHref} className="link-primary small-text">
+              {linkText && linkHref && (
+                <Link
+                  href={linkHref}
+                  className="link-primary small-text"
+                >
                   {linkText}
                 </Link>
-              ) : null}
+              )}
             </div>
           </div>
         </div>

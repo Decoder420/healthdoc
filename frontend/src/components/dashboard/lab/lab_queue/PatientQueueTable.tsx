@@ -118,6 +118,7 @@ export default function PatientQueueTable({
       sx={{
         borderRadius: 3,
         boxShadow: 3,
+        padding:6,
       }}
     >
       <Table>

@@ -24,7 +24,7 @@
     "date-fns": "^4.4.0",
     "dayjs": "^1.11.21",
     "keycloak-js": "^25.0.0",
-    "lucide-react": "^1.24.0",
+    "lucide-react": "^1.25.0",
     "next": "^16.2.10",
     "puppeteer": "^25.3.0",
     "react": "^19.0.0",
@@ -32,6 +32,7 @@
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.0.0",
     "react-qr-code": "^2.2.0",
+    "react-to-print": "^3.3.0",
     "recharts": "^2.12.7",
     "tailwind": "^2.3.1"
   },

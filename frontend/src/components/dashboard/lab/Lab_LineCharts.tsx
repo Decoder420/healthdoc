@@ -58,19 +58,30 @@ interface Props {
 
 export default function PatientLineChart({ patients }: Props) {
   const chartTheme = useChartTheme();
+
   const buckets: Record<string, number> = {};
 
   for (let hour = 0; hour < 24; hour++) {
     const nextHour = (hour + 1) % 24;
-    const slot = `${String(hour).padStart(2, "0")}:00-${String(nextHour).padStart(2, "0")}:00`;
-    buckets[slot] = 0;
+
+    buckets[
+      `${String(hour).padStart(2, "0")}:00-${String(nextHour).padStart(
+        2,
+        "0"
+      )}:00`
+    ] = 0;
   }
 
   patients.forEach((patient) => {
     const hour = Number(patient.order.orderedAt.substring(11, 13));
     const nextHour = (hour + 1) % 24;
-    const slot = `${String(hour).padStart(2, "0")}:00-${String(nextHour).padStart(2, "0")}:00`;
-    buckets[slot]++;
+
+    buckets[
+      `${String(hour).padStart(2, "0")}:00-${String(nextHour).padStart(
+        2,
+        "0"
+      )}:00`
+    ]++;
   });
 
   const data = {
@@ -93,16 +104,28 @@ export default function PatientLineChart({ patients }: Props) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: "index" as const,
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: "top" as const,
-        labels: { color: chartTheme.text },
+        labels: {
+          color: chartTheme.text,
+        },
       },
     },
     scales: {
       x: {
-        ticks: { color: chartTheme.muted },
-        grid: { color: chartTheme.grid },
+        ticks: {
+          color: chartTheme.muted,
+          maxRotation: 45,
+          minRotation: 45,
+        },
+        grid: {
+          color: chartTheme.grid,
+        },
         title: {
           display: true,
           text: "Time",
@@ -115,7 +138,9 @@ export default function PatientLineChart({ patients }: Props) {
           stepSize: 1,
           color: chartTheme.muted,
         },
-        grid: { color: chartTheme.grid },
+        grid: {
+          color: chartTheme.grid,
+        },
         title: {
           display: true,
           text: "Patients",
@@ -126,8 +151,10 @@ export default function PatientLineChart({ patients }: Props) {
   };
 
   return (
-    <div style={{ width: "100%", height: "100%", minHeight: 280 }}>
-      <Line data={data} options={options} />
+    <div className="flex h-full w-full items-center justify-center">
+      <div className="h-full w-full">
+        <Line data={data} options={options} />
+      </div>
     </div>
   );
 }

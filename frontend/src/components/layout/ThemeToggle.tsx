@@ -16,11 +16,15 @@ export function ThemeToggle() {
       variant="secondary"
       size="icon"
       onClick={toggleTheme}
-      aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} theme`}
+      className="flex items-center justify-center p-0"
+      aria-label={`Switch to ${
+        resolvedTheme === "dark" ? "light" : "dark"
+      } theme`}
     >
       {resolvedTheme === "dark" ? (
         <svg
-          className="h-4 w-4"
+          className="block h-5 w-5 m-auto"
+          xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -34,7 +38,8 @@ export function ThemeToggle() {
         </svg>
       ) : (
         <svg
-          className="h-4 w-4"
+          className="block h-5 w-5 m-auto"
+          xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

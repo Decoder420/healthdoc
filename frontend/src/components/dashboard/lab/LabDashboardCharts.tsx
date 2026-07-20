@@ -36,7 +36,7 @@ export default function DashboardCharts() {
         </div>
 
         <div className="col-lg-3">
-          <div className="card dashboard-panel shadow-sm" style={{ minHeight: 500, borderRadius: 12 }}>
+          <div className="card dashboard-panel shadow-sm" style={{ minHeight: 300, borderRadius: 12 }}>
             <div className="card-body">
               <GenderPieChart patients={filteredPatients} />
 

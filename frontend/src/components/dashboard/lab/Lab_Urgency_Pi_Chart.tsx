@@ -50,12 +50,15 @@ export default function UrgencyPieChart({ patients }: Props) {
   const urgent = patients.filter(
     (p) => p.order.priority.toLowerCase() === "urgent"
   ).length;
+
   const emergency = patients.filter(
     (p) => p.order.priority.toLowerCase() === "emergency"
   ).length;
+
   const elective = patients.filter(
     (p) => p.order.priority.toLowerCase() === "elective"
   ).length;
+
   const total = urgent + emergency + elective;
 
   const data = {
@@ -63,10 +66,10 @@ export default function UrgencyPieChart({ patients }: Props) {
     datasets: [
       {
         data: [urgent, emergency, elective],
-        backgroundColor: ["#FF9800", "#F44336", "#4CAF50"],
+        backgroundColor: ["#F59E0B", "#EF4444", "#22C55E"],
         borderColor: chartTheme.border,
-        borderWidth: 3,
-        hoverOffset: 12,
+        borderWidth: 2,
+        hoverOffset: 8,
       },
     ],
   };
@@ -74,37 +77,50 @@ export default function UrgencyPieChart({ patients }: Props) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: "55%",
+
     plugins: {
       legend: {
         position: "bottom" as const,
         labels: {
+          color: chartTheme.text,
           usePointStyle: true,
           pointStyle: "circle" as const,
-          padding: 20,
-          color: chartTheme.text,
+          padding: 16,
+          font: {
+            size: 12,
+            weight: "bold" as const,
+          },
         },
       },
+
       tooltip: {
         callbacks: {
           label: (context: { label?: string; raw: unknown }) => {
             const value = Number(context.raw);
             const percentage =
               total === 0 ? 0 : ((value / total) * 100).toFixed(1);
+
             return `${context.label}: ${value} (${percentage}%)`;
           },
         },
-      },
-      title: {
-        display: true,
-        text: "Patient Priority",
-        color: chartTheme.text,
       },
     },
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center w-100">
-      <div style={{ width: "220px", height: "220px" }}>
+    <div
+      className="flex h-full w-full items-center justify-center"
+      style={{ minHeight: 0 }}
+    >
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          maxWidth: "220px",
+          maxHeight: "220px",
+        }}
+      >
         <Pie data={data} options={options} />
       </div>
     </div>

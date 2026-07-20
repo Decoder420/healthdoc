@@ -75,14 +75,25 @@ export function LabTechnicianDashboard({
 }: LabTechnicianDashboardProps) {
   const today = "2026-07-15";
   const [selectedDate, setSelectedDate] = useState(today);
+  const [search, setSearch] = useState("");
 
-  const filteredPatients = useMemo(
-    () =>
-      patients.filter(
-        (item) => item.order.orderedAt.slice(0, 10) === selectedDate
-      ),
-    [selectedDate]
-  );
+  const filteredPatients = useMemo(() => {
+  return patients.filter((item) => {
+    const matchesDate =
+      item.order.orderedAt.slice(0, 10) === selectedDate;
+
+    const query = search.toLowerCase().trim();
+
+    const matchesSearch =
+      query === "" ||
+      item.patient.name.toLowerCase().includes(query) ||
+      item.patient.uhid.toLowerCase().includes(query) ||
+      item.patient.patientId.toLowerCase().includes(query) ||
+      item.doctor.name.toLowerCase().includes(query);
+
+    return matchesDate && matchesSearch;
+  });
+}, [selectedDate, search]);
 
   const metrics = useMemo(
     () => getLabDashboardMetrics(filteredPatients.length ? filteredPatients : patients),
@@ -138,98 +149,110 @@ export function LabTechnicianDashboard({
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <Badge>Pathology</Badge>
-            <Badge variant="muted">Lab Employee</Badge>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {getGreeting()}, {userName}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Today&apos;s pathology overview · {formatDate()}
-          </p>
-        </div>
-        <div className="surface-muted flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-          </span>
-          Lab open · Shift 08:00 – 20:00
-        </div>
-      </div>
-
-      {/* KPI metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {metricCards.map((card) => (
-          <MetricCard key={card.label} {...card} />
-        ))}
-      </div>
-
-      {/* Quick actions */}
+  <div className="space-y-6">
+    {/* Header */}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">
-          Quick Actions
-        </h2>
-        <QuickActions actions={labQuickActions} />
+        <div className="mb-1 flex items-center gap-2">
+          <Badge>Pathology</Badge>
+          <Badge variant="muted">Lab Employee</Badge>
+        </div>
+
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {getGreeting()}, {userName}
+        </h1>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          Today's pathology overview · {formatDate()}
+        </p>
       </div>
 
-      {/* Charts + calendar */}
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-6">
-          <ChartWrapper
-            title="Patient inflow by hour"
-            description={`Orders on ${selectedDate}`}
-            height={360}
-            empty={filteredPatients.length === 0}
-            emptyMessage="No orders for the selected date."
-          >
-            <LineChart patients={filteredPatients} />
-          </ChartWrapper>
-        </div>
+      <div className="surface-muted flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+        </span>
 
-        <div className="xl:col-span-3">
-          <ChartWrapper
-            title="Gender mix"
-            description={`${metrics.male} male · ${metrics.female} female`}
-            height={180}
-            empty={filteredPatients.length === 0}
-          >
-            <GenderPieChart patients={filteredPatients} />
-          </ChartWrapper>
-          <div className="mt-6">
-            <ChartWrapper
-              title="Priority mix"
-              description={`${metrics.urgent} urgent · ${metrics.emergency} emergency`}
-              height={200}
-              empty={filteredPatients.length === 0}
-            >
-              <UrgencyPieChart patients={filteredPatients} />
-            </ChartWrapper>
-          </div>
-        </div>
-
-        <div className="xl:col-span-3">
-          <div className="surface-card p-4">
-            <h3 className="mb-2 text-base font-semibold text-foreground">
-              Filter by date
-            </h3>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Charts and queue update for the selected day.
-            </p>
-            <div className="flex justify-center">
-              <CalendarComponent
-                value={selectedDate}
-                onChange={setSelectedDate}
-              />
-            </div>
-          </div>
-        </div>
+        Lab open · Shift 08:00 – 20:00
       </div>
+    </div>
 
+    {/* KPI Cards */}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      {metricCards.map((card) => (
+        <MetricCard key={card.label} {...card} />
+      ))}
+    </div>
+
+    {/* Quick Actions */}
+    <div>
+      <h2 className="mb-3 text-sm font-semibold text-foreground">
+        Quick Actions
+      </h2>
+
+      <QuickActions actions={labQuickActions} />
+    </div>
+
+  {/* Charts */}
+<div className="grid w-full gap-6 lg:grid-cols-3">
+
+  {/* Column 1 - Line Chart (33.3%) */}
+  <div className="w-full">
+    <ChartWrapper
+      title="Patient inflow by hour"
+      description={`Orders on ${selectedDate}`}
+      height={320}
+      empty={filteredPatients.length === 0}
+      emptyMessage="No orders for the selected date."
+    >
+      <LineChart patients={filteredPatients} />
+    </ChartWrapper>
+  </div>
+
+  {/* Column 2 - Pie Charts (33.3%) */}
+  <div className="flex h-full w-full flex-col gap-6">
+
+    <div className="flex-1">
+      <ChartWrapper
+        title="Gender mix"
+        description={`${metrics.male} male · ${metrics.female} female`}
+        height={148}
+        empty={filteredPatients.length === 0}
+      >
+        <GenderPieChart patients={filteredPatients} />
+      </ChartWrapper>
+    </div>
+
+    <div className="flex-1">
+      <ChartWrapper
+        title="Priority mix"
+        description={`${metrics.urgent} urgent · ${metrics.emergency} emergency`}
+        height={148}
+        empty={filteredPatients.length === 0}
+      >
+        <UrgencyPieChart patients={filteredPatients} />
+      </ChartWrapper>
+    </div>
+
+  </div>
+
+  {/* Column 3 - Calendar (33.3%) */}
+  <div className="w-full">
+    <ChartWrapper
+      title="Filter by date"
+      description="Charts and queue update for the selected day."
+      height={320}
+    >
+      <div className="flex h-full items-center justify-center">
+        <CalendarComponent
+          value={selectedDate}
+          onChange={setSelectedDate}
+        />
+      </div>
+    </ChartWrapper>
+  </div>
+
+</div>
       {/* Pending queue table */}
       <div className="surface-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
