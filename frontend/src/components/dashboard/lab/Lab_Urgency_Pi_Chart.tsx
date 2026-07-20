@@ -81,14 +81,15 @@ export default function UrgencyPieChart({ patients }: Props) {
 
     plugins: {
       legend: {
-        position: "bottom" as const,
+        position: "right" as const,
         labels: {
           color: chartTheme.text,
           usePointStyle: true,
           pointStyle: "circle" as const,
-          padding: 16,
+          padding: 8,
+          boxWidth: 8,
           font: {
-            size: 12,
+            size: 10,
             weight: "bold" as const,
           },
         },
@@ -109,20 +110,8 @@ export default function UrgencyPieChart({ patients }: Props) {
   };
 
   return (
-    <div
-      className="flex h-full w-full items-center justify-center"
-      style={{ minHeight: 0 }}
-    >
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          maxWidth: "220px",
-          maxHeight: "220px",
-        }}
-      >
-        <Pie data={data} options={options} />
-      </div>
+    <div className="h-full w-full min-h-0">
+      <Pie data={data} options={options} />
     </div>
   );
 }

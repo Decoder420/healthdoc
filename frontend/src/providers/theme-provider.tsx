@@ -41,6 +41,8 @@ function applyTheme(theme: ThemeMode) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  // SSR + first client paint stay on "light" to match. ThemeScript already
+  // applies the stored theme on <html> before paint; React state syncs after mount.
   const [theme, setThemeState] = useState<ThemeMode>("light");
 
   useEffect(() => {

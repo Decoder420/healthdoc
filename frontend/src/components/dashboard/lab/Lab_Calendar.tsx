@@ -27,12 +27,34 @@ export default function CalendarComponent({
           }}
           sx={{
             width: "100%",
-            maxWidth: 320,
+            maxWidth: 300,
+            maxHeight: "100%",
+            "& .MuiDateCalendar-root": {
+              width: "100%",
+              maxHeight: 460,
+            },
+            "& .MuiPickersSlideTransition-root": {
+              minHeight: 220,
+            },
             "& .MuiPickersCalendarHeader-root": {
-              marginBottom: 1,
+              marginTop: 0,
+              marginBottom: 0,
+              paddingLeft: 0.5,
+              paddingRight: 0.5,
+              minHeight: 36,
+            },
+            "& .MuiDayCalendar-header": {
+              justifyContent: "space-around",
             },
             "& .MuiDayCalendar-weekContainer": {
-              margin: "1px 0",
+              margin: 0,
+              justifyContent: "space-around",
+            },
+            "& .MuiPickersDay-root": {
+              width: 34,
+              height: 34,
+              margin: "1px",
+              fontSize: "0.8rem",
             },
           }}
         />

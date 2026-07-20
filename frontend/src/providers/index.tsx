@@ -24,7 +24,14 @@ function MuiBridge({ children }: { children: React.ReactNode }) {
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <AppRouterCacheProvider options={{ enableCssLayer: true }}>
+      {/*
+        Do NOT enable CSS layers here. Tailwind v4 preflight lives in @layer base and
+        sets `button { background-color: transparent }`. If Emotion registers the
+        `mui` layer before globals.css declares layer order, that preflight wins and
+        MUI contained buttons lose red/blue/green fills until a hard refresh.
+        Unlayered MUI styles always beat layered Tailwind/Bootstrap.
+      */}
+      <AppRouterCacheProvider options={{ key: "mui", prepend: true }}>
         <MuiBridge>
           <AuthProvider>
             <QueryProvider>{children}</QueryProvider>

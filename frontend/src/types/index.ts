@@ -1,4 +1,4 @@
-# Shared API response types (placeholder).
+// Shared API response types (placeholder).
 export type ApiSuccess<T> = {
   success: true;
   data: T;

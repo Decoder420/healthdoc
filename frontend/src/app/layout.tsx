@@ -3,7 +3,6 @@ import { fontVariables } from "@/styles/fonts";
 import { AppProviders } from "@/providers";
 import BootstrapClient from "@/components/BootstrapClient";
 import { ThemeScript } from "@/providers/theme-script";
-import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
 import "@/styles/anchor.css";
 

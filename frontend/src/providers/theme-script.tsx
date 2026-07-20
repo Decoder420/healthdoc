@@ -1,3 +1,5 @@
+import Script from "next/script";
+
 /** Runs before paint to avoid light/dark flash on load. */
 export function ThemeScript() {
   const script = `
@@ -19,5 +21,9 @@ export function ThemeScript() {
 })();
 `;
 
-  return <script dangerouslySetInnerHTML={{ __html: script }} />;
+  return (
+    <Script id="healthdoc-theme-init" strategy="beforeInteractive">
+      {script}
+    </Script>
+  );
 }

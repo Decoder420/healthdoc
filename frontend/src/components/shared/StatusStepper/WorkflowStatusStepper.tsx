@@ -51,6 +51,7 @@ export default function WorkflowStatusStepper({
       {showNextButton && (
         <Button
           variant="contained"
+          color="primary"
           size="small"
           onClick={() =>
             onStatusChange({
@@ -61,6 +62,11 @@ export default function WorkflowStatusStepper({
           sx={{
             borderRadius: "999px",
             textTransform: "none",
+            bgcolor: "#001f54 !important",
+            color: "#ffffff !important",
+            "&:hover": {
+              bgcolor: "#001536 !important",
+            },
           }}
         >
           {buttonText ?? `Mark ${nextStep.label}`}

@@ -1,4 +1,5 @@
-@layer theme, base, mui, components, utilities;
+@layer bootstrap, theme, base, mui, components, utilities;
+@import "bootstrap/dist/css/bootstrap.min.css" layer(bootstrap);
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -451,6 +452,61 @@
     background-clip: text;
     color: transparent;
   }
+}
+
+/*
+  Unlayered on purpose: Tailwind preflight (`button { background-color: transparent }`)
+  lives in @layer base. If MUI styles end up in a losing layer, contained buttons
+  render without red/blue/green fills. These rules always win the cascade.
+*/
+.MuiButton-contained.MuiButton-colorPrimary,
+.MuiButton-containedPrimary {
+  background-color: #001f54;
+  color: #ffffff;
+}
+.MuiButton-contained.MuiButton-colorPrimary:hover,
+.MuiButton-containedPrimary:hover {
+  background-color: #001536;
+}
+
+.MuiButton-contained.MuiButton-colorError,
+.MuiButton-containedError {
+  background-color: #b91c1c;
+  color: #ffffff;
+}
+.MuiButton-contained.MuiButton-colorError:hover,
+.MuiButton-containedError:hover {
+  background-color: #991b1b;
+}
+
+.MuiButton-contained.MuiButton-colorWarning,
+.MuiButton-containedWarning {
+  background-color: #b45309;
+  color: #ffffff;
+}
+.MuiButton-contained.MuiButton-colorWarning:hover,
+.MuiButton-containedWarning:hover {
+  background-color: #92400e;
+}
+
+.MuiButton-contained.MuiButton-colorSuccess,
+.MuiButton-containedSuccess {
+  background-color: #166534;
+  color: #ffffff;
+}
+.MuiButton-contained.MuiButton-colorSuccess:hover,
+.MuiButton-containedSuccess:hover {
+  background-color: #14532d;
+}
+
+.MuiButton-contained.MuiButton-colorInfo,
+.MuiButton-containedInfo {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}
+.MuiButton-contained.MuiButton-colorInfo:hover,
+.MuiButton-containedInfo:hover {
+  background-color: #1e40af;
 }
 
 @media print {

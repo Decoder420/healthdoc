@@ -80,14 +80,15 @@ export default function GenderPieChart({ patients }: Props) {
     cutout: "55%",
     plugins: {
       legend: {
-        position: "bottom" as const,
+        position: "right" as const,
         labels: {
           usePointStyle: true,
           pointStyle: "circle" as const,
-          padding: 14,
+          padding: 8,
+          boxWidth: 8,
           color: chartTheme.text,
           font: {
-            size: 12,
+            size: 10,
             weight: "bold" as const,
           },
         },
@@ -107,15 +108,8 @@ export default function GenderPieChart({ patients }: Props) {
   };
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div
-        style={{
-          width: "180px",
-          height: "180px",
-        }}
-      >
-        <Pie data={data} options={options} />
-      </div>
+    <div className="h-full w-full">
+      <Pie data={data} options={options} />
     </div>
   );
 }

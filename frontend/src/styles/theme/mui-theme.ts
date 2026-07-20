@@ -6,7 +6,6 @@ export function createAppTheme(mode: ThemeMode): Theme {
   const tokens = mode === "dark" ? meridianDark : meridianLight;
 
   return createTheme({
-    modularCssLayers: true,
     palette: {
       mode,
       primary: {
@@ -66,13 +65,42 @@ export function createAppTheme(mode: ThemeMode): Theme {
         },
       },
       MuiButton: {
+        defaultProps: {
+          disableElevation: true,
+        },
         styleOverrides: {
           root: {
             boxShadow: "none",
+            // Beat Bootstrap reboot/button resets when layers collide in Turbopack.
+            backgroundImage: "none",
+            textTransform: "none" as const,
             "&:hover": {
               boxShadow: "none",
             },
           },
+          containedPrimary: ({ theme }) => ({
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.primary.contrastText,
+            "&:hover": {
+              backgroundColor: theme.palette.primary.dark,
+            },
+          }),
+          containedSuccess: ({ theme }) => ({
+            backgroundColor: theme.palette.success.main,
+            color: theme.palette.success.contrastText,
+          }),
+          containedError: ({ theme }) => ({
+            backgroundColor: theme.palette.error.main,
+            color: theme.palette.error.contrastText,
+          }),
+          containedWarning: ({ theme }) => ({
+            backgroundColor: theme.palette.warning.main,
+            color: theme.palette.warning.contrastText,
+          }),
+          containedInfo: ({ theme }) => ({
+            backgroundColor: theme.palette.info.main,
+            color: theme.palette.info.contrastText,
+          }),
         },
       },
       MuiDrawer: {

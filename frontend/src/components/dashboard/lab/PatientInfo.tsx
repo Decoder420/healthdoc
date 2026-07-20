@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 import { patients } from "@/lib/mock/lab_data";
+import { formatDateTime } from "@/lib/format-datetime";
 
 import {
   Avatar,
@@ -642,9 +643,7 @@ export default function PatientInfo({
                         }}
                       />
 
-                      {new Date(
-                        visit.order.orderedAt
-                      ).toLocaleString()}
+                      {formatDateTime(visit.order.orderedAt)}
                     </Typography>
 
                     <Chip
