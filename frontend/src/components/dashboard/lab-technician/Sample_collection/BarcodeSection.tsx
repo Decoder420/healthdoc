@@ -26,7 +26,7 @@ export default function BarcodeSection({
 }: BarcodeSectionProps) {
   const [loading, setLoading] = useState(false);
 
-  let currentDate = "";
+let currentDate = "";
 let serialNumber = 0;
 
 
@@ -116,13 +116,6 @@ let serialNumber = 0;
             Generate Barcode
           </Button>
 
-          <Button
-            variant="outlined"
-            startIcon={<PrintRoundedIcon />}
-            disabled={!barcode}
-          >
-            Print Label
-          </Button>
         </Stack>
       </Stack>
     </Paper>
