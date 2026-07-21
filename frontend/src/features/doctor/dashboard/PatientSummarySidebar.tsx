@@ -38,7 +38,7 @@ export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
   return (
     <Paper variant="outlined" sx={{ p: 3, borderRadius: "16px", display: "flex", flexDirection: "column", gap: 2 }}>
       <Box>
-        <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>{patient.patientName}</Typography>
+        <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>{patient.full_name}</Typography>
         <Box sx={{ mt: 0.75 }}>
           <StatusChip status={patient.status} />
         </Box>
@@ -49,7 +49,7 @@ export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
       <Stack spacing={1.5}>
         <Field label="UHID" value={patient.uhid} />
         <Field label="Visit ID" value={patient.visitId} />
-        <Field label="Age / Gender" value={`${patient.age} yrs, ${patient.gender}`} />
+        <Field label="Age / Sex" value={`${patient.age_years} yrs, ${patient.sex}`} />
         <Field label="Last Visit" value={patient.lastVisitDate ?? "First visit"} />
       </Stack>
 

@@ -29,18 +29,18 @@ export function DoctorQueuePanel({ onSelectPatient }: DoctorQueuePanelProps) {
   const rows = mockDoctorQueue;
 
   const waitingCount = rows.filter((r) => r.status === "waiting" || r.status === "called").length;
-  const inConsultationCount = rows.filter((r) => r.status === "in_consultation").length;
+  const inConsultationCount = rows.filter((r) => r.status === "in_service").length;
   const completedCount = rows.filter((r) => r.status === "completed").length;
 
   const columns: DataTableColumn<QueuePatient>[] = [
     { key: "token", label: "Token", sortable: true, width: 90 },
     {
-      key: "patientName",
+      key: "full_name",
       label: "Patient",
       sortable: true,
       render: (row) => (
         <Box>
-          <Typography sx={{ fontWeight: 600, fontSize: "0.875rem" }}>{row.patientName}</Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: "0.875rem" }}>{row.full_name}</Typography>
           <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>{row.uhid}</Typography>
         </Box>
       ),
