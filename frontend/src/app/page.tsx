@@ -7,7 +7,13 @@ export default function HomePage() {
       <p style={{ color: "#4a6282" }}>Frontend is running.</p>
       <ul>
         <li>
-          <Link href="/billing">Billing (shared UI gallery)</Link>
+          <Link href="/billing">Billing</Link>
+        </li>
+        <li>
+          <Link href="/audit-viewer">Audit trail</Link>
+        </li>
+        <li>
+          <Link href="/consent">Consent</Link>
         </li>
         <li>
           <Link href="/inventory">Inventory</Link>
