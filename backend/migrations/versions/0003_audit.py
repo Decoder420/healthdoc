@@ -3,7 +3,7 @@ audit_log_archive, audit_integrity_checks
 
 Revision ID: 0003
 Revises: 0002
-Create Date: 2026-07-19
+Create Date: 2026-07-21
 """
 from alembic import op
 import sqlalchemy as sa
@@ -23,14 +23,21 @@ def upgrade() -> None:
     #    `PARTITION BY RANGE` or trigger DDL (schema doc confirms this).
     #    Requires uuid-ossp + pgcrypto extensions from migration 0001,
     #    and facilities / users from migration 0002.
+    #
+    #    Constraint names (pk_audit_logs, fk_audit_logs_*) are given
+    #    explicitly to match app.common.db.Base's NAMING_CONVENTION —
+    #    this table's DDL is raw SQL, so it doesn't get that convention
+    #    applied automatically the way ORM-managed tables do.
     # ------------------------------------------------------------------
     op.execute(
         """
         CREATE TABLE audit_logs (
             id              UUID        NOT NULL DEFAULT uuid_generate_v4(),
             created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-            facility_id     UUID        NOT NULL REFERENCES facilities(id) ON DELETE RESTRICT,
-            user_id         UUID        NULL     REFERENCES users(id) ON DELETE RESTRICT,
+            facility_id     UUID        NOT NULL
+                            CONSTRAINT fk_audit_logs_facility_id REFERENCES facilities(id) ON DELETE RESTRICT,
+            user_id         UUID        NULL
+                            CONSTRAINT fk_audit_logs_user_id REFERENCES users(id) ON DELETE RESTRICT,
             role            TEXT,
             department_id   UUID        NULL,
             action          TEXT        NOT NULL,
@@ -47,7 +54,7 @@ def upgrade() -> None:
             entry_hash      CHAR(64)    NOT NULL,
             signature       TEXT        NOT NULL,
             signer_key_id   TEXT        NOT NULL,
-            PRIMARY KEY (id, created_at)
+            CONSTRAINT pk_audit_logs PRIMARY KEY (id, created_at)
         ) PARTITION BY RANGE (created_at);
         """
     )
@@ -59,13 +66,12 @@ def upgrade() -> None:
     op.execute("CREATE INDEX ix_audit_logs_resource ON audit_logs (resource_type, resource_id);")
 
     # v3.3 — §3 "Index strategy addendum": BRIN on created_at inside
-    # audit/access-log partitions. Near-zero write overhead, and speeds up
+    # audit/access-log partitions. Near-zero write overhead; speeds up
     # range scans *within* a partition (partition pruning already handles
-    # the month-level granularity; BRIN handles day/week-level ranges
-    # inside a single month's partition). Deliberately NOT adding GIN on
-    # old_value/new_value — the doc explicitly says not to, since this
-    # table is write-heavy and already covered by the indexed columns
-    # above for lookups.
+    # month-level granularity; BRIN handles ranges inside a single
+    # month's partition). Deliberately NOT adding GIN on old_value/
+    # new_value — the doc explicitly says not to, since this table is
+    # write-heavy and already covered by the indexed columns above.
     op.execute("CREATE INDEX ix_audit_logs_created_at_brin ON audit_logs USING BRIN (created_at);")
 
     # ------------------------------------------------------------------
@@ -126,12 +132,10 @@ def upgrade() -> None:
     #
     #    Known limitation, flag it in your PR for Tech Lead visibility:
     #    "SELECT ... ORDER BY created_at DESC LIMIT 1" scans across
-    #    partitions to find the latest row, since there's no index that
-    #    makes "the globally last row" cheap on a partitioned table.
-    #    Fine at pilot/dev volume. If it becomes a bottleneck, replace
-    #    with a small single-row `audit_chain_state(last_hash)` table
-    #    that the trigger reads/updates instead of querying audit_logs
-    #    itself — same hash chain, O(1) lookup.
+    #    partitions to find the latest row. Fine at pilot/dev volume. If
+    #    it becomes a bottleneck, replace with a small single-row
+    #    `audit_chain_state(last_hash)` table that the trigger
+    #    reads/updates instead — same hash chain, O(1) lookup.
     # ------------------------------------------------------------------
     op.execute(
         """
@@ -171,18 +175,25 @@ def upgrade() -> None:
 
     # ------------------------------------------------------------------
     # 5. audit_log_archive — ordinary table, normal Alembic ops.
+    #    See models.py docstring for the nullability reasoning: only
+    #    facility_id + partition_name are required at creation time.
     # ------------------------------------------------------------------
     op.create_table(
         "audit_log_archive",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("facility_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column(
+            "facility_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("facilities.id", ondelete="RESTRICT", name="fk_audit_log_archive_facility_id"),
+            nullable=False,
+        ),
         sa.Column("partition_name", sa.Text(), nullable=False),
-        sa.Column("period_start", sa.Date(), nullable=False),
-        sa.Column("period_end", sa.Date(), nullable=False),
-        sa.Column("row_count", sa.BigInteger(), nullable=False),
-        sa.Column("object_storage_bucket", sa.Text(), nullable=False),
-        sa.Column("object_storage_key", sa.Text(), nullable=False),
-        sa.Column("archive_file_hash", sa.CHAR(64), nullable=False),
+        sa.Column("period_start", sa.Date(), nullable=True),
+        sa.Column("period_end", sa.Date(), nullable=True),
+        sa.Column("row_count", sa.BigInteger(), nullable=True),
+        sa.Column("object_storage_bucket", sa.Text(), nullable=True),
+        sa.Column("object_storage_key", sa.Text(), nullable=True),
+        sa.Column("archive_file_hash", sa.CHAR(64), nullable=True),
         sa.Column("archived_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("verified_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("verification_status", sa.String(30), nullable=False, server_default="pending"),
@@ -201,7 +212,12 @@ def upgrade() -> None:
     op.create_table(
         "audit_integrity_checks",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("facility_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column(
+            "facility_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("facilities.id", ondelete="RESTRICT", name="fk_audit_integrity_checks_facility_id"),
+            nullable=False,
+        ),
         sa.Column("partition_name", sa.Text(), nullable=False),
         sa.Column("checked_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("rows_checked", sa.BigInteger(), nullable=False),
