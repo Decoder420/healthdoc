@@ -202,14 +202,20 @@ export const ExportButton = forwardRef<HTMLButtonElement, ExportButtonProps>(
                 <ListItemText
                   primary={meta.label}
                   secondary={meta.hint}
-                  primaryTypographyProps={{
-                    fontWeight: 600,
-                    fontSize: "0.875rem",
-                    color: meridian.textPrimary,
-                  }}
-                  secondaryTypographyProps={{
-                    fontSize: "0.75rem",
-                    color: meridian.textSecondary,
+                  slotProps={{
+                    primary: {
+                      sx: {
+                        fontWeight: 600,
+                        fontSize: "0.875rem",
+                        color: meridian.textPrimary,
+                      },
+                    },
+                    secondary: {
+                      sx: {
+                        fontSize: "0.75rem",
+                        color: meridian.textSecondary,
+                      },
+                    },
                   }}
                 />
               </MenuItem>
