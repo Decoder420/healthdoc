@@ -28,6 +28,10 @@ def upgrade() -> None:
     #    explicitly to match app.common.db.Base's NAMING_CONVENTION —
     #    this table's DDL is raw SQL, so it doesn't get that convention
     #    applied automatically the way ORM-managed tables do.
+    #
+    #    v3.4.1 policy: no table may FK to audit_logs.id — reference
+    #    audit rows by value only. Nothing to change here; this is a
+    #    constraint on other modules, not this migration.
     # ------------------------------------------------------------------
     op.execute(
         """
@@ -196,7 +200,10 @@ def upgrade() -> None:
         sa.Column("archive_file_hash", sa.CHAR(64), nullable=True),
         sa.Column("archived_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("verified_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("verification_status", sa.String(30), nullable=False, server_default="pending"),
+        # v3.4.1: enum/status columns are varchar(50) — overrides the
+        # narrower varchar(30) shown inline in the schema doc for this
+        # column specifically.
+        sa.Column("verification_status", sa.String(50), nullable=False, server_default="pending"),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.CheckConstraint(

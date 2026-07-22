@@ -24,7 +24,7 @@ and users are real as of migration 0002.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, func, text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import CHAR, INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -50,6 +50,11 @@ class AuditLog(UUIDPk, Base):
     Every write to this table must happen in the SAME transaction as the
     mutation it's recording (repo rule) — e.g. wrap the patient update and
     the AuditLog insert in one session.commit().
+
+    v3.4.1 policy: no table may FK to audit_logs.id (its PK is partitioned
+    and old partitions get archived) — other modules must reference audit
+    rows by value, never by FK. Nothing here changes because of this; it's
+    a constraint on other developers' future tables, not this one.
     """
 
     __tablename__ = "audit_logs"
@@ -130,7 +135,9 @@ class AuditLogArchive(UUIDPk, Timestamps, Base):
     archive_file_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    verification_status: Mapped[str] = mapped_column(nullable=False, server_default="pending")
+    # v3.4.1: enum/status columns are varchar(50) — overrides any narrower
+    # width shown inline in the schema doc for this column.
+    verification_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="pending")
 
     __table_args__ = (
         CheckConstraint(
