@@ -27,6 +27,7 @@ this document".
 | v2 | 2026-07-17 | ADR 0002: full departmental billing replaces registration-payment model; users table extended |
 | v2.1 | 2026-07-17 | Review hardening: mobile varchar(20), enum widths varchar(30), FK + audit indexes, single versioning pattern, 0018 retired |
 | v2.2 | 2026-07-17 | Security pass: crypto key_version on patient_identifiers, PII rules for notification payloads and error messages, page_size cap, retention notes; synced with architecture.html |
+| v3.5 | 2026-07-21 | OPD display board: queues gain room_id/display_label/now_serving_token_id/is_open; public /queue/display/{dept} board endpoint + SSE stream; token→doctor link and no-PII display contract documented |
 | v3.4.1 | 2026-07-21 | Precision pass: invoice trigger frozen/mutable column lists, enum width rule → varchar(50), uhid NULL-unique note, no-FK-to-audit policy, facility_modules seeding, self-approval 409, UUID-only URL params; v3.5 backlog recorded |
 | v3.4 | 2026-07-20 | Account governance: superadmin role (cloud-only, no clinical access), user_account_requests maker-checker (0028), documented /users, /audit/*, /reports/kpis endpoint contracts |
 | v3.3 | 2026-07-20 | Facility module toggles (0027): per-hospital on/off for lab/radiology/pharmacy/IPD/OT/…, external-referral fulfilment on orders, capabilities endpoint; billing invariant unchanged |
@@ -516,12 +517,20 @@ is_available  boolean NOT NULL DEFAULT true
 UNIQUE (staff_user_id, roster_date, shift)
 ```
 
-**queues** — one row per doctor per department per day
+**queues** — one row per doctor per department per day (this is what ties a token to a doctor)
 ```
 department_id  UUID NOT NULL → departments
 doctor_user_id UUID NOT NULL → users
+room_id        UUID NULL → rooms                 -- where this doctor sits today (copied from
+                                                 -- the roster when the queue opens; the display
+                                                 -- reads it directly, no roster join)
+display_label  varchar(50)                       -- optional friendly name shown on the board,
+                                                 -- e.g. "Dr. Sharma · OPD-1"; defaults to doctor full_name
+now_serving_token_id UUID NULL → queue_tokens    -- the token currently called (updated on call-next)
 service_date   date NOT NULL
+is_open        boolean NOT NULL DEFAULT true      -- doctor arrived / desk open
 UNIQUE (department_id, doctor_user_id, service_date)
+INDEX ix_queues_department_id_service_date (department_id, service_date)
 ```
 
 **queue_tokens**
@@ -534,6 +543,9 @@ status       varchar(30) NOT NULL DEFAULT 'waiting'   -- QueueTokenStatus enum (
 priority     varchar(30) NOT NULL DEFAULT 'normal'    -- QueuePriority enum
 called_at    timestamptz · completed_at timestamptz
 UNIQUE (queue_id, sequence)                      -- NOT a global unique token string
+-- The doctor a token is for = queues.doctor_user_id via queue_id. The token STRING stays
+-- dept+sequence (MED-042); the display resolves doctor + room from the queue, so a token
+-- can be moved to another doctor (transferred) without reprinting the number.
 ```
 Priority sort (high→low): `emergency, doctor_recall, admin_override, senior_citizen,
 pregnant, follow_up_recall, normal`; ties by `created_at` ascending.
@@ -1118,8 +1130,9 @@ Backend: return plain dicts/Pydantic models; the middleware wraps them.
 | `/billing/invoices/{id}/payments` | POST | `id, receipt_number, amount, currency, mode, status, collected_at` |
 | `/billing/payments/{id}/refunds` | POST | `id, refund_number, amount, reason, approved_by, refunded_at` |
 | `/queue/tokens` | POST | `id, queue_id, visit_id, sequence, token_display, status, priority, created_at` |
-| `/queue/queues/{id}/tokens` | GET | items sorted by priority tier then `created_at`; includes `waiting_count, now_serving (token_display)` |
-| `/queue/tokens/{id}/call-next` | POST | token with `status="called", called_at` |
+| `/queue/queues/{id}/tokens` | GET (staff) | one doctor's list, sorted by priority tier then `created_at`; each token adds `doctor_name, room_number`; header has `waiting_count, now_serving (token_display)` |
+| `/queue/tokens/{id}/call-next` | POST (doctor) | calls the next token: sets `status="called", called_at`, updates `queues.now_serving_token_id`, and publishes a `token_called` event to the department display feed |
+| **`/queue/display/{department_id}`** | **GET — PUBLIC (no auth)** | the wall board outside OPD: `{department, queues: [{doctor_name, room_number, now_serving (token_display), next_tokens: [token_display,…], waiting_count, is_open}]}`. Contains **only** token strings, doctor names, and rooms — **never** patient names, UHID, or mobile. |
 | `/departments`, `/rooms`, `/rosters` | CRUD | columns as-is (§3, 0005/0009) |
 | `/orders` | POST | `id, order_number, encounter_id, patient_id, order_type, priority, status, ordered_at` |
 | `/lab/order-items/{id}/results` | POST/GET | `id, lab_order_item_id, version, is_current, status, result_data, remarks, created_by, created_at` |
@@ -1140,9 +1153,29 @@ Backend: return plain dicts/Pydantic models; the middleware wraps them.
 | `/audit/integrity` | GET (auditor) | latest `audit_integrity_checks` rows — chain_valid, signatures, first_mismatch |
 | `/reports/kpis?period=` | GET (admin, reports) | `items[]: {kpi_code, period_start, period_end, value, numerator, denominator}` — reads kpi_snapshots; tiles filtered by enabled modules |
 
-WebSocket (queue displays): `wss://<host>/api/v1/ws/queue/{department_id}` — pushes
-`{"event_type": "token_called", "payload": {"token_display": "MED-042", "room_number": "3", "queue_id": "..."}}`
-(same JSON as stored in `notification_history.payload`).
+Display sync (the screen outside OPD stays live without polling). Two interchangeable
+transports, same payload — a facility uses whichever its display client supports:
+
+- **WebSocket:** `wss://<host>/api/v1/ws/queue/{department_id}`
+- **SSE:** `GET /api/v1/queue/display/{department_id}/stream` (B4-W2-03; easier for a
+  dumb TV browser — one-way, auto-reconnects)
+
+Both are **public** (a wall screen has no login) and push, on every call-next / status
+change / doctor open-close:
+```json
+{"event_type": "token_called",
+ "payload": {"department_id": "…", "queue_id": "…", "doctor_name": "Dr. Sharma",
+             "room_number": "3", "token_display": "MED-042", "now_serving": "MED-042"}}
+```
+Same JSON is persisted to `notification_history.payload` (durable history). Redis pub/sub
+is the fan-out: `call-next` publishes once, every connected display for that department
+receives it. **PII rule (repeat):** these payloads never carry patient name, UHID, or
+mobile — only the token string, doctor, and room.
+
+**Flow for the patient standing outside OPD:** token `MED-042` printed at registration →
+patient watches the department board → board shows `MED-039 now serving · Dr. Sharma ·
+Room 3` and their `MED-042` in the waiting column → when the doctor presses *Call next*
+and reaches them, the board flips to `MED-042 · Room 3` and (optionally) a chime fires.
 
 ### 4.5 Auth
 
