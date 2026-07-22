@@ -13,54 +13,68 @@ export default function DownloadPdfButton({
   reportNumber,
 }: DownloadPdfButtonProps) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function handleDownload() {
+  const handleDownload = async () => {
+    if (!reportId) {
+      alert("Report ID not found.");
+      return;
+    }
+
     setLoading(true);
-    setError(null);
 
     try {
+      console.log("Downloading:", reportId);
+
       const response = await fetch(
-        `/api/reports/${encodeURIComponent(reportId)}/pdf`
+        `/api/reports/${encodeURIComponent(reportId)}/pdf`,
+        {
+          method: "GET",
+        }
       );
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.message ?? "Failed to generate PDF");
+        throw new Error(`Server returned ${response.status}`);
       }
 
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${reportNumber || reportId}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to download PDF");
+
+      const downloadUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `${reportNumber || reportId}.pdf`;
+
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to download PDF.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={handleDownload}
-        disabled={loading}
-        className="report-download-btn inline-flex items-center gap-2 rounded-xl bg-[#001f54] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,31,84,0.28)] transition hover:-translate-y-0.5 hover:bg-[#003070] hover:shadow-[0_16px_36px_rgba(0,31,84,0.34)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
-      >
-        {loading ? (
+    <button
+      type="button"
+      onClick={handleDownload}
+      disabled={loading}
+      className="report-download-btn inline-flex items-center gap-2 rounded-xl bg-[#001f54] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#003070] disabled:opacity-60"
+    >
+      {loading ? (
+        <>
           <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
+          Generating PDF...
+        </>
+      ) : (
+        <>
           <Download className="h-4 w-4" />
-        )}
-        {loading ? "Generating PDF…" : "Download PDF"}
-      </button>
-      {error && <p className="max-w-[220px] text-right text-xs text-red-600">{error}</p>}
-    </div>
+          Download PDF
+        </>
+      )}
+    </button>
   );
 }

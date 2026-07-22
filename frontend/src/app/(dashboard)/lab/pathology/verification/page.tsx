@@ -1,10 +1,9 @@
-import PathologyPlaceholder from "@/features/lab/PathologyPlaceholder";
+import Verification from "@/components/dashboard/lab-technician/Verification/Verification_page"
 
 export default function VerificationPage() {
   return (
-    <PathologyPlaceholder
-      title="Verification"
-      description="Report verification workflow will be available here."
-    />
+    <>
+    <Verification/>
+    </>
   );
 }

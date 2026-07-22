@@ -50,14 +50,21 @@ export default function StatusActionMenu({
 
   return (
     <Stack
-      direction="row"
-      spacing={1}
-      useFlexGap
-      sx={{
-        flexWrap: "wrap",
-        justifyContent: "center",
-      }}
-    >
+  direction="row"
+  spacing={1}
+  useFlexGap
+  sx={{
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "nowrap",   // Keep buttons in one line
+    width: "100%",
+    overflowX: "auto",    // Allows horizontal scroll if there isn't enough space
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+    scrollbarWidth: "none",
+  }}
+>
       {actions.map((action) => {
         const color = action.color ?? "primary";
         const variant = action.variant ?? "contained";
@@ -73,20 +80,27 @@ export default function StatusActionMenu({
             startIcon={action.icon}
             onClick={() => onAction(action)}
             sx={{
-              minWidth: 110,
-              borderRadius: "999px",
-              textTransform: "none",
-              fontWeight: 600,
-              ...(variant === "contained" && palette
-                ? {
-                    bgcolor: `${palette.bg} !important`,
-                    color: `${palette.color} !important`,
-                    "&:hover": {
-                      bgcolor: `${palette.hover} !important`,
-                    },
-                  }
-                : null),
-            }}
+  minWidth: 70,
+  height: 28,
+  px: 1,
+  py: 0.25,
+  fontSize: "0.75rem",
+  lineHeight: 1,
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+  borderRadius: "999px",
+  textTransform: "none",
+  fontWeight: 600,
+  ...(variant === "contained" && palette
+    ? {
+        bgcolor: `${palette.bg} !important`,
+        color: `${palette.color} !important`,
+        "&:hover": {
+          bgcolor: `${palette.hover} !important`,
+        },
+      }
+    : {}),
+}}
           >
             {action.label}
           </Button>

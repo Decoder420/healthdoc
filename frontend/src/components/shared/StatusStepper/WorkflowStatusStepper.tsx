@@ -50,27 +50,35 @@ export default function WorkflowStatusStepper({
       {/* Next Status Button */}
       {showNextButton && (
         <Button
-          variant="contained"
-          color="primary"
-          size="small"
-          onClick={() =>
-            onStatusChange({
-              from: currentStatus,
-              to: nextStep.value,
-            })
-          }
-          sx={{
-            borderRadius: "999px",
-            textTransform: "none",
-            bgcolor: "#001f54 !important",
-            color: "#ffffff !important",
-            "&:hover": {
-              bgcolor: "#001536 !important",
-            },
-          }}
-        >
-          {buttonText ?? `Mark ${nextStep.label}`}
-        </Button>
+  variant="contained"
+  color="primary"
+  size="small"
+  onClick={() =>
+    onStatusChange({
+      from: currentStatus,
+      to: nextStep.value,
+    })
+  }
+  sx={{
+    minWidth: 90,
+    height: 28,
+    px: 1.5,
+    py: 0.25,
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    lineHeight: 1,
+    borderRadius: "999px",
+    textTransform: "none",
+    bgcolor: "#001f54 !important",
+    color: "#ffffff !important",
+    whiteSpace: "nowrap",
+    "&:hover": {
+      bgcolor: "#001536 !important",
+    },
+  }}
+>
+  {buttonText ?? `Mark ${nextStep.label}`}
+</Button>
       )}
 
       {/* Custom actions (Accept, Reject, Cancel, etc.) */}

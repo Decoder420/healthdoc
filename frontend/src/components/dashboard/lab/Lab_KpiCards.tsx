@@ -22,19 +22,19 @@ export default function DynamicCard({
   return (
     <div
       className="card dashboard-card shadow-sm border-0 h-100 w-100"
-      style={{ minHeight: "130px", borderRadius: "16px" }}
+      style={{  minHeight: "95px", borderRadius: "16px" }}
     >
       <div className="card-body h-100">
         <div className="row h-100 align-items-center">
           {/* Icon */}
-          <div className="col-auto d-flex align-items-center justify-content-center">
+          <div className="col-auto d-flex align-items-center justify-content-center ml-3">
             <div className="theme-icon fs-1">
               {icon}
             </div>
           </div>
 
           {/* Content */}
-          <div className="col d-flex flex-column justify-content-center">
+          <div className="col d-flex flex-column justify-content-center ml-3">
             <small className="small-text mb-1">
               {title}
             </small>

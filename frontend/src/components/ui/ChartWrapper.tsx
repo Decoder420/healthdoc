@@ -25,7 +25,7 @@ export function ChartWrapper({
   children,
 }: ChartWrapperProps) {
   return (
-    <div className="surface-card p-5">
+    <div className="surface-card p-5 h-full">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
