@@ -8,51 +8,23 @@ import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
 import { SCHEME_OPTIONS } from "../constants";
-import type { PmjayEligibilityStatus, SchemeOptionCode } from "../types";
+import type { SchemeOptionCode } from "../types";
 
 type Props = {
   value: SchemeOptionCode;
   schemeAdjustment: number;
-  eligibility: PmjayEligibilityStatus;
   disabled?: boolean;
   onChange: (code: SchemeOptionCode) => void;
   onSchemeAdjustmentChange: (n: number) => void;
 };
 
-const eligibilityTone: Record<
-  PmjayEligibilityStatus,
-  { bg: string; fg: string; border: string; label: string }
-> = {
-  eligible: {
-    bg: "#dcfce7",
-    fg: meridian.success,
-    border: "rgb(22 101 52 / 0.18)",
-    label: "PM-JAY Eligible",
-  },
-  ineligible: {
-    bg: "#fee2e2",
-    fg: meridian.danger,
-    border: "rgb(185 28 28 / 0.18)",
-    label: "PM-JAY Ineligible",
-  },
-  unknown: {
-    bg: "#fef3c7",
-    fg: meridian.warning,
-    border: "rgb(180 83 9 / 0.2)",
-    label: "Eligibility unknown",
-  },
-};
-
 export function SchemeSelector({
   value,
   schemeAdjustment,
-  eligibility,
   disabled,
   onChange,
   onSchemeAdjustmentChange,
 }: Props) {
-  const tone = eligibilityTone[eligibility];
-
   return (
     <Box
       sx={{
@@ -75,7 +47,7 @@ export function SchemeSelector({
         Scheme selector
       </Typography>
       <Typography sx={{ m: 0, mb: 2, fontSize: "0.8125rem", color: meridian.textSecondary }}>
-        Sets invoices.scheme_code and scheme_adjustment
+        Sets invoices.scheme_code and scheme_adjustment (no scheme master)
       </Typography>
 
       <Stack direction="row" useFlexGap sx={{ gap: 1, flexWrap: "wrap", mb: 2 }}>
@@ -100,21 +72,6 @@ export function SchemeSelector({
           );
         })}
       </Stack>
-
-      {value === "PM-JAY" ? (
-        <Chip
-          size="small"
-          label={tone.label}
-          sx={{
-            mb: 2,
-            borderRadius: "999px",
-            fontWeight: 600,
-            backgroundColor: tone.bg,
-            color: tone.fg,
-            border: `1px solid ${tone.border}`,
-          }}
-        />
-      ) : null}
 
       <TextField
         type="number"

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { AuditTrailDashboard } from "@/features/audit-viewer";
 

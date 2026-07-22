@@ -14,16 +14,10 @@ import Typography from "@mui/material/Typography";
 import LocalHospitalOutlinedIcon from "@mui/icons-material/LocalHospitalOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
-import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import {
   Area,
   AreaChart,
   CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -40,10 +34,6 @@ import { toast } from "@/components/ui/toast";
 import StockLevelBadge from "@/components/ui/StockLevelBadge";
 import ExpiryChip from "@/components/ui/ExpiryChip";
 import FEFOIndicator from "@/components/ui/FEFOindicator";
-import LabCalendar from "@/components/ui/Lab_Calendar";
-import PatientInfo from "@/components/ui/PatientInfo";
-import PathologyQueueClient from "@/components/ui/lab_queue/LabQueue";
-import { pathologyWorkflow } from "@/components/ui/lab_queue/LabWorkFlow";
 import { DataTable, type DataTableColumn } from "@/components/tables/DataTable";
 import BedGrid from "@/components/BedGrid";
 import type { Bed } from "@/components/BedGrid";
@@ -62,15 +52,71 @@ import FormDialog from "@/components/shared/StatusStepper/dialog/FormDialog";
 import StatusDecisionDialog from "@/components/shared/StatusStepper/dialog/StatusDecisionDialog";
 import type {
   StatusChangePayload,
+  StatusStep,
   WorkflowAction,
 } from "@/components/shared/StatusStepper/types";
-import {
-  buildGenderCounts,
-  buildHourlyPatientBuckets,
-  buildPriorityCounts,
-} from "@/lib/lab_chart_data";
-import { patients as labPatients } from "@/lib/mock/lab_data";
 import { meridian } from "@/styles/theme";
+
+/** Minimal demo workflow for StatusStepper gallery (not module-specific). */
+const demoWorkflow: StatusStep[] = [
+  {
+    value: "QUEUE",
+    label: "Queue",
+    color: "default",
+    next: "IN_PROGRESS",
+    actions: [
+      {
+        id: "remove",
+        label: "Remove",
+        nextStatus: "REMOVED",
+        color: "error",
+        requiresConfirmation: true,
+      },
+    ],
+  },
+  {
+    value: "IN_PROGRESS",
+    label: "In progress",
+    color: "warning",
+    next: "READY",
+    actions: [
+      {
+        id: "reject",
+        label: "Reject",
+        nextStatus: "REJECTED",
+        color: "error",
+        requiresReason: true,
+        reasons: ["Incomplete", "Incorrect", "Other"],
+      },
+    ],
+  },
+  {
+    value: "READY",
+    label: "Ready",
+    color: "success",
+    next: "DONE",
+  },
+  {
+    value: "DONE",
+    label: "Done",
+    color: "success",
+    terminal: true,
+  },
+  {
+    value: "REJECTED",
+    label: "Rejected",
+    color: "error",
+    next: "QUEUE",
+    alert: { severity: "warning", message: "Needs rework." },
+  },
+  {
+    value: "REMOVED",
+    label: "Removed",
+    color: "default",
+    terminal: true,
+    alert: { severity: "info", message: "Removed." },
+  },
+];
 
 const chartData = [
   { day: "Mon", revenue: 42000 },
@@ -186,14 +232,6 @@ const medications: MedicationRecord[] = [
   },
 ];
 
-const queuePatients = labPatients.slice(0, 4).map((p) => ({
-  ...p,
-  order: {
-    ...p.order,
-    priority: p.order.priority as "emergency" | "urgent" | "elective",
-  },
-}));
-
 function Section({
   title,
   description,
@@ -240,19 +278,11 @@ export function SharedUiPreview() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [workflowStatus, setWorkflowStatus] = useState("QUEUE");
-  const [calendarDate, setCalendarDate] = useState("2026-07-15");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [formNote, setFormNote] = useState("");
-
-  const hourly = useMemo(
-    () => buildHourlyPatientBuckets(labPatients),
-    [],
-  );
-  const gender = useMemo(() => buildGenderCounts(labPatients), []);
-  const priority = useMemo(() => buildPriorityCounts(labPatients), []);
 
   const columns = useMemo<DataTableColumn<InvoiceRow>[]>(
     () => [
@@ -527,16 +557,16 @@ export function SharedUiPreview() {
         description="WorkflowStatusStepper, WorkflowStatusAction, StatusChip, StatusAlert"
       >
         <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
-          <WorkflowStatusChip status={workflowStatus} workflow={pathologyWorkflow} />
-          <StatusAlert status={workflowStatus} workflow={pathologyWorkflow} />
+          <WorkflowStatusChip status={workflowStatus} workflow={demoWorkflow} />
+          <StatusAlert status={workflowStatus} workflow={demoWorkflow} />
           <WorkflowStatusStepper
             currentStatus={workflowStatus}
-            workflow={pathologyWorkflow}
+            workflow={demoWorkflow}
             onStatusChange={handleWorkflowChange}
             actions={
               <WorkflowStatusAction
                 currentStatus={workflowStatus}
-                workflow={pathologyWorkflow}
+                workflow={demoWorkflow}
                 onAction={handleWorkflowAction}
               />
             }
@@ -545,8 +575,8 @@ export function SharedUiPreview() {
             <Button size="small" variant="outlined" onClick={() => setWorkflowStatus("QUEUE")}>
               Reset to Queue
             </Button>
-            <Button size="small" variant="outlined" onClick={() => setWorkflowStatus("NO_SHOW")}>
-              Show alert (No Show)
+            <Button size="small" variant="outlined" onClick={() => setWorkflowStatus("REJECTED")}>
+              Show alert (Rejected)
             </Button>
           </Stack>
         </Stack>
@@ -592,7 +622,7 @@ export function SharedUiPreview() {
           ]}
           onConfirm={({ reason }) => {
             setReasonOpen(false);
-            setWorkflowStatus("RECOLLECTION_REQUIRED");
+            setWorkflowStatus("REJECTED");
             toast.warning("Sample rejected", reason);
           }}
           onClose={() => setReasonOpen(false)}
@@ -635,95 +665,6 @@ export function SharedUiPreview() {
         />
       </Section>
 
-      <Section title="Lab_Calendar">
-        <Typography sx={{ fontSize: "0.875rem", color: meridian.textSecondary, mb: 1 }}>
-          Selected: {calendarDate}
-        </Typography>
-        <LabCalendar value={calendarDate} onChange={setCalendarDate} />
-      </Section>
-
-      <Section
-        title="Lab KPI + charts"
-        description="MetricCard + ChartWrapper (replaces deleted Lab_KpiCards / Chart.js files)"
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
-            gap: 2,
-            mb: 2,
-          }}
-        >
-          <MetricCard
-            label="Samples today"
-            value={String(labPatients.length)}
-            icon={<ScienceOutlinedIcon />}
-            size="sm"
-          />
-          <MetricCard label="Verified" value="12" size="sm" />
-          <MetricCard label="Pending" value="8" size="sm" />
-        </Box>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1.4fr 1fr 1fr" },
-            gap: 2,
-          }}
-        >
-          <ChartWrapper title="Patients by hour" height={240}>
-            <LineChart data={hourly} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="4 6" vertical={false} />
-              <XAxis dataKey="slot" interval={5} tickLine={false} axisLine={false} />
-              <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke={meridian.brandPrimary}
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ChartWrapper>
-          <ChartWrapper title="Gender mix" height={240} empty={gender.length === 0}>
-            <PieChart>
-              <Pie data={gender} dataKey="value" nameKey="name" outerRadius={70}>
-                {gender.map((entry) => (
-                  <Cell key={entry.name} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ChartWrapper>
-          <ChartWrapper title="Priority mix" height={240} empty={priority.length === 0}>
-            <PieChart>
-              <Pie data={priority} dataKey="value" nameKey="name" outerRadius={70}>
-                {priority.map((entry) => (
-                  <Cell key={entry.name} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ChartWrapper>
-        </Box>
-      </Section>
-
-      <Section title="Lab queue" description="PathologyQueueClient + PatientQueueTable">
-        <PathologyQueueClient initialPatients={queuePatients as never} />
-      </Section>
-
-      <Section title="PatientInfo" description="Uses mock lab patient P006">
-        <Box
-          sx={{
-            border: `1px solid ${meridian.border}`,
-            borderRadius: "16px",
-            overflow: "hidden",
-            p: { xs: 2, md: 3 },
-          }}
-        >
-          <PatientInfo patientId="P006" />
-        </Box>
-      </Section>
     </Box>
   );
 }

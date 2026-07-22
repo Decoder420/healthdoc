@@ -13,6 +13,7 @@ import { DataTable, type DataTableColumn } from "@/components/tables/DataTable";
 import { meridian } from "@/styles/theme";
 import { CHARGE_CATEGORY_LABELS } from "../constants";
 import { formatINR } from "../lib/formatters";
+import { fromMoney } from "../lib/money";
 import type { ChargeCategory, InvoiceItem } from "../types";
 import { AddInvoiceItemModal } from "./AddInvoiceItemModal";
 
@@ -103,11 +104,11 @@ export function LineItemsEditor({
           <TextField
             size="small"
             type="number"
-            defaultValue={row.unit_price}
+            defaultValue={fromMoney(row.unit_price)}
             slotProps={{ htmlInput: { min: 0, step: 1 } }}
             onBlur={(e) => {
               const unit_price = Number(e.target.value);
-              if (unit_price >= 0 && unit_price !== row.unit_price) {
+              if (unit_price >= 0 && unit_price !== fromMoney(row.unit_price)) {
                 void onPatch(row.id, { unit_price });
               }
             }}

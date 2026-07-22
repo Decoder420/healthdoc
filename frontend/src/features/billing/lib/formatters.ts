@@ -1,9 +1,11 @@
-export function formatINR(amount: number): string {
+import { fromMoney, type Money } from "./money";
+
+export function formatINR(amount: Money | number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(fromMoney(amount));
 }
 
 export function formatChargeCategory(category: string): string {

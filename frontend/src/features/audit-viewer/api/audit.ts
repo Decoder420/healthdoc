@@ -11,7 +11,7 @@ import {
   getAuditStore,
   getFileAccessStore,
   getIntegrityStore,
-} from "../lib/mock/audit_data";
+} from "@/lib/mock/audit_data";
 
 function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));

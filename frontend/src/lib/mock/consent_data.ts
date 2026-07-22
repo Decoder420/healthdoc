@@ -1,5 +1,5 @@
-import { FACILITY_ID, PURPOSE_LABELS } from "../../constants";
-import type { ConsentRecord, DataAccessLog } from "../../types";
+import { FACILITY_ID, PURPOSE_LABELS } from "@/features/consent/constants";
+import type { ConsentRecord, DataAccessLog } from "@/features/consent/types";
 
 const SEED_CONSENTS: ConsentRecord[] = [
   {

@@ -59,6 +59,7 @@ export function ImmutableReceipt({ payment, invoice }: Props) {
         value={`${invoice.patient?.name ?? invoice.patient_id} (${invoice.patient?.uhid ?? "—"})`}
       />
       <Row label="Amount" value={formatINR(payment.amount)} />
+      <Row label="Currency" value={payment.currency} />
       <Row label="Mode" value={PAYMENT_MODE_LABELS[payment.mode]} />
       <Row label="Collected by" value={payment.collected_by} />
       <Row
@@ -68,10 +69,6 @@ export function ImmutableReceipt({ payment, invoice }: Props) {
           timeStyle: "short",
         }).format(new Date(payment.collected_at))}
       />
-      {payment.reference_txn_id ? (
-        <Row label="Reference" value={payment.reference_txn_id} />
-      ) : null}
-      {payment.notes ? <Row label="Notes" value={payment.notes} /> : null}
 
       {payment.refunds.length > 0 ? (
         <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px solid ${meridian.border}` }}>

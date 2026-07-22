@@ -8,6 +8,7 @@ import TextField from "@mui/material/TextField";
 
 import { Modal } from "@/components/ui/Modal";
 import { PAYMENT_MODE_LABELS } from "../constants";
+import { toMoney } from "../lib/money";
 import type { CollectPaymentInput, PaymentMode } from "../types";
 
 type Props = {
@@ -29,25 +30,19 @@ export function CollectPaymentModal({
 }: Props) {
   const [amount, setAmount] = useState(balanceDue);
   const [mode, setMode] = useState<PaymentMode>("cash");
-  const [reference_txn_id, setRef] = useState("");
-  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (open) {
       setAmount(balanceDue);
       setMode("cash");
-      setRef("");
-      setNotes("");
     }
   }, [open, balanceDue]);
 
   const handleSave = async () => {
     if (amount <= 0 || amount > balanceDue + 0.001) return;
     await onSubmit({
-      amount,
+      amount: toMoney(amount),
       mode,
-      reference_txn_id: reference_txn_id.trim() || null,
-      notes: notes.trim() || null,
     });
   };
 
@@ -99,24 +94,6 @@ export function CollectPaymentModal({
             </MenuItem>
           ))}
         </TextField>
-        {(mode === "upi" || mode === "card" || mode === "netbanking") && (
-          <TextField
-            label="Reference / txn id"
-            size="small"
-            value={reference_txn_id}
-            onChange={(e) => setRef(e.target.value)}
-            fullWidth
-          />
-        )}
-        <TextField
-          label="Notes"
-          size="small"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          fullWidth
-          multiline
-          minRows={2}
-        />
       </Stack>
     </Modal>
   );

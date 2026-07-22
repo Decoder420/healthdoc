@@ -238,59 +238,27 @@ export default function Sidebar({
             {departmentOpen && (
               <div className="ml-7 mt-2 space-y-1 border-l border-gray-200 pl-4">
                 <Link
-                  href="/lab/dashboard"
+                  href="/lab"
                   onClick={() => setOpen(false)}
                   className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
                 >
-                  Lab Dashboard
+                  Lab
                 </Link>
 
                 <Link
-                  href="/lab/test_queue"
+                  href="/inventory"
                   onClick={() => setOpen(false)}
                   className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
                 >
-                  Lab Test Queue
+                  Inventory
                 </Link>
 
                 <Link
-                  href="/inventory/departments/radiology"
+                  href="/radiology"
                   onClick={() => setOpen(false)}
                   className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
                 >
                   Radiology
-                </Link>
-
-                <Link
-                  href="/inventory/departments/pharmacy"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Pharmacy
-                </Link>
-
-                <Link
-                  href="/inventory/departments/laboratory"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Laboratory
-                </Link>
-
-                <Link
-                  href="/inventory/departments/ward-store"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Ward Store
-                </Link>
-
-                <Link
-                  href="/inventory/departments/emergency"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Emergency
                 </Link>
               </div>
             )}

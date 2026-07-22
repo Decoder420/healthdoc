@@ -9,6 +9,7 @@ import Typography from "@mui/material/Typography";
 import { meridian } from "@/styles/theme";
 import { PAYMENT_MODE_LABELS } from "../constants";
 import { formatINR } from "../lib/formatters";
+import { fromMoney, type Money } from "../lib/money";
 import type {
   CollectPaymentInput,
   CreateRefundInput,
@@ -26,9 +27,9 @@ type Props = {
   payments: PaymentWithRefunds[];
   loading?: boolean;
   busy?: boolean;
-  balanceDue: number;
-  paidTotal: number;
-  refundedTotal: number;
+  balanceDue: Money;
+  paidTotal: Money;
+  refundedTotal: Money;
   canCollect: boolean;
   onCollect: (body: CollectPaymentInput) => Promise<void>;
   onRefund: (paymentId: string, body: CreateRefundInput) => Promise<void>;
@@ -89,7 +90,7 @@ export function PaymentsPanel({
           <Button
             size="small"
             variant="contained"
-            disabled={!canCollect || busy || balanceDue <= 0}
+            disabled={!canCollect || busy || fromMoney(balanceDue) <= 0}
             onClick={() => setCollectOpen(true)}
             sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
           >
@@ -195,7 +196,7 @@ export function PaymentsPanel({
 
       <CollectPaymentModal
         open={collectOpen}
-        balanceDue={balanceDue}
+        balanceDue={fromMoney(balanceDue)}
         busy={busy}
         onClose={() => setCollectOpen(false)}
         onSubmit={async (body) => {

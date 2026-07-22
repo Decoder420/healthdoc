@@ -1,6 +1,7 @@
 import type {
   CollectPaymentInput,
   CreateRefundInput,
+  InvoiceBalance,
   InvoiceWithItems,
   Payment,
   PaymentWithRefunds,
@@ -10,8 +11,13 @@ import {
   balanceDue,
   nextInvoiceStatusAfterPaymentActivity,
   paidTotal,
-  round2,
+  refundedTotal,
 } from "../lib/calculations";
+import { DEFAULT_CURRENCY, fromMoney, toMoney } from "../lib/money";
+import {
+  MOCK_CASHIER_USER_ID,
+  MOCK_SUPERVISOR_USER_ID,
+} from "../constants";
 import {
   getPaymentStore,
   getRefundStore,
@@ -21,10 +27,17 @@ import {
   setPaymentStore,
   setRefundStore,
   setStore,
-} from "../lib/mock/billing_data";
+} from "@/lib/mock/billing_data";
 
 function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
+}
+
+function refundsForInvoice(invoiceId: string): Refund[] {
+  const paymentIds = new Set(
+    getPaymentStore().filter((p) => p.invoice_id === invoiceId).map((p) => p.id),
+  );
+  return getRefundStore().filter((r) => paymentIds.has(r.payment_id));
 }
 
 function syncInvoiceStatus(invoiceId: string): InvoiceWithItems {
@@ -34,7 +47,7 @@ function syncInvoiceStatus(invoiceId: string): InvoiceWithItems {
 
   const inv = store[idx];
   const payments = getPaymentStore().filter((p) => p.invoice_id === invoiceId);
-  const refunds = getRefundStore().filter((r) => r.invoice_id === invoiceId);
+  const refunds = refundsForInvoice(invoiceId);
   const balance = balanceDue(inv.net_amount, payments, refunds);
   const hasSuccessfulPayment = payments.some((p) => p.status === "success");
   const status = nextInvoiceStatusAfterPaymentActivity(
@@ -82,24 +95,16 @@ export async function getPayment(id: string): Promise<PaymentWithRefunds | null>
   return delay({ ...payment, refunds });
 }
 
-export async function getInvoiceBalance(invoiceId: string): Promise<{
-  net_amount: number;
-  paid_total: number;
-  refunded_total: number;
-  balance_due: number;
-}> {
+export async function getInvoiceBalance(invoiceId: string): Promise<InvoiceBalance> {
   const inv = getStore().find((r) => r.id === invoiceId);
   if (!inv) throw new Error("Invoice not found");
   const payments = getPaymentStore().filter((p) => p.invoice_id === invoiceId);
-  const refunds = getRefundStore().filter((r) => r.invoice_id === invoiceId);
-  const paid_total = paidTotal(payments);
-  const balance_due = balanceDue(inv.net_amount, payments, refunds);
-  const refunded_total = round2(refunds.reduce((s, r) => s + r.amount, 0));
+  const refunds = refundsForInvoice(invoiceId);
   return delay({
     net_amount: inv.net_amount,
-    paid_total,
-    refunded_total,
-    balance_due,
+    paid_total: paidTotal(payments),
+    refunded_total: refundedTotal(refunds),
+    balance_due: balanceDue(inv.net_amount, payments, refunds),
   });
 }
 
@@ -117,9 +122,9 @@ export async function collectPayment(
   }
 
   const payments = getPaymentStore().filter((p) => p.invoice_id === invoiceId);
-  const refunds = getRefundStore().filter((r) => r.invoice_id === invoiceId);
-  const due = balanceDue(inv.net_amount, payments, refunds);
-  const amount = round2(body.amount);
+  const refunds = refundsForInvoice(invoiceId);
+  const due = fromMoney(balanceDue(inv.net_amount, payments, refunds));
+  const amount = fromMoney(body.amount);
   if (amount <= 0) throw new Error("Amount must be greater than zero");
   if (amount > due + 0.001) throw new Error(`Amount exceeds balance due (${due})`);
 
@@ -127,13 +132,13 @@ export async function collectPayment(
     id: `pay-${crypto.randomUUID().slice(0, 8)}`,
     invoice_id: invoiceId,
     receipt_number: nextReceiptNumber(),
-    amount,
+    amount: toMoney(amount),
+    currency: DEFAULT_CURRENCY,
     mode: body.mode,
     status: "success",
-    collected_by: body.collected_by ?? "cashier.dev",
+    collected_by: body.collected_by ?? MOCK_CASHIER_USER_ID,
     collected_at: new Date().toISOString(),
-    reference_txn_id: body.reference_txn_id ?? null,
-    notes: body.notes ?? null,
+    sensitivity: "critical",
   };
 
   setPaymentStore([...getPaymentStore(), payment]);
@@ -155,9 +160,9 @@ export async function createRefund(
   }
 
   const existingRefunds = getRefundStore().filter((r) => r.payment_id === paymentId);
-  const alreadyRefunded = round2(existingRefunds.reduce((s, r) => s + r.amount, 0));
-  const reversible = round2(payment.amount - alreadyRefunded);
-  const amount = round2(body.amount);
+  const alreadyRefunded = fromMoney(refundedTotal(existingRefunds));
+  const reversible = fromMoney(payment.amount) - alreadyRefunded;
+  const amount = fromMoney(body.amount);
   if (amount <= 0) throw new Error("Refund amount must be greater than zero");
   if (amount > reversible + 0.001) {
     throw new Error(`Refund exceeds reversible amount (${reversible})`);
@@ -167,19 +172,18 @@ export async function createRefund(
   const refund: Refund = {
     id: `rfd-${crypto.randomUUID().slice(0, 8)}`,
     payment_id: paymentId,
-    invoice_id: payment.invoice_id,
     refund_number: nextRefundNumber(),
-    amount,
+    amount: toMoney(amount),
     reason: body.reason.trim(),
-    approved_by: body.approved_by ?? "supervisor.dev",
+    approved_by: body.approved_by ?? MOCK_SUPERVISOR_USER_ID,
     refunded_at: new Date().toISOString(),
   };
 
   setRefundStore([...getRefundStore(), refund]);
 
-  const newRefunded = round2(alreadyRefunded + amount);
+  const newRefunded = alreadyRefunded + amount;
   let nextPayment = payment;
-  if (newRefunded >= payment.amount - 0.001) {
+  if (newRefunded >= fromMoney(payment.amount) - 0.001) {
     nextPayment = { ...payment, status: "reversed" };
     const copy = [...payments];
     copy[pIdx] = nextPayment;

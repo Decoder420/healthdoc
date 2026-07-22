@@ -1,10 +1,10 @@
-import { FACILITY_ID } from "../../constants";
+import { FACILITY_ID } from "@/features/audit-viewer/constants";
 import type {
   AuditIntegrityCheck,
   AuditLog,
   AuditLogArchive,
   FileAccessLog,
-} from "../../types";
+} from "@/features/audit-viewer/types";
 
 /** Deterministic fake sha256-looking hex (64 chars). */
 function h(seed: string): string {

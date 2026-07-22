@@ -21,6 +21,11 @@ import { meridian } from "@/styles/theme";
 
 export type ExportFormat = "csv" | "xlsx" | "pdf";
 
+/**
+ * UI shell only: opens a format menu and calls onExport.
+ * Does not generate files, call /export, or write data_access_log —
+ * parents own audited export endpoints (access_channel='export').
+ */
 export type ExportButtonProps = Omit<
   ButtonProps,
   "onClick" | "children" | "endIcon" | "startIcon"
@@ -29,8 +34,6 @@ export type ExportButtonProps = Omit<
   formats?: ExportFormat[];
   label?: string;
   loading?: boolean;
-  /** Hint for parents; this component does not generate files. */
-  filename?: string;
 };
 
 const FORMAT_META: Record<
@@ -63,7 +66,6 @@ export const ExportButton = forwardRef<HTMLButtonElement, ExportButtonProps>(
       formats = DEFAULT_FORMATS,
       label = "Export",
       loading: loadingProp = false,
-      filename,
       variant = "outlined",
       size = "medium",
       disabled = false,
@@ -72,8 +74,6 @@ export const ExportButton = forwardRef<HTMLButtonElement, ExportButtonProps>(
     },
     ref,
   ) {
-    void filename;
-
     const menuId = useId();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [pending, setPending] = useState(false);

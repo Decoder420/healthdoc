@@ -10,6 +10,10 @@ export const FACILITY_CODE = "HOSP1";
 export const FACILITY_ID = "fac-0001";
 export const FACILITY_DISPLAY_NAME = "HealthDoc Hospital (HOSP1)";
 
+/** Mock user UUIDs for payments.collected_by / refunds.approved_by. */
+export const MOCK_CASHIER_USER_ID = "00000000-0000-4000-8000-000000000101";
+export const MOCK_SUPERVISOR_USER_ID = "00000000-0000-4000-8000-000000000102";
+
 export const RECEIPT_PREFIX = "RCP";
 export const REFUND_PREFIX = "RFD";
 
@@ -71,6 +75,3 @@ export const SCHEME_OPTIONS: {
     description: "Corporate / state / other coverage",
   },
 ];
-
-/** Stub PM-JAY cover as % of gross when eligible (W2 mock rule). */
-export const PMJAY_COVER_PERCENT = 80;

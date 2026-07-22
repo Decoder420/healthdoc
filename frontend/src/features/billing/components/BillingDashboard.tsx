@@ -168,8 +168,7 @@ export function BillingDashboard() {
               >
                 <SchemeSelector
                   value={editor.schemeOption}
-                  schemeAdjustment={editor.draft.scheme_adjustment}
-                  eligibility={editor.eligibility}
+                  schemeAdjustment={editor.schemeAdjustmentNumber}
                   disabled={!editor.canEdit || editor.busy}
                   onChange={editor.setScheme}
                   onSchemeAdjustmentChange={editor.setSchemeAdjustment}

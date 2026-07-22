@@ -2,16 +2,11 @@ import type {
   AddInvoiceItemInput,
   InvoiceListFilters,
   InvoiceWithItems,
-  PmjayEligibilityStatus,
   UpdateInvoiceDraftInput,
 } from "../types";
 import { recomputeInvoiceTotals, withLineAmount } from "../lib/calculations";
-import {
-  getStore,
-  getPaymentStore,
-  PMJAY_ELIGIBILITY,
-  setStore,
-} from "../lib/mock/billing_data";
+import { toMoney, fromMoney } from "../lib/money";
+import { getStore, getPaymentStore, setStore } from "@/lib/mock/billing_data";
 
 function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
@@ -63,12 +58,6 @@ export async function getInvoice(id: string): Promise<InvoiceWithItems | null> {
   return delay({ ...found, payments });
 }
 
-export async function getPmjayEligibility(
-  uhid: string,
-): Promise<PmjayEligibilityStatus> {
-  return delay(PMJAY_ELIGIBILITY[uhid] ?? "unknown");
-}
-
 export async function updateInvoiceDraft(
   id: string,
   patch: UpdateInvoiceDraftInput,
@@ -82,19 +71,21 @@ export async function updateInvoiceDraft(
     throw new Error("Invoice is frozen — only draft invoices can be edited");
   }
 
+  const discount_amount =
+    patch.discount_amount !== undefined
+      ? toMoney(fromMoney(patch.discount_amount))
+      : current.discount_amount;
+  const scheme_adjustment =
+    patch.scheme_adjustment !== undefined
+      ? toMoney(fromMoney(patch.scheme_adjustment))
+      : current.scheme_adjustment;
+
   const next: InvoiceWithItems = {
     ...current,
-    ...patch,
     scheme_code:
       patch.scheme_code !== undefined ? patch.scheme_code : current.scheme_code,
-    discount_amount:
-      patch.discount_amount !== undefined
-        ? patch.discount_amount
-        : current.discount_amount,
-    scheme_adjustment:
-      patch.scheme_adjustment !== undefined
-        ? patch.scheme_adjustment
-        : current.scheme_adjustment,
+    discount_amount,
+    scheme_adjustment,
     status: patch.status ?? current.status,
     updated_at: new Date().toISOString(),
   };
@@ -132,8 +123,7 @@ export async function addInvoiceItem(
     reference_id: body.reference_id ?? null,
     description: body.description,
     quantity: body.quantity,
-    unit_price: body.unit_price,
-    amount: 0,
+    unit_price: toMoney(fromMoney(body.unit_price)),
   });
 
   const current = store[idx];
@@ -160,7 +150,9 @@ export async function addInvoiceItem(
 export async function updateInvoiceItem(
   invoiceId: string,
   itemId: string,
-  patch: Partial<Pick<AddInvoiceItemInput, "quantity" | "unit_price" | "description" | "charge_category">>,
+  patch: Partial<
+    Pick<AddInvoiceItemInput, "quantity" | "unit_price" | "description" | "charge_category">
+  >,
 ): Promise<InvoiceWithItems> {
   const store = getStore();
   const idx = store.findIndex((r) => r.id === invoiceId);
@@ -176,7 +168,7 @@ export async function updateInvoiceItem(
       ...row,
       ...patch,
       quantity: patch.quantity ?? row.quantity,
-      unit_price: patch.unit_price ?? row.unit_price,
+      unit_price: toMoney(fromMoney(patch.unit_price ?? row.unit_price)),
     });
   });
 

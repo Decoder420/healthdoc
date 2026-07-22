@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import { Modal } from "@/components/ui/Modal";
 import { meridian } from "@/styles/theme";
 import { formatINR } from "../lib/formatters";
-import { round2 } from "../lib/calculations";
+import { fromMoney, round2, toMoney } from "../lib/money";
 import type { CreateRefundInput, PaymentWithRefunds } from "../types";
 
 type Props = {
@@ -23,8 +23,8 @@ type Props = {
 export function ReversalFormModal({ open, payment, busy, onClose, onSubmit }: Props) {
   const maxRefund = useMemo(() => {
     if (!payment) return 0;
-    const already = payment.refunds.reduce((s, r) => s + r.amount, 0);
-    return round2(Math.max(0, payment.amount - already));
+    const already = payment.refunds.reduce((s, r) => s + fromMoney(r.amount), 0);
+    return round2(Math.max(0, fromMoney(payment.amount) - already));
   }, [payment]);
 
   const [amount, setAmount] = useState(maxRefund);
@@ -41,7 +41,7 @@ export function ReversalFormModal({ open, payment, busy, onClose, onSubmit }: Pr
 
   const handleSave = async () => {
     if (!reason.trim() || amount <= 0 || amount > maxRefund + 0.001) return;
-    await onSubmit({ amount, reason: reason.trim() });
+    await onSubmit({ amount: toMoney(amount), reason: reason.trim() });
   };
 
   return (
@@ -92,7 +92,7 @@ export function ReversalFormModal({ open, payment, busy, onClose, onSubmit }: Pr
           fullWidth
           multiline
           minRows={2}
-          helperText="Required for audit trail"
+          helperText="Required — refunds.reason"
         />
       </Stack>
     </Modal>

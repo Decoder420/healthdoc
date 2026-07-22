@@ -4,7 +4,7 @@ import type {
   DataAccessFilters,
   DataAccessLog,
 } from "../types";
-import { getConsentStore, getDataAccessStore } from "../lib/mock/consent_data";
+import { getConsentStore, getDataAccessStore } from "@/lib/mock/consent_data";
 
 function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));

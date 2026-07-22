@@ -1,7 +1,6 @@
 export {
   listInvoices,
   getInvoice,
-  getPmjayEligibility,
   updateInvoiceDraft,
   addInvoiceItem,
   updateInvoiceItem,

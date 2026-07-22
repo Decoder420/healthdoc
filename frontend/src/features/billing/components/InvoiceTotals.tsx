@@ -7,12 +7,13 @@ import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
 import { formatINR } from "../lib/formatters";
+import { fromMoney, type Money } from "../lib/money";
 
 type Props = {
-  gross_amount: number;
-  discount_amount: number;
-  scheme_adjustment: number;
-  net_amount: number;
+  gross_amount: Money;
+  discount_amount: Money;
+  scheme_adjustment: Money;
+  net_amount: Money;
   canEdit: boolean;
   onDiscountChange: (n: number) => void;
 };
@@ -80,7 +81,7 @@ export function InvoiceTotals({
             type="number"
             size="small"
             label="Discount amount (₹)"
-            value={discount_amount}
+            value={fromMoney(discount_amount)}
             onChange={(e) => onDiscountChange(Number(e.target.value) || 0)}
             slotProps={{ htmlInput: { min: 0, step: 1 } }}
             fullWidth

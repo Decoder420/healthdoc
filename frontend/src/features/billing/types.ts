@@ -1,4 +1,8 @@
-/** Billing DTOs aligned to migration 0014 (snake_case for API fidelity). */
+/** Billing DTOs aligned to migration 0014 + envelope money (§4.1). */
+
+import type { Money } from "./lib/money";
+
+export type { Money };
 
 export type InvoiceStatus =
   | "draft"
@@ -22,6 +26,9 @@ export type ChargeCategory =
 export type PaymentMode = "cash" | "upi" | "card" | "netbanking";
 export type PaymentStatus = "success" | "reversed";
 
+/** Hard-coded scheme selector options → invoices.scheme_code (no scheme master). */
+export type SchemeOptionCode = "SELF_PAY" | "PM-JAY" | "OTHER";
+
 export type Invoice = {
   id: string;
   invoice_number: string;
@@ -29,10 +36,10 @@ export type Invoice = {
   patient_id: string;
   facility_id: string;
   status: InvoiceStatus;
-  gross_amount: number;
-  discount_amount: number;
-  scheme_adjustment: number;
-  net_amount: number;
+  gross_amount: Money;
+  discount_amount: Money;
+  scheme_adjustment: Money;
+  net_amount: Money;
   scheme_code: string | null;
   sensitivity: "critical";
   created_at: string;
@@ -47,13 +54,14 @@ export type InvoiceItem = {
   reference_id: string | null;
   description: string;
   quantity: number;
-  unit_price: number;
-  amount: number;
+  unit_price: Money;
+  amount: Money;
 };
 
 export type InvoiceWithItems = Invoice & {
   items: InvoiceItem[];
   payments?: Payment[];
+  /** Read context from patients / visits — not invoice columns. */
   patient?: { uhid: string; name: string; age?: number; gender?: string };
   visit?: { visit_type: "OPD" | "IPD" };
 };
@@ -62,36 +70,33 @@ export type Payment = {
   id: string;
   invoice_id: string;
   receipt_number: string;
-  amount: number;
+  amount: Money;
+  currency: string;
   mode: PaymentMode;
   status: PaymentStatus;
   collected_by: string;
   collected_at: string;
-  reference_txn_id?: string | null;
-  notes?: string | null;
+  sensitivity: "critical";
 };
 
 export type Refund = {
   id: string;
   payment_id: string;
-  invoice_id: string;
   refund_number: string;
-  amount: number;
+  amount: Money;
   reason: string;
   approved_by: string;
   refunded_at: string;
 };
 
 export type CollectPaymentInput = {
-  amount: number;
+  amount: Money | number;
   mode: PaymentMode;
-  reference_txn_id?: string | null;
-  notes?: string | null;
   collected_by?: string;
 };
 
 export type CreateRefundInput = {
-  amount: number;
+  amount: Money | number;
   reason: string;
   approved_by?: string;
 };
@@ -99,10 +104,6 @@ export type CreateRefundInput = {
 export type PaymentWithRefunds = Payment & {
   refunds: Refund[];
 };
-
-export type SchemeOptionCode = "SELF_PAY" | "PM-JAY" | "OTHER";
-
-export type PmjayEligibilityStatus = "eligible" | "ineligible" | "unknown";
 
 export type InvoiceListFilters = {
   query?: string;
@@ -113,14 +114,21 @@ export type AddInvoiceItemInput = {
   charge_category: ChargeCategory;
   description: string;
   quantity: number;
-  unit_price: number;
+  unit_price: Money | number;
   reference_type?: string | null;
   reference_id?: string | null;
 };
 
 export type UpdateInvoiceDraftInput = {
   scheme_code?: string | null;
-  discount_amount?: number;
-  scheme_adjustment?: number;
+  discount_amount?: Money | number;
+  scheme_adjustment?: Money | number;
   status?: InvoiceStatus;
+};
+
+export type InvoiceBalance = {
+  net_amount: Money;
+  paid_total: Money;
+  refunded_total: Money;
+  balance_due: Money;
 };
