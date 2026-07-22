@@ -22,7 +22,7 @@ interface StatusActionMenuProps {
   onAction: (action: StatusAction) => void;
 }
 
-/** Matches SharedUiPreview toast trigger buttons + ExportButton chrome. */
+/** Matches ExportButton / toast trigger button chrome. */
 export const workflowActionButtonSx = {
   textTransform: "none" as const,
   fontWeight: 600,
