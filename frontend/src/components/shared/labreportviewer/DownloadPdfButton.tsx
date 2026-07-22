@@ -15,42 +15,32 @@ export default function DownloadPdfButton({
   const [loading, setLoading] = useState(false);
 
   const handleDownload = async () => {
-    if (!reportId) {
-      alert("Report ID not found.");
-      return;
-    }
-
-    setLoading(true);
-
     try {
-      console.log("Downloading:", reportId);
+      setLoading(true);
 
       const response = await fetch(
-        `/api/reports/${encodeURIComponent(reportId)}/pdf`,
-        {
-          method: "GET",
-        }
+        `/api/reports/${encodeURIComponent(reportId)}/pdf`
       );
 
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
+        throw new Error(`Failed (${response.status})`);
       }
 
       const blob = await response.blob();
 
-      const downloadUrl = window.URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
 
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${reportNumber || reportId}.pdf`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${reportNumber}.pdf`;
 
-      document.body.appendChild(link);
-      link.click();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
 
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (error) {
-      console.error(error);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
       alert("Unable to download PDF.");
     } finally {
       setLoading(false);

@@ -6,8 +6,6 @@ export async function GET(
   { params }: { params: Promise<{ reportId: string }> }
 ) {
   const { reportId } = await params;
-  
-  console.log("API HIT");
 
   try {
     const browser = await puppeteer.launch({
@@ -17,28 +15,55 @@ export async function GET(
 
     const page = await browser.newPage();
 
-    // Build absolute URL
-    const origin = request.nextUrl.origin;
+    await page.setViewport({
+      width: 1400,
+      height: 2200,
+      deviceScaleFactor: 2,
+    });
 
-    // Open your existing report page in PDF mode
-    await page.goto(
-      `${origin}/lab/reports/${reportId}?pdf=1`,
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+    const url = `${origin}/lab/reports/${reportId}?pdf=1`;
+
+    console.log("Opening:", url);
+
+    await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+
+    // Wait until the report is actually rendered
+    await page.waitForSelector("#lab-report", {
+      visible: true,
+      timeout: 60000,
+    });
+
+    // Wait for React to finish rendering
+    await page.waitForFunction(
+      () => document.querySelector("#lab-report")?.innerHTML.length! > 500,
       {
-        waitUntil: "networkidle0",
+        timeout: 60000,
       }
     );
 
-    // Wait for fonts/images
-    await page.evaluate(() => document.fonts.ready);
+    // Wait for fonts
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+
+    // Wait a little more for QR code, barcode etc.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
+      preferCSSPageSize: true,
       margin: {
         top: "10mm",
-        right: "10mm",
         bottom: "10mm",
         left: "10mm",
+        right: "10mm",
       },
     });
 
@@ -49,16 +74,15 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${reportId}.pdf"`,
-        "Cache-Control": "no-store",
       },
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return Response.json(
       {
         success: false,
-        message: "Unable to generate PDF",
+        error: String(err),
       },
       {
         status: 500,
