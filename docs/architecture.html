@@ -221,7 +221,7 @@ staging, and each facility. Nginx is the single entry point; nothing else is exp
 <tr><th>Route (nginx)</th><th>Target</th><th>Notes</th></tr>
 <tr><td><code>/</code></td><td>frontend:3000</td><td>Next.js UI (+ HMR websocket in dev)</td></tr>
 <tr><td><code>/api/</code></td><td>backend:8000</td><td>rate-limited 30 r/s, burst 60</td></tr>
-<tr><td><code>/api/v1/ws/</code></td><td>backend:8000</td><td>WebSocket upgrade, 1 h read timeout (queue displays)</td></tr>
+<tr><td><code>/api/v1/ws/</code> · <code>/queue/display/{dept}</code> (+ <code>/stream</code> SSE)</td><td>backend:8000</td><td>WebSocket upgrade (1 h timeout) and the PUBLIC OPD board/feed — token + doctor + room only, no PII, no auth</td></tr>
 <tr><td><code>/auth/</code></td><td>keycloak:8080</td><td>rate-limited 10 r/s; Keycloak runs with <code>--http-relative-path=/auth</code></td></tr>
 <tr><td><code>icd11</code> container (internal :80)</td><td>WHO ICD-API (self-hosted)</td><td>offline ICD-11 search at the edge; backend proxies it via <code>/api/v1/diagnoses/icd-search</code> — never exposed directly</td></tr>
 <tr><td>5432 / 27017 / 6379 / 9000-9001 / 8042 / 4242</td><td>datastores</td><td>bound to 127.0.0.1 only (dev convenience); never public</td></tr>
@@ -409,7 +409,7 @@ supervisor-approved merge into a UHID later writes <code>patient_merge_log</code
 
 <h3>6.2 OPD consultation (doctor)</h3>
 <div class="card"><div class="flow">
-  <div class="step"><b>Call next</b>queue sorts: emergency → doctor_recall → admin_override → senior/pregnant → follow-up → normal, then FIFO</div>
+  <div class="step"><b>Call next</b>next by priority tier then FIFO; updates <code>queues.now_serving_token_id</code> and pushes to the public OPD display board (WS/SSE) — patient outside sees their <code>MED-042</code> · Dr. Sharma · Room 3</div>
   <div class="step"><b>Encounter</b>created under the visit; vitals pulled if nurse recorded</div>
   <div class="step"><b>Diagnoses</b>ICD-11 search (local WHO container) — stem + post-coordination; ICD-10 fallback</div>
   <div class="step"><b>Orders / Rx</b>generic <code>orders</code> header + items; prescription with per-drug items</div>
@@ -588,7 +588,7 @@ chain order, empty-diff autogenerate check before merge — see <code>database-s
 
 </main>
 <footer>
-HealthDoc architecture · generated 2026-07-17 · sources: database-schema.md v3, schema-conventions.md,
+HealthDoc architecture · generated 2026-07-17 · sources: database-schema.md v3.5, schema-conventions.md,
 ADR 0001 (identity &amp; photo — in force), ADR 0002 (full departmental billing), infra/docker-compose.yml,
 .github issue plan (W1–W8). Binding order on conflicts: ADRs → database-schema.md → this document.
 </footer>
