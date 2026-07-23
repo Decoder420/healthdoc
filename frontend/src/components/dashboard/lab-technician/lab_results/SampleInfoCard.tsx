@@ -76,87 +76,97 @@ export default function SampleInfoCard({
   return (
     <Card
       sx={{
-        mt: 3,
+        mt:3,
         borderRadius: 3,
       }}
     >
       <CardContent>
-        <Typography
-          variant="h6"
-          fontWeight={700}
-          gutterBottom
-        >
-          Sample Information
-        </Typography>
+  <Typography
+    variant="h6"
+    fontWeight={700}
+    gutterBottom
+  >
+    Sample Information
+  </Typography>
 
-        <Stack
-          direction={{
-            xs: "column",
-            lg: "row",
-          }}
-          justifyContent="space-between"
-          spacing={4}
-          alignItems={{
-            xs: "flex-start",
-            lg: "center",
-          }}
-        >
-          <Stack
-            direction="row"
-            spacing={5}
-            flexWrap="wrap"
-            useFlexGap
-          >
-            <InfoItem
-              label="Barcode"
-              value={sample.barcode}
-            />
+  <Box
+    sx={{
+      display: "grid",
+      gridTemplateColumns: {
+        xs: "1fr",
+        lg: "1fr auto",
+      },
+      
+      alignItems: "center",
+    }}
+  >
+    {/* Left Section */}
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: "repeat(2, 1fr)",
+          md: "repeat(4, 1fr)",
+        },
+        gap: 3,
+      }}
+    >
+      <InfoItem
+        label="Barcode"
+        value={sample.barcode}
+      />
 
-            <InfoItem
-              label="Sample Type"
-              value={sample.sampleType}
-            />
+      <InfoItem
+        label="Sample Type"
+        value={sample.sampleType}
+      />
 
-            <InfoItem
-              label="Container"
-              value={sample.container}
-            />
+      <InfoItem
+        label="Container"
+        value={sample.container}
+      />
 
-            <InfoItem
-              label="Collected At"
-              value={sample.collectedAt}
-            />
-          </Stack>
+      <InfoItem
+        label="Collected At"
+        value={sample.collectedAt}
+      />
+    </Box>
 
-          <Stack
-            spacing={1}
-            alignItems="center"
-          >
-            <Chip
-              label={sample.status}
-              color={statusColor(sample.status)}
-              size="small"
-            />
+    {/* Right Section */}
+    <Stack
+      spacing={1.5}
+      alignItems="center"
+      justifyContent="center"
+      sx={{
+        minWidth: 220,
+      }}
+    >
+      <Chip
+        label={sample.status}
+        color={statusColor(sample.status)}
+        size="small"
+      />
 
-            <Barcode
-              value={sample.barcode}
-              width={1.6}
-              height={45}
-              displayValue={false}
-              margin={0}
-            />
+      <Barcode
+        value={sample.barcode}
+        width={1.6}
+        height={45}
+        displayValue={false}
+        margin={0}
+      />
 
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              {sample.barcode}
-            </Typography>
-          </Stack>
-        </Stack>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+      >
+        {sample.barcode}
+      </Typography>
+    </Stack>
+  </Box>
 
-        <Divider sx={{ mt: 3 }} />
-      </CardContent>
+  <Divider sx={{ mt: 3 }} />
+</CardContent>
     </Card>
   );
 }

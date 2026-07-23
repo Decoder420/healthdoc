@@ -3,9 +3,9 @@
 import Grid from "@mui/material/Grid2";
 
 import {
-  FileCheck2,
-  CalendarCheck2,
-  Users,
+  BadgeCheck,
+  ClipboardCheck,
+  UsersRound,
   ShieldAlert,
 } from "lucide-react";
 
@@ -36,27 +36,27 @@ export default function VerificationKPICards() {
   ).length;
 
   const kpiData = [
-    {
-      title: "Verified Reports",
-      text: totalReports.toString(),
-      icon: <FileCheck2 size={iconSize} strokeWidth={2} />,
-    },
-    {
-      title: "Verified Today",
-      text: todayReports.toString(),
-      icon: <CalendarCheck2 size={iconSize} strokeWidth={2} />,
-    },
-    {
-      title: "Patients",
-      text: totalPatients.toString(),
-      icon: <Users size={iconSize} strokeWidth={2} />,
-    },
-    {
-      title: "Critical Reports",
-      text: criticalReports.toString(),
-      icon: <ShieldAlert size={iconSize} strokeWidth={2} />,
-    },
-  ];
+  {
+    title: "Verified Reports",
+    text: totalReports.toString(),
+    icon: <BadgeCheck size={iconSize} strokeWidth={2.2} />,
+  },
+  {
+    title: "Verified Today",
+    text: todayReports.toString(),
+    icon: <ClipboardCheck size={iconSize} strokeWidth={2.2} />,
+  },
+  {
+    title: "Patients",
+    text: totalPatients.toString(),
+    icon: <UsersRound size={iconSize} strokeWidth={2.2} />,
+  },
+  {
+    title: "Critical Reports",
+    text: criticalReports.toString(),
+    icon: <ShieldAlert size={iconSize} strokeWidth={2.2} />,
+  },
+];
 
   return (
     <Grid container spacing={3}>
