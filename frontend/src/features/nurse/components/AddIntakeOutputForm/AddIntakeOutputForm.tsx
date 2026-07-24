@@ -21,11 +21,11 @@ import {
   INTAKE_TYPES,
   OUTPUT_TYPES,
 } from "./constants";
-
 import {
   addIntakeOutputSchema,
-  AddIntakeOutputSchema,
-} from "./validation";
+  type AddIntakeOutputSchema,
+} from "@/features/nurse/validation/intakeOutput.schema";
+
 
 export default function AddIntakeOutputForm({
   patientId,
@@ -52,17 +52,11 @@ export default function AddIntakeOutputForm({
     },
   });
 
-  useEffect(() => {
-
-    setValue(
-      "patientId",
-      patientId
-    );
-
-  }, [
-    patientId,
-    setValue,
-  ]);
+useEffect(() => {
+  if (patientId) {
+    setValue("patientId", patientId);
+  }
+}, [patientId, setValue]);
 
   const handleReset = () => {
 
@@ -73,15 +67,15 @@ export default function AddIntakeOutputForm({
 
   };
 
-  const submitHandler = async (
-    data: AddIntakeOutputSchema
-  ) => {
+const submitHandler = async (
+  data: AddIntakeOutputSchema
+) => {
+  const success = await onSubmit(data);
 
-    await onSubmit(data);
-
+  if (success) {
     handleReset();
-
-  };
+  }
+};
 
   return (
 

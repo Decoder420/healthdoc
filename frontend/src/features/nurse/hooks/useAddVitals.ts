@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { addVitals } from "../services";
+// import { addVitals } from "../services";
+import { vitalsService } from "../services/vitals.service";
 import type { AddVitalsSchema } from "../validation";
 
 export function useAddVitals() {
@@ -13,7 +14,7 @@ export function useAddVitals() {
     try {
       setIsSubmitting(true);
 
-      await addVitals(data);
+      await vitalsService.addVitals(data);
 
       return true;
     } catch (error) {

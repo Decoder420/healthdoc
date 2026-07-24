@@ -1,37 +1,4 @@
-﻿// export default function Page() {
-//   return (
-//     <main style={{ padding: "2rem" }}>
-//       <h1>Nurse / Ward Dashboard</h1>
-//     </main>
-//   );
-// }
-
-// import BedGrid from "@/components/BedGrid";
-// import VitalsTimeline from "@/components/VitalsTimeline";
-// import EMARTable from "@/components/tables/EMARTable";
-
-// import { beds } from "@/features/nurse/data/beds";
-// import { vitals } from "@/features/nurse/data/vitals";
-// import { medications } from "@/features/nurse/data/medications";
-
-// export default function Page() {
-//   return (
-//     <main className="p-6 space-y-8">
-//       <h1 className="text-3xl font-bold">
-//         Nurse / Ward Dashboard
-//       </h1>
-
-//       <BedGrid beds={beds} />
-
-//       <VitalsTimeline records={vitals} />
-
-//       <EMARTable medications={medications} />
-//     </main>
-//   );
-// }
-
-
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -41,6 +8,8 @@ import WardSelector, {
 
 import BedGrid from "@/components/BedGrid";
 import VitalsTimeline from "@/components/VitalsTimeline";
+import VitalsChart from "@/components/VitalsTimeline/vitalsChart";
+
 import EMARTable from "@/components/tables/EMARTable";
 
 import WardStats from "@/features/nurse/components/WardStats";
@@ -59,15 +28,11 @@ import QuickActions from "@/features/nurse/components/QuickActions";
 import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
 import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
 
-// import { beds } from "@/data/beds";
 import { patients } from "@/lib/data/patients";
-// import { vitals } from "@/data/vitals";
-//import { medications } from "@/data/medications";
 
 import { beds } from "@/lib/data/beds";
- import { vitals } from "@/lib/data/vitals";
- import { medications } from "@/lib/data/medications";
-
+import { vitals } from "@/lib/data/vitals";
+import { medications } from "@/lib/data/medications";
 
 import { NURSING_NOTES } from "@/lib/data/nursingNotes";
 import { DOCTOR_INSTRUCTIONS } from "@/lib/data/doctorInstruction";
@@ -82,106 +47,81 @@ import { Bed } from "@/components/BedGrid/BedGrid.types";
 import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
 
 export default function Page() {
+  const [selectedWard, setSelectedWard] = useState("general");
 
-  const [selectedWard, setSelectedWard] =
-    useState("general");
+  const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
 
-  const [selectedBed, setSelectedBed] =
-    useState<Bed | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  const [selectedPatient, setSelectedPatient] =
-    useState<Patient | null>(null);
+  // Filter beds by the currently selected ward — core requirement for W2
+  // ("bed grid with ward selector"). Without this, the dropdown had no effect.
+  const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
 
   const handleBedClick = (bed: Bed) => {
-
     setSelectedBed(bed);
 
-    if (!bed.patientName) {
-      setSelectedPatient(null);
-      return;
-    }
-
+    // NOTE: `Bed` (per schema doc) has no `patientName` field — the old check
+    // here referenced a field that doesn't exist on the doc-accurate Bed type.
+    // The patient lookup itself (by bed id) was already correct.
     const patient = patients[bed.id];
-
     setSelectedPatient(patient ?? null);
+  };
 
-  }
   const patientNotes = selectedPatient
     ? NURSING_NOTES.filter(
-        (note) =>
-          note.patientUhid === selectedPatient.uhid
+        (note) => note.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientInstructions = selectedPatient
     ? DOCTOR_INSTRUCTIONS.filter(
-        (instruction) =>
-          instruction.patientUhid ===
-          selectedPatient.uhid
+        (instruction) => instruction.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientIntakeOutput = selectedPatient
     ? INTAKE_OUTPUT.filter(
-        (record) =>
-          record.patientUhid ===
-          selectedPatient.uhid
+        (record) => record.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientHandoverNotes = selectedPatient
     ? HANDOVER_NOTES.filter(
-        (note) =>
-          note.patientUhid ===
-          selectedPatient.uhid
+        (note) => note.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientMovements = selectedPatient
     ? PATIENT_MOVEMENTS.filter(
-        (movement) =>
-          movement.patientUhid ===
-          selectedPatient.uhid
+        (movement) => movement.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientProcedures = selectedPatient
     ? PROCEDURES.filter(
-        (procedure) =>
-          procedure.patientUhid ===
-          selectedPatient.uhid
+        (procedure) => procedure.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientAdmissionStatus = selectedPatient
     ? ADMISSION_STATUS.filter(
-        (record) =>
-          record.patientUhid ===
-          selectedPatient.uhid
+        (record) => record.patientUhid === selectedPatient.uhid
       )
     : [];
 
   const patientTimeline = selectedPatient
     ? PATIENT_TIMELINE.filter(
-        (event) =>
-          event.patientUhid ===
-          selectedPatient.uhid
+        (event) => event.patientUhid === selectedPatient.uhid
       )
     : [];
 
-const {
-  submitVitals,
-  isSubmitting,
-} = useAddVitals();
-      return (
+  const { submitVitals, isSubmitting } = useAddVitals();
+
+  return (
     <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
-
       {/* Header */}
-
       <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
         <div>
-
           <h1 className="text-3xl font-bold text-primary">
             Nurse Dashboard
           </h1>
@@ -189,25 +129,15 @@ const {
           <p className="mt-2 text-muted-foreground">
             Manage ward beds, patient vitals and medication administration.
           </p>
-
         </div>
 
         <div className="surface-card px-4 py-3">
-
-          <p className="text-xs text-muted-foreground">
-            Current Shift
-          </p>
-
-          <p className="mt-1 font-semibold">
-            Morning Shift
-          </p>
-
+          <p className="text-xs text-muted-foreground">Current Shift</p>
+          <p className="mt-1 font-semibold">Morning Shift</p>
         </div>
-
       </section>
 
       {/* Ward Selector */}
-
       <WardSelector
         wards={WARDS}
         selectedWard={selectedWard}
@@ -215,139 +145,83 @@ const {
       />
 
       {/* Ward Statistics */}
-
       <WardStats />
 
       {/* Bed Grid */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Ward Overview
-          </h2>
-
+          <h2 className="text-xl font-semibold">Ward Overview</h2>
           <p className="text-sm text-muted-foreground">
             Current bed occupancy for the selected ward.
           </p>
-
         </div>
 
         <BedGrid
-          beds={beds}
+          beds={filteredBeds}
           selectedBedId={selectedBed?.id}
           onBedClick={handleBedClick}
         />
-
       </section>
 
       {/* Patient Details */}
+      <PatientDetails patient={selectedPatient} />
 
-      <PatientDetails
-        patient={selectedPatient}
-      />
-
-            {/* Vitals Timeline */}
-
+      {/* Vitals Timeline */}
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Vitals Timeline
-          </h2>
-
+          <h2 className="text-xl font-semibold">Vitals Timeline</h2>
           <p className="text-sm text-muted-foreground">
             Latest patient vital recordings.
           </p>
-
         </div>
 
-        <VitalsTimeline
-          records={vitals}
-        />
-
+        <VitalsTimeline records={vitals} />
+<VitalsChart records={vitals} />
       </section>
 
       {/* Nursing Notes */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Nursing Notes
-          </h2>
-
+          <h2 className="text-xl font-semibold">Nursing Notes</h2>
           <p className="text-sm text-muted-foreground">
             Nursing observations for the selected patient.
           </p>
-
         </div>
 
-        <NursingNotes
-          patient={selectedPatient}
-          notes={patientNotes}
-        />
-
+        <NursingNotes patient={selectedPatient} notes={patientNotes} />
       </section>
 
       {/* Doctor Instructions */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Doctor Instructions
-          </h2>
-
+          <h2 className="text-xl font-semibold">Doctor Instructions</h2>
           <p className="text-sm text-muted-foreground">
             Medical orders for the selected patient.
           </p>
-
         </div>
 
         <DoctorInstructions
           patient={selectedPatient}
           instructions={patientInstructions}
         />
-
       </section>
 
       {/* Intake Output */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Intake / Output
-          </h2>
-
+          <h2 className="text-xl font-semibold">Intake / Output</h2>
           <p className="text-sm text-muted-foreground">
             Fluid intake and output records for the selected patient.
           </p>
-
         </div>
 
-        <IntakeOutput
-          patient={selectedPatient}
-          records={patientIntakeOutput}
-        />
+        <IntakeOutput patient={selectedPatient} records={patientIntakeOutput} />
       </section>
-      
 
-              {/* Handover Notes */}
-
+      {/* Handover Notes */}
       <section className="space-y-4">
-
         <div>
-          <h2 className="text-xl font-semibold">
-            Handover Notes
-          </h2>
-
+          <h2 className="text-xl font-semibold">Handover Notes</h2>
           <p className="text-sm text-muted-foreground">
             Shift handover details for the selected patient.
           </p>
@@ -357,39 +231,24 @@ const {
           patient={selectedPatient}
           notes={patientHandoverNotes}
         />
-
       </section>
 
       {/* Patient Movement */}
-
       <section className="space-y-4">
-
         <div>
-          <h2 className="text-xl font-semibold">
-            Patient Movement
-          </h2>
-
+          <h2 className="text-xl font-semibold">Patient Movement</h2>
           <p className="text-sm text-muted-foreground">
             Movement history for the selected patient.
           </p>
         </div>
 
-        <PatientMovement
-          patient={selectedPatient}
-          records={patientMovements}
-        />
-
+        <PatientMovement patient={selectedPatient} records={patientMovements} />
       </section>
 
       {/* Procedure Assistance */}
-
       <section className="space-y-4">
-
         <div>
-          <h2 className="text-xl font-semibold">
-            Procedure Assistance
-          </h2>
-
+          <h2 className="text-xl font-semibold">Procedure Assistance</h2>
           <p className="text-sm text-muted-foreground">
             Procedures assigned to the selected patient.
           </p>
@@ -399,18 +258,12 @@ const {
           patient={selectedPatient}
           procedures={patientProcedures}
         />
-
       </section>
 
       {/* Admission Status */}
-
       <section className="space-y-4">
-
         <div>
-          <h2 className="text-xl font-semibold">
-            Admission Status
-          </h2>
-
+          <h2 className="text-xl font-semibold">Admission Status</h2>
           <p className="text-sm text-muted-foreground">
             Admission workflow for the selected patient.
           </p>
@@ -420,66 +273,41 @@ const {
           patient={selectedPatient}
           records={patientAdmissionStatus}
         />
-
       </section>
 
       {/* Patient Timeline */}
-
       <section className="space-y-4">
-
         <div>
-          <h2 className="text-xl font-semibold">
-            Patient Timeline
-          </h2>
-
+          <h2 className="text-xl font-semibold">Patient Timeline</h2>
           <p className="text-sm text-muted-foreground">
             Timeline of all activities for the selected patient.
           </p>
         </div>
 
-        <PatientTimeline
-          patient={selectedPatient}
-          events={patientTimeline}
-        />
-
+        <PatientTimeline patient={selectedPatient} events={patientTimeline} />
       </section>
 
-            {/* Medication */}
-
+      {/* Medication */}
       <section className="space-y-4">
-
         <div>
-
           <h2 className="text-xl font-semibold">
             Medication Administration Record
           </h2>
-
           <p className="text-sm text-muted-foreground">
             Scheduled and administered medications.
           </p>
-
         </div>
 
-        <EMARTable
-          medications={medications}
-        />
-
+        <EMARTable medications={medications} />
       </section>
 
       {/* Quick Actions */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Quick Actions
-          </h2>
-
+          <h2 className="text-xl font-semibold">Quick Actions</h2>
           <p className="text-sm text-muted-foreground">
             Frequently used nursing actions.
           </p>
-
         </div>
 
         <QuickActions
@@ -487,37 +315,25 @@ const {
             console.log(action);
           }}
         />
-
       </section>
 
       {/* Alerts */}
-
       <section className="space-y-4">
-
         <div>
-
-          <h2 className="text-xl font-semibold">
-            Alerts
-          </h2>
-
+          <h2 className="text-xl font-semibold">Alerts</h2>
           <p className="text-sm text-muted-foreground">
             Critical alerts and notifications.
           </p>
-
         </div>
 
         <AlertsPanel />
-
       </section>
 
-<AddVitalsForm
-  patientId={selectedPatient?.uhid ?? ""}
-  isSubmitting={isSubmitting}
-  onSubmit={submitVitals}
-/>
-
+      <AddVitalsForm
+        patientId={selectedPatient?.uhid ?? ""}
+        isSubmitting={isSubmitting}
+        onSubmit={submitVitals}
+      />
     </main>
   );
 }
-
-  

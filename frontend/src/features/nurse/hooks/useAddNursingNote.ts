@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { addNursingNote } from "../services";
+import { addNursingNote } from "../services/nurse.service";
 
 import type {
   AddNursingNoteSchema,
