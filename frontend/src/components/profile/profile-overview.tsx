@@ -18,18 +18,24 @@ function InfoItem({ label, value }: { label: string; value: string }) {
 }
 
 export function ProfileOverview({ profile }: ProfileOverviewProps) {
+  const roleLabel = profile.role
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-base font-semibold text-foreground">Profile Overview</h2>
         <p className="text-xs text-muted-foreground">
-          Your account, duty, and contact information.
+          Your account, duty, and contact information for the {roleLabel} dashboard.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <InfoItem label="Full Name" value={profile.name} />
         <InfoItem label="Employee ID" value={profile.employeeId} />
+        <InfoItem label="Role" value={roleLabel} />
         <InfoItem label="Gender" value={profile.gender} />
         <InfoItem label="Email" value={profile.email} />
         <InfoItem label="Mobile" value={profile.phone} />

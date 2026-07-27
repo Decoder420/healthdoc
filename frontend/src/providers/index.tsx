@@ -7,6 +7,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider, useThemeMode } from "@/providers/theme-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { OpdQueueProvider } from "@/features/opd/context/opd-queue-context";
 import { createAppTheme } from "@/styles/theme";
 
 function MuiBridge({ children }: { children: React.ReactNode }) {
@@ -34,7 +35,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <AppRouterCacheProvider options={{ key: "mui", prepend: true }}>
         <MuiBridge>
           <AuthProvider>
-            <QueryProvider>{children}</QueryProvider>
+            <OpdQueueProvider>
+              <QueryProvider>{children}</QueryProvider>
+            </OpdQueueProvider>
           </AuthProvider>
         </MuiBridge>
       </AppRouterCacheProvider>

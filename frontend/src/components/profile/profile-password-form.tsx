@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ChangePasswordInput } from "@/features/profile/types";
-import { changeStaffPassword } from "@/features/profile/api";
+import { changeStaffPassword, DEMO_STAFF_PASSWORD } from "@/features/profile/api";
 import { FieldText, FormSection } from "@/components/ui/mui-field";
 import { Button } from "@/components/ui/button";
 
@@ -39,7 +39,7 @@ export function ProfilePasswordForm({ onDone }: ProfilePasswordFormProps) {
       <div>
         <h2 className="text-base font-semibold text-foreground">Change Password</h2>
         <p className="text-xs text-muted-foreground">
-          Keep your account secure. Demo current password: receptionist123
+          Keep your account secure. Demo current password: {DEMO_STAFF_PASSWORD}
         </p>
       </div>
 

@@ -110,7 +110,7 @@ export function ProfileModule() {
     setError("");
     setSuccess("");
 
-    const result = updateStaffProfile(user.id, editForm);
+    const result = updateStaffProfile(user.id, editForm, { role: user.role });
     if (!result.success) {
       setError(result.error);
       return;
@@ -128,10 +128,14 @@ export function ProfileModule() {
     setError("");
     setSuccess("");
 
-    const result = updateStaffProfile(user.id, {
-      ...toUpdateInput(profile),
-      photo: photoDraft,
-    });
+    const result = updateStaffProfile(
+      user.id,
+      {
+        ...toUpdateInput(profile),
+        photo: photoDraft,
+      },
+      { role: user.role },
+    );
 
     if (!result.success) {
       setError(result.error);
@@ -150,7 +154,7 @@ export function ProfileModule() {
     setError("");
     setSuccess("");
 
-    const result = updateStaffProfile(user.id, editForm);
+    const result = updateStaffProfile(user.id, editForm, { role: user.role });
     if (!result.success) {
       setError(result.error);
       return;
@@ -178,7 +182,7 @@ export function ProfileModule() {
           <p className="text-sm font-medium text-primary">My Account</p>
           <h1 className="text-2xl font-semibold text-foreground">{roleLabel} Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage your profile, photo, password, and preferences.
+            Manage your {roleLabel.toLowerCase()} account details, photo, password, and preferences.
           </p>
         </div>
         <Button type="button" variant="danger" onClick={handleLogout}>
