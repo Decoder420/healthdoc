@@ -1,0 +1,186 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
+import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
+
+import {
+  Box,
+  Breadcrumbs,
+  Button,
+  Chip,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+
+interface QueueHeaderProps {
+  onRefresh: () => void;
+  onExport: () => void;
+}
+
+export default function QueueHeader({
+  onRefresh,
+  onExport,
+}: QueueHeaderProps) {
+  const [now, setNow] = useState(new Date());
+
+  // Live Clock
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const currentDate = now.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  const currentTime = now.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 3,
+        borderRadius: 4,
+        border: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      <Stack
+        direction={{
+          xs: "column",
+          md: "row",
+        }}
+        justifyContent="space-between"
+        alignItems={{
+          xs: "flex-start",
+          md: "center",
+        }}
+        spacing={3}
+      >
+        {/* Left */}
+        <Box>
+          <Breadcrumbs
+            sx={{
+              mb: 1,
+              fontSize: 13,
+            }}
+          >
+            <Typography
+              variant="body2"
+              color="text.secondary"
+            >
+              Radiology
+            </Typography>
+
+            <Typography
+              variant="body2"
+              color="primary"
+              fontWeight={600}
+            >
+              Queue
+            </Typography>
+          </Breadcrumbs>
+
+          <Typography
+            variant="h4"
+            fontWeight={700}
+            lineHeight={1.2}
+          >
+            Radiology Queue
+          </Typography>
+
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            mt={1}
+          >
+            Manage today's imaging appointments,
+            prioritize emergency cases and start
+            radiology procedures.
+          </Typography>
+        </Box>
+
+        {/* Right */}
+        <Stack
+          spacing={2}
+          alignItems={{
+            xs: "flex-start",
+            md: "flex-end",
+          }}
+        >
+          {/* Live Date & Time */}
+          <Stack
+            direction="row"
+            spacing={1.5}
+            flexWrap="wrap"
+          >
+            <Chip
+              icon={<CalendarTodayRoundedIcon />}
+              label={currentDate}
+              variant="outlined"
+              sx={{
+                fontWeight: 500,
+              }}
+            />
+
+            <Chip
+              icon={<AccessTimeRoundedIcon />}
+              label={currentTime}
+              variant="outlined"
+              color="primary"
+              sx={{
+                fontWeight: 600,
+                minWidth: 125,
+              }}
+            />
+          </Stack>
+
+          {/* Action Buttons */}
+          <Stack
+            direction="row"
+            spacing={1.5}
+          >
+            <Button
+              variant="outlined"
+              startIcon={<RefreshRoundedIcon />}
+              onClick={onRefresh}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              Refresh
+            </Button>
+
+            <Button
+              variant="contained"
+              startIcon={<FileUploadOutlinedIcon  />}
+              onClick={onExport}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              Export Queue
+            </Button>
+          </Stack>
+        </Stack>
+      </Stack>
+    </Paper>
+  );
+}

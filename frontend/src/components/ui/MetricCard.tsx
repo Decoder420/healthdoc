@@ -21,7 +21,7 @@ export function MetricCard({
   loading,
 }: MetricCardProps) {
   return (
-    <div className="surface-card flex flex-col gap-3 p-5">
+    <div className="surface-card flex flex-col h-full gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}

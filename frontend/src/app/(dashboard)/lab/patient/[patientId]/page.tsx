@@ -1,11 +1,17 @@
-import PatientInfo from "@/components/dashboard/lab/PatientInfo";
+import PatientProfile from "@/components/dashboard/lab-technician/Patient_page/patient"
 
-export default async function PatientPage({
+interface Props {
+  params: Promise<{
+    patientId: string;
+  }>;
+}
+
+export default async function Page({
   params,
-}: {
-  params: Promise<{ patientId: string }>;
-}) {
+}: Props) {
   const { patientId } = await params;
 
-  return <PatientInfo patientId={patientId} />;
+  return (
+    <PatientProfile patientId={patientId} />
+  );
 }

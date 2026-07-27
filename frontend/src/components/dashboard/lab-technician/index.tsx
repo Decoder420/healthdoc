@@ -13,7 +13,6 @@ import { MetricCard, ChartWrapper, Badge, StatusChip } from "@/components/ui";
 import type { StatusKind } from "@/components/ui";
 import { QuickActions } from "@/components/dashboard/receptionist/quick-actions";
 import LineChart from "@/components/dashboard/lab/Lab_LineCharts";
-import GenderPieChart from "@/components/dashboard/lab/Lab_GenderPieChart";
 import UrgencyPieChart from "@/components/dashboard/lab/Lab_Urgency_Pi_Chart";
 import CalendarComponent from "@/components/dashboard/lab/Lab_Calendar";
 import { patients } from "@/lib/mock/lab_data";
@@ -22,6 +21,9 @@ import {
   getLabQueueRows,
   labQuickActions,
 } from "@/features/lab/dashboard-data";
+
+
+import dayjs from "dayjs";
 
 type LabTechnicianDashboardProps = {
   userName?: string;
@@ -73,8 +75,9 @@ function statusToChip(status: string): StatusKind {
 export function LabTechnicianDashboard({
   userName = "Technician",
 }: LabTechnicianDashboardProps) {
-  const today = "2026-07-15";
-  const [selectedDate, setSelectedDate] = useState(today);
+ const [selectedDate, setSelectedDate] = useState(
+  dayjs().format("YYYY-MM-DD")
+);
   const [search, setSearch] = useState("");
 
   const filteredPatients = useMemo(() => {
@@ -194,10 +197,11 @@ export function LabTechnicianDashboard({
     </div>
 
   {/* Charts */}
-<div className="grid w-full gap-6 lg:grid-cols-3">
+{/* Charts */}
+<div className="flex flex-col gap-6 lg:flex-row">
 
-  {/* Column 1 - Line Chart (33.3%) */}
-  <div className="w-full">
+  {/* Line Chart - 40% */}
+  <div className="lg:w-[40%]">
     <ChartWrapper
       title="Patient inflow by hour"
       description={`Orders on ${selectedDate}`}
@@ -209,35 +213,19 @@ export function LabTechnicianDashboard({
     </ChartWrapper>
   </div>
 
-  {/* Column 2 - Pie Charts (33.3%) */}
-  <div className="flex h-full w-full flex-col gap-6">
-
-    <div className="flex-1">
-      <ChartWrapper
-        title="Gender mix"
-        description={`${metrics.male} male · ${metrics.female} female`}
-        height={148}
-        empty={filteredPatients.length === 0}
-      >
-        <GenderPieChart patients={filteredPatients} />
-      </ChartWrapper>
-    </div>
-
-    <div className="flex-1">
-      <ChartWrapper
-        title="Priority mix"
-        description={`${metrics.urgent} urgent · ${metrics.emergency} emergency`}
-        height={148}
-        empty={filteredPatients.length === 0}
-      >
-        <UrgencyPieChart patients={filteredPatients} />
-      </ChartWrapper>
-    </div>
-
+  {/* Priority Chart - 30% */}
+  <div className="lg:w-[30%]">
+    <ChartWrapper
+      title="Priority mix"
+      description={`${metrics.urgent} urgent · ${metrics.emergency} emergency`}
+      empty={filteredPatients.length === 0}
+    >
+      <UrgencyPieChart patients={filteredPatients} />
+    </ChartWrapper>
   </div>
 
-  {/* Column 3 - Calendar (33.3%) */}
-  <div className="w-full">
+  {/* Calendar - 30% */}
+  <div className="lg:w-[30%]">
     <ChartWrapper
       title="Filter by date"
       description="Charts and queue update for the selected day."
@@ -253,6 +241,7 @@ export function LabTechnicianDashboard({
   </div>
 
 </div>
+
       {/* Pending queue table */}
       <div className="surface-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">

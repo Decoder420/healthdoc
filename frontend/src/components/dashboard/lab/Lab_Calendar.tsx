@@ -6,12 +6,12 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 
 type Props = {
-  value: string;
+  value?: string;
   onChange: (date: string) => void;
 };
 
 export default function CalendarComponent({
-  value,
+  value = dayjs().format("YYYY-MM-DD"),
   onChange,
 }: Props) {
   return (

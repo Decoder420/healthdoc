@@ -81,19 +81,26 @@ export default function UrgencyPieChart({ patients }: Props) {
 
     plugins: {
       legend: {
-        position: "right" as const,
-        labels: {
-          color: chartTheme.text,
-          usePointStyle: true,
-          pointStyle: "circle" as const,
-          padding: 8,
-          boxWidth: 8,
-          font: {
-            size: 10,
-            weight: "bold" as const,
-          },
-        },
-      },
+  position: "bottom" as const,
+  align: "center" as const,
+
+  labels: {
+    color: chartTheme.text,
+
+    usePointStyle: true,
+    pointStyle: "circle" as const,
+
+    boxWidth: 14,
+    boxHeight: 14,
+
+    padding: 30,
+
+    font: {
+      size: 13,          // Increase text size
+      weight: "700" as const,
+    },
+  },
+},
 
       tooltip: {
         callbacks: {

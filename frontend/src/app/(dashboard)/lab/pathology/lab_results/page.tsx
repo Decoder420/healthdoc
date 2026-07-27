@@ -1,10 +1,9 @@
-import PathologyPlaceholder from "@/features/lab/PathologyPlaceholder";
+import LabResultPage from "@/components/dashboard/lab-technician/lab_results/TestResultsPage"
 
 export default function LabResultsPage() {
   return (
-    <PathologyPlaceholder
-      title="Lab Results"
-      description="Lab result entry and review will be available here."
-    />
+    <>
+    <LabResultPage/>
+      </>
   );
 }
