@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 
 interface DynamicCardProps {
   title: string;
-  text: string;
+  text: string | number;
   icon?: ReactNode;
   linkText?: string;
   linkHref?: string;
@@ -24,81 +24,38 @@ export default function DynamicCard({
   return (
     <div
       onClick={onClick}
-      className="card border-0 shadow-sm h-100 overflow-hidden transition-all"
-      style={{
-        borderRadius: 20,
-        cursor: onClick ? "pointer" : "default",
-        transition: "all .3s ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-4px)";
-        e.currentTarget.style.boxShadow =
-          "0 18px 35px rgba(0,31,84,.12)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "";
-      }}
+      className="surface-card h-full cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
     >
-      <div className="card-body p-4">
-        <div className="d-flex justify-content-between align-items-start">
+      <div className="flex items-start justify-between p-6">
+        {/* Left Content */}
+        <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {title}
+          </p>
 
-          {/* Left */}
-          <div className="flex-grow-1">
+          <h2 className="mt-3 text-xl font-bold tracking-tight text-foreground">
+            {text}
+          </h2>
 
-           <div
-  className="fw-semibold"
-  style={{
-    fontSize: 13,
-    letterSpacing: ".4px",
-    textTransform: "uppercase",
-    color: "inherit", // Uses your global/theme text color
-  }}
->
-  {title}
-</div>
-
-            <h2
-              className="fw-bold mb-2 mt-2"
-              style={{
-                fontSize: "1.5rem",
-                lineHeight: 1,
-              }}
+          {linkHref && linkText && (
+            <Link
+              href={linkHref}
+              className="link-primary mt-5 inline-flex items-center gap-2 text-sm"
             >
-              {text}
-            </h2>
-
-            {linkHref && linkText && (
-              <Link
-                href={linkHref}
-                className="text-decoration-none fw-semibold d-inline-flex align-items-center gap-1"
-                style={{
-                  fontSize: 13,
-                }}
-              >
-                {linkText}
-                <ArrowRight size={15} />
-              </Link>
-            )}
-          </div>
-
-          {/* Icon */}
-          <div
-            className="d-flex align-items-center justify-content-center"
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 18,
-              background:
-                "linear-gradient(135deg,#EAF4FF,#D8EAFF)",
-              color: "#0B5ED7",
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </div>
-
+              {linkText}
+              <ArrowRight size={16} />
+            </Link>
+          )}
         </div>
+
+        {/* Icon */}
+{icon && (
+  <div className="surface-muted ml-6 flex h-14 w-14 items-center justify-center rounded-2xl">
+    <div className="text-[#001F54]">
+      {icon}
+    </div>
+  </div>
+)}
       </div>
     </div>
   );

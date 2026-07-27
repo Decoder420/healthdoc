@@ -16,67 +16,59 @@ export default function StatusAlert({
   workflow,
   reason,
 }: StatusAlertProps) {
-  const currentStatus = workflow.find(
+  const currentStep = workflow.find(
     (step) => step.value === status
   );
 
-  if (!currentStatus?.alert) {
+  if (!currentStep?.alert) {
     return null;
   }
 
   return (
     <Alert
-      severity={currentStatus.alert.severity}
+      severity={currentStep.alert.severity}
+      variant="outlined"
       sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: "fit-content",
-        maxWidth: 220,
-        minHeight: 32,
+        mt: 0.5,
+
+        py: 0,
+
         px: 1,
-        py: 0.5,
-        mx: "auto",
+
+        minHeight: 28,
+
         borderRadius: 2,
 
+        fontSize: 11,
+
+        alignItems: "center",
+
         "& .MuiAlert-icon": {
-          alignSelf: "center",
+          fontSize: 16,
           mr: 0.75,
-          fontSize: 18,
+          py: 0,
         },
 
         "& .MuiAlert-message": {
+          py: "2px",
           width: "100%",
-          py: 0,
-          textAlign: "center",
         },
       }}
     >
       <Typography
         variant="caption"
-        sx={{
-          display: "block",
-          width: "100%",
-          textAlign: "center",
-          fontWeight: 600,
-          lineHeight: 1.3,
-        }}
+        fontWeight={600}
       >
-        {currentStatus.alert.message}
+        {currentStep.alert.message}
       </Typography>
 
       {reason && (
         <Typography
           variant="caption"
-          sx={{
-            display: "block",
-            width: "100%",
-            mt: 0.5,
-            textAlign: "center",
-            lineHeight: 1.3,
-          }}
+          display="block"
+          color="text.secondary"
         >
-          Reason: {reason}
+          {reason}
         </Typography>
       )}
     </Alert>
