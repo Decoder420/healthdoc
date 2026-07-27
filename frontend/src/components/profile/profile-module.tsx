@@ -7,7 +7,7 @@ import {
   getStaffProfileForAuthUser,
   updateStaffProfile,
 } from "@/features/profile/api";
-import { clearAuthToken, setAuthSession, type AuthUser } from "@/lib/auth";
+import type { AuthUser } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ProfileHeaderCard } from "@/components/profile/profile-header-card";
@@ -40,7 +40,7 @@ function toUpdateInput(profile: StaffProfile): StaffProfileUpdateInput {
 
 export function ProfileModule() {
   const router = useRouter();
-  const { user, isLoading, updateUser } = useAuth();
+  const { user, isLoading, updateUser, logout } = useAuth();
   const [tab, setTab] = useState<ProfileTab>("overview");
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [editForm, setEditForm] = useState<StaffProfileUpdateInput | null>(null);
@@ -68,10 +68,21 @@ export function ProfileModule() {
     [],
   );
 
-  if (isLoading || !user) {
+  if (isLoading) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
         Loading profile...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+        <p>Sign in to view your profile.</p>
+        <Button type="button" onClick={() => router.push("/login")}>
+          Go to Login
+        </Button>
       </div>
     );
   }
@@ -91,7 +102,6 @@ export function ProfileModule() {
       email: next.email,
       role: next.role,
     };
-    setAuthSession(authUser, "dev-token");
     updateUser(authUser);
   }
 
@@ -152,16 +162,21 @@ export function ProfileModule() {
   }
 
   function handleLogout() {
-    clearAuthToken();
+    logout();
     window.location.href = "/login";
   }
+
+  const roleLabel = user.role
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">My Account</p>
-          <h1 className="text-2xl font-semibold text-foreground">Receptionist Profile</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{roleLabel} Profile</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage your profile, photo, password, and preferences.
           </p>

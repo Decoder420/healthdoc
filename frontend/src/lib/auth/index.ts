@@ -1,9 +1,4 @@
-export type AuthUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: import("@/config/roles").Role;
-};
-
+export type { AuthUser } from "./types";
+export * from "./cookies";
 export * from "./session";
 export * from "./routes";

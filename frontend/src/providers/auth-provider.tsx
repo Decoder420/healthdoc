@@ -8,7 +8,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { AuthUser } from "@/lib/auth";
+import {
+  clearAuthToken,
+  getAuthUserFromCookie,
+  setAuthSession,
+  type AuthUser,
+} from "@/lib/auth";
 import type { Role } from "@/config/roles";
 import { ROLES } from "@/config/roles";
 
@@ -17,38 +22,77 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   updateUser: (patch: Partial<AuthUser>) => void;
+  logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
   updateUser: () => undefined,
+  logout: () => undefined,
 });
 
 const DEFAULT_USER: AuthUser = {
-  id: "dev-lab",
-  name: "Dr. Sharma",
-  email: "lab.sharma@hospital.com",
-  role: ROLES.LAB_TECHNICIAN,
+  id: "dev-1",
+  name: "Priya Nair",
+  email: "priya.nair@hospital.com",
+  role: ROLES.RECEPTIONIST,
 };
 
-/** Dev stub — defaults to lab technician until Keycloak (F1-W1-03) lands. */
+const LOGGED_OUT_KEY = "hms-auth-logged-out";
+
+/** Dev stub — cookie session until Keycloak (F1-W1-03) lands. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(DEFAULT_USER);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fromCookie = getAuthUserFromCookie();
+    if (fromCookie) {
+      sessionStorage.removeItem(LOGGED_OUT_KEY);
+      setUser(fromCookie);
+      setIsLoading(false);
+      return;
+    }
+
+    const intentionallyLoggedOut =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem(LOGGED_OUT_KEY) === "1";
+
+    if (!intentionallyLoggedOut) {
+      setAuthSession(DEFAULT_USER, "dev-token");
+      setUser(DEFAULT_USER);
+    } else {
+      setUser(null);
+    }
+    setIsLoading(false);
+  }, []);
 
   const updateUser = useCallback((patch: Partial<AuthUser>) => {
-    setUser((current) => (current ? { ...current, ...patch } : current));
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      setAuthSession(next, "dev-token");
+      return next;
+    });
+  }, []);
+
+  const logout = useCallback(() => {
+    clearAuthToken();
+    sessionStorage.setItem(LOGGED_OUT_KEY, "1");
+    setUser(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       isAuthenticated: Boolean(user),
-      isLoading: false,
+      isLoading,
       updateUser,
+      logout,
     }),
-    [user, updateUser]
+    [user, isLoading, updateUser, logout]
   );
 
   return (

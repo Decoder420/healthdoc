@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import Webcam from "react-webcam";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "@mui/material/Button";
 import { getCameraBlockedReason, getCameraErrorMessage } from "@/lib/utils/camera";
 
@@ -12,10 +11,13 @@ type WebcamCaptureProps = {
   error?: string;
 };
 
-const videoConstraints: MediaTrackConstraints = {
-  width: 480,
-  height: 480,
-  facingMode: "user",
+const videoConstraints: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    width: { ideal: 480 },
+    height: { ideal: 480 },
+    facingMode: "user",
+  },
 };
 
 export function WebcamCapture({
@@ -24,39 +26,84 @@ export function WebcamCapture({
   onClear,
   error,
 }: WebcamCaptureProps) {
-  const webcamRef = useRef<Webcam>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
 
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, [stopCamera]);
+
   const handleCapture = useCallback(() => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (!imageSrc) {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0) {
       setCameraError("Unable to capture photo. Please try again.");
       return;
     }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      setCameraError("Unable to capture photo. Please try again.");
+      return;
+    }
+
+    // Mirror to match the preview
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageSrc = canvas.toDataURL("image/jpeg", 0.92);
     setCameraError("");
     onCapture(imageSrc);
+    stopCamera();
     setIsCameraOpen(false);
-  }, [onCapture]);
+  }, [onCapture, stopCamera]);
 
-  function handleOpenCamera() {
+  async function handleOpenCamera() {
     const blocked = getCameraBlockedReason();
     if (blocked) {
       setCameraError(blocked);
       return;
     }
+
     setCameraError("");
     setIsCameraOpen(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch (mediaError) {
+      setCameraError(getCameraErrorMessage(mediaError));
+      stopCamera();
+      setIsCameraOpen(false);
+    }
   }
 
   function handleCloseCamera() {
+    stopCamera();
     setIsCameraOpen(false);
     setCameraError("");
   }
 
   function handleRetake() {
     onClear();
-    handleOpenCamera();
+    void handleOpenCamera();
   }
 
   const insecureContextHint = getCameraBlockedReason();
@@ -82,7 +129,7 @@ export function WebcamCapture({
         <div className="flex flex-col gap-3">
           {!isCameraOpen && (
             <div className="flex flex-wrap gap-2">
-              <Button variant="contained" onClick={handleOpenCamera}>
+              <Button variant="contained" onClick={() => void handleOpenCamera()}>
                 {photo ? "Open Camera Again" : "Open Camera"}
               </Button>
               {photo && (
@@ -117,18 +164,13 @@ export function WebcamCapture({
           <p className="text-sm font-medium text-foreground">Live Camera</p>
 
           <div className="overflow-hidden rounded-xl border border-border bg-black">
-            <Webcam
-              ref={webcamRef}
-              audio={false}
-              screenshotFormat="image/jpeg"
-              screenshotQuality={0.92}
-              videoConstraints={videoConstraints}
-              mirrored
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
               className="h-auto w-full"
-              onUserMediaError={(mediaError) => {
-                setCameraError(getCameraErrorMessage(mediaError));
-                setIsCameraOpen(false);
-              }}
+              style={{ transform: "scaleX(-1)" }}
             />
           </div>
 

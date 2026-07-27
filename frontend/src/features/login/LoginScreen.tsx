@@ -1,19 +1,88 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { setAuthSession, type AuthUser } from "@/lib/auth";
 import { ROLES, type Role } from "@/config/roles";
 
-const DEV_ROLES: { role: Role; label: string; href: string }[] = [
-  { role: ROLES.LAB_TECHNICIAN, label: "Lab Employee", href: "/lab/dashboard" },
-  { role: ROLES.DOCTOR, label: "Doctor", href: "/doctor/dashboard" },
-  { role: ROLES.RECEPTIONIST, label: "Receptionist", href: "/dashboard" },
-  { role: ROLES.NURSE, label: "Nurse", href: "/nurse/ward-dashboard" },
-  { role: ROLES.PHARMACIST, label: "Pharmacy", href: "/pharmacy/prescription-queue" },
-  { role: ROLES.ADMIN, label: "Admin", href: "/admin/users" },
+const DEV_ROLES: {
+  role: Role;
+  label: string;
+  href: string;
+  user: AuthUser;
+}[] = [
+  {
+    role: ROLES.LAB_TECHNICIAN,
+    label: "Lab Employee",
+    href: "/lab/dashboard",
+    user: {
+      id: "dev-lab",
+      name: "Dr. Sharma",
+      email: "lab.sharma@hospital.com",
+      role: ROLES.LAB_TECHNICIAN,
+    },
+  },
+  {
+    role: ROLES.DOCTOR,
+    label: "Doctor",
+    href: "/doctor/dashboard",
+    user: {
+      id: "dev-doctor",
+      name: "Dr. Mehta",
+      email: "doctor.mehta@hospital.com",
+      role: ROLES.DOCTOR,
+    },
+  },
+  {
+    role: ROLES.RECEPTIONIST,
+    label: "Receptionist",
+    href: "/dashboard",
+    user: {
+      id: "dev-1",
+      name: "Priya Nair",
+      email: "priya.nair@hospital.com",
+      role: ROLES.RECEPTIONIST,
+    },
+  },
+  {
+    role: ROLES.NURSE,
+    label: "Nurse",
+    href: "/nurse/ward-dashboard",
+    user: {
+      id: "dev-nurse",
+      name: "Anita Desai",
+      email: "anita.desai@hospital.com",
+      role: ROLES.NURSE,
+    },
+  },
+  {
+    role: ROLES.PHARMACIST,
+    label: "Pharmacy",
+    href: "/pharmacy/prescription-queue",
+    user: {
+      id: "dev-pharmacy",
+      name: "Rahul Joshi",
+      email: "rahul.joshi@hospital.com",
+      role: ROLES.PHARMACIST,
+    },
+  },
+  {
+    role: ROLES.ADMIN,
+    label: "Admin",
+    href: "/admin/users",
+    user: {
+      id: "dev-admin",
+      name: "System Admin",
+      email: "admin@hospital.com",
+      role: ROLES.ADMIN,
+    },
+  },
 ];
 
 export default function LoginScreen() {
-  const router = useRouter();
+  function handleContinue(item: (typeof DEV_ROLES)[number]) {
+    sessionStorage.removeItem("hms-auth-logged-out");
+    setAuthSession(item.user, "dev-token");
+    window.location.href = item.href;
+  }
 
   return (
     <div className="space-y-6">
@@ -30,7 +99,7 @@ export default function LoginScreen() {
             key={item.role}
             type="button"
             className="btn btn-secondary w-full justify-start"
-            onClick={() => router.push(item.href)}
+            onClick={() => handleContinue(item)}
           >
             Continue as {item.label}
           </button>
