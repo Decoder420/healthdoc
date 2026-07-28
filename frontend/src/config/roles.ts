@@ -7,6 +7,8 @@ export const ROLES = {
   PHARMACIST: "pharmacist",
   LAB: "lab",
   LAB_TECHNICIAN: "lab_technician",
+  RADIOLOGY: "radiology",
+  RADIOLOGIST: "radiologist",
   ACCOUNTANT: "accountant",
   PATIENT: "patient",
 } as const;
@@ -20,5 +22,6 @@ export function canonicalRole(role: Role | null | undefined): Role | null {
   if (!role) return null;
   if (role === ROLES.LAB) return ROLES.LAB_TECHNICIAN;
   if (role === ROLES.PHARMACY) return ROLES.PHARMACIST;
+  if (role === ROLES.RADIOLOGIST) return ROLES.RADIOLOGY;
   return role;
 }

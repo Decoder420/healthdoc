@@ -4,7 +4,11 @@ export type NavItem = {
   label: string;
   href: string;
   roles: Role[];
+  /** Optional sidebar group label shown above this item. */
+  section?: string;
 };
+
+const RADIOLOGY_ROLES: Role[] = [ROLES.RADIOLOGY, ROLES.RADIOLOGIST];
 
 /** Sidebar / menu items filtered by role. */
 export const NAV_ITEMS: NavItem[] = [
@@ -43,6 +47,49 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/lab/pathology/settings",
     roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
+
+  // Radiology
+  {
+    label: "Dashboard",
+    href: "/radiology/dashboard",
+    roles: RADIOLOGY_ROLES,
+  },
+  {
+    label: "Queue",
+    href: "/radiology/queue",
+    roles: RADIOLOGY_ROLES,
+  },
+  {
+    label: "MRI",
+    href: "/radiology/mri",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
+  {
+    label: "CT Scan",
+    href: "/radiology/ct",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
+  {
+    label: "X-Ray",
+    href: "/radiology/xray",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
+  {
+    label: "Mammography",
+    href: "/radiology/mamography",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
+  {
+    label: "USG",
+    href: "/radiology/usg",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
+
   {
     label: "Home",
     href: "/dashboard",
@@ -75,6 +122,11 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Pharmacy",
     href: "/pharmacy/prescription-queue",
     roles: [ROLES.PHARMACY, ROLES.PHARMACIST, ROLES.ADMIN],
+  },
+  {
+    label: "Radiology",
+    href: "/radiology/dashboard",
+    roles: [ROLES.ADMIN],
   },
   {
     label: "Admin",

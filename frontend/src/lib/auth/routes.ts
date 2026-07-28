@@ -10,6 +10,8 @@ const DEFAULT_ROUTES: Record<Role, string> = {
   [ROLES.PHARMACY]: "/pharmacy/prescription-queue",
   [ROLES.LAB_TECHNICIAN]: "/lab/dashboard",
   [ROLES.LAB]: "/lab/dashboard",
+  [ROLES.RADIOLOGY]: "/radiology/dashboard",
+  [ROLES.RADIOLOGIST]: "/radiology/dashboard",
   [ROLES.ACCOUNTANT]: "/reports",
   [ROLES.PATIENT]: "/patient-portal",
 };

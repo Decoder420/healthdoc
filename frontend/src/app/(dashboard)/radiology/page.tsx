@@ -1,7 +1,5 @@
-﻿export default function Page() {
-  return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Radiology</h1>
-    </main>
-  );
+﻿import { redirect } from "next/navigation";
+
+export default function RadiologyPage() {
+  redirect("/radiology/dashboard");
 }

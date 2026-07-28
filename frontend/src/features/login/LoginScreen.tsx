@@ -65,6 +65,17 @@ const DEV_ROLES: {
     },
   },
   {
+    role: ROLES.RADIOLOGY,
+    label: "Radiology",
+    href: "/radiology/dashboard",
+    user: {
+      id: "dev-radiology",
+      name: "Dr. Kapoor",
+      email: "radiology.kapoor@hospital.com",
+      role: ROLES.RADIOLOGY,
+    },
+  },
+  {
     role: ROLES.ADMIN,
     label: "Admin",
     href: "/admin/users",

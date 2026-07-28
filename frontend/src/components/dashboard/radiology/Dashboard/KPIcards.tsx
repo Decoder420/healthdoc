@@ -18,7 +18,7 @@ const kpiCards = [
     value: 32,
     icon: <GroupsRoundedIcon fontSize="large" />,
     linkText: "View Queue",
-    linkHref: "/dashboard/radiology/queue",
+    linkHref: "/radiology/queue",
   },
   {
     id: 2,
@@ -26,7 +26,7 @@ const kpiCards = [
     value: 24,
     icon: <CameraAltRoundedIcon fontSize="large" />,
     linkText: "View Scans",
-    linkHref: "/dashboard/radiology/scans",
+    linkHref: "/radiology/ct",
   },
   {
     id: 3,
@@ -34,7 +34,7 @@ const kpiCards = [
     value: 11,
     icon: <EditNoteRoundedIcon fontSize="large" />,
     linkText: "Open Reporting",
-    linkHref: "/dashboard/radiology/reporting",
+    linkHref: "/radiology/mri",
   },
   {
     id: 4,
@@ -42,7 +42,7 @@ const kpiCards = [
     value: 8,
     icon: <PendingActionsRoundedIcon fontSize="large" />,
     linkText: "Verify Reports",
-    linkHref: "/dashboard/radiology/verification",
+    linkHref: "/radiology/queue",
   },
   {
     id: 5,
@@ -50,7 +50,7 @@ const kpiCards = [
     value: 145,
     icon: <VerifiedRoundedIcon fontSize="large" />,
     linkText: "Released Reports",
-    linkHref: "/dashboard/radiology/reports",
+    linkHref: "/radiology/xray",
   },
   {
     id: 6,
@@ -58,7 +58,7 @@ const kpiCards = [
     value: 4,
     icon: <WarningAmberRoundedIcon fontSize="large" />,
     linkText: "View Alerts",
-    linkHref: "/dashboard/radiology/alerts",
+    linkHref: "/radiology/queue",
   },
 ];
 
