@@ -84,7 +84,7 @@ const FALLBACK_TONE: StatusTone = {
 };
 
 export interface StatusChipProps extends Omit<ChipProps, "color" | "label"> {
-  /** e.g. "in_consultation", "waiting_for_investigation" — snake_case status key from the API */
+  /** e.g. "in_service", "waiting_for_investigation" — snake_case status key from the API */
   status: string;
   /** Override the auto-generated label if the API sends a different display string */
   label?: string;
