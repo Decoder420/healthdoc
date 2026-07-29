@@ -1,6 +1,9 @@
 import { StatusStep } from "@/components/shared/StatusStepper/types";
 
 export const pathologyWorkflow: StatusStep[] = [
+  // ============================
+  // QUEUE
+  // ============================
   {
     value: "QUEUE",
     label: "Queue",
@@ -8,6 +11,12 @@ export const pathologyWorkflow: StatusStep[] = [
     next: "COLLECTED",
 
     actions: [
+      {
+        id: "collect",
+        label: "Collected",
+        nextStatus: "COLLECTED",
+        color: "primary",
+      },
       {
         id: "no_show",
         label: "No Show",
@@ -25,17 +34,35 @@ export const pathologyWorkflow: StatusStep[] = [
     ],
   },
 
+  // ============================
+  // RESCHEDULING
+  // ============================
   {
     value: "NO_SHOW",
-    label: "No Show",
+    label: "Rescheduling",
     color: "warning",
     next: "QUEUE",
+
     alert: {
       severity: "warning",
-      message: "Missed collection.",
+      message:
+        "Patient did not arrive for sample collection. Reschedule the collection.",
     },
+
+    actions: [
+      {
+        id: "reschedule",
+        label: "Reschedule",
+        nextStatus: "QUEUE",
+        color: "primary",
+        requiresConfirmation: true,
+      },
+    ],
   },
 
+  // ============================
+  // COLLECTED
+  // ============================
   {
     value: "COLLECTED",
     label: "Collected",
@@ -48,12 +75,14 @@ export const pathologyWorkflow: StatusStep[] = [
         nextStatus: "RECEIVED",
         color: "success",
       },
+
       {
         id: "reject",
         label: "Reject Sample",
         nextStatus: "RECOLLECTION_REQUIRED",
         color: "error",
         requiresReason: true,
+
         reasons: [
           "Hemolyzed Sample",
           "Wrong Container",
@@ -65,53 +94,44 @@ export const pathologyWorkflow: StatusStep[] = [
     ],
   },
 
+  // ============================
+  // RECOLLECTION
+  // ============================
   {
     value: "RECOLLECTION_REQUIRED",
-    label: "Rejected",
+    label: "Recollection",
     color: "error",
     next: "QUEUE",
+
     alert: {
       severity: "warning",
-      message: "Recollect sample.",
+      message:
+        "Sample rejected. A new sample must be collected.",
     },
+
+    actions: [
+      {
+        id: "recollect",
+        label: "Recollect Sample",
+        nextStatus: "QUEUE",
+        color: "primary",
+        requiresConfirmation: true,
+      },
+    ],
   },
 
-  {
-    value: "RECEIVED",
-    label: "Received",
-    color: "primary",
-    next: "PROCESSING",
-  },
-
-  {
-    value: "PROCESSING",
-    label: "Processing",
-    color: "warning",
-    next: "READY",
-  },
-
-  {
-    value: "READY",
-    label: "Ready",
-    color: "success",
-    next: "VERIFIED",
-  },
-
-  {
-    value: "VERIFIED",
-    label: "Verified",
-    color: "success",
-    terminal: true,
-  },
-
+  // ============================
+  // REMOVED
+  // ============================
   {
     value: "REMOVED",
     label: "Removed",
     color: "default",
     terminal: true,
+
     alert: {
       severity: "info",
-      message: "Removed.",
+      message: "Order has been removed from the queue.",
     },
   },
 ];

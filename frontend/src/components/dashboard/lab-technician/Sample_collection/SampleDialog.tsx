@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { patients } from "@/lib/mock/lab_data";
 
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
@@ -25,11 +27,13 @@ import BarcodeSection from "./BarcodeSection";
 
 interface CollectSampleDialogProps {
   open: boolean;
+  patientId: string | null;
   onClose: () => void;
 }
 
 export default function CollectSampleDialog({
   open,
+  patientId,
   onClose,
 }: CollectSampleDialogProps) {
   const [selectedPatient, setSelectedPatient] =
@@ -46,6 +50,37 @@ export default function CollectSampleDialog({
       collectionTime: "",
       collectedBy: "",
     });
+
+  useEffect(() => {
+    if (!patientId) {
+      setSelectedPatient(null);
+      return;
+    }
+
+    const patient = patients.find(
+      (p) => p.patient.patientId === patientId
+    );
+
+    if (!patient) {
+      setSelectedPatient(null);
+      return;
+    }
+
+    // Convert original mock data into Patient type
+    const mappedPatient: Patient = {
+      id: patient.patient.patientId,
+      uhid: patient.patient.uhid,
+      patientName: patient.patient.name,
+      age: patient.patient.age,
+      gender: patient.patient.gender,
+      mobile: patient.patient.mobile,
+      doctor: patient.doctor.name,
+      department: patient.doctor.department,
+      tests: patient.requestedTests,
+    };
+
+    setSelectedPatient(mappedPatient);
+  }, [patientId]);
 
   const handleCollectSample = () => {
     console.log({
@@ -96,15 +131,12 @@ export default function CollectSampleDialog({
           <PatientSearch
             value={selectedPatient}
             onChange={setSelectedPatient}
+            disabled={!!patientId}
           />
 
-          <PatientDetails
-            patient={selectedPatient}
-          />
+          <PatientDetails patient={selectedPatient} />
 
-          <OrderedTests
-            patient={selectedPatient}
-          />
+          <OrderedTests patient={selectedPatient} />
 
           <SampleInformation
             value={sampleInformation}

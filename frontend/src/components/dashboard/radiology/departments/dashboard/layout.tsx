@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Box,
@@ -58,10 +58,15 @@ export default function DepartmentDashboard({
 }: DepartmentDashboardProps) {
 
 
+ const [tableRows, setTableRows] = useState(rows);
 
-  const [search,setSearch] = useState("");
+  useEffect(() => {
+    setTableRows(rows);
+  }, [rows]);
 
-  const [status,setStatus] = useState("ALL");
+  const [search, setSearch] = useState("");
+
+  const [status, setStatus] = useState("ALL");
 
 
   // Current Date Default
@@ -81,89 +86,54 @@ export default function DepartmentDashboard({
   // ============================
 
 
-  const filteredRows = useMemo(()=>{
+ const filteredRows = useMemo(() => {
+  return tableRows.filter((row) => {
+    const searchValue = search.toLowerCase();
 
+    const searchMatch =
+      row.patientName.toLowerCase().includes(searchValue) ||
+      row.uhid.toLowerCase().includes(searchValue) ||
+      row.accessionNo.toLowerCase().includes(searchValue);
 
-    return rows.filter((row)=>{
-
-
-      const searchValue =
-      search.toLowerCase();
-
-
-
-      const searchMatch =
-
-      row.patientName
-      .toLowerCase()
-      .includes(searchValue)
-
-      ||
-
-      row.uhid
-      .toLowerCase()
-      .includes(searchValue)
-
-      ||
-
-      row.accessionNo
-      .toLowerCase()
-      .includes(searchValue);
-
-
-
-
-
-      const statusMatch =
-
-      status === "ALL"
-
-      ||
-
+    const statusMatch =
+      status === "ALL" ||
       row.status === status;
 
-
-
-
-
-      const dateMatch =
-
-      !date
-
-      ||
-
+    const dateMatch =
+      !date ||
       row.studyDate === date;
 
+    return (
+      searchMatch &&
+      statusMatch &&
+      dateMatch
+    );
+  });
+}, [
+  tableRows,
+  search,
+  status,
+  date,
+]);
 
 
+const handleVerify = (row: RadiologyCase) => {
+  setTableRows((prev) =>
+    prev.map((item) =>
+      item.id === row.id
+        ? {
+            ...item,
+            status: "VERIFIED",
+          }
+        : item
+    )
+  );
 
-
-      return (
-
-        searchMatch
-
-        &&
-
-        statusMatch
-
-        &&
-
-        dateMatch
-
-      );
-
-
-    });
-
-
-  },[
-    rows,
-    search,
-    status,
-    date
-  ]);
-
-
+  onVerify?.({
+    ...row,
+    status: "VERIFIED",
+  });
+};
 
 
 
@@ -175,31 +145,18 @@ export default function DepartmentDashboard({
   // ============================
 
 
-  const handleRefresh = ()=>{
+const handleRefresh = () => {
+  setSearch("");
+  setStatus("ALL");
 
+  setDate(
+    new Date().toISOString().split("T")[0]
+  );
 
-    setSearch("");
+  setTableRows(rows);
 
-    setStatus("ALL");
-
-
-    setDate(
-      new Date()
-      .toISOString()
-      .split("T")[0]
-    );
-
-
-    onRefresh?.();
-
-
-  };
-
-
-
-
-
-
+  onRefresh?.();
+};
 
 
 
@@ -255,8 +212,7 @@ export default function DepartmentDashboard({
   // ============================
   // Default Radiology Actions
   // ============================
-
-
+  
 const defaultActions = (row: RadiologyCase) => {
   switch (row.status) {
     case "PROCESSING":
@@ -264,7 +220,7 @@ const defaultActions = (row: RadiologyCase) => {
         <Button
           variant="contained"
           size="small"
-          onClick={() => onVerify?.(row)}
+          onClick={() => handleVerify(row)}
         >
           Verify
         </Button>

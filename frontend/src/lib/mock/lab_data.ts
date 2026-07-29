@@ -69,7 +69,7 @@ export const patients = [
 
   order: {
     orderId: "ORD007",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T10:20:00Z",
   },
 
@@ -115,7 +115,7 @@ export const patients = [
 
   order: {
     orderId: "ORD008",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T10:35:00Z",
   },
 
@@ -206,7 +206,7 @@ export const patients = [
 
   order: {
     orderId: "ORD010",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T11:00:00Z",
   },
 
@@ -296,7 +296,7 @@ export const patients = [
 
   order: {
     orderId: "ORD012",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T11:20:00Z",
   },
 
@@ -387,7 +387,7 @@ export const patients = [
 
   order: {
     orderId: "ORD014",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T11:50:00Z",
   },
 
@@ -433,7 +433,7 @@ export const patients = [
 
   order: {
     orderId: "ORD015",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T12:05:00Z",
   },
 
@@ -524,7 +524,7 @@ export const patients = [
 
   order: {
     orderId: "ORD017",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T12:25:00Z",
   },
 
@@ -570,7 +570,7 @@ export const patients = [
 
   order: {
     orderId: "ORD018",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T12:35:00Z",
   },
 
@@ -661,7 +661,7 @@ export const patients = [
 
   order: {
     orderId: "ORD020",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T13:00:00Z",
   },
 
@@ -707,7 +707,7 @@ export const patients = [
 
   order: {
     orderId: "ORD021",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T13:10:00Z",
   },
 
@@ -798,7 +798,7 @@ export const patients = [
 
   order: {
     orderId: "ORD023",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T13:35:00Z",
   },
 
@@ -844,7 +844,7 @@ export const patients = [
 
   order: {
     orderId: "ORD024",
-    priority: "Emergency",
+    priority: "emergency",
     orderedAt: "2026-07-15T13:45:00Z",
   },
 
@@ -891,7 +891,7 @@ export const patients = [
 
   order: {
     orderId: "ORD025",
-    priority: "Urgent",
+    priority: "urgent",
     orderedAt: "2026-07-15T14:00:00Z",
   },
 

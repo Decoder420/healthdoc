@@ -48,8 +48,8 @@ interface SampleData {
   collectedAt: string;
 
   status:
-    | "COLLECTED"
-    | "PROCESSING";
+    | "PROCESSING"
+    | "VERIFIED";
 
   sampleType: string;
 
@@ -74,7 +74,7 @@ const initialRows: SampleData[] = [
     tests: "CBC",
     barcode: "LAB240001",
     collectedAt: "10:30 AM",
-    status: "COLLECTED",
+    status: "PROCESSING",
     sampleType: "Blood",
     container: "EDTA Tube",
     priority: "Routine",
@@ -90,7 +90,7 @@ const initialRows: SampleData[] = [
     tests: "LFT",
     barcode: "LAB240002",
     collectedAt: "10:45 AM",
-    status: "COLLECTED",
+    status: "PROCESSING",
     sampleType: "Blood",
     container: "Plain Tube",
     priority: "Urgent",
@@ -106,7 +106,7 @@ const initialRows: SampleData[] = [
     tests: "CBC, LFT",
     barcode: "LAB240003",
     collectedAt: "11:15 AM",
-    status: "COLLECTED",
+    status: "PROCESSING",
     sampleType: "Blood",
     container: "EDTA Tube",
     priority: "Routine",
@@ -333,13 +333,13 @@ All
 </MenuItem>
 
 
-<MenuItem value="COLLECTED">
-Collected
+<MenuItem value="PROCESSING">
+Processing
 </MenuItem>
 
 
-<MenuItem value="PROCESSING">
-Processing
+<MenuItem value="VERIFIED">
+Verified
 </MenuItem>
 
 

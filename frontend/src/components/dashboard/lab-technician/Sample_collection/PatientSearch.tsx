@@ -1,10 +1,17 @@
 "use client";
 
-import { Autocomplete, Box, TextField, Typography } from "@mui/material";
+import {
+  Autocomplete,
+  Box,
+  TextField,
+  Typography,
+} from "@mui/material";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 
+import { patients } from "@/lib/mock/lab_data";
+
 export interface Patient {
-  id: number;
+  id: string;
   uhid: string;
   patientName: string;
   age: number;
@@ -15,59 +22,42 @@ export interface Patient {
   tests: string[];
 }
 
+const patientOptions: Patient[] = patients.map((p) => ({
+  id: p.patient.patientId,
+  uhid: p.patient.uhid,
+  patientName: p.patient.name,
+  age: p.patient.age,
+  gender: p.patient.gender,
+  mobile: p.patient.mobile,
+  doctor: p.doctor.name,
+  department: p.doctor.department,
+  tests: p.requestedTests,
+}));
+
 interface PatientSearchProps {
   value: Patient | null;
   onChange: (patient: Patient | null) => void;
+  disabled?: boolean;
 }
-
-const patients: Patient[] = [
-  {
-    id: 1,
-    uhid: "UH10021",
-    patientName: "John Doe",
-    age: 35,
-    gender: "Male",
-    mobile: "9876543210",
-    doctor: "Dr. Sharma",
-    department: "General Medicine",
-    tests: ["CBC", "LFT", "Blood Sugar"],
-  },
-  {
-    id: 2,
-    uhid: "UH10022",
-    patientName: "Aman Singh",
-    age: 28,
-    gender: "Male",
-    mobile: "9876543211",
-    doctor: "Dr. Gupta",
-    department: "Orthopedics",
-    tests: ["KFT", "Vitamin D"],
-  },
-  {
-    id: 3,
-    uhid: "UH10023",
-    patientName: "Neha Sharma",
-    age: 30,
-    gender: "Female",
-    mobile: "9876543212",
-    doctor: "Dr. Mehta",
-    department: "Gynecology",
-    tests: ["CBC", "Thyroid Profile"],
-  },
-];
 
 export default function PatientSearch({
   value,
   onChange,
+  disabled = false,
 }: PatientSearchProps) {
   return (
     <Box>
-      <Typography variant="h6" fontWeight={600} mb={2}>
+      <Typography
+        variant="h6"
+        fontWeight={600}
+        mb={2}
+      >
         Patient Search
       </Typography>
 
       <Autocomplete
-        options={patients}
+        disabled={disabled}
+        options={patientOptions}
         value={value}
         onChange={(_, newValue) => onChange(newValue)}
         fullWidth
@@ -81,12 +71,17 @@ export default function PatientSearch({
           <TextField
             {...params}
             label="Search Patient"
-            placeholder="Search by UHID, Name or Mobile Number"
+            placeholder="Search by UHID, Name or Mobile"
             InputProps={{
               ...params.InputProps,
               startAdornment: (
                 <>
-                  <SearchRoundedIcon sx={{ mr: 1, color: "text.secondary" }} />
+                  <SearchRoundedIcon
+                    sx={{
+                      mr: 1,
+                      color: "text.secondary",
+                    }}
+                  />
                   {params.InputProps.startAdornment}
                 </>
               ),
@@ -108,11 +103,18 @@ export default function PatientSearch({
               {option.patientName}
             </Typography>
 
-            <Typography variant="body2" color="text.secondary">
-              UHID: {option.uhid} • {option.age} Years • {option.gender}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+            >
+              UHID: {option.uhid} • {option.age} Years •{" "}
+              {option.gender}
             </Typography>
 
-            <Typography variant="caption" color="text.secondary">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+            >
               {option.mobile}
             </Typography>
           </Box>

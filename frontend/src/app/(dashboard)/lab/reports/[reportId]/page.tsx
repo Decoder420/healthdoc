@@ -38,8 +38,6 @@ export default function Page() {
   const selectedReport = reports.find(
     (item) => item.report.reportNo === reportId
   );
-  console.log("Report ID:", reportId);
-console.log("Selected Report:", selectedReport);
 
   if (!selectedReport) {
     notFound();
