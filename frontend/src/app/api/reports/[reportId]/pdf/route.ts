@@ -55,6 +55,9 @@ export async function GET(
     // Wait a little more for QR code, barcode etc.
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
+    // page.pdf() uses print media; ensure printable report CSS has applied.
+    await page.emulateMediaType("print");
+
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,

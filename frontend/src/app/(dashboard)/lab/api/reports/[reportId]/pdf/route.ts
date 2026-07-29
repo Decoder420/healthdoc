@@ -29,7 +29,7 @@ export async function GET(
 ) {
   const { reportId } = await params;
   const baseUrl = resolveBaseUrl(request);
-  const reportUrl = `${baseUrl}/reports/${encodeURIComponent(reportId)}?pdf=1`;
+  const reportUrl = `${baseUrl}/lab/reports/${encodeURIComponent(reportId)}?pdf=1`;
 
   try {
     const pdf = await generatePDF(reportUrl);

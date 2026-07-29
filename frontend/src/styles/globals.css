@@ -515,22 +515,37 @@
     color: #000000 !important;
   }
 
+  /* Hide chrome by default; reveal printable report roots only. */
   body * {
     visibility: hidden;
   }
 
   #opd-fee-receipt,
-  #opd-fee-receipt * {
+  #opd-fee-receipt *,
+  #lab-report,
+  #lab-report *,
+  #radiology-report,
+  #radiology-report * {
     visibility: visible;
   }
 
-  #opd-fee-receipt {
+  #opd-fee-receipt,
+  #lab-report,
+  #radiology-report {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
+    background: #ffffff !important;
   }
 
+  .no-print,
+  .pr-toolbar,
+  .pr-actions,
+  [data-pdf-hide] {
+    display: none !important;
+    visibility: hidden !important;
+  }
 }
 
 

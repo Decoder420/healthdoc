@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   Box,
@@ -34,6 +34,8 @@ export default function ReportViewer({
   report,
 }: ReportViewerProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isPdfMode = searchParams.get("pdf") === "1";
 
   const handlePrint = () => {
     window.print();
@@ -50,12 +52,13 @@ export default function ReportViewer({
     <Box
       sx={{
         minHeight: "100vh",
-        bgcolor: "#F5F7FB",
-        py: { xs: 2, md: 3 },
-        px: { xs: 1, md: 2 },
+        bgcolor: isPdfMode ? "#fff" : "#F5F7FB",
+        py: isPdfMode ? 0 : { xs: 2, md: 3 },
+        px: isPdfMode ? 0 : { xs: 1, md: 2 },
       }}
     >
       {/* ================= Toolbar ================= */}
+      {!isPdfMode && (
       <Paper
         elevation={2}
         className="no-print"
@@ -160,10 +163,12 @@ export default function ReportViewer({
           </Stack>
         </Stack>
       </Paper>
+      )}
 
       {/* ================= Report ================= */}
 
       <Paper
+        id="radiology-report"
         elevation={6}
         sx={{
           maxWidth: 980,

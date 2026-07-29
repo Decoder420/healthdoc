@@ -32,11 +32,21 @@ export async function GET(
       "http://localhost:3000";
 
     await page.goto(
-      `${baseUrl}/dashboard/radiology/reports/${id}`,
+      `${baseUrl}/radiology/reports/${id}?pdf=1`,
       {
         waitUntil: "networkidle0",
+        timeout: 60000,
       }
     );
+
+    await page.waitForSelector("#radiology-report", {
+      visible: true,
+      timeout: 60000,
+    });
+
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
 
     const pdf = await page.pdf({
       format: "A4",

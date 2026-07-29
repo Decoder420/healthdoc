@@ -145,6 +145,6 @@ export default function ReportActions({
     </Stack>
   </Stack>
 </Paper>
-</
+</>
   );
 }
