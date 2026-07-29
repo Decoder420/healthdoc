@@ -12,156 +12,93 @@ import DateTimeField from "../form/DateTimeField";
 import TextAreaField from "../form/TextAreaField";
 import FormActions from "../form/FormActions";
 
-import {
-  AddIntakeOutputFormProps,
-} from "./AddIntakeOutputForm.types";
+import { AddIntakeOutputFormProps } from "./AddIntakeOutputForm.types";
 
-import {
-  DEFAULT_VALUES,
-  INTAKE_TYPES,
-  OUTPUT_TYPES,
-} from "./constants";
+import { DEFAULT_VALUES, ENTRY_TYPES } from "./constants";
+
 import {
   addIntakeOutputSchema,
   type AddIntakeOutputSchema,
-} from "@/features/nurse/validation/intakeOutput.schema";
-
+} from "./validation";
 
 export default function AddIntakeOutputForm({
-  patientId,
+  admissionId,
   isSubmitting = false,
   onSubmit,
 }: AddIntakeOutputFormProps) {
-
   const {
     register,
     handleSubmit,
     reset,
     setValue,
-    formState: {
-      errors,
-    },
+    formState: { errors },
   } = useForm<AddIntakeOutputSchema>({
-    resolver: zodResolver(
-      addIntakeOutputSchema
-    ),
+    resolver: zodResolver(addIntakeOutputSchema),
 
     defaultValues: {
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
     },
   });
 
-useEffect(() => {
-  if (patientId) {
-    setValue("patientId", patientId);
-  }
-}, [patientId, setValue]);
+  useEffect(() => {
+    if (admissionId) {
+      setValue("admission_id", admissionId);
+    }
+  }, [admissionId, setValue]);
 
   const handleReset = () => {
-
     reset({
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
     });
-
   };
 
-const submitHandler = async (
-  data: AddIntakeOutputSchema
-) => {
-  const success = await onSubmit(data);
+  const submitHandler = async (data: AddIntakeOutputSchema) => {
+    const success = await onSubmit(data);
 
-  if (success) {
-    handleReset();
-  }
-};
+    if (success) {
+      handleReset();
+    }
+  };
 
   return (
-
     <FormSection
       title="Intake / Output Record"
-      description="Record patient's fluid intake and output."
+      description="Record a single fluid intake or output entry. Log intake and output as separate entries."
     >
-
-      <form
-        onSubmit={handleSubmit(
-          submitHandler
-        )}
-        className="space-y-6"
-      >
-
+      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div className="grid gap-5 md:grid-cols-2">
-
           <SelectField
-            label="Intake Type"
-            options={INTAKE_TYPES.map(
-              (type) => ({
-                label: type,
-                value: type,
-              })
-            )}
-            registration={register(
-              "intakeType"
-            )}
-            error={errors.intakeType}
+            label="Entry Type"
+            options={ENTRY_TYPES.map((type) => ({
+              label: type.label,
+              value: type.value,
+            }))}
+            registration={register("entry_type")}
+            error={errors.entry_type}
           />
 
           <NumberField
-            label="Intake Amount (mL)"
+            label="Volume (mL)"
             placeholder="500"
-            registration={register(
-              "intakeAmount",
-              {
-                valueAsNumber: true,
-              }
-            )}
-            error={errors.intakeAmount}
+            registration={register("volume_ml", { valueAsNumber: true })}
+            error={errors.volume_ml}
           />
 
-          <SelectField
-            label="Output Type"
-            options={OUTPUT_TYPES.map(
-              (type) => ({
-                label: type,
-                value: type,
-              })
-            )}
-            registration={register(
-              "outputType"
-            )}
-            error={errors.outputType}
+          <DateTimeField
+            label="Recorded At"
+            registration={register("recorded_at")}
+            error={errors.recorded_at}
           />
-
-          <NumberField
-            label="Output Amount (mL)"
-            placeholder="350"
-            registration={register(
-              "outputAmount",
-              {
-                valueAsNumber: true,
-              }
-            )}
-            error={errors.outputAmount}
-          />
-                    <DateTimeField
-            label="Recorded Time"
-            registration={register(
-              "recordedTime"
-            )}
-            error={errors.recordedTime}
-          />
-
         </div>
 
         <TextAreaField
-          label="Remarks"
+          label="Notes (optional)"
           placeholder="Enter additional observations..."
-          rows={4}
-          registration={register(
-            "remarks"
-          )}
-          error={errors.remarks}
+          rows={3}
+          registration={register("notes")}
+          error={errors.notes}
         />
 
         <FormActions
@@ -170,10 +107,7 @@ const submitHandler = async (
           resetLabel="Reset"
           onReset={handleReset}
         />
-
       </form>
-
     </FormSection>
-
   );
 }

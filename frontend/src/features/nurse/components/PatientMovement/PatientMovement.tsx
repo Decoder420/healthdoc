@@ -1,10 +1,28 @@
 import { PatientMovementProps } from "./PatientMovement.types";
 
+function resolveWardName(
+  wardId: string | null,
+  wards?: { id: string; name: string }[]
+): string {
+  if (!wardId) return "-";
+  return wards?.find((w) => w.id === wardId)?.name ?? wardId;
+}
+
+function resolveBedNumber(
+  bedId: string | null,
+  beds?: { id: string; bed_number: string }[]
+): string {
+  if (!bedId) return "-";
+  return beds?.find((b) => b.id === bedId)?.bed_number ?? bedId;
+}
+
 export default function PatientMovement({
-  patient,
+  admissionId,
   records,
+  wards,
+  beds,
 }: PatientMovementProps) {
-  if (!patient) {
+  if (!admissionId) {
     return (
       <div className="surface-card p-6">
         <p className="text-sm text-muted-foreground">
@@ -25,82 +43,54 @@ export default function PatientMovement({
   }
 
   return (
-    <section className="surface-card p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold">
-          Patient Movement
-        </h2>
-
-        <p className="text-sm text-muted-foreground">
-          Bed changes, ward transfers and movement history.
+    <section className="surface-card overflow-hidden">
+      <div className="border-b border-border p-6">
+        <h2 className="text-xl font-semibold">Patient Movement</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ward/bed transfer history for the selected patient.
         </p>
       </div>
 
-      <div className="space-y-5">
-        {records.map((record) => (
-          <div
-            key={record.id}
-            className="rounded-xl border border-border p-5"
-          >
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="font-semibold">
-                  {record.movementType}
-                </h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead className="bg-muted">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold">Time</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">From</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">To</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">Reason</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold">Moved By</th>
+            </tr>
+          </thead>
 
-                <p className="text-sm text-muted-foreground">
-                  {record.movedAt}
-                </p>
-              </div>
+          <tbody>
+            {records.map((record) => (
+              <tr key={record.id} className="border-t border-border">
+                <td className="px-4 py-4" suppressHydrationWarning>
+                  {new Date(record.moved_at).toLocaleString()}
+                </td>
 
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                {record.movementType}
-              </span>
-            </div>
+                <td className="px-4 py-4">
+                  {resolveWardName(record.from_ward_id, wards)} /{" "}
+                  {resolveBedNumber(record.from_bed_id, beds)}
+                </td>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  From
-                </p>
+                <td className="px-4 py-4 font-medium">
+                  {resolveWardName(record.to_ward_id, wards)} /{" "}
+                  {resolveBedNumber(record.to_bed_id, beds)}
+                </td>
 
-                <p className="font-medium">
-                  {record.fromLocation}
-                </p>
-              </div>
+                <td className="px-4 py-4 text-muted-foreground">
+                  {record.reason ?? "-"}
+                </td>
 
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  To
-                </p>
-
-                <p className="font-medium">
-                  {record.toLocation}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Approved By
-                </p>
-
-                <p className="font-medium">
-                  {record.approvedBy}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Reason
-                </p>
-
-                <p className="font-medium">
-                  {record.reason}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
+                <td className="px-4 py-4 text-muted-foreground">
+                  {record.moved_by}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );

@@ -1,11 +1,9 @@
 import { AddHandoverSchema } from "./validation";
 
 export interface AddHandoverFormProps {
-  patientId: string;
+  admissionId: string;
 
   isSubmitting?: boolean;
 
-  onSubmit: (
-    data: AddHandoverSchema
-  ) => Promise<void> | void;
+  onSubmit: (data: AddHandoverSchema) => Promise<void> | void;
 }

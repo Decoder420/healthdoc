@@ -1,29 +1,10 @@
 export const DEFAULT_VALUES = {
-  patientId: "",
-
-  fromWard: "",
-
-  toWard: "",
-
-  fromBed: "",
-
-  toBed: "",
-
-  movementType: "Ward Transfer",
-
-  movementTime: "",
-
+  admission_id: "",
+  from_ward_id: null as string | null,
+  from_bed_id: null as string | null,
+  to_ward_id: "",
+  to_bed_id: "",
+  moved_at: "",
   reason: "",
-
-  approvedBy: "",
-
-  remarks: "",
+  moved_by: "",
 };
-
-export const MOVEMENT_TYPES = [
-  "Ward Transfer",
-  "ICU Transfer",
-  "OT Transfer",
-  "Radiology",
-  "Discharge",
-];

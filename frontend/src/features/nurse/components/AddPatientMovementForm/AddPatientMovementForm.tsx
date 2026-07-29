@@ -6,184 +6,127 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "../form/FormSection";
-import TextField from "../form/TextField";
 import SelectField from "../form/SelectField";
 import DateTimeField from "../form/DateTimeField";
 import TextAreaField from "../form/TextAreaField";
 import FormActions from "../form/FormActions";
 
-import {
-  AddPatientMovementFormProps,
-} from "./AddPatientMovementForm.types";
-
-import {
-  DEFAULT_VALUES,
-  MOVEMENT_TYPES,
-} from "./constants";
-
+import { AddPatientMovementFormProps } from "./AddPatientMovementForm.types";
+import { DEFAULT_VALUES } from "./constants";
 import {
   addPatientMovementSchema,
   AddPatientMovementSchema,
 } from "./validation";
 
 export default function AddPatientMovementForm({
-  patientId,
+  admissionId,
+  currentWardId,
+  currentBedId,
+  wards,
+  beds,
+  movedBy,
   isSubmitting = false,
   onSubmit,
 }: AddPatientMovementFormProps) {
-
   const {
     register,
     handleSubmit,
     reset,
     setValue,
-    formState: {
-      errors,
-    },
+    watch,
+    formState: { errors },
   } = useForm<AddPatientMovementSchema>({
-    resolver: zodResolver(
-      addPatientMovementSchema
-    ),
+    resolver: zodResolver(addPatientMovementSchema),
 
     defaultValues: {
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
+      from_ward_id: currentWardId,
+      from_bed_id: currentBedId,
+      moved_by: movedBy,
     },
   });
 
   useEffect(() => {
+    setValue("admission_id", admissionId);
+    setValue("from_ward_id", currentWardId);
+    setValue("from_bed_id", currentBedId);
+    setValue("moved_by", movedBy);
+  }, [admissionId, currentWardId, currentBedId, movedBy, setValue]);
 
-    setValue(
-      "patientId",
-      patientId
-    );
+  const toWardId = watch("to_ward_id");
 
-  }, [
-    patientId,
-    setValue,
-  ]);
+  // Only vacant beds in the selected destination ward are selectable.
+  const destinationBeds = beds.filter(
+    (bed) => bed.ward_id === toWardId && bed.status === "vacant"
+  );
 
   const handleReset = () => {
-
     reset({
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
+      from_ward_id: currentWardId,
+      from_bed_id: currentBedId,
+      moved_by: movedBy,
     });
-
   };
 
-  const submitHandler = async (
-    data: AddPatientMovementSchema
-  ) => {
+  const submitHandler = async (data: AddPatientMovementSchema) => {
+    const success = await onSubmit(data);
 
-    await onSubmit(data);
-
-    handleReset();
-
+    if (success) {
+      handleReset();
+    }
   };
 
   return (
-
     <FormSection
       title="Patient Movement"
-      description="Record patient ward or bed transfer."
+      description="Record a ward or bed transfer for the selected patient."
     >
-
-      <form
-        onSubmit={handleSubmit(
-          submitHandler
-        )}
-        className="space-y-6"
-      >
-
+      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div className="grid gap-5 md:grid-cols-2">
-
-          <TextField
-            label="From Ward"
-            placeholder="ICU"
-            registration={register(
-              "fromWard"
-            )}
-            error={errors.fromWard}
-          />
-
-          <TextField
-            label="To Ward"
-            placeholder="General Ward"
-            registration={register(
-              "toWard"
-            )}
-            error={errors.toWard}
-          />
-
-          <TextField
-            label="From Bed"
-            placeholder="ICU-12"
-            registration={register(
-              "fromBed"
-            )}
-            error={errors.fromBed}
-          />
-
-          <TextField
-            label="To Bed"
-            placeholder="GW-105"
-            registration={register(
-              "toBed"
-            )}
-            error={errors.toBed}
-          />
-
           <SelectField
-            label="Movement Type"
-            options={MOVEMENT_TYPES.map(
-              (type) => ({
-                label: type,
-                value: type,
-              })
-            )}
-            registration={register(
-              "movementType"
-            )}
-            error={errors.movementType}
+            label="Destination Ward"
+            options={wards.map((ward) => ({
+              label: ward.name,
+              value: ward.id,
+            }))}
+            registration={register("to_ward_id", {
+              onChange: () => setValue("to_bed_id", ""),
+            })}
+            error={errors.to_ward_id}
           />
+
+          {destinationBeds.length === 0 ? (
+            <p className="self-end text-sm text-muted-foreground">
+              No vacant beds in this ward.
+            </p>
+          ) : (
+            <SelectField
+              label="Destination Bed"
+              options={destinationBeds.map((bed) => ({
+                label: bed.bed_number,
+                value: bed.id,
+              }))}
+              registration={register("to_bed_id")}
+              error={errors.to_bed_id}
+            />
+          )}
 
           <DateTimeField
             label="Movement Time"
-            registration={register(
-              "movementTime"
-            )}
-            error={errors.movementTime}
+            registration={register("moved_at")}
+            error={errors.moved_at}
           />
-                  </div>
+        </div>
 
         <TextAreaField
           label="Reason for Movement"
           placeholder="Enter reason for patient transfer..."
           rows={4}
-          registration={register(
-            "reason"
-          )}
+          registration={register("reason")}
           error={errors.reason}
-        />
-
-        <TextField
-          label="Approved By"
-          placeholder="Dr. Sharma"
-          registration={register(
-            "approvedBy"
-          )}
-          error={errors.approvedBy}
-        />
-
-        <TextAreaField
-          label="Remarks"
-          placeholder="Additional remarks..."
-          rows={3}
-          registration={register(
-            "remarks"
-          )}
-          error={errors.remarks}
         />
 
         <FormActions
@@ -192,10 +135,7 @@ export default function AddPatientMovementForm({
           resetLabel="Reset"
           onReset={handleReset}
         />
-
       </form>
-
     </FormSection>
-
   );
 }

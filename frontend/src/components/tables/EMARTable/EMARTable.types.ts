@@ -1,25 +1,3 @@
-// export type MedicationStatus =
-//   | "Scheduled"
-//   | "Administered"
-//   | "Missed"
-//   | "Held";
-
-// export interface MedicationRecord {
-//   id: string;
-
-//   medicationName: string;
-
-//   dosage: string;
-
-//   route: string;
-
-//   scheduledTime: string;
-
-//   administeredBy?: string;
-
-//   status: MedicationStatus;
-// }
-
 // EMARTable.types.ts
 // Strictly per HealthDoc_Database_Schema_v3_5.docx — `prescription_items` table
 // (migration 0008). This table has NO per-dose schedule/administration fields —

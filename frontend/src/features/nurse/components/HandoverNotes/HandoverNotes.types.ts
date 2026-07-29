@@ -1,17 +1,22 @@
-import { Patient } from "../PatientDetails/PatientDetails.types";
+export type Shift = "morning" | "evening" | "night";
 
 export interface HandoverNote {
   id: string;
-  patientUhid: string;
-  fromShift: "Morning" | "Evening" | "Night";
-  toShift: "Morning" | "Evening" | "Night";
-  outgoingNurse: string;
-  incomingNurse: string;
-  handedOverAt: string;
-  summary: string;
+  admission_id: string;
+  shift: Shift;
+  situation: string;
+  background: string;
+  assessment: string;
+  recommendation: string;
+  handed_over_to: string; // users.id (UUID) of the nurse taking over
+
+  // Captured automatically by the backend, not sent by the form. Included here
+  // only for display (e.g. "handed over by <created_by> at <created_at>").
+  created_by?: string;
+  created_at?: string;
 }
 
 export interface HandoverNotesProps {
-  patient: Patient | null;
+  admissionId: string | null;
   notes: HandoverNote[];
 }

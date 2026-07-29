@@ -1,10 +1,16 @@
 import { HandoverNotesProps } from "./HandoverNotes.types";
 
+const SHIFT_LABELS: Record<string, string> = {
+  morning: "Morning",
+  evening: "Evening",
+  night: "Night",
+};
+
 export default function HandoverNotes({
-  patient,
+  admissionId,
   notes,
 }: HandoverNotesProps) {
-  if (!patient) {
+  if (!admissionId) {
     return (
       <div className="surface-card p-6">
         <p className="text-sm text-muted-foreground">
@@ -27,10 +33,7 @@ export default function HandoverNotes({
   return (
     <section className="surface-card p-6">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold">
-          Handover Notes
-        </h2>
-
+        <h2 className="text-xl font-semibold">Handover Notes</h2>
         <p className="text-sm text-muted-foreground">
           Shift handover information for the selected patient.
         </p>
@@ -38,50 +41,51 @@ export default function HandoverNotes({
 
       <div className="space-y-5">
         {notes.map((note) => (
-          <div
-            key={note.id}
-            className="rounded-xl border border-border p-5"
-          >
+          <div key={note.id} className="rounded-xl border border-border p-5">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">
-                {note.fromShift} → {note.toShift}
+                {SHIFT_LABELS[note.shift] ?? note.shift} Shift
               </h3>
 
-              <span className="text-xs text-muted-foreground">
-                {note.handedOverAt}
-              </span>
+              {note.created_at && (
+                <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+                  {new Date(note.created_at).toLocaleString()}
+                </span>
+              )}
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Outgoing Nurse
-                </p>
-
-                <p className="font-medium">
-                  {note.outgoingNurse}
-                </p>
+                <p className="text-xs text-muted-foreground">Handed Over By</p>
+                <p className="font-medium">{note.created_by ?? "-"}</p>
               </div>
 
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Incoming Nurse
-                </p>
-
-                <p className="font-medium">
-                  {note.incomingNurse}
-                </p>
+                <p className="text-xs text-muted-foreground">Handed Over To</p>
+                <p className="font-medium">{note.handed_over_to}</p>
               </div>
             </div>
 
-            <div className="mt-5 rounded-lg bg-muted p-4">
-              <p className="text-xs text-muted-foreground">
-                Summary
-              </p>
+            <div className="mt-5 space-y-3">
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-xs text-muted-foreground">Situation</p>
+                <p className="mt-1 text-sm leading-6">{note.situation}</p>
+              </div>
 
-              <p className="mt-2 text-sm leading-6">
-                {note.summary}
-              </p>
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-xs text-muted-foreground">Background</p>
+                <p className="mt-1 text-sm leading-6">{note.background}</p>
+              </div>
+
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-xs text-muted-foreground">Assessment</p>
+                <p className="mt-1 text-sm leading-6">{note.assessment}</p>
+              </div>
+
+              <div className="rounded-lg bg-muted p-4">
+                <p className="text-xs text-muted-foreground">Recommendation</p>
+                <p className="mt-1 text-sm leading-6">{note.recommendation}</p>
+              </div>
             </div>
           </div>
         ))}

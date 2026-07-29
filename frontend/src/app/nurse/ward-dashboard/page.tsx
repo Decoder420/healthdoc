@@ -16,55 +16,109 @@ import WardStats from "@/features/nurse/components/WardStats";
 import PatientDetails from "@/features/nurse/components/PatientDetails";
 import AlertsPanel from "@/features/nurse/components/AlertsPanel";
 import NursingNotes from "@/features/nurse/components/NursingNotes";
-import DoctorInstructions from "@/features/nurse/components/DoctorInstructions";
+
 import IntakeOutput from "@/features/nurse/components/IntakeOutput";
 import HandoverNotes from "@/features/nurse/components/HandoverNotes";
 import PatientMovement from "@/features/nurse/components/PatientMovement";
-import ProcedureAssistance from "@/features/nurse/components/ProcedureAssistance";
+
 import AdmissionStatus from "@/features/nurse/components/AdmissionStatus";
-import PatientTimeline from "@/features/nurse/components/PatientTimeline";
+
 import QuickActions from "@/features/nurse/components/QuickActions";
 
 import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
 import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
 
+import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
+import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
+
+import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
+import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
+
+import AddPatientMovementForm from "@/features/nurse/components/AddPatientMovementForm";
+import { useAddPatientMovement } from "@/features/nurse/hooks/useAddPatientMovement";
+import type { AddPatientMovementSchema } from "@/features/nurse/components/AddPatientMovementForm/validation";
+
+import TaskQueue from "@/features/nurse/components/TaskQueue";
+import { orders as initialOrders } from "@/lib/data/orders";
+
 import { patients } from "@/lib/data/patients";
+import { admissionsByBedId } from "@/lib/data/admissionsByBed";
 
 import { beds } from "@/lib/data/beds";
 import { vitals } from "@/lib/data/vitals";
 import { medications } from "@/lib/data/medications";
 
 import { NURSING_NOTES } from "@/lib/data/nursingNotes";
-import { DOCTOR_INSTRUCTIONS } from "@/lib/data/doctorInstruction";
 import { INTAKE_OUTPUT } from "@/lib/data/intakeOutput";
 import { HANDOVER_NOTES } from "@/lib/data/handover";
 import { PATIENT_MOVEMENTS } from "@/lib/data/patientMovements";
-import { PROCEDURES } from "@/lib/data/procedureAssistance";
 import { ADMISSION_STATUS } from "@/lib/data/admissionStatus";
-import { PATIENT_TIMELINE } from "@/lib/data/patientTimelines";
 
 import { Bed } from "@/components/BedGrid/BedGrid.types";
 import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
 
 export default function Page() {
   const [selectedWard, setSelectedWard] = useState("general");
-
   const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
-
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  // Filter beds by the currently selected ward — core requirement for W2
-  // ("bed grid with ward selector"). Without this, the dropdown had no effect.
+  const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(
+    null
+  );
+
+  const [orders, setOrders] = useState(initialOrders);
+
+  // Handover and Intake/Output are now local state (not just imported consts)
+  // so a new submission can be appended and show up immediately.
+  const [handoverNotes, setHandoverNotes] = useState(HANDOVER_NOTES);
+  const [intakeOutputRecords, setIntakeOutputRecords] = useState(INTAKE_OUTPUT);
+
+  // Now admission_id-based, matching patient_movement_log exactly — same
+  // rewrite pattern as HandoverNotes/IntakeOutput.
+  const [patientMovements, setPatientMovements] = useState(PATIENT_MOVEMENTS);
+
+  // TODO: replace with the logged-in nurse's real user id once auth/session
+  // context exists. moved_by is a required field on patient_movement_log
+  // (no [Blame] audit mixin here), so this cannot stay hardcoded in production.
+  const CURRENT_NURSE_ID = "b3f1a2c4-1111-4a5b-9c1d-000000000001";
+
+  // Quick Actions now drives which form shows below it, instead of every form
+  // being permanently inline on the page.
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+
+  // Actions with no confirmed backend table/endpoint yet — shown as an honest
+  // message instead of a form, so the UI doesn't pretend these work.
+  const BLOCKED_ACTION_MESSAGES: Record<string, string> = {
+    medication:
+      "Medication administration isn't available yet — no per-dose eMAR table exists in the backend schema (only prescription_items.status, which is per-prescription, not per-dose). Flagged for backend confirmation.",
+    doctor:
+      "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
+    history:
+      "Patient Timeline was removed (per TL feedback — no timeline table exists). It may be rebuilt later as a UI-only aggregate of vitals/orders/handovers, not as its own data entity.",
+    note:
+      "Nursing Note's fields (category, priority) aren't confirmed against the schema doc — only nursing_handover_notes exists, and it doesn't have these fields. Flagged for TL/backend confirmation before wiring this up for real.",
+  };
+
   const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
 
   const handleBedClick = (bed: Bed) => {
     setSelectedBed(bed);
 
-    // NOTE: `Bed` (per schema doc) has no `patientName` field — the old check
-    // here referenced a field that doesn't exist on the doc-accurate Bed type.
-    // The patient lookup itself (by bed id) was already correct.
     const patient = patients[bed.id];
     setSelectedPatient(patient ?? null);
+
+    const admissionId = admissionsByBedId[bed.id] ?? null;
+    setSelectedAdmissionId(admissionId);
+  };
+
+  const handleCheckOff = (orderId: string) => {
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, status: "completed", completed_at: new Date().toISOString() }
+          : o
+      )
+    );
   };
 
   const patientNotes = selectedPatient
@@ -73,33 +127,19 @@ export default function Page() {
       )
     : [];
 
-  const patientInstructions = selectedPatient
-    ? DOCTOR_INSTRUCTIONS.filter(
-        (instruction) => instruction.patientUhid === selectedPatient.uhid
+  const admissionIntakeOutput = selectedAdmissionId
+    ? intakeOutputRecords.filter(
+        (record) => record.admission_id === selectedAdmissionId
       )
     : [];
 
-  const patientIntakeOutput = selectedPatient
-    ? INTAKE_OUTPUT.filter(
-        (record) => record.patientUhid === selectedPatient.uhid
-      )
+  const admissionHandoverNotes = selectedAdmissionId
+    ? handoverNotes.filter((note) => note.admission_id === selectedAdmissionId)
     : [];
 
-  const patientHandoverNotes = selectedPatient
-    ? HANDOVER_NOTES.filter(
-        (note) => note.patientUhid === selectedPatient.uhid
-      )
-    : [];
-
-  const patientMovements = selectedPatient
-    ? PATIENT_MOVEMENTS.filter(
-        (movement) => movement.patientUhid === selectedPatient.uhid
-      )
-    : [];
-
-  const patientProcedures = selectedPatient
-    ? PROCEDURES.filter(
-        (procedure) => procedure.patientUhid === selectedPatient.uhid
+  const admissionMovements = selectedAdmissionId
+    ? patientMovements.filter(
+        (record) => record.admission_id === selectedAdmissionId
       )
     : [];
 
@@ -109,13 +149,73 @@ export default function Page() {
       )
     : [];
 
-  const patientTimeline = selectedPatient
-    ? PATIENT_TIMELINE.filter(
-        (event) => event.patientUhid === selectedPatient.uhid
-      )
-    : [];
-
   const { submitVitals, isSubmitting } = useAddVitals();
+
+  const { submitHandover, isSubmitting: isSubmittingHandover } =
+    useAddHandover();
+
+  const { submitIntakeOutput, isSubmitting: isSubmittingIntakeOutput } =
+    useAddIntakeOutput();
+
+  const {
+    submitPatientMovement,
+    isSubmitting: isSubmittingPatientMovement,
+  } = useAddPatientMovement();
+
+  // TODO: replace with a real refetch once backend confirms the handover
+  // endpoint contract. For now, optimistically append a local record so the
+  // nurse sees the new entry immediately (same pattern as Task Queue check-off).
+  const handleAddHandover = async (
+    data: Parameters<typeof submitHandover>[0]
+  ) => {
+    try {
+      await submitHandover(data);
+    } catch {
+      // backend endpoint isn't confirmed yet — still show it locally below
+    }
+
+    setHandoverNotes((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        ...data,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  };
+
+  // TODO: replace with a real refetch once backend confirms the intake/output
+  // endpoint contract. Optimistic local append in the meantime.
+  const handleAddIntakeOutput = async (
+    data: Parameters<typeof submitIntakeOutput>[0]
+  ) => {
+    const ok = await submitIntakeOutput(data);
+
+    setIntakeOutputRecords((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        ...data,
+        notes: data.notes ?? null,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    return ok;
+  };
+
+  // TODO: replace with a real refetch once backend confirms the patient
+  // movement endpoint contract. Optimistic local append in the meantime.
+  const handleAddPatientMovement = async (data: AddPatientMovementSchema) => {
+    const ok = await submitPatientMovement(data);
+
+    setPatientMovements((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), ...data },
+    ]);
+
+    return ok;
+  };
 
   return (
     <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
@@ -147,6 +247,20 @@ export default function Page() {
       {/* Ward Statistics */}
       <WardStats />
 
+      {/* Task Queue (W4) — ward/shift-level, not tied to the selected patient,
+          so it sits with ward-level info rather than between Bed Grid and
+          patient-specific sections. */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Task Queue</h2>
+          <p className="text-sm text-muted-foreground">
+            Pending doctor orders for this shift.
+          </p>
+        </div>
+
+        <TaskQueue orders={orders} onCheckOff={handleCheckOff} />
+      </section>
+
       {/* Bed Grid */}
       <section className="space-y-4">
         <div>
@@ -176,7 +290,7 @@ export default function Page() {
         </div>
 
         <VitalsTimeline records={vitals} />
-<VitalsChart records={vitals} />
+        <VitalsChart records={vitals} />
       </section>
 
       {/* Nursing Notes */}
@@ -191,21 +305,6 @@ export default function Page() {
         <NursingNotes patient={selectedPatient} notes={patientNotes} />
       </section>
 
-      {/* Doctor Instructions */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Doctor Instructions</h2>
-          <p className="text-sm text-muted-foreground">
-            Medical orders for the selected patient.
-          </p>
-        </div>
-
-        <DoctorInstructions
-          patient={selectedPatient}
-          instructions={patientInstructions}
-        />
-      </section>
-
       {/* Intake Output */}
       <section className="space-y-4">
         <div>
@@ -215,7 +314,19 @@ export default function Page() {
           </p>
         </div>
 
-        <IntakeOutput patient={selectedPatient} records={patientIntakeOutput} />
+        <IntakeOutput
+          admissionId={selectedAdmissionId}
+          records={admissionIntakeOutput}
+        />
+
+        {/* Add form only shows once a bed with a real admission is selected */}
+        {selectedAdmissionId && (
+          <AddIntakeOutputForm
+            admissionId={selectedAdmissionId}
+            isSubmitting={isSubmittingIntakeOutput}
+            onSubmit={handleAddIntakeOutput}
+          />
+        )}
       </section>
 
       {/* Handover Notes */}
@@ -228,9 +339,17 @@ export default function Page() {
         </div>
 
         <HandoverNotes
-          patient={selectedPatient}
-          notes={patientHandoverNotes}
+          admissionId={selectedAdmissionId}
+          notes={admissionHandoverNotes}
         />
+
+        {selectedAdmissionId && (
+          <AddHandoverForm
+            admissionId={selectedAdmissionId}
+            isSubmitting={isSubmittingHandover}
+            onSubmit={handleAddHandover}
+          />
+        )}
       </section>
 
       {/* Patient Movement */}
@@ -242,22 +361,13 @@ export default function Page() {
           </p>
         </div>
 
-        <PatientMovement patient={selectedPatient} records={patientMovements} />
-      </section>
-
-      {/* Procedure Assistance */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Procedure Assistance</h2>
-          <p className="text-sm text-muted-foreground">
-            Procedures assigned to the selected patient.
-          </p>
-        </div>
-
-        <ProcedureAssistance
-          patient={selectedPatient}
-          procedures={patientProcedures}
+        <PatientMovement
+          admissionId={selectedAdmissionId}
+          records={admissionMovements}
+          wards={WARDS}
+          beds={beds}
         />
+        {/* Use "Transfer" in Quick Actions below to record a new movement. */}
       </section>
 
       {/* Admission Status */}
@@ -273,18 +383,6 @@ export default function Page() {
           patient={selectedPatient}
           records={patientAdmissionStatus}
         />
-      </section>
-
-      {/* Patient Timeline */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Patient Timeline</h2>
-          <p className="text-sm text-muted-foreground">
-            Timeline of all activities for the selected patient.
-          </p>
-        </div>
-
-        <PatientTimeline patient={selectedPatient} events={patientTimeline} />
       </section>
 
       {/* Medication */}
@@ -310,11 +408,42 @@ export default function Page() {
           </p>
         </div>
 
-        <QuickActions
-          onAction={(action) => {
-            console.log(action);
-          }}
-        />
+        <QuickActions onAction={(actionId) => setActiveAction(actionId)} />
+
+        {activeAction && !selectedAdmissionId && (
+          <div className="surface-card p-4 text-sm text-muted-foreground">
+            Select a bed/patient first before using this action.
+          </div>
+        )}
+
+        {activeAction &&
+          selectedAdmissionId &&
+          BLOCKED_ACTION_MESSAGES[activeAction] && (
+            <div className="surface-card p-4 text-sm text-warning">
+              {BLOCKED_ACTION_MESSAGES[activeAction]}
+            </div>
+          )}
+
+        {activeAction === "vitals" && selectedAdmissionId && (
+          <AddVitalsForm
+            patientId={selectedPatient?.uhid ?? ""}
+            isSubmitting={isSubmitting}
+            onSubmit={submitVitals}
+          />
+        )}
+
+        {activeAction === "transfer" && selectedAdmissionId && selectedBed && (
+          <AddPatientMovementForm
+            admissionId={selectedAdmissionId}
+            currentWardId={selectedBed.ward_id}
+            currentBedId={selectedBed.id}
+            wards={WARDS}
+            beds={beds}
+            movedBy={CURRENT_NURSE_ID}
+            isSubmitting={isSubmittingPatientMovement}
+            onSubmit={handleAddPatientMovement}
+          />
+        )}
       </section>
 
       {/* Alerts */}
@@ -328,12 +457,6 @@ export default function Page() {
 
         <AlertsPanel />
       </section>
-
-      <AddVitalsForm
-        patientId={selectedPatient?.uhid ?? ""}
-        isSubmitting={isSubmitting}
-        onSubmit={submitVitals}
-      />
     </main>
   );
 }

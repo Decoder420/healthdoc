@@ -1,25 +1,12 @@
 export const DEFAULT_VALUES = {
-  patientId: "",
+  admission_id: "",
+  shift: "morning",
+  situation: "",
+  background: "",
+  assessment: "",
+  recommendation: "",
+  handed_over_to: "",
+} as const;
 
-  fromShift: "Morning",
-
-  toShift: "Evening",
-
-  outgoingNurse: "",
-
-  incomingNurse: "",
-
-  handedOverAt: "",
-
-  summary: "",
-
-  pendingTasks: "",
-
-  specialInstructions: "",
-};
-
-export const SHIFTS = [
-  "Morning",
-  "Evening",
-  "Night",
-];
+// Lowercase snake_case — must match the Shift enum values the backend expects.
+export const SHIFTS = ["morning", "evening", "night"] as const;

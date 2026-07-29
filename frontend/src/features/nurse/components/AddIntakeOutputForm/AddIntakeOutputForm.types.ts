@@ -1,11 +1,9 @@
-import type { AddIntakeOutputSchema } from "@/features/nurse/validation/intakeOutput.schema";
+import type { AddIntakeOutputSchema } from "./validation";
 
 export interface AddIntakeOutputFormProps {
-  patientId: string;
+  admissionId: string;
 
   isSubmitting?: boolean;
 
-  onSubmit: (
-    data: AddIntakeOutputSchema
-  ) => Promise<boolean> | boolean;
+  onSubmit: (data: AddIntakeOutputSchema) => Promise<boolean> | boolean;
 }

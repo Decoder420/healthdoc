@@ -1,39 +1,28 @@
-import { z } from "zod";
+"use client";
 
-export const addIntakeOutputSchema = z.object({
-  patientId: z
-    .string()
-    .trim()
-    .min(1, "Patient is required"),
+import { useState } from "react";
 
-  intakeType: z
-    .string()
-    .trim()
-    .min(1, "Intake type is required"),
+import { addIntakeOutput } from "@/features/nurse/services/nurse.service";
+import type { AddIntakeOutputSchema } from "@/features/nurse/components/AddIntakeOutputForm/validation";
 
-  intakeAmount: z
-    .number()
-    .positive("Amount must be greater than 0"),
+export function useAddIntakeOutput() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  outputType: z
-    .string()
-    .trim()
-    .min(1, "Output type is required"),
+  const submitIntakeOutput = async (
+    data: AddIntakeOutputSchema
+  ): Promise<boolean> => {
+    setIsSubmitting(true);
 
-  outputAmount: z
-    .number()
-    .positive("Amount must be greater than 0"),
+    try {
+      await addIntakeOutput(data);
+      return true;
+    } catch (error) {
+      console.error("Failed to add intake/output record:", error);
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-  recordedTime: z
-    .string()
-    .min(1, "Recorded time is required"),
-
-  remarks: z
-    .string()
-    .max(500, "Remarks cannot exceed 500 characters")
-    .optional(),
-});
-
-export type AddIntakeOutputSchema = z.infer<
-  typeof addIntakeOutputSchema
->;
+  return { submitIntakeOutput, isSubmitting };
+}

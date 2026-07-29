@@ -6,165 +6,110 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "../form/FormSection";
-import TextField from "../form/TextField";
 import SelectField from "../form/SelectField";
-import DateTimeField from "../form/DateTimeField";
+import TextField from "../form/TextField";
 import TextAreaField from "../form/TextAreaField";
 import FormActions from "../form/FormActions";
 
-import {
-  AddHandoverFormProps,
-} from "./AddHandoverForm.types";
+import { AddHandoverFormProps } from "./AddHandoverForm.types";
 
-import {
-  DEFAULT_VALUES,
-  SHIFTS,
-} from "./constants";
+import { DEFAULT_VALUES, SHIFTS } from "./constants";
 
-import {
-  addHandoverSchema,
-  AddHandoverSchema,
-} from "./validation";
+import { addHandoverSchema, AddHandoverSchema } from "./validation";
 
 export default function AddHandoverForm({
-  patientId,
+  admissionId,
   isSubmitting = false,
   onSubmit,
 }: AddHandoverFormProps) {
-
   const {
     register,
     handleSubmit,
     reset,
     setValue,
-    formState: {
-      errors,
-    },
+    formState: { errors },
   } = useForm<AddHandoverSchema>({
-    resolver: zodResolver(
-      addHandoverSchema
-    ),
+    resolver: zodResolver(addHandoverSchema),
 
     defaultValues: {
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
     },
   });
 
   useEffect(() => {
-
-    setValue(
-      "patientId",
-      patientId
-    );
-
-  }, [
-    patientId,
-    setValue,
-  ]);
+    setValue("admission_id", admissionId);
+  }, [admissionId, setValue]);
 
   const handleReset = () => {
-
     reset({
       ...DEFAULT_VALUES,
-      patientId,
+      admission_id: admissionId,
     });
-
   };
 
-  const submitHandler = async (
-    data: AddHandoverSchema
-  ) => {
-
+  const submitHandler = async (data: AddHandoverSchema) => {
     await onSubmit(data);
-
     handleReset();
-
   };
 
   return (
-
     <FormSection
       title="Patient Handover"
-      description="Record shift handover details."
+      description="Record shift handover details (SBAR format)."
     >
-
-      <form
-        onSubmit={handleSubmit(
-          submitHandler
-        )}
-        className="space-y-6"
-      >
-
+      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div className="grid gap-5 md:grid-cols-2">
-
           <SelectField
-            label="From Shift"
-            options={SHIFTS.map(
-              (shift) => ({
-                label: shift,
-                value: shift,
-              })
-            )}
-            registration={register("fromShift")}
-            error={errors.fromShift}
+            label="Shift"
+            options={SHIFTS.map((shift) => ({
+              label: shift.charAt(0).toUpperCase() + shift.slice(1),
+              value: shift,
+            }))}
+            registration={register("shift")}
+            error={errors.shift}
           />
 
-          <SelectField
-            label="To Shift"
-            options={SHIFTS.map(
-              (shift) => ({
-                label: shift,
-                value: shift,
-              })
-            )}
-            registration={register("toShift")}
-            error={errors.toShift}
-          />
-
+          {/* NOTE: this should become a nurse-picker (SelectField) once a nurse
+              user-list source is available; kept as a UUID text input for now. */}
           <TextField
-            label="Outgoing Nurse"
-            placeholder="Nurse Anita"
-            registration={register("outgoingNurse")}
-            error={errors.outgoingNurse}
+            label="Handed Over To (Nurse ID)"
+            placeholder="Nurse's user UUID"
+            registration={register("handed_over_to")}
+            error={errors.handed_over_to}
           />
-
-          <TextField
-            label="Incoming Nurse"
-            placeholder="Nurse Rahul"
-            registration={register("incomingNurse")}
-            error={errors.incomingNurse}
-          />
-
-          <DateTimeField
-            label="Handover Time"
-            registration={register("handedOverAt")}
-            error={errors.handedOverAt}
-          />
-                  </div>
+        </div>
 
         <TextAreaField
-          label="Clinical Summary"
-          placeholder="Enter patient condition, vitals trend, treatments given..."
-          rows={4}
-          registration={register("summary")}
-          error={errors.summary}
+          label="Situation"
+          placeholder="Current situation / reason for handover..."
+          rows={3}
+          registration={register("situation")}
+          error={errors.situation}
         />
 
         <TextAreaField
-          label="Pending Tasks"
-          placeholder="Medication due, dressing change, investigations..."
+          label="Background"
+          placeholder="Relevant patient background / history..."
           rows={3}
-          registration={register("pendingTasks")}
-          error={errors.pendingTasks}
+          registration={register("background")}
+          error={errors.background}
         />
 
         <TextAreaField
-          label="Special Instructions"
-          placeholder="Isolation precautions, fall risk, diet instructions..."
+          label="Assessment"
+          placeholder="Current clinical assessment..."
           rows={3}
-          registration={register("specialInstructions")}
-          error={errors.specialInstructions}
+          registration={register("assessment")}
+          error={errors.assessment}
+        />
+
+        <TextAreaField
+          label="Recommendation"
+          placeholder="Recommended next steps / things to watch..."
+          rows={3}
+          registration={register("recommendation")}
+          error={errors.recommendation}
         />
 
         <FormActions
@@ -173,10 +118,7 @@ export default function AddHandoverForm({
           resetLabel="Reset"
           onReset={handleReset}
         />
-
       </form>
-
     </FormSection>
-
   );
 }

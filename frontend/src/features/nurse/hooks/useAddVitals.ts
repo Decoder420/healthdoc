@@ -1,20 +1,16 @@
 import { useState } from "react";
 
-// import { addVitals } from "../services";
-import { vitalsService } from "../services/vitals.service";
+import { addVitals } from "../services/nurse.service";
 import type { AddVitalsSchema } from "../validation";
 
 export function useAddVitals() {
-  const [isSubmitting, setIsSubmitting] =
-    useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
- const submitVitals = async (
-    data: AddVitalsSchema
-  ): Promise<boolean> => {
+  const submitVitals = async (data: AddVitalsSchema): Promise<boolean> => {
     try {
       setIsSubmitting(true);
 
-      await vitalsService.addVitals(data);
+      await addVitals(data);
 
       return true;
     } catch (error) {
