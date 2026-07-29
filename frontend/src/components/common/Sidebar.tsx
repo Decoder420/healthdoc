@@ -264,8 +264,9 @@ export default function Sidebar({
             )}
           </div>
 
-         <a
-  href="#"
+         <Link
+  href="/reports"
+  onClick={() => setOpen(false)}
   className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
 >
   <div className="flex items-center gap-3">
@@ -285,10 +286,11 @@ export default function Sidebar({
     size={16}
     className="text-gray-300 group-hover:text-[#001F54]"
   />
-</a>
+</Link>
 
-         <a
-  href="#"
+         <Link
+  href="/admin"
+  onClick={() => setOpen(false)}
   className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
 >
   <div className="flex items-center gap-3">
@@ -300,7 +302,7 @@ export default function Sidebar({
     </div>
 
     <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Settings
+      Admin
     </span>
   </div>
 
@@ -308,7 +310,7 @@ export default function Sidebar({
     size={16}
     className="text-gray-300 group-hover:text-[#001F54]"
   />
-</a>
+</Link>
 
         </nav>
       </aside>

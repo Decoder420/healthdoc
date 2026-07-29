@@ -1,11 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { AuditTrailDashboard } from "@/features/audit-viewer";
-
+/** Audit viewer lives under Admin governance — keep old URL working. */
 export default function Page() {
-  return (
-    <main style={{ padding: "2rem", maxWidth: 1280, margin: "0 auto" }}>
-      <AuditTrailDashboard />
-    </main>
-  );
+  redirect("/admin/audit");
 }
