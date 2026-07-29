@@ -30,11 +30,11 @@ const STATUS_TONE_MAP: Record<string, StatusTone> = {
     border: "rgb(0 31 84 / 0.14)",
     label: "Called",
   },
-  in_consultation: {
+  in_service: {
     bg: "#e8eef5",
     fg: meridian.brandPrimary,
     border: "rgb(0 31 84 / 0.18)",
-    label: "In Consultation",
+    label: "In Service",
   },
   waiting_for_investigation: {
     bg: "#fef3c7",
@@ -229,7 +229,7 @@ const FALLBACK_TONE: StatusTone = {
 };
 
 export interface StatusChipProps extends Omit<ChipProps, "color" | "label"> {
-  /** e.g. "in_consultation", "waiting_for_investigation" — snake_case status key from the API */
+  /** e.g. "in_service", "waiting_for_investigation" — snake_case status key from the API */
   status: string;
   /** Override the auto-generated label if the API sends a different display string */
   label?: string;

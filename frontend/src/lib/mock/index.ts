@@ -24,3 +24,4 @@ export * from "./consent_data";
 export * from "./audit_data";
 export * from "./admin_data";
 export * from "./reports_data";
+export * from "./doctor_data";
