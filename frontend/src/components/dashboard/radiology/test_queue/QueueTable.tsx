@@ -101,7 +101,7 @@ const RADIOLOGY_QUEUE_WORKFLOW: StatusStep[] = [
 
   {
     value: "Scan Started",
-    label: "Scanning",
+    label: "Processing",
 
     actions: [
       {

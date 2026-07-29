@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -124,6 +125,8 @@ const reportingData: ReportingTimeData[] = [
 // ============================
 
 export default function XRayDashboard() {
+  const router = useRouter();
+
   return (
     <DepartmentDashboard
       title="X-Ray Dashboard"
@@ -147,8 +150,8 @@ export default function XRayDashboard() {
         console.log("Verify X-Ray Report", row.id);
       }}
       onViewReport={(row) => {
-        console.log("View X-Ray Report", row.id);
-      }}
+  router.push(`/radiology/reports/${row.id}`);
+}}
       onRefresh={() => {
         console.log("Refresh X-Ray Dashboard");
       }}

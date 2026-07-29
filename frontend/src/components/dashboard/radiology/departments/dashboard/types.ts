@@ -96,6 +96,16 @@ export interface ReportingTimeData {
 
 }
 
+export interface ReportingTimeChartProps {
+  title: string;
+  subtitle?: string;
+  data: ReportingTimeData[];
+  average?: number;
+  target?: number;
+  action?: ReactNode;
+  height?: number;
+}
+
 
 
 
@@ -352,26 +362,16 @@ export interface DepartmentDashboardProps {
 
   // Events
 
-  onRefresh?:
-  ()=>void;
+// Events
 
+onRefresh?: () => void;
 
+onExport?: () => void;
 
-  onExport?:
-  ()=>void;
+ onVerify?: (row: RadiologyCase) => void;
 
-  onVerify?: (
-    row: RadiologyCase
-  ) => void;
-
-
-  onViewReport?: (
-    row: RadiologyCase
-  ) => void;
-
-
-
-  loading?:boolean;
+onViewReport?: (row: RadiologyCase) => void;
+loading?: boolean;
 
 
 }

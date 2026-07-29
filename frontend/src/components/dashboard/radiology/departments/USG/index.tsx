@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -82,6 +83,8 @@ const reportingData: ReportingTimeData[] = [
 ];
 
 export default function USGDashboard() {
+  const router = useRouter();
+
   return (
     <DepartmentDashboard
       title="USG Dashboard"
@@ -104,9 +107,9 @@ export default function USGDashboard() {
       onVerify={(row) => {
         console.log("Verify USG Report", row.id);
       }}
-      onViewReport={(row) => {
-        console.log("Open USG Report", row.id);
-      }}
+     onViewReport={(row) => {
+  router.push(`/radiology/reports/${row.id}`);
+}}
       onRefresh={() => {
         console.log("Refresh USG Dashboard");
       }}

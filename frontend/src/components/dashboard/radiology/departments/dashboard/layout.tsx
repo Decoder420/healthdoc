@@ -252,95 +252,39 @@ export default function DepartmentDashboard({
 };
 
 
-
-
-
   // ============================
   // Default Radiology Actions
   // ============================
 
 
-  const defaultActions = (
-
-    row:RadiologyCase
-
-  )=>{
-
-
-    if(row.status==="PROCESSING"){
-
-
+const defaultActions = (row: RadiologyCase) => {
+  switch (row.status) {
+    case "PROCESSING":
       return (
-
         <Button
-
           variant="contained"
-
           size="small"
-
-          onClick={()=>{
-
-            onVerify?.(row);
-
-          }}
-
+          onClick={() => onVerify?.(row)}
         >
-
           Verify
-
         </Button>
-
       );
 
-
-    }
-
-
-
-
-
-
-    if(row.status==="VERIFIED"){
-
-
+    case "VERIFIED":
       return (
-
         <Button
-
           variant="outlined"
-
           size="small"
-
-          onClick={()=>{
-
-            onViewReport?.(row);
-
-          }}
-
+          onClick={() => onViewReport?.(row)}
         >
-
           View Report
-
         </Button>
-
       );
 
-
-    }
-
-
-
-
-
-    return null;
-
-
-  };
-
-
-
-
-
+    default:
+      return null;
+  }
+};
 
 
 

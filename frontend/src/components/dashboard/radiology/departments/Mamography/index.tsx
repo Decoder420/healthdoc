@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -124,6 +125,8 @@ const reportingData: ReportingTimeData[] = [
 // ============================
 
 export default function MammographyDashboard() {
+  const router = useRouter();
+
   return (
     <DepartmentDashboard
       title="Mammography Dashboard"
@@ -147,8 +150,8 @@ export default function MammographyDashboard() {
         console.log("Verify Mammography Report", row.id);
       }}
       onViewReport={(row) => {
-        console.log("View Mammography Report", row.id);
-      }}
+  router.push(`/radiology/reports/${row.id}`);
+}}
       onRefresh={() => {
         console.log("Refresh Mammography Dashboard");
       }}

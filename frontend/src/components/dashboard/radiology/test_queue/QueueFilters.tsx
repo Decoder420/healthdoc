@@ -30,7 +30,7 @@ const modalities = [
   "CT",
   "MRI",
   "X-Ray",
-  "Ultrasound",
+  "USG",
   "Mammography",
 ];
 

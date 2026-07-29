@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -212,6 +213,7 @@ const reportingData:ReportingTimeData[]=[
 
 export default function CTDashboard(){
 
+const router = useRouter();
 
 return (
 
@@ -303,20 +305,8 @@ row.id
 
 
 
-onViewReport={(row)=>{
-
-
-console.log(
-"Open CT Report",
-row.id
-);
-
-
-// router.push(
-// `/radiology/reports/${row.id}`
-// );
-
-
+onViewReport={(row) => {
+  router.push(`/radiology/reports/${row.id}`);
 }}
 
 

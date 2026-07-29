@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -100,6 +101,7 @@ const reportingData: ReportingTimeData[] = [
 ];
 
 export default function ECGDashboard() {
+  const router = useRouter();
   return (
     <DepartmentDashboard
       title="ECG Dashboard"
@@ -122,9 +124,9 @@ export default function ECGDashboard() {
       onVerify={(row) => {
         console.log("Verify ECG Report", row.id);
       }}
-      onViewReport={(row) => {
-        console.log("View ECG Report", row.id);
-      }}
+       onViewReport={(row) => {
+    router.push(`/radiology/reports/${row.id}`);
+  }}
       onRefresh={() => {
         console.log("Refresh ECG Dashboard");
       }}

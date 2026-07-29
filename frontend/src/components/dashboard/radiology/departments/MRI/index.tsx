@@ -1,6 +1,7 @@
 "use client";
 
 import DepartmentDashboard from "../dashboard/layout";
+import { useRouter } from "next/navigation";
 
 import type {
   RadiologyCase,
@@ -100,6 +101,8 @@ const reportingData: ReportingTimeData[] = [
 ];
 
 export default function MRIDashboard() {
+  const router = useRouter();
+
   return (
     <DepartmentDashboard
       title="MRI Dashboard"
@@ -123,8 +126,8 @@ export default function MRIDashboard() {
         console.log("Verify MRI Report", row.id);
       }}
       onViewReport={(row) => {
-        console.log("Open MRI Report", row.id);
-      }}
+  router.push(`/radiology/reports/${row.id}`);
+}}
       onRefresh={() => {
         console.log("Refresh MRI Dashboard");
       }}
