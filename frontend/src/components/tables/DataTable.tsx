@@ -32,6 +32,8 @@ export interface DataTableProps<T> {
   loading?: boolean;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
+  /** Highlights the active row when set (e.g. doctor queue selection). */
+  selectedRowId?: string | number | null;
 
   /** Pagination — omit all three to render an unpaginated table */
   page?: number;
@@ -61,6 +63,7 @@ export function DataTable<T>({
   loading = false,
   emptyMessage = "No records found.",
   onRowClick,
+  selectedRowId = null,
   page,
   rowsPerPage,
   totalCount,
@@ -192,43 +195,51 @@ export function DataTable<T>({
             )}
 
             {!loading &&
-              sortedRows.map((row) => (
-                <TableRow
-                  key={getRowId(row)}
-                  hover={!!onRowClick}
-                  onClick={() => onRowClick?.(row)}
-                  sx={{
-                    cursor: onRowClick ? "pointer" : "default",
-                    "&:last-child td": { borderBottom: 0 },
-                    "&:hover td": onRowClick
-                      ? { backgroundColor: "rgb(0 31 84 / 0.03)" }
-                      : undefined,
-                  }}
-                >
-                  {columns.map((col) => (
-                    <TableCell
-                      key={col.key}
-                      align={col.align ?? "left"}
-                      sx={{
-                      px: 2,
-                      py: 1.6,
-                      borderBottom: `1px solid rgb(0 31 84 / 0.06)`,
-                      color: meridian.textPrimary,
-                      fontSize: "0.875rem",
-                      fontWeight: 500,
-                      whiteSpace: "nowrap",
-                      verticalAlign: "middle",
+              sortedRows.map((row) => {
+                const rowId = getRowId(row);
+                const isSelected = selectedRowId != null && rowId === selectedRowId;
+                return (
+                  <TableRow
+                    key={rowId}
+                    hover={!!onRowClick}
+                    selected={isSelected}
+                    onClick={() => onRowClick?.(row)}
+                    sx={{
+                      cursor: onRowClick ? "pointer" : "default",
+                      "&:last-child td": { borderBottom: 0 },
+                      backgroundColor: isSelected ? "rgb(0 31 84 / 0.06)" : undefined,
+                      "&:hover td": onRowClick
+                        ? {
+                            backgroundColor: isSelected
+                              ? "rgb(0 31 84 / 0.08)"
+                              : "rgb(0 31 84 / 0.03)",
+                          }
+                        : undefined,
                     }}
-                    >
-                      {col.render
-                        ? col.render(row)
-                        : String(
-                            (row as Record<string, unknown>)[col.key] ?? "—",
-                          )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+                  >
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col.key}
+                        align={col.align ?? "left"}
+                        sx={{
+                          px: 2,
+                          py: 1.6,
+                          borderBottom: `1px solid rgb(0 31 84 / 0.06)`,
+                          color: meridian.textPrimary,
+                          fontSize: "0.875rem",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        {col.render
+                          ? col.render(row)
+                          : String((row as Record<string, unknown>)[col.key] ?? "—")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })}
           </TableBody>
         </Table>
       </TableContainer>

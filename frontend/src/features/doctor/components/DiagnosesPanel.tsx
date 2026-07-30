@@ -40,7 +40,7 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
 
   return (
     <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Diagnoses</Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>
@@ -85,7 +85,7 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
                 gap: 1.25,
               }}
             >
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}>
                 <Badge variant="outline">{`${r.icd_version.toUpperCase()} · ${r.icd_code}`}</Badge>
                 {r.is_primary && <Badge variant="default">Primary</Badge>}
                 <Box sx={{ flex: 1 }} />

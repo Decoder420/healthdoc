@@ -8,18 +8,22 @@
 // Queue (queue_tokens + joined patient columns)
 // ---------------------------------------------------------------------------
 
-export type VisitStatus =
+/** queue_tokens.status — mirrors backend QueueTokenStatus (enums.py). */
+export type QueueTokenStatus =
   | "waiting"
   | "called"
   | "in_service"
-  | "waiting_for_investigation"
-  | "report_ready"
-  | "doctor_review_pending"
-  | "pharmacy_pending"
+  | "skipped"
+  | "no_show"
+  | "recalled"
+  | "transferred"
   | "completed"
-  | "cancelled"
-  | "recalled";
+  | "cancelled";
 
+/** @deprecated Prefer QueueTokenStatus — alias kept for any external imports. */
+export type VisitStatus = QueueTokenStatus;
+
+/** queue_tokens.priority — mirrors backend QueuePriority (enums.py). */
 export type QueuePriority =
   | "normal"
   | "senior_citizen"
@@ -38,10 +42,12 @@ export interface QueuePatient {
   uhid: string;
   age_years: number;
   sex: "male" | "female" | "other";
-  status: VisitStatus;
+  status: QueueTokenStatus;
   priority: QueuePriority;
   /** UI-derived from queue_tokens.created_at, not stored. */
   wait_minutes: number;
+  /** queue_tokens.completed_at — drives "Completed Today" metric. */
+  completed_at?: string;
   last_visit_date?: string;
   previous_diagnoses?: string[];
   /** Known allergies surfaced for prescribing safety (no schema table yet — mock). */
@@ -148,7 +154,8 @@ export interface CreateDiagnosisInput {
 // Orders (orders + department detail rows)
 // ---------------------------------------------------------------------------
 
-export type OrderType = "lab" | "radiology" | "procedure";
+/** orders.order_type — mirrors backend OrderType. OPD doctor UI uses lab/radiology/procedure. */
+export type OrderType = "lab" | "radiology" | "pharmacy" | "procedure" | "blood";
 export type OrderPriority = "routine" | "urgent" | "stat";
 
 export interface CatalogItem {
@@ -180,6 +187,7 @@ export interface CreateOrderInput {
 // Prescriptions (prescriptions + prescription_items + inventory_items)
 // ---------------------------------------------------------------------------
 
+/** inventory_items.form — schema v3.5 §3. */
 export type MedicineForm =
   | "tablet"
   | "capsule"
@@ -187,8 +195,11 @@ export type MedicineForm =
   | "syrup"
   | "ointment"
   | "fluid"
-  | "inhaler"
-  | "drops";
+  | "reagent"
+  | "consumable"
+  | "film"
+  | "implant"
+  | "blood_component";
 
 /** Subset of inventory_items relevant to prescribing. */
 export interface Medicine {

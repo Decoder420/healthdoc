@@ -1,4 +1,4 @@
-export { listQueue } from "./queue";
+export { listQueue, getQueueToken } from "./queue";
 export {
   createEncounter,
   completeEncounter,

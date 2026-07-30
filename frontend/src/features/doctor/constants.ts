@@ -8,10 +8,22 @@ import type {
   QueuePriority,
 } from "./types";
 
-/** Mock provider identity until Keycloak/session wiring lands. */
+/** Mock provider / facility identity until Keycloak/session wiring lands. */
 export const MOCK_PROVIDER_USER_ID = "00000000-0000-4000-8000-000000000201";
 export const MOCK_PROVIDER_NAME = "Dr. A. Sharma";
 export const MOCK_DEPARTMENT = "General Medicine";
+export const MOCK_FACILITY_NAME = "HealthDoc Hospital";
+
+/** Schema priority sort (high → low) — QueuePriority docstring in enums.py. */
+export const QUEUE_PRIORITY_RANK: Record<QueuePriority, number> = {
+  emergency: 0,
+  doctor_recall: 1,
+  admin_override: 2,
+  senior_citizen: 3,
+  pregnant: 4,
+  follow_up_recall: 5,
+  normal: 6,
+};
 
 export const ENCOUNTER_TYPE_OPTIONS: { value: EncounterType; label: string }[] = [
   { value: "consultation", label: "Consultation" },

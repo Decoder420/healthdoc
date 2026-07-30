@@ -32,7 +32,7 @@ export function PrescriptionItemRow({ item, onChange, onRemove }: PrescriptionIt
         gap: 1.25,
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}>
         <Typography sx={{ fontSize: "0.9375rem", fontWeight: 700 }}>{item.medicine_name}</Typography>
         {item.strength && (
           <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>{item.strength}</Typography>

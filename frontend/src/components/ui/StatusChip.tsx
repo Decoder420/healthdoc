@@ -10,13 +10,9 @@ type StatusTone = {
 };
 
 /**
- * Every visit/order status that appears in the architecture doc
- * (section 13, "Status Values") is mapped here so the same status
- * always renders with the same color across every module —
- * doctor, lab, radiology, pharmacy, IPD, etc.
- *
- * If a new status is added to the backend, add it here too instead
- * of hardcoding a color at the call site.
+ * Shared status tones. Queue tokens use QueueTokenStatus
+ * (waiting|called|in_service|skipped|no_show|recalled|transferred|completed|cancelled).
+ * Billing / audit / consent keys are also mapped for cross-module reuse.
  */
 const STATUS_TONE_MAP: Record<string, StatusTone> = {
   waiting: {
@@ -36,29 +32,23 @@ const STATUS_TONE_MAP: Record<string, StatusTone> = {
     border: "rgb(0 31 84 / 0.18)",
     label: "In Service",
   },
-  waiting_for_investigation: {
+  skipped: {
     bg: "#fef3c7",
     fg: meridian.warning,
     border: "rgb(180 83 9 / 0.2)",
-    label: "Waiting for Investigation",
+    label: "Skipped",
   },
-  report_ready: {
+  no_show: {
+    bg: "#fee2e2",
+    fg: meridian.danger,
+    border: "rgb(185 28 28 / 0.18)",
+    label: "No Show",
+  },
+  transferred: {
     bg: "#e8eef5",
     fg: meridian.info,
     border: "rgb(0 31 84 / 0.14)",
-    label: "Report Ready",
-  },
-  doctor_review_pending: {
-    bg: "#fef3c7",
-    fg: meridian.warning,
-    border: "rgb(180 83 9 / 0.2)",
-    label: "Doctor Review Pending",
-  },
-  pharmacy_pending: {
-    bg: "#fef3c7",
-    fg: meridian.warning,
-    border: "rgb(180 83 9 / 0.2)",
-    label: "Pharmacy Pending",
+    label: "Transferred",
   },
   completed: {
     bg: "#dcfce7",
@@ -229,7 +219,7 @@ const FALLBACK_TONE: StatusTone = {
 };
 
 export interface StatusChipProps extends Omit<ChipProps, "color" | "label"> {
-  /** e.g. "in_service", "waiting_for_investigation" — snake_case status key from the API */
+  /** e.g. "in_service", "skipped" — snake_case status key from the API */
   status: string;
   /** Override the auto-generated label if the API sends a different display string */
   label?: string;

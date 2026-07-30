@@ -60,7 +60,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
           <Box>
             <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Prescription</Typography>
             <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>
@@ -112,7 +112,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
           py: 2,
         }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
           <Typography sx={{ fontSize: "0.8125rem", color: hasCritical ? meridian.danger : meridian.textSecondary }}>
             {items.length} medicine{items.length === 1 ? "" : "s"}
             {hasCritical ? " · resolve critical alerts before saving" : ""}

@@ -1,5 +1,6 @@
 "use client";
 
+import { MOCK_FACILITY_NAME } from "../constants";
 import { frequencyLabel, formatAgeSex, routeLabel } from "../lib/formatters";
 import type { DraftPrescriptionItem, EncounterContext } from "../types";
 
@@ -20,7 +21,7 @@ export function PrescriptionPrintView({ context, items, notes }: PrescriptionPri
     <div className="rx-print" aria-hidden="true">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>HealthDoc Hospital</div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{MOCK_FACILITY_NAME}</div>
           <div style={{ fontSize: 12 }}>{context.department}</div>
         </div>
         <div style={{ fontSize: 28, fontWeight: 800 }}>℞</div>

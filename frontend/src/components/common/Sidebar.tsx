@@ -96,8 +96,9 @@ export default function Sidebar({
 </p>
 
        <nav className="space-y-2">
-         <a
-  href="#"
+         <Link
+  href="/doctor/dashboard"
+  onClick={() => setOpen(false)}
   className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
 >
   <div className="flex items-center gap-3">
@@ -109,7 +110,7 @@ export default function Sidebar({
     </div>
 
     <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Dashboard
+      Doctor dashboard
     </span>
   </div>
 
@@ -117,7 +118,7 @@ export default function Sidebar({
     size={16}
     className="text-gray-300 group-hover:text-[#001F54]"
   />
-</a>
+</Link>
 
           <a
   href="#"
@@ -237,6 +238,14 @@ export default function Sidebar({
 
             {departmentOpen && (
               <div className="ml-7 mt-2 space-y-1 border-l border-gray-200 pl-4">
+                <Link
+                  href="/doctor/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
+                >
+                  Doctor
+                </Link>
+
                 <Link
                   href="/lab"
                   onClick={() => setOpen(false)}

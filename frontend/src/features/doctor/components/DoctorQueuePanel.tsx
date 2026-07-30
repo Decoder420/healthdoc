@@ -13,13 +13,24 @@ import type { QueuePatient } from "../types";
 export interface DoctorQueuePanelProps {
   patients: QueuePatient[];
   loading: boolean;
+  selectedId?: string | null;
   onSelect: (patient: QueuePatient) => void;
 }
 
-export function DoctorQueuePanel({ patients, loading, onSelect }: DoctorQueuePanelProps) {
-  const waiting = patients.filter((r) => r.status === "waiting" || r.status === "called").length;
+export function DoctorQueuePanel({
+  patients,
+  loading,
+  selectedId = null,
+  onSelect,
+}: DoctorQueuePanelProps) {
+  const today = new Date().toISOString().slice(0, 10);
+  const waiting = patients.filter(
+    (r) => r.status === "waiting" || r.status === "called" || r.status === "recalled",
+  ).length;
   const inService = patients.filter((r) => r.status === "in_service").length;
-  const completed = patients.filter((r) => r.status === "completed").length;
+  const completed = patients.filter(
+    (r) => r.status === "completed" && (!r.completed_at || r.completed_at.slice(0, 10) === today),
+  ).length;
 
   const columns: DataTableColumn<QueuePatient>[] = [
     { key: "token_display", label: "Token", sortable: true, width: 96 },
@@ -67,6 +78,7 @@ export function DoctorQueuePanel({ patients, loading, onSelect }: DoctorQueuePan
         rows={patients}
         loading={loading}
         getRowId={(r) => r.id}
+        selectedRowId={selectedId}
         onRowClick={onSelect}
         emptyMessage="No patients in queue."
       />

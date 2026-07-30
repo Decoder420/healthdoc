@@ -2,14 +2,16 @@
 
 import * as React from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 
 import { StatusChip } from "@/components/ui/StatusChip";
 import { meridian } from "@/styles/theme";
 import { formatAgeSex } from "../lib/formatters";
-import type { QueuePatient } from "../types";
+import type { QueuePatient, QueueTokenStatus } from "../types";
 
 const cardSx = {
   borderRadius: "16px",
@@ -18,6 +20,8 @@ const cardSx = {
   boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
   p: 3,
 };
+
+const CONSULTABLE: QueueTokenStatus[] = ["waiting", "called", "in_service", "recalled"];
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -52,6 +56,8 @@ export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
       </Box>
     );
   }
+
+  const canConsult = CONSULTABLE.includes(patient.status);
 
   return (
     <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -141,6 +147,21 @@ export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
           </Typography>
         )}
       </Box>
+
+      {canConsult ? (
+        <>
+          <Divider />
+          <Button
+            component={Link}
+            href={`/doctor/consultation?token=${encodeURIComponent(patient.id)}`}
+            variant="contained"
+            fullWidth
+            sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", py: 1.1 }}
+          >
+            Start consultation
+          </Button>
+        </>
+      ) : null}
     </Box>
   );
 }

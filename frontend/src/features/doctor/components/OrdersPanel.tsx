@@ -41,7 +41,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
 
   return (
     <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Orders</Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>
@@ -72,7 +72,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
               }}
             >
               <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>{o.item_name}</Typography>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <Badge variant="outline">{typeLabel(o.order_type)}</Badge>
                 <Badge variant={PRIORITY_BADGE[o.priority]}>{o.priority}</Badge>
                 <IconButton size="small" onClick={() => removeOrder(o.tempId)} aria-label="Remove order">

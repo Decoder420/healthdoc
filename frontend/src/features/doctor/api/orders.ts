@@ -9,6 +9,9 @@ const CATALOG: Record<OrderType, CatalogItem[]> = {
   lab: mockLabTests,
   radiology: mockRadiologyTests,
   procedure: mockProcedures,
+  /** Not placed from the OPD doctor panel — schema OrderType includes these. */
+  pharmacy: [],
+  blood: [],
 };
 
 /** Department catalogue search (lab tests / radiology studies / procedures). */

@@ -46,6 +46,7 @@ export function useConsultation(context: EncounterContext) {
           started_at: encounter.started_at,
         },
         encounter.patient_id,
+        encounter.encounter_id,
       );
       setStatus("saved");
       toast.success("Encounter saved");
@@ -59,7 +60,7 @@ export function useConsultation(context: EncounterContext) {
   const complete = useCallback(async () => {
     setCompleting(true);
     try {
-      await completeEncounter(encounter.encounter_id, new Date().toISOString());
+      await completeEncounter(encounter, new Date().toISOString());
       setStatus("completed");
       toast.success("Consultation completed");
     } catch (e) {
@@ -67,7 +68,7 @@ export function useConsultation(context: EncounterContext) {
     } finally {
       setCompleting(false);
     }
-  }, [encounter.encounter_id]);
+  }, [encounter]);
 
   return {
     encounter,

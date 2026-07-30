@@ -67,15 +67,15 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
           py: 2,
         }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
             <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>Encounter</Typography>
             {ended ? (
-              <StatusChip status="completed" />
+              <StatusChip status="completed" label="Completed" />
             ) : status === "saved" ? (
-              <StatusChip status="in_service" label="Saved" />
+              <StatusChip status="issued" label="Saved" />
             ) : (
-              <StatusChip status="waiting" label="Not saved" />
+              <StatusChip status="draft" label="Not saved" />
             )}
           </Stack>
           <Stack direction="row" spacing={1.5}>

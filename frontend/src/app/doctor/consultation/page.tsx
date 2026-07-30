@@ -1,12 +1,75 @@
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+
 import { ConsultationWorkspace } from "@/features/doctor";
-import { mockEncounterContext } from "@/lib/mock";
+import { getQueueToken } from "@/features/doctor/api";
+import { encounterContextFor, mockEncounterContext } from "@/lib/mock";
+import type { EncounterContext } from "@/features/doctor/types";
+
+function ConsultationPageInner() {
+  const searchParams = useSearchParams();
+  const tokenId = searchParams.get("token");
+  const [context, setContext] = useState<EncounterContext | null>(
+    tokenId ? null : mockEncounterContext,
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tokenId) {
+      setContext(mockEncounterContext);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const patient = await getQueueToken(tokenId);
+        if (cancelled) return;
+        if (!patient) {
+          setError("Queue token not found.");
+          setContext(null);
+          return;
+        }
+        setError(null);
+        setContext(encounterContextFor(patient));
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Failed to load encounter context");
+        setContext(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenId]);
+
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!context) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+        <CircularProgress size={28} />
+      </Box>
+    );
+  }
+  return <ConsultationWorkspace context={context} />;
+}
 
 export default function Page() {
   return (
-    <main style={{ padding: "2rem", maxWidth: 1280, margin: "0 auto" }}>
-      <ConsultationWorkspace context={mockEncounterContext} />
-    </main>
+    <Box sx={{ mx: "auto", maxWidth: 1280, px: { xs: 2, md: 3 }, py: 3 }}>
+      <Suspense
+        fallback={
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <CircularProgress size={28} />
+          </Box>
+        }
+      >
+        <ConsultationPageInner />
+      </Suspense>
+    </Box>
   );
 }
