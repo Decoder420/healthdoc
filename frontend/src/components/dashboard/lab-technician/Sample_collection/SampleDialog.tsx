@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { patients } from "@/lib/mock/lab_data";
 
@@ -17,7 +18,9 @@ import {
   IconButton,
 } from "@mui/material";
 
-import PatientSearch, { Patient } from "./PatientSearch";
+import PatientSearch, {
+  Patient,
+} from "./PatientSearch";
 import PatientDetails from "./PatientDetails";
 import OrderedTests from "./OrderedTest";
 import SampleInformation, {
@@ -29,19 +32,31 @@ interface CollectSampleDialogProps {
   open: boolean;
   patientId: string | null;
   onClose: () => void;
+  onCollectSuccess: (
+    patientId: string
+  ) => void;
 }
 
 export default function CollectSampleDialog({
   open,
   patientId,
   onClose,
+  onCollectSuccess,
 }: CollectSampleDialogProps) {
-  const [selectedPatient, setSelectedPatient] =
-    useState<Patient | null>(null);
+  const router = useRouter();
 
-  const [barcode, setBarcode] = useState("");
+  const [
+    selectedPatient,
+    setSelectedPatient,
+  ] = useState<Patient | null>(null);
 
-  const [sampleInformation, setSampleInformation] =
+  const [barcode, setBarcode] =
+    useState("");
+
+  const [
+    sampleInformation,
+    setSampleInformation,
+  ] =
     useState<SampleInformationData>({
       sampleType: "Blood",
       container: "EDTA Tube",
@@ -58,7 +73,8 @@ export default function CollectSampleDialog({
     }
 
     const patient = patients.find(
-      (p) => p.patient.patientId === patientId
+      (p) =>
+        p.patient.patientId === patientId
     );
 
     if (!patient) {
@@ -66,7 +82,6 @@ export default function CollectSampleDialog({
       return;
     }
 
-    // Convert original mock data into Patient type
     const mappedPatient: Patient = {
       id: patient.patient.patientId,
       uhid: patient.patient.uhid,
@@ -75,27 +90,78 @@ export default function CollectSampleDialog({
       gender: patient.patient.gender,
       mobile: patient.patient.mobile,
       doctor: patient.doctor.name,
-      department: patient.doctor.department,
+      department:
+        patient.doctor.department,
       tests: patient.requestedTests,
     };
 
     setSelectedPatient(mappedPatient);
   }, [patientId]);
 
-  const handleCollectSample = () => {
-    console.log({
-      patient: selectedPatient,
-      sampleInformation,
-      barcode,
-    });
+ const handleCollectSample = () => {
+  if (!selectedPatient) return;
 
-    // TODO:
-    // API Call
-    // Close dialog
-    // Refresh table
-  };
+  const patient = patients.find(
+    (p) => p.patient.patientId === selectedPatient.id
+  );
 
-  return (
+  if (patient) {
+    // Extract numeric part of patient id
+    const patientNumber = selectedPatient.id.replace("P", "").padStart(4, "0");
+
+    // Generate unique sample & barcode
+    const sampleId = `SMP${patientNumber}`;
+    const generatedBarcode = `LAB${new Date().getFullYear()}${patientNumber}`;
+    const now = new Date();
+
+const currentDate = now.toLocaleDateString("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+const currentTime = now.toLocaleTimeString("en-IN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+});
+
+    patient.status = "PROCESSING";
+
+    patient.sample = {
+  sampleId,
+  barcode: generatedBarcode,
+  sampleType: sampleInformation.sampleType,
+  container: sampleInformation.container,
+  collectedAt: `${currentDate} ${currentTime}`,
+  collectedBy: sampleInformation.collectedBy,
+};
+
+    // Update barcode shown in dialog
+    setBarcode(generatedBarcode);
+  }
+
+  onCollectSuccess(selectedPatient.id);
+
+  setSelectedPatient(null);
+  setBarcode("");
+
+  setSampleInformation({
+    sampleType: "Blood",
+    container: "EDTA Tube",
+    priority: "Routine",
+    collectionDate: "",
+    collectionTime: "",
+    collectedBy: "", 
+  });
+
+  onClose();
+
+  router.refresh();
+  router.push("/lab/pathology/sample");
+};
+
+    return (
     <Dialog
       open={open}
       onClose={onClose}
@@ -134,9 +200,13 @@ export default function CollectSampleDialog({
             disabled={!!patientId}
           />
 
-          <PatientDetails patient={selectedPatient} />
+          <PatientDetails
+            patient={selectedPatient}
+          />
 
-          <OrderedTests patient={selectedPatient} />
+          <OrderedTests
+            patient={selectedPatient}
+          />
 
           <SampleInformation
             value={sampleInformation}
@@ -151,8 +221,11 @@ export default function CollectSampleDialog({
       </DialogContent>
 
       <Divider />
-
-      <DialogActions sx={{ p: 2 }}>
+            <DialogActions
+        sx={{
+          p: 2,
+        }}
+      >
         <Button
           variant="outlined"
           onClick={onClose}
@@ -162,7 +235,9 @@ export default function CollectSampleDialog({
 
         <Button
           variant="contained"
-          disabled={!selectedPatient || !barcode}
+          disabled={
+            !selectedPatient || !barcode
+          }
           onClick={handleCollectSample}
         >
           Collect Sample

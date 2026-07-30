@@ -13,6 +13,8 @@ interface Props {
   remarks: string;
   recommendation: string;
 
+  remarkError?: string;
+
   onInterpretationChange: (value: string) => void;
   onRemarksChange: (value: string) => void;
   onRecommendationChange: (value: string) => void;
@@ -22,6 +24,7 @@ export default function RemarksCard({
   interpretation,
   remarks,
   recommendation,
+  remarkError = "",
   onInterpretationChange,
   onRemarksChange,
   onRecommendationChange,
@@ -43,10 +46,12 @@ export default function RemarksCard({
         </Typography>
 
         <Stack spacing={3} mt={2}>
+          
           <TextField
             label="Interpretation"
             placeholder="Enter interpretation of the laboratory findings..."
             multiline
+            required
             rows={3}
             fullWidth
             value={interpretation}
@@ -59,26 +64,34 @@ export default function RemarksCard({
             helperText={`${interpretation.length}/500`}
           />
 
+
           <TextField
             label="Remarks"
             placeholder="Enter additional clinical or laboratory remarks..."
             multiline
             rows={4}
             fullWidth
+            required
             value={remarks}
             onChange={(e) =>
               onRemarksChange(e.target.value)
             }
+            error={Boolean(remarkError)}
+            helperText={
+              remarkError ||
+              `${remarks.length}/1000`
+            }
             inputProps={{
               maxLength: 1000,
             }}
-            helperText={`${remarks.length}/1000`}
           />
+
 
           <TextField
             label="Recommendation"
             placeholder="Enter recommendations or follow-up advice..."
             multiline
+            required
             rows={3}
             fullWidth
             value={recommendation}
@@ -92,6 +105,7 @@ export default function RemarksCard({
             }}
             helperText={`${recommendation.length}/500`}
           />
+
         </Stack>
       </CardContent>
     </Card>

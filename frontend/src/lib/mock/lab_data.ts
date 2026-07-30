@@ -29,12 +29,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -74,12 +75,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Troponin I",
@@ -120,12 +122,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "HbA1c",
@@ -165,12 +168,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Serum Creatinine",
@@ -211,12 +215,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -256,12 +261,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Calcium",
@@ -301,12 +307,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CRP",
@@ -347,12 +354,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -392,12 +400,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "LFT",
@@ -438,12 +447,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Electrolytes",
@@ -483,13 +493,14 @@ export const patients = [
     orderedAt: "2026-07-15T12:15:00Z",
   },
 
-  sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+ sample: {
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -529,12 +540,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "HbA1c",
@@ -575,12 +587,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "KFT",
@@ -621,12 +634,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Lipid Profile",
@@ -666,12 +680,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -712,12 +727,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -757,13 +773,14 @@ export const patients = [
     orderedAt: "2026-07-15T13:20:00Z",
   },
 
-  sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+ sample: {
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "Vitamin B12",
@@ -803,12 +820,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "CBC",
@@ -849,12 +867,13 @@ export const patients = [
   },
 
   sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "KFT",
@@ -895,13 +914,14 @@ export const patients = [
     orderedAt: "2026-07-15T14:00:00Z",
   },
 
-  sample: {
-    sampleId: "",
-    barcode: "",
-    sampleType: "",
-    container: "",
-    collectedAt: "",
-  },
+ sample: {
+  sampleId: "",
+  barcode: "",
+  sampleType: "",
+  container: "",
+  collectedAt: "",
+  collectedBy: "",
+},
 
   requestedTests: [
     "HbA1c",

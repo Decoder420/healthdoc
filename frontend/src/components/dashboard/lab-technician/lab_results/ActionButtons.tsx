@@ -4,37 +4,23 @@ import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 
-
-import {
-  Button,
-  Paper,
-  Stack,
-} from "@mui/material";
+import { Button, Paper, Stack } from "@mui/material";
 
 interface Props {
   onSaveDraft: () => void;
-  onSubmit: () => void;
   onApprove: () => void;
-  onPreview: () => void;
-  onPrint: () => void;
   onReset: () => void;
 
-  submitting?: boolean;
   approving?: boolean;
 
   disableSave?: boolean;
-  disableSubmit?: boolean;
-  disableApprove?: boolean;
-  disablePrint?: boolean;
 }
 
 export default function ActionButtons({
   onSaveDraft,
-  onSubmit,
   onApprove,
   onReset,
   approving = false,
-
   disableSave = false,
 }: Props) {
   return (
@@ -75,15 +61,16 @@ export default function ActionButtons({
           Save Draft
         </Button>
 
-       <Button
-  variant="contained"
-  color="success"
-  disabled={approving}
-  startIcon={<VerifiedRoundedIcon />}
-  onClick={onApprove}
->
-  {approving ? "Approving..." : "Approve Report"}
-</Button>
+        <Button
+          variant="contained"
+          color="success"
+          disabled={approving}
+          startIcon={<VerifiedRoundedIcon />}
+          onClick={onApprove}
+          sx={{ minWidth: 160 }}
+        >
+          {approving ? "Approving..." : "Approve Report"}
+        </Button>
       </Stack>
     </Paper>
   );

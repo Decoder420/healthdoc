@@ -73,7 +73,7 @@ export const dummyPatients: ResultEntryData[] = [
       },
     ],
 
-    reportStatus: "Draft",
+    reportStatus: "Completed",
 
 
     report: {
@@ -157,7 +157,7 @@ export const dummyPatients: ResultEntryData[] = [
       },
     ],
 
-    reportStatus: "Draft",
+    reportStatus: "Completed",
 
 
     report: {
@@ -241,7 +241,7 @@ export const dummyPatients: ResultEntryData[] = [
       },
     ],
 
-    reportStatus: "Draft",
+    reportStatus: "Completed",
 
 
     report: {

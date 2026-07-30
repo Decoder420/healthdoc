@@ -25,7 +25,7 @@ interface SampleData {
   tests: string;
   barcode: string;
   collectedAt: string;
-  status: "COLLECTED" | "PROCESSING";
+  status: "PROCESSING" | "COMPLETED";
   sampleType: string;
   container: string;
   priority: string;

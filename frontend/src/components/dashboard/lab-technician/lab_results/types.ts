@@ -92,4 +92,5 @@ export interface PatientSearchOption {
 }
 export type ReportStatus =
   | "Draft"
-  | "Verified";
+  | "Verified"
+  | "Completed";
