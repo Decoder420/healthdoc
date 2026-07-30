@@ -1,0 +1,17 @@
+﻿export {
+  getAllPatients,
+  getPatientByUhid,
+  createPatient,
+  updatePatient,
+  filterPatients,
+  searchPatientByType,
+  searchPatientByUhid,
+  searchPatientByPhone,
+  searchPatientByAadhaar,
+  searchPatientByAbha,
+  createAbhaForPatient,
+  updatePatientAbha,
+  type CreatePatientResult,
+  type CreateAbhaResult,
+  type PatientSearchType,
+} from "@/features/opd/services/opd-service";
