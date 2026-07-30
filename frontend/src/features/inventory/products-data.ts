@@ -27,7 +27,7 @@ export const PRODUCT_CATEGORIES = [
   "IT & General",
 ] as const;
 
-export const INITIAL_PRODUCTS: Product[] = [
+export const BASE_PRODUCTS: Product[] = [
   // Medicines
   {
     id: "prd-1",
@@ -661,6 +661,205 @@ export const INITIAL_PRODUCTS: Product[] = [
     mrp: 45,
     location: "General Store",
   },
+];
+
+const GENERATED_PRODUCT_SEEDS: Array<{
+  category: (typeof PRODUCT_CATEGORIES)[number];
+  subCategory: string;
+  unit: string;
+  manufacturer: string;
+  names: string[];
+}> = [
+  {
+    category: "Medicines",
+    subCategory: "Oral Solid",
+    unit: "tablets",
+    manufacturer: "Cipla",
+    names: [
+      "Metformin 500 mg",
+      "Amlodipine 5 mg",
+      "Atorvastatin 10 mg",
+      "Losartan 50 mg",
+      "Pantoprazole 40 mg",
+      "Cetirizine 10 mg",
+      "Montelukast 10 mg",
+      "Thyronorm 50 mcg",
+      "Clopidogrel 75 mg",
+      "Telmisartan 40 mg",
+      "Glimipride 2 mg",
+      "Rosuvastatin 20 mg",
+    ],
+  },
+  {
+    category: "IV Fluids",
+    subCategory: "Infusion",
+    unit: "bottles",
+    manufacturer: "Baxter",
+    names: [
+      "DNS 500 ml",
+      "RL 500 ml",
+      "Dextrose 5% 500 ml",
+      "Mannitol 20%",
+      "Plasma-Lyte A",
+      "Amino Acid Infusion",
+      "Lipid Emulsion 20%",
+      "Isolyte M",
+    ],
+  },
+  {
+    category: "Medical Consumables",
+    subCategory: "Disposables",
+    unit: "pieces",
+    manufacturer: "BD",
+    names: [
+      "Syringe 2 ml",
+      "Syringe 5 ml",
+      "Syringe 10 ml",
+      "IV Set Macro",
+      "IV Set Micro",
+      "Three-way Stopcock",
+      "Extension Line 100 cm",
+      "Urine Collection Bag",
+      "Nebulizer Mask Adult",
+      "Nebulizer Mask Ped",
+      "Suction Catheter 12 Fr",
+      "Nasogastric Tube 16 Fr",
+    ],
+  },
+  {
+    category: "Surgical Supplies",
+    subCategory: "OT Consumables",
+    unit: "packs",
+    manufacturer: "Ethicon",
+    names: [
+      "Silk 1-0 Suture",
+      "Nylon 3-0 Suture",
+      "Skin Stapler",
+      "Hemostatic Sponges",
+      "Surgical Blade 11",
+      "Surgical Blade 22",
+      "Sterile Gown L",
+      "OT Drape Pack",
+      "Bone Wax",
+      "Ligating Clips",
+    ],
+  },
+  {
+    category: "Laboratory Supplies",
+    subCategory: "Reagents & Consumables",
+    unit: "kits",
+    manufacturer: "Roche",
+    names: [
+      "CBC Reagent Pack",
+      "LFT Reagent Pack",
+      "RFT Reagent Pack",
+      "Lipid Profile Kit",
+      "HbA1c Kit",
+      "Blood Culture Bottle Aerobic",
+      "Vacutainer EDTA",
+      "Vacutainer Plain",
+      "Urine Container Sterile",
+      "Rapid Troponin Kit",
+    ],
+  },
+  {
+    category: "PPE & Infection Control",
+    subCategory: "PPE",
+    unit: "pieces",
+    manufacturer: "3M",
+    names: [
+      "N95 Mask Pack",
+      "Face Shield",
+      "Isolation Gown",
+      "Shoe Cover Box",
+      "Head Cap Box",
+      "Hand Rub 5L",
+      "Surface Disinfectant 5L",
+      "Biohazard Bags",
+    ],
+  },
+  {
+    category: "Medical Equipment",
+    subCategory: "Accessories",
+    unit: "units",
+    manufacturer: "Philips",
+    names: [
+      "SpO2 Probe Adult",
+      "NIBP Cuff Adult",
+      "ECG Cable 5-Lead",
+      "Defibrillator Pads",
+      "Infusion Pump Set",
+      "Ventilator Circuit Adult",
+      "Thermometer Probe Cover",
+      "Glucometer Strips",
+    ],
+  },
+  {
+    category: "Ward & Furniture",
+    subCategory: "Ward Assets",
+    unit: "units",
+    manufacturer: "Hospital Care",
+    names: [
+      "Bedside Screen",
+      "Overbed Table",
+      "Patient Chair",
+      "Crash Cart Drawer Kit",
+      "Bed Extension Board",
+      "Foot Stool",
+    ],
+  },
+  {
+    category: "IT & General",
+    subCategory: "Stationery & IT",
+    unit: "pieces",
+    manufacturer: "OfficeMed",
+    names: [
+      "Thermal Paper 80mm",
+      "Barcode Labels",
+      "Printer Toner",
+      "Patient File Folders",
+      "ID Band Adult",
+      "ID Band Pediatric",
+    ],
+  },
+];
+
+const GENERATED_PRODUCTS: Product[] = GENERATED_PRODUCT_SEEDS.flatMap(
+  (seed, seedIndex) =>
+    seed.names.map((name, nameIndex) => {
+      const idNum = 100 + seedIndex * 20 + nameIndex;
+      const quantityVariants = [0, 8, 18, 45, 120, 260, 540, 12, 3, 95];
+      const quantity = quantityVariants[(seedIndex + nameIndex) % quantityVariants.length];
+      const reorderLevel = 20 + ((seedIndex + nameIndex) * 7) % 80;
+      const purchaseRate = 15 + ((seedIndex + nameIndex) * 13) % 400;
+      return {
+        id: `prd-${idNum}`,
+        sku: `${seed.category.slice(0, 3).toUpperCase()}-${String(idNum).padStart(4, "0")}`,
+        name,
+        category: seed.category,
+        subCategory: seed.subCategory,
+        manufacturer: seed.manufacturer,
+        unit: seed.unit,
+        quantity,
+        reorderLevel,
+        purchaseRate,
+        mrp: Math.round(purchaseRate * 1.25 * 100) / 100,
+        location: [
+          "Central Warehouse / Aisle 1",
+          "Pharmacy / Rack D-02",
+          "OT Store / Shelf 3",
+          "Lab Store / Cold 1",
+          "Emergency Bay / Rack E",
+          "ICU Store / Cabinet 2",
+          "General Store / Bay B",
+        ][(seedIndex + nameIndex) % 7],
+      } satisfies Product;
+    }),
+);
+
+export const INITIAL_PRODUCTS: Product[] = [
+  ...BASE_PRODUCTS,
+  ...GENERATED_PRODUCTS,
 ];
 
 export function productStatus(product: Product): ProductStatus {

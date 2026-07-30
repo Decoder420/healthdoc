@@ -125,6 +125,43 @@ const INITIAL_ITEMS: WardItem[] = [
     lastProcured: "2024-11-16",
     unitCost: 2800,
   },
+  ...Array.from({ length: 24 }, (_, index) => {
+    const catalog = [
+      ["Overbed Table", "Furniture", "tables", 6500],
+      ["Crash Cart", "Equipment", "units", 95000],
+      ["Patient Screen", "Furniture", "screens", 4200],
+      ["Bedside Stool", "Furniture", "stools", 1800],
+      ["Infusion Pole", "Patient Care", "poles", 3200],
+      ["Air Mattress", "Bed", "mattresses", 18500],
+      ["Nebulizer Machine", "Equipment", "units", 7800],
+      ["Dressing Trolley", "Equipment", "trolleys", 11200],
+    ] as const;
+    const [itemName, category, unit, unitCost] = catalog[index % catalog.length];
+    const conditions: WardItem["condition"][] = [
+      "New",
+      "Good",
+      "Needs Repair",
+      "For Disposal",
+    ];
+    return {
+      id: `ward-${index + 7}`,
+      itemName: `${itemName} ${index + 1}`,
+      category,
+      assetTag: `HWI-${category.slice(0, 3).toUpperCase()}-${String(500 + index).padStart(5, "0")}`,
+      quantity: 2 + ((index * 5) % 40),
+      spareQuantity: index % 4,
+      unit,
+      storageLocation: [
+        "Central Store / Bay A1",
+        "Ward Supply Store / Zone A",
+        "Biomedical Store / Shelf 04",
+        "Furniture Store / Row C2",
+      ][index % 4],
+      condition: conditions[index % conditions.length],
+      lastProcured: `2026-${String(1 + (index % 7)).padStart(2, "0")}-${String(5 + (index % 20)).padStart(2, "0")}`,
+      unitCost: unitCost + index * 150,
+    } satisfies WardItem;
+  }),
 ];
 
 const WARDS = [

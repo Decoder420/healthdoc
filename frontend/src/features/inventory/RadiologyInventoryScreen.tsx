@@ -16,6 +16,7 @@ import ExpiringItems from "@/components/dashboards/inventory/departments/radiolo
 import PurchaseOrders from "@/components/dashboards/inventory/departments/radiology/PurchaseOrders";
 import VendorPerformance from "@/components/dashboards/inventory/departments/radiology/VendorPerformance";
 import type { InventoryItem } from "@/types/inventory";
+import { INITIAL_RADIOLOGY_INVENTORY } from "@/features/inventory/radiology-data";
 
 const STORAGE_KEY = "radiologyInventory";
 
@@ -29,10 +30,16 @@ export function RadiologyInventoryScreen() {
       try {
         const savedInventory = localStorage.getItem(STORAGE_KEY);
         if (savedInventory) {
-          setInventory(JSON.parse(savedInventory) as InventoryItem[]);
+          const parsed = JSON.parse(savedInventory) as InventoryItem[];
+          setInventory(
+            parsed.length > 0 ? parsed : INITIAL_RADIOLOGY_INVENTORY,
+          );
+        } else {
+          setInventory(INITIAL_RADIOLOGY_INVENTORY);
         }
       } catch {
         localStorage.removeItem(STORAGE_KEY);
+        setInventory(INITIAL_RADIOLOGY_INVENTORY);
       } finally {
         setIsLoaded(true);
       }

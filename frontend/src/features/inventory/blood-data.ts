@@ -125,6 +125,51 @@ export const INITIAL_BLOOD_UNITS: BloodUnit[] = [
     source: "Voluntary Donor",
     storageLocation: "Blood Bank / RBC Fridge 2",
   },
+  ...Array.from({ length: 40 }, (_, index) => {
+    const group = BLOOD_GROUPS[index % BLOOD_GROUPS.length];
+    const components: BloodComponent[] = [
+      "Whole Blood",
+      "Packed RBC",
+      "Platelets",
+      "FFP",
+      "Cryoprecipitate",
+      "Platelet Concentrate",
+    ];
+    const sources: DonationSource[] = [
+      "Voluntary Donor",
+      "Replacement Donor",
+      "Directed Donation",
+      "Autologous",
+    ];
+    const component = components[index % components.length];
+    const collected = new Date(2026, 5, 1 + (index % 28));
+    const shelfDays =
+      component === "Platelets" || component === "Platelet Concentrate"
+        ? 5
+        : component === "FFP" || component === "Cryoprecipitate"
+          ? 365
+          : 35;
+    const expiry = new Date(collected);
+    expiry.setDate(expiry.getDate() + shelfDays - (index % 8));
+    return {
+      id: `blood-${index + 9}`,
+      bloodGroup: group,
+      componentType: component,
+      bagId: `BB-${group.replace("−", "N").replace("+", "P")}-${260800 + index}`,
+      collectionDate: collected.toISOString().slice(0, 10),
+      expiryDate: expiry.toISOString().slice(0, 10),
+      source: sources[index % sources.length],
+      storageLocation: [
+        "Blood Bank / RBC Fridge 1",
+        "Blood Bank / RBC Fridge 2",
+        "Blood Bank / WB Fridge 2",
+        "Blood Bank / Platelet Agitator",
+        "Blood Bank / Plasma Freezer 1",
+        "Blood Bank / Plasma Freezer 2",
+        "Quarantine / Hold",
+      ][index % 7],
+    } satisfies BloodUnit;
+  }),
 ];
 
 export function bloodDaysUntilExpiry(expiryDate: string): number {

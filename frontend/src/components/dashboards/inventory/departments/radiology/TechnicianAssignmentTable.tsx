@@ -1,41 +1,16 @@
 "use client";
 
-import {
-  UserRound,
-  Phone,
-  CalendarDays,
-} from "lucide-react";
+import { UserRound, Phone, CalendarDays } from "lucide-react";
+import { RADIOLOGY_TECHNICIANS } from "@/features/inventory/radiology-data";
 
-const technicians = [
-  {
-    name: "Amit Sharma",
-    machine: "CT Scanner",
-    shift: "Morning",
-    status: "Available",
-    phone: "+91 9876543210",
-  },
-  {
-    name: "Riya Verma",
-    machine: "MRI Scanner",
-    shift: "Evening",
-    status: "Busy",
-    phone: "+91 9876543211",
-  },
-  {
-    name: "Rahul Singh",
-    machine: "Digital X-Ray",
-    shift: "Morning",
-    status: "Available",
-    phone: "+91 9876543212",
-  },
-  {
-    name: "Neha Kapoor",
-    machine: "Portable X-Ray",
-    shift: "Night",
-    status: "On Leave",
-    phone: "+91 9876543213",
-  },
-];
+const technicians = RADIOLOGY_TECHNICIANS.map((tech, index) => ({
+  name: tech.name,
+  machine: tech.assignedMachine,
+  shift: tech.shift,
+  status:
+    index % 5 === 0 ? "On Leave" : index % 3 === 0 ? "Busy" : "Available",
+  phone: `+91 98${String(70000000 + index).slice(0, 8)}`,
+}));
 
 export default function TechnicianAssignmentTable() {
   return (

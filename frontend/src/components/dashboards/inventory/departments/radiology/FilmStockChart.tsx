@@ -1,51 +1,53 @@
 "use client";
 
-import { PieChart } from "@mui/x-charts/PieChart";
+import {
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
+import { RADIOLOGY_FILM_STOCK } from "@/features/inventory/radiology-data";
 
-const filmData = [
-  { id: 0, value: 140, label: "8×10 Film" },
-  { id: 1, value: 110, label: "10×12 Film" },
-  { id: 2, value: 80, label: "14×17 Film" },
-  { id: 3, value: 60, label: "Laser Film" },
-];
+const COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#8b5cf6", "#f59e0b", "#64748b"];
 
 export default function FilmStockChart() {
+  const data = RADIOLOGY_FILM_STOCK.map((item) => ({
+    name: item.label,
+    value: item.value,
+  }));
+
   return (
     <div className="surface-card p-6">
-      {/* Header */}
       <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          X-Ray Film Stock
-        </h2>
-
+        <h2 className="text-lg font-semibold text-foreground">X-Ray Film Stock</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Distribution of film inventory by size
         </p>
       </div>
 
-      {/* Chart */}
-      <div className="mt-6 flex justify-center overflow-x-auto">
-        <PieChart
-          width={360}
-          height={240}
-          series={[
-            {
-              data: filmData,
-              innerRadius: 65,
-              outerRadius: 100,
-              paddingAngle: 3,
-              cornerRadius: 4,
-            },
-          ]}
-          sx={{
-            "& .MuiChartsLegend-label": {
-              fill: "var(--foreground)",
-            },
-            "& .MuiChartsLegend-mark": {
-              stroke: "none",
-            },
-          }}
-        />
+      <div className="mt-6 h-[240px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={65}
+              outerRadius={100}
+              paddingAngle={3}
+            >
+              {data.map((entry, index) => (
+                <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

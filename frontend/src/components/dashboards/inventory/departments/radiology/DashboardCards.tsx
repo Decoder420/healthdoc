@@ -8,45 +8,22 @@ import {
   ShoppingCart,
   CalendarClock,
 } from "lucide-react";
+import { RADIOLOGY_DASHBOARD_CARDS } from "@/features/inventory/radiology-data";
 
-const cards = [
-  {
-    title: "Total Items",
-    value: "428",
-    icon: Package,
-  },
-  {
-    title: "Low Stock",
-    value: "12",
-    icon: AlertTriangle,
-  },
-  {
-    title: "Machines",
-    value: "9 / 10",
-    icon: Monitor,
-  },
-  {
-    title: "Technicians",
-    value: "15",
-    icon: Users,
-  },
-  {
-    title: "Pending Orders",
-    value: "3",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Expiring Items",
-    value: "8",
-    icon: CalendarClock,
-  },
-];
+const ICONS = [
+  Package,
+  AlertTriangle,
+  Monitor,
+  Users,
+  ShoppingCart,
+  CalendarClock,
+] as const;
 
 export default function DashboardCards() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {cards.map((card) => {
-        const Icon = card.icon;
+      {RADIOLOGY_DASHBOARD_CARDS.map((card, index) => {
+        const Icon = ICONS[index % ICONS.length];
 
         return (
           <div
@@ -65,11 +42,7 @@ export default function DashboardCards() {
               </div>
 
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
-                <Icon
-                  size={22}
-                  className="text-primary"
-                  strokeWidth={2}
-                />
+                <Icon size={22} className="text-primary" strokeWidth={2} />
               </div>
             </div>
           </div>

@@ -144,6 +144,81 @@ const INITIAL_OT_STOCK: OtStockItem[] = [
     expiryDate: "2029-06-21",
     reorderLevel: 20,
   },
+  ...Array.from({ length: 28 }, (_, index) => {
+    const catalog: Array<{
+      itemName: string;
+      category: OtStockItem["category"];
+      unit: string;
+      manufacturer: string;
+      reorderLevel: number;
+    }> = [
+      {
+        itemName: "Knee Implant Poly Insert",
+        category: "Implant",
+        unit: "implant",
+        manufacturer: "Zimmer",
+        reorderLevel: 1,
+      },
+      {
+        itemName: "Silk 1-0 Suture",
+        category: "Suture",
+        unit: "packs",
+        manufacturer: "Ethicon",
+        reorderLevel: 25,
+      },
+      {
+        itemName: "Raytec Sponge",
+        category: "Sponge",
+        unit: "pieces",
+        manufacturer: "SurgiCare",
+        reorderLevel: 80,
+      },
+      {
+        itemName: "Needle Holder",
+        category: "Instrument",
+        unit: "instruments",
+        manufacturer: "Aesculap",
+        reorderLevel: 4,
+      },
+      {
+        itemName: "Skin Stapler",
+        category: "Consumable",
+        unit: "pieces",
+        manufacturer: "Covidien",
+        reorderLevel: 15,
+      },
+      {
+        itemName: "Bone Cement",
+        category: "Consumable",
+        unit: "packs",
+        manufacturer: "Stryker",
+        reorderLevel: 6,
+      },
+    ];
+    const item = catalog[index % catalog.length];
+    const qty = item.category === "Implant" ? 1 + (index % 3) : 10 + ((index * 9) % 180);
+    return {
+      id: `ot-${index + 8}`,
+      itemName: `${item.itemName} #${index + 1}`,
+      category: item.category,
+      batchNumber: `OT-${260700 + index}`,
+      serialNumber:
+        item.category === "Implant" || item.category === "Instrument"
+          ? `SN-OT-${90000 + index}`
+          : undefined,
+      quantity: qty,
+      unit: item.unit,
+      storeLocation: [
+        "OT Store / Implant Safe A",
+        "OT Store / Rack S-01",
+        "OT Store / Sterile Cabinet 2",
+        "OT Store / Rack C-03",
+      ][index % 4],
+      manufacturer: item.manufacturer,
+      expiryDate: `203${index % 5}-0${1 + (index % 9)}-${10 + (index % 18)}`,
+      reorderLevel: item.reorderLevel,
+    } satisfies OtStockItem;
+  }),
 ];
 
 function formatDate(date: string) {

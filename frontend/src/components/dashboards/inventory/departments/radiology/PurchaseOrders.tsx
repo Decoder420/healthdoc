@@ -1,63 +1,35 @@
 "use client";
 
 import { ShoppingCart } from "lucide-react";
-
-const orders = [
-  {
-    po: "PO-1001",
-    supplier: "Siemens Healthcare",
-    item: "CT Contrast Media",
-    amount: "₹1,45,000",
-    status: "Pending",
-  },
-  {
-    po: "PO-1002",
-    supplier: "Fujifilm",
-    item: "X-Ray Films",
-    amount: "₹82,000",
-    status: "Approved",
-  },
-  {
-    po: "PO-1003",
-    supplier: "GE Healthcare",
-    item: "MRI Contrast",
-    amount: "₹2,10,000",
-    status: "Delivered",
-  },
-];
+import { RADIOLOGY_PURCHASE_ORDERS } from "@/features/inventory/radiology-data";
 
 export default function PurchaseOrders() {
   return (
     <div className="surface-card p-6">
-      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">
             Purchase Orders
           </h2>
-
           <p className="mt-1 text-sm text-muted-foreground">
-            Latest procurement requests
+            {RADIOLOGY_PURCHASE_ORDERS.length} procurement requests
           </p>
         </div>
-
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-          <ShoppingCart
-            size={20}
-            className="text-primary"
-          />
+          <ShoppingCart size={20} className="text-primary" />
         </div>
       </div>
 
-      {/* Purchase Orders */}
-      <div className="space-y-4">
-        {orders.map((order) => {
+      <div className="max-h-96 space-y-4 overflow-y-auto pr-1">
+        {RADIOLOGY_PURCHASE_ORDERS.map((order) => {
           const badgeClass =
             order.status === "Pending"
               ? "bg-warning-muted text-warning"
               : order.status === "Approved"
-              ? "bg-info-muted text-info"
-              : "bg-success-muted text-success";
+                ? "bg-info-muted text-info"
+                : order.status === "Partially Received"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-success-muted text-success";
 
           return (
             <div
@@ -66,24 +38,14 @@ export default function PurchaseOrders() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="font-semibold text-foreground">
-                    {order.po}
-                  </h3>
-
-                  <p className="mt-1 text-sm text-foreground">
-                    {order.item}
-                  </p>
-
+                  <h3 className="font-semibold text-foreground">{order.po}</h3>
+                  <p className="mt-1 text-sm text-foreground">{order.item}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {order.supplier}
                   </p>
                 </div>
-
                 <div className="flex flex-col items-end gap-2">
-                  <p className="font-semibold text-primary">
-                    {order.amount}
-                  </p>
-
+                  <p className="font-semibold text-primary">{order.amount}</p>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}
                   >

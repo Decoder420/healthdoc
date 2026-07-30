@@ -5,15 +5,10 @@ import ExpiryTable from "@/components/dashboards/inventory/dashboard/ExpiryTable
 import InventoryTrendChart from "@/components/dashboards/inventory/dashboard/InventoryTrendChart";
 import LowStockCategoryChart from "@/components/dashboards/inventory/dashboard/LowStockCard";
 import RecentInventoryTable from "@/components/dashboards/inventory/dashboard/RecentPurchasestable";
-
-const inventoryStats = [
-  { label: "Products", value: "2,150" },
-  { label: "Low Stock", value: "18", emphasis: "text-destructive" },
-  { label: "Suppliers", value: "96" },
-  { label: "Orders", value: "124" },
-  { label: "Expiring", value: "30", emphasis: "text-amber-600" },
-  { label: "Stock Value", value: "₹4.0M" },
-];
+import {
+  INVENTORY_ALERT_SUMMARY,
+  INVENTORY_DASHBOARD_KPIS,
+} from "@/features/inventory/dashboard-data";
 
 export function InventoryScreen() {
   const { user } = useAuth();
@@ -33,7 +28,7 @@ export function InventoryScreen() {
         aria-label="Inventory summary"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       >
-        {inventoryStats.map((stat) => (
+        {INVENTORY_DASHBOARD_KPIS.map((stat) => (
           <article key={stat.label} className="surface-card p-5">
             <p className="text-sm text-muted-foreground">{stat.label}</p>
             <p className={`mt-2 text-2xl font-bold ${stat.emphasis ?? "text-foreground"}`}>
@@ -41,6 +36,44 @@ export function InventoryScreen() {
             </p>
           </article>
         ))}
+      </section>
+
+      <section
+        aria-label="Alert summary"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <article className="surface-card border-l-4 border-l-destructive p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Critical low stock
+          </p>
+          <p className="mt-1 text-xl font-semibold text-destructive">
+            {INVENTORY_ALERT_SUMMARY.criticalLowStock}
+          </p>
+        </article>
+        <article className="surface-card border-l-4 border-l-amber-500 p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Near expiry (≤15d)
+          </p>
+          <p className="mt-1 text-xl font-semibold text-amber-600">
+            {INVENTORY_ALERT_SUMMARY.nearExpiry}
+          </p>
+        </article>
+        <article className="surface-card border-l-4 border-l-rose-500 p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Expired / overdue
+          </p>
+          <p className="mt-1 text-xl font-semibold text-rose-600">
+            {INVENTORY_ALERT_SUMMARY.expiredOrNegative}
+          </p>
+        </article>
+        <article className="surface-card border-l-4 border-l-sky-500 p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            FEFO violations
+          </p>
+          <p className="mt-1 text-xl font-semibold text-sky-700">
+            {INVENTORY_ALERT_SUMMARY.fefoViolations}
+          </p>
+        </article>
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">

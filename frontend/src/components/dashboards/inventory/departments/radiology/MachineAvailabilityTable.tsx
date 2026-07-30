@@ -1,49 +1,29 @@
 "use client";
 
+import { Monitor, Eye, Wrench } from "lucide-react";
 import {
-  Monitor,
-  Eye,
-  Wrench,
-} from "lucide-react";
+  RADIOLOGY_MACHINES,
+  RADIOLOGY_TECHNICIANS,
+} from "@/features/inventory/radiology-data";
 
-const machines = [
-  {
-    machine: "CT Scanner",
-    type: "CT",
-    status: "Available",
-    technician: "Amit Sharma",
-    lastMaintenance: "10 Jul 2026",
-    nextMaintenance: "10 Aug 2026",
-    utilization: "82%",
-  },
-  {
-    machine: "MRI Scanner",
-    type: "MRI",
-    status: "Maintenance",
-    technician: "Riya Verma",
-    lastMaintenance: "05 Jul 2026",
-    nextMaintenance: "20 Jul 2026",
-    utilization: "0%",
-  },
-  {
-    machine: "Digital X-Ray",
-    type: "X-Ray",
-    status: "Available",
-    technician: "Rahul Singh",
-    lastMaintenance: "02 Jul 2026",
-    nextMaintenance: "02 Aug 2026",
-    utilization: "74%",
-  },
-  {
-    machine: "Portable X-Ray",
-    type: "X-Ray",
-    status: "Busy",
-    technician: "Neha Kapoor",
-    lastMaintenance: "08 Jul 2026",
-    nextMaintenance: "08 Aug 2026",
-    utilization: "91%",
-  },
-];
+const machines = RADIOLOGY_MACHINES.map((machine, index) => {
+  const statusMap = {
+    Online: "Available",
+    Offline: "Busy",
+    Maintenance: "Maintenance",
+    Calibration: "Maintenance",
+  } as const;
+
+  return {
+    machine: machine.name,
+    type: machine.modality,
+    status: statusMap[machine.status],
+    technician: RADIOLOGY_TECHNICIANS[index % RADIOLOGY_TECHNICIANS.length].name,
+    lastMaintenance: machine.nextService,
+    nextMaintenance: machine.nextService,
+    utilization: `${machine.utilization}%`,
+  };
+});
 
 export default function MachineAvailabilityTable() {
   return (

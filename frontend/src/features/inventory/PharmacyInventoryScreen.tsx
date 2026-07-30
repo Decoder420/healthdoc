@@ -17,6 +17,7 @@ import { FieldSelect, FieldText } from "@/components/ui/mui-field";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import {
+  INITIAL_PHARMACY_AUDITS,
   INITIAL_PHARMACY_STOCK,
   daysUntilExpiry,
   sortByFefo,
@@ -62,7 +63,7 @@ function formatCurrency(value: number) {
 
 export function PharmacyInventoryScreen() {
   const [stock, setStock] = useState(INITIAL_PHARMACY_STOCK);
-  const [auditLog, setAuditLog] = useState<StockAudit[]>([]);
+  const [auditLog, setAuditLog] = useState<StockAudit[]>(INITIAL_PHARMACY_AUDITS);
   const [search, setSearch] = useState("");
   const [operation, setOperation] = useState<Operation | null>(null);
   const [selected, setSelected] = useState<PharmacyStock | null>(null);
