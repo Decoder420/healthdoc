@@ -1,5 +1,7 @@
-import { QueueDisplayScreen } from "@/features/queue-display/QueueDisplayScreen";
-
-export default function Page() {
-  return <QueueDisplayScreen />;
+﻿export default function Page() {
+  return (
+    <main style={{ padding: "2rem" }}>
+      <h1>Queue Display</h1>
+    </main>
+  );
 }

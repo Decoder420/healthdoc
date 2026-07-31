@@ -5,21 +5,32 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowRightLeft,
+  Archive,
   BarChart3,
   BedDouble,
+  Bell,
   Boxes,
   Building2,
   ChevronDown,
   ClipboardList,
+  ClipboardCheck,
+  FileText,
   Droplet,
   FlaskConical,
+  History,
   LayoutDashboard,
   Network,
   Package,
   Pill,
+  Receipt,
   ScanLine,
   Scissors,
+  Settings2,
+  ShieldCheck,
+  ShoppingCart,
   Siren,
+  Tags,
+  TriangleAlert,
   Truck,
   UserRound,
   Warehouse,
@@ -33,25 +44,69 @@ import {
 import { useUserRole } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils/cn";
 
-const NAV_ICONS: Record<NavIcon, LucideIcon> = {
+const NAV_ICONS: Partial<Record<NavIcon, LucideIcon>> = {
   dashboard: LayoutDashboard,
+
   package: Package,
+  Package: Package,
+
   building: Building2,
+
   scan: ScanLine,
+
   pill: Pill,
+
   droplet: Droplet,
+
   siren: Siren,
+
   boxes: Boxes,
+
   truck: Truck,
+
   clipboard: ClipboardList,
+
+  ClipboardList: ClipboardList,
+
+  FileText: FileText,
+
   chart: BarChart3,
+
   warehouse: Warehouse,
+
   bed: BedDouble,
+
   scissors: Scissors,
+
   swap: ArrowRightLeft,
+
+  arrowLeftRight: ArrowRightLeft,
+
   network: Network,
+
   flask: FlaskConical,
+
   user: UserRound,
+
+  tag: Tags,
+
+  shoppingCart: ShoppingCart,
+
+  clipboardCheck: ClipboardCheck,
+
+  receipt: Receipt,
+
+  history: History,
+
+  bell: Bell,
+
+  triangleAlert: TriangleAlert,
+
+  shieldCheck: ShieldCheck,
+
+  archive: Archive,
+
+  settings2: Settings2,
 };
 
 function isItemActive(pathname: string, item: NavItem) {
@@ -71,6 +126,7 @@ function NavIconBadge({
 }) {
   if (!icon) return null;
   const Icon = NAV_ICONS[icon];
+  if (!Icon) return null;
   return (
     <Icon
       size={16}

@@ -180,9 +180,18 @@ export function InventoryTransactionsScreen() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Inventory / Control
-          </p>
+         <Breadcrumbs
+  items={[
+    {
+      label: "Inventory",
+      href: "/inventory",
+    },
+   
+    {
+      label: "Inventory Transactions",
+    },
+  ]}
+/>
           <h1 className="mt-1 text-2xl font-bold text-foreground">
             Inventory Transactions
           </h1>

@@ -1,4 +1,4 @@
-import { PharmacyPrescriptionQueueScreen } from "@/features/pharmacy/PharmacyPrescriptionQueueScreen";
+import PharmacyPrescriptionQueueScreen from "@/features/pharmacy/PharmacyPrescriptionQueueScreen";
 
 export default function Page() {
   return <PharmacyPrescriptionQueueScreen />;

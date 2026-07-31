@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { PharmacyDashboardScreen } from "@/features/pharmacy/PharmacyDashboardScreen";
 
-export default function PharmacyRedirectPage() {
-  redirect("/pharmacy/prescription-queue");
+export default function PharmacyPage() {
+  return <PharmacyDashboardScreen />;
 }

@@ -1,10 +1,5 @@
-import { FeatureStub } from "@/features/_shared/FeatureStub";
+import { SuppliersScreen } from "@/features/inventory/SuppliersScreen";
 
 export default function InventorySuppliersPage() {
-  return (
-    <FeatureStub
-      title="Suppliers"
-      description="Track vendor details, contacts, and supplier performance."
-    />
-  );
+  return <SuppliersScreen />;
 }

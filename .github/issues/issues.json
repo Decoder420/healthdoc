@@ -511,7 +511,7 @@
   },
   {
     "id": "B7-W2-02",
-    "title": "[B7-W2-02] data_access_log middleware decorator on all patient-data GETs with purpose_code",
+    "title": "[B7-W2-02] _access_log middleware decorator on all patient-data GETs with purpose_code",
     "assignee": "dev-b7",
     "milestone": "W2",
     "labels": [

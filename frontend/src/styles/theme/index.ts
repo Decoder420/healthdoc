@@ -1,2 +1,3 @@
 export { meridian } from "./meridian";
-export { muiTheme, muiDarkTheme } from "./mui-theme";
+export type { MeridianColor } from "./meridian";
+export { muiTheme } from "./mui-theme";

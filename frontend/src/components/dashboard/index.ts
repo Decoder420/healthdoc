@@ -6,7 +6,7 @@ import { AdminDashboard } from "./admin";
 import { DoctorDashboard } from "./doctor";
 import { LabTechnicianDashboard } from "./lab-technician";
 import { NurseDashboard } from "./nurse";
-import { PharmacistDashboard } from "./pharmacist";
+import { PharmacyDashboardScreen } from "@/features/pharmacy/PharmacyDashboardScreen";
 import { ReceptionistDashboard } from "./receptionist";
 
 type DashboardComponent = ComponentType<{ userName?: string }>;
@@ -16,7 +16,7 @@ export const dashboardByRole: Partial<Record<Role, DashboardComponent>> = {
   [ROLES.DOCTOR]: DoctorDashboard,
   [ROLES.NURSE]: NurseDashboard,
   [ROLES.RECEPTIONIST]: ReceptionistDashboard,
-  [ROLES.PHARMACIST]: PharmacistDashboard,
+  [ROLES.PHARMACIST]: PharmacyDashboardScreen,
   [ROLES.LAB_TECHNICIAN]: LabTechnicianDashboard,
   [ROLES.ACCOUNTANT]: AccountantDashboard,
 };

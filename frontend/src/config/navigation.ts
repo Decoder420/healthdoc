@@ -16,10 +16,27 @@ export type NavIcon =
   | "warehouse"
   | "bed"
   | "scissors"
-  | "swap"
+  | "swap"  
   | "network"
   | "flask"
-  | "user";
+  | "user"
+  | "FileText"
+  | "Package"
+  | "ClipboardList"
+  | "tag"
+  | "shoppingCart"
+  | "clipboardCheck"
+  | "receipt"
+  | "arrowLeftRight"
+  | "history"
+  | "bell"
+  | "triangleAlert"
+  | "shieldCheck"
+  | "archive"
+  | "barcode"
+  | "settings2"
+
+  ;
 
 export type NavItem = {
   label: string;
@@ -31,51 +48,116 @@ export type NavItem = {
 
 const inventoryDepartments: NavItem[] = [
   {
-    label: "Radiology",
-    href: "/inventory/departments/radiology",
-    icon: "scan",
+    label: "Department Stock",
+    href: "/inventory/departments/DepartmentStock",
+    icon: "building",
+  },
+
+ {
+    label: "Indent Requests",
+    href: "/inventory/departments/IndentRequests",
+    icon: "FileText",
+  },
+  ];
+
+const inventoryPurchaseOrders: NavItem[] = [
+  
+   {
+    label: "Purchase Requisition",
+    href: "/inventory/purchase/PurchaseRequisition",
+    icon: "FileText",
+  },
+  
+  {
+    label: "Purchase Orders",
+    href: "/inventory/purchase/PurchaseOrders",
+    icon: "Package",
+  },
+
+ {
+
+    label: "GRN",
+    href: "/inventory/purchase/grn",
+    icon: "ClipboardList",
+
+  },
+  ];
+
+  const inventoryWarehouse: NavItem[] = [
+  {
+    label: "Central Store",
+    href: "/inventory/warehouse/central-store",
+    icon: "warehouse",
   },
   {
-    label: "Pharmacy",
-    href: "/inventory/departments/pharmacy",
-    icon: "pill",
+    label: "Stock Transfer",
+    href: "/inventory/warehouse/transfer",
+    icon: "arrowLeftRight",
   },
   {
-    label: "Blood",
-    href: "/inventory/departments/blood",
-    icon: "droplet",
+    label: "Stock Adjustment",
+    href: "/inventory/warehouse/adjustment",
+    icon: "settings2",
   },
   {
-    label: "Emergency",
-    href: "/inventory/departments/emergency",
-    icon: "siren",
+    label: "Returns",
+    href: "/inventory/warehouse/returns",
+    icon: "receipt",
   },
   {
-    label: "Hospital Ward Items",
-    href: "/inventory/departments/hospital-ward-items",
-    icon: "bed",
-  },
-  {
-    label: "Operation Theatre",
-    href: "/inventory/departments/operation-theatre",
-    icon: "scissors",
-  },
-  {
-    label: "Inventory Transactions",
-    href: "/inventory/departments/transactions",
-    icon: "swap",
-  },
-  {
-    label: "Inventory Entity Model",
-    href: "/inventory/departments/entity-model",
-    icon: "network",
-  },
-  {
-    label: "Laboratory Equipment Inventory",
-    href: "/inventory/departments/laboratory-equipment",
-    icon: "flask",
+    label: "Write-offs",
+    href: "/inventory/warehouse/write-offs",
+    icon: "archive",
   },
 ];
+
+const inventoryAudit: NavItem[] = [
+  {
+    label: "Physical Verification",
+    href: "/inventory/audit/verification",
+    icon: "clipboardCheck",
+  },
+  {
+    label: "Stock Ledger",
+    href: "/inventory/audit/stock-ledger",
+    icon: "history",
+  },
+  {
+    label: "Transaction History",
+    href: "/inventory/audit/transactions",
+    icon: "history",
+  },
+];
+
+
+  const inventoryProducts: NavItem[] = [
+
+ {
+    label: "Item Master",
+    href: "/inventory/products/item-master",
+    icon: "package",
+  },
+
+  {
+    label: "Stock List",
+    href: "/inventory/products/stock-list",
+    icon: "boxes",
+    
+  },
+
+ {
+  
+    label: "Categories",
+    href: "/inventory/products/categories",
+    icon: "Package",
+
+  },
+
+
+  ];
+
+
+
 
 export const navigation: NavItem[] = [
   {
@@ -185,6 +267,8 @@ export const navigation: NavItem[] = [
     href: "/inventory/products",
     icon: "boxes",
     roles: [ROLES.ADMIN, ROLES.INVENTORY_MANAGER],
+     children: inventoryProducts,
+
   },
   {
     label: "Suppliers",
@@ -192,12 +276,16 @@ export const navigation: NavItem[] = [
     icon: "truck",
     roles: [ROLES.ADMIN, ROLES.INVENTORY_MANAGER],
   },
-  {
-    label: "Purchased Orders",
-    href: "/inventory/purchase-orders",
+
+{
+    label: "  Purchase",
+    href: "/inventory/purchase",
     icon: "clipboard",
     roles: [ROLES.ADMIN, ROLES.INVENTORY_MANAGER],
+    children: inventoryPurchaseOrders,
   },
+
+  
   {
     label: "Reports",
     href: "/inventory/reports",
@@ -210,6 +298,15 @@ export const navigation: NavItem[] = [
     icon: "warehouse",
     roles: [ROLES.ADMIN, ROLES.INVENTORY_MANAGER],
   },
+
+  {
+  label: "Audit",
+  href: "/inventory/audit",
+  icon: "shieldCheck",
+  roles: [ROLES.ADMIN, ROLES.INVENTORY_MANAGER],
+  children: inventoryAudit,
+},
+
   {
     label: "Billing (UI gallery)",
     href: "/billing",
