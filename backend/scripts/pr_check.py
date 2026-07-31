@@ -91,9 +91,15 @@ def check_file(path: pathlib.Path) -> list[Finding]:
         if "pr-check: ignore" in ln:
             continue
 
+        # Comment/docstring-only lines describe the rules; they don't break them.
+        # (#271 SEQ-RACE fired on "never MAX(col)+1"; #269 TZ-DATE fired on
+        #  "No CHECK against CURRENT_DATE" — both authors documenting that they
+        #  had done the right thing.)
+        if i in prose_lines:
+            continue
+
         # --- race conditions on identifier allocation -------------------------
-        if (i not in prose_lines
-                and re.search(r"\bmax\s*\(", ln, re.I)
+        if (re.search(r"\bmax\s*\(", ln, re.I)
                 and re.search(r"\+\s*1|\bfunc\.max\b", ln, re.I)):
             f.append(Finding(BLOCK, "SEQ-RACE", rel, i,
                 "MAX(col)+1 allocation races under concurrency (duplicate UHID/token/receipt).",
@@ -187,6 +193,12 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                 continue
             assigned = {t.target.id for t in node.body
                         if isinstance(t, ast.AnnAssign) and isinstance(t.target, ast.Name)}
+            assigned |= {tgt.id for stmt in node.body
+                         if isinstance(stmt, ast.Assign)
+                         for tgt in stmt.targets if isinstance(tgt, ast.Name)}
+            # NOTE: `assigned` must include plain `x = Column(...)` assignments,
+            # not just annotated `x: Mapped[...] = mapped_column(...)`. #269 used
+            # the old style throughout and silently bypassed this rule entirely.
             hand = assigned & MIXIN_COLS
             if hand and not (bases & {"UUIDPk", "Timestamps", "Blame"}):
                 f.append(Finding(BLOCK, "MIXIN", rel, node.lineno,
