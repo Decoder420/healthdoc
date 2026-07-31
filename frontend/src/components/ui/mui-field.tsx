@@ -1,6 +1,5 @@
 "use client";
 
-import MenuItem from "@mui/material/MenuItem";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,22 +17,36 @@ export function FieldText({ errorText, helperText, error, ...props }: FieldTextP
   );
 }
 
-type FieldSelectProps = FieldTextProps & {
+type FieldSelectProps = Omit<FieldTextProps, "select" | "children"> & {
   options: { value: string; label: string }[];
 };
 
-export function FieldSelect({ options, errorText, helperText, error, ...props }: FieldSelectProps) {
+/** Native select — avoids MUI Menu portal/z-index issues under Tailwind CSS layers. */
+export function FieldSelect({
+  options,
+  errorText,
+  helperText,
+  error,
+  SelectProps,
+  fullWidth = true,
+  ...props
+}: FieldSelectProps) {
   return (
     <TextField
       {...props}
       select
+      fullWidth={fullWidth}
       error={error ?? Boolean(errorText)}
       helperText={errorText ?? helperText}
+      SelectProps={{
+        native: true,
+        ...SelectProps,
+      }}
     >
       {options.map((option) => (
-        <MenuItem key={option.value} value={option.value}>
+        <option key={option.value} value={option.value}>
           {option.label}
-        </MenuItem>
+        </option>
       ))}
     </TextField>
   );

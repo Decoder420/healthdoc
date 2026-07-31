@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { ROLES, type Role } from "@/config/roles";
 import { Button } from "@/components/ui/button";
-import { FieldSelect } from "@/components/ui/mui-field";
 import { setAuthSession } from "@/lib/auth";
 import { getDefaultRouteForRole } from "@/lib/auth/routes";
 
@@ -102,12 +101,20 @@ export function LoginScreen() {
       </p>
 
       <div className="mt-6 space-y-4">
-        <FieldSelect
-          label="Dev role"
-          value={role}
-          onChange={(event) => setRole(event.target.value as Role)}
-          options={ROLE_OPTIONS}
-        />
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium text-foreground">Dev role</span>
+          <select
+            className="file-input cursor-pointer appearance-auto"
+            value={role}
+            onChange={(event) => setRole(event.target.value as Role)}
+          >
+            {ROLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <Button type="button" onClick={handleDevLogin} className="w-full">
           Continue (dev login)
         </Button>
