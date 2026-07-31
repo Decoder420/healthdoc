@@ -83,7 +83,10 @@ if python3 "$TOOLDIR/pr_check.py" --all; then pass "no convention blockers"; els
 
 # ── 4. spec drift: docs vs enums ──────────────────────────────────────────────
 step "Spec drift (docs ↔ enums)"
-if python3 "$TOOLDIR/spec_check.py" .; then pass "schema doc and enums.py agree"; else fail "spec drift between docs and code"; fi
+if ! grep -q "ModuleCode enum — EXACTLY" docs/database-schema.md 2>/dev/null; then
+  warn "branch predates the current schema doc — rebase on staging, then re-check"
+elif python3 "$TOOLDIR/spec_check.py" .; then pass "schema doc and enums.py agree"
+else fail "spec drift between docs and code"; fi
 
 # ── 5. migration chain ────────────────────────────────────────────────────────
 step "Migration integrity"

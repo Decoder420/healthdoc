@@ -66,10 +66,17 @@ echo "\$ pr_check.py (from staging)"
 python3 "$TOOLDIR/pr_check.py" --all 2>&1 || true
 echo
 echo "\$ spec_check.py"
-python3 "$TOOLDIR/spec_check.py" . 2>&1 || true
+if grep -q "ModuleCode enum — EXACTLY" docs/database-schema.md 2>/dev/null; then
+  python3 "$TOOLDIR/spec_check.py" . 2>&1 || true
+else
+  echo "SPEC CHECK: skipped — this branch predates the current schema doc."
+  echo "  (branch doc version: $(grep -oE '^\| v[0-9.]+' docs/database-schema.md 2>/dev/null | tail -1 | tr -d '| ') ,"
+  echo "   staging is $(grep -oE '^\| v[0-9.]+' "$TOOLDIR/database-schema.md" 2>/dev/null | head -1 | tr -d '| '))"
+  echo "  → the author must rebase on staging before this check is meaningful."
+fi
 echo
 echo "\$ check_migration_integrity.py"
-(cd backend && python3 scripts/check_migration_integrity.py 2>&1) || true
+(cd backend && python3 "$TOOLDIR/check_migration_integrity.py" 2>&1) || true
 if git diff --name-only "$BASE" HEAD | grep -q '^frontend/'; then
   echo
   echo "\$ fe_check.mjs"
