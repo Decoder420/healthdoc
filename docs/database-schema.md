@@ -314,7 +314,7 @@ indexes (created on the partitioned parent, so each monthly partition inherits t
 facility_id UUID NOT NULL → facilities · partition_name text · period_start date ·
 period_end date · row_count bigint · object_storage_bucket text · object_storage_key text ·
 archive_file_hash char(64) · archived_at timestamptz · verified_at timestamptz ·
-verification_status varchar(30) CHECK pending|verified|failed
+verification_status varchar(50) CHECK pending|verified|failed
 ```
 
 **audit_integrity_checks**
@@ -340,7 +340,7 @@ is_active       boolean NOT NULL DEFAULT true
 patient_id      UUID NOT NULL                    -- FK added in 0006
 visit_id        UUID NULL                        -- FK added in 0007
 purpose_id      UUID NOT NULL → consent_purposes
-granted_by_type varchar(30) CHECK patient|guardian|nominee
+granted_by_type varchar(50) CHECK patient|guardian|nominee
 granted_by_user_id UUID NULL → users
 guardian_name   text
 guardian_relationship varchar(50)
@@ -348,17 +348,17 @@ guardian_id_proof_file_id UUID NULL              -- FK added in 0019
 granted_at      timestamptz
 expires_at      timestamptz NULL                 -- NULLABLE per issue spec
 scope           text[]
-channel         varchar(30) CHECK verbal|written|digital_otp|abdm_consent_manager
+channel         varchar(50) CHECK verbal|written|digital_otp|abdm_consent_manager
 consent_artefact_id text
 consent_artefact_signature text
-status          varchar(30) NOT NULL DEFAULT 'granted'   -- ConsentStatus enum
+status          varchar(50) NOT NULL DEFAULT 'granted'   -- ConsentStatus enum
 status_changed_at timestamptz
 ```
 
 **consent_withdrawals** — append-only; insert flips parent `consent_records.status → revoked`
 ```
 consent_id UUID NOT NULL → consent_records ·
-withdrawn_by_type varchar(30) CHECK patient|guardian|nominee|system_expiry ·
+withdrawn_by_type varchar(50) CHECK patient|guardian|nominee|system_expiry ·
 withdrawn_by_user_id UUID NULL → users · withdrawn_at timestamptz · reason text ·
 cascaded_actions jsonb · cascade_deadline timestamptz · cascade_completed_at timestamptz
 ```
@@ -367,7 +367,7 @@ cascaded_actions jsonb · cascade_deadline timestamptz · cascade_completed_at t
 ```
 consent_id UUID NULL → consent_records · user_id UUID NOT NULL → users · role text ·
 resource_type text · resource_id UUID · patient_id UUID NULL · purpose_code varchar(50) ·
-access_channel varchar(30) CHECK ui|api|abdm_hiu|export ·
+access_channel varchar(50) CHECK ui|api|abdm_hiu|export ·
 emergency_access boolean NOT NULL DEFAULT false ·         -- break-glass flag
 consent_required boolean · consent_verified boolean · accessed_at timestamptz NOT NULL
 INDEX ix_data_access_log_user_id (user_id, accessed_at) ·
@@ -398,7 +398,7 @@ DPO/compliance queue — that is the mandatory review, and it now has a table to
 **consent_renewal_reminders**
 ```
 consent_id UUID NOT NULL → consent_records · remind_at timestamptz · sent_at timestamptz ·
-notification_channel varchar(30)
+notification_channel varchar(50)
 ```
 
 ### 0005 — departments, rooms (B4)
@@ -432,7 +432,7 @@ deferred FK on `audit_logs.department_id`.
 uhid            varchar(30) UNIQUE NULL          -- IN-RJ-JPR001-2026-000042-7; NULL only while THID
 thid            varchar(25) UNIQUE NULL          -- TH-JPR001-260714-0007; emergency path
 full_name       text NOT NULL
-sex             varchar(30) NOT NULL             -- Sex enum
+sex             varchar(50) NOT NULL             -- Sex enum
 dob             date NULL
 age_years       int NULL
    CHECK (dob IS NOT NULL OR age_years IS NOT NULL)  -- ck_patients_dob_or_age
@@ -442,9 +442,9 @@ mobile          varchar(20)                      -- contact only, NEVER identity
 address_line    text · village_town text · district text · state_code varchar(5) · pincode varchar(6)
 photo_file_id   UUID NULL                        -- MinIO ref via files (FK added 0019); photo mandatory per ADR 0001
 abha_number     varchar(17) UNIQUE NULL
-identity_path   varchar(30) NOT NULL             -- IdentityPath enum (ADR 0001)
-identity_status varchar(30) NOT NULL DEFAULT 'verified'  -- IdentityStatus enum
-status          varchar(30) NOT NULL DEFAULT 'active'    -- PatientStatus: active|merged|deceased
+identity_path   varchar(50) NOT NULL             -- IdentityPath enum (ADR 0001)
+identity_status varchar(50) NOT NULL DEFAULT 'verified'  -- IdentityStatus enum
+status          varchar(50) NOT NULL DEFAULT 'active'    -- PatientStatus: active|merged|deceased
 merged_into_patient_id UUID NULL → patients
 facility_id     UUID NOT NULL → facilities
 deleted_at      timestamptz NULL · deleted_by UUID NULL → users
@@ -458,7 +458,7 @@ CHECK (uhid IS NOT NULL OR thid IS NOT NULL)     -- ck_patients_has_identifier
 **patient_identifiers**
 ```
 patient_id      UUID NOT NULL → patients
-identifier_type varchar(30) NOT NULL             -- aadhaar | abha | voter_id | other
+identifier_type varchar(50) NOT NULL             -- aadhaar | abha | voter_id | other
 identifier_value_encrypted bytea NOT NULL        -- AES-256-GCM, app-layer, never queried
 identifier_blind_index char(64) NOT NULL         -- HMAC-SHA256; THE dedup lookup column
 key_version     smallint NOT NULL DEFAULT 1      -- which crypto key pair produced this row;
@@ -490,12 +490,12 @@ manager only — never in the DB, never in the repo.
 
 **patient_merge_log** — append-only (status changes = new rows)
 ```
-source_type varchar(30) NOT NULL                 -- thid | duplicate_uhid
+source_type varchar(50) NOT NULL                 -- thid | duplicate_uhid
 source_patient_id UUID NOT NULL → patients
 target_patient_id UUID NOT NULL → patients
 requested_by UUID NOT NULL → users · requested_at timestamptz NOT NULL
 approved_by UUID NULL → users · approved_at timestamptz
-status varchar(30) NOT NULL                      -- pending | approved | rejected | unmerged
+status varchar(50) NOT NULL                      -- pending | approved | rejected | unmerged
 reason text · unmerge_reason text
 before_snapshot jsonb NOT NULL · after_snapshot jsonb
 ```
@@ -508,8 +508,8 @@ visit_number  varchar(30) UNIQUE NOT NULL        -- VST-<FACILITYCODE>-<YYYYMMDD
 patient_id    UUID NOT NULL → patients
 facility_id   UUID NOT NULL → facilities
 department_id UUID NULL → departments
-visit_type    varchar(30) NOT NULL               -- VisitType enum: opd|ipd|emergency|teleconsult
-status        varchar(30) NOT NULL DEFAULT 'registered'  -- VisitStatus enum
+visit_type    varchar(50) NOT NULL               -- VisitType enum: opd|ipd|emergency|teleconsult
+status        varchar(50) NOT NULL DEFAULT 'registered'  -- VisitStatus enum
 visit_date    timestamptz NOT NULL
 INDEX ix_visits_patient_id_visit_date (patient_id, visit_date)
 ```
@@ -518,7 +518,7 @@ INDEX ix_visits_patient_id_visit_date (patient_id, visit_date)
 ```
 visit_id        UUID NOT NULL → visits
 provider_user_id UUID NOT NULL → users           -- the doctor
-encounter_type  varchar(30)                      -- consultation | follow_up | emergency | ward_round
+encounter_type  varchar(50)                      -- consultation | follow_up | emergency | ward_round
 chief_complaint text
 started_at      timestamptz · ended_at timestamptz
 INDEX ix_encounters_visit_id (visit_id) · INDEX ix_encounters_provider_user_id (provider_user_id)
@@ -528,7 +528,7 @@ not a text column here.
 
 **icd_codes** — local ICD catalog (seeded ICD-10 now; ICD-11 rows sync in Phase 2)
 ```
-version        varchar(30) NOT NULL              -- icd10 | icd11
+version        varchar(50) NOT NULL              -- icd10 | icd11
 code           varchar(30) NOT NULL              -- 'E11' or ICD-11 stem '5A11'
 title          text NOT NULL
 icd_uri        text NULL                         -- ICD-11 Foundation URI (permanent even if code changes)
@@ -541,12 +541,12 @@ UNIQUE (version, code) · INDEX ix_icd_codes_icd_uri (icd_uri)
 ```
 encounter_id   UUID NOT NULL → encounters
 icd_code       varchar(30) NOT NULL              -- stem code
-icd_version    varchar(30) NOT NULL              -- icd10 | icd11
+icd_version    varchar(50) NOT NULL              -- icd10 | icd11
 icd_code_id    UUID NULL → icd_codes             -- catalog link when picked from catalog
 icd_uri        text NULL                         -- ICD-11 Foundation URI
 post_coordinated_code text NULL                  -- full cluster, e.g. '5A11&XS0T' (ICD-11 only)
 diagnosis_text text NOT NULL
-diagnosis_type varchar(30) NOT NULL              -- provisional | final | differential
+diagnosis_type varchar(50) NOT NULL              -- provisional | final | differential
 is_primary     boolean NOT NULL DEFAULT false
 INDEX ix_diagnoses_icd_code_icd_version (icd_code, icd_version)
 ```
@@ -577,9 +577,9 @@ completed chargeable work accrues lines onto the visit invoice (ADR 0002).
 order_number varchar(30) UNIQUE NOT NULL         -- ORD-<YYYYMMDD>-<SEQ6>
 encounter_id UUID NOT NULL → encounters
 patient_id   UUID NOT NULL → patients
-order_type   varchar(30) NOT NULL                -- lab | radiology | pharmacy | procedure | blood
-priority     varchar(30) NOT NULL DEFAULT 'routine'  -- routine | urgent | stat
-status       varchar(30) NOT NULL DEFAULT 'placed'   -- OrderStatus enum
+order_type   varchar(50) NOT NULL                -- lab | radiology | pharmacy | procedure | blood
+priority     varchar(50) NOT NULL DEFAULT 'routine'  -- routine | urgent | stat
+status       varchar(50) NOT NULL DEFAULT 'placed'   -- OrderStatus enum
 ordered_at   timestamptz NOT NULL DEFAULT now()
 INDEX ix_orders_order_type_status (order_type, status)
 INDEX ix_orders_patient_id (patient_id) · INDEX ix_orders_encounter_id (encounter_id)
@@ -599,7 +599,7 @@ medicine_item_id UUID NULL                       -- → inventory_items, FK adde
 medicine_name   text NOT NULL                    -- free-text fallback / snapshot of name
 dosage varchar(50) · frequency varchar(50) · duration_days int · route varchar(30)
 instructions text
-status varchar(30) NOT NULL DEFAULT 'prescribed' -- PrescriptionItemStatus enum
+status varchar(50) NOT NULL DEFAULT 'prescribed' -- PrescriptionItemStatus enum
 INDEX ix_prescription_items_prescription_id (prescription_id)
 ```
 
@@ -610,7 +610,7 @@ INDEX ix_prescription_items_prescription_id (prescription_id)
 staff_user_id UUID NOT NULL → users
 department_id UUID NOT NULL → departments
 room_id       UUID NULL → rooms
-shift         varchar(30) NOT NULL               -- morning | evening | night
+shift         varchar(50) NOT NULL               -- morning | evening | night
 roster_date   date NOT NULL
 is_available  boolean NOT NULL DEFAULT true
 UNIQUE (staff_user_id, roster_date, shift)
@@ -730,9 +730,9 @@ Lab and radiology do **not** have their own order-header tables — the header i
 order_id        UUID NOT NULL → orders           -- order.order_type = 'lab'
 accession_number varchar(30) UNIQUE NOT NULL     -- LAB-<YYYYMMDD>-<SEQ5>
 test_code varchar(30) · test_name text NOT NULL
-sample_type varchar(30) NOT NULL
+sample_type varchar(50) NOT NULL
 department_id UUID NULL → departments
-status varchar(30) NOT NULL DEFAULT 'placed'     -- OrderStatus enum
+status varchar(50) NOT NULL DEFAULT 'placed'     -- OrderStatus enum
 estimated_minutes int
 ```
 
@@ -743,7 +743,7 @@ version     int NOT NULL                         -- 1, 2, 3...
 is_current  boolean NOT NULL
 result_data jsonb NOT NULL
 remarks     text
-status      varchar(30) NOT NULL                 -- ResultStatus: pending|preliminary|final|corrected
+status      varchar(50) NOT NULL                 -- ResultStatus: pending|preliminary|final|corrected
 created_by  UUID NOT NULL → users
 UNIQUE (lab_order_item_id, version)
 UNIQUE INDEX uq_lab_results_current ON (lab_order_item_id) WHERE is_current
@@ -758,7 +758,7 @@ scan_type text NOT NULL
 machine_id varchar(50)
 pacs_study_uid varchar(100)                      -- Orthanc StudyInstanceUID
 scheduled_at timestamptz
-status varchar(30) NOT NULL DEFAULT 'placed'
+status varchar(50) NOT NULL DEFAULT 'placed'
 ```
 
 **radiology_reports** — append-only, versioned; same shape as lab_results but
@@ -771,8 +771,8 @@ status varchar(30) NOT NULL DEFAULT 'placed'
 **inventory_items**
 ```
 name text NOT NULL · generic_name text · strength varchar(50)
-form varchar(30)        -- tablet|capsule|injection|syrup|ointment|fluid|reagent|consumable|film|implant|blood_component
-item_type varchar(30)   -- medicine|reagent|consumable|film|implant|blood_component
+form varchar(50)        -- tablet|capsule|injection|syrup|ointment|fluid|reagent|consumable|film|implant|blood_component
+item_type varchar(50)   -- medicine|reagent|consumable|film|implant|blood_component
 is_controlled_drug boolean NOT NULL DEFAULT false
 manufacturer text
 owning_department_id UUID NULL → departments
@@ -783,7 +783,7 @@ is_active boolean NOT NULL DEFAULT true
 **stock_locations**
 ```
 name text NOT NULL
-location_type varchar(30)   -- central|pharmacy|lab|radiology|ward|emergency|ot
+location_type varchar(50)   -- central|pharmacy|lab|radiology|ward|emergency|ot
 department_id UUID NULL → departments
 facility_id UUID NOT NULL → facilities
 ```
@@ -804,9 +804,9 @@ INDEX ix_inventory_batches_fefo ON (item_id, expiry_date ASC) WHERE quantity > 0
 **stock_ledger** — append-only (issue wording; was `stock_transactions` in draft)
 ```
 item_id UUID NOT NULL → inventory_items · batch_id UUID NULL → inventory_batches
-transaction_type varchar(30) NOT NULL            -- purchase|issue|return|transfer|consumption|adjustment|write_off
+transaction_type varchar(50) NOT NULL            -- purchase|issue|return|transfer|consumption|adjustment|write_off
 quantity numeric(12,2) NOT NULL CHECK (quantity <> 0)   -- signed: +in / -out
-reference_type varchar(30) · reference_id UUID   -- e.g. 'pharmacy_dispense', 'grn'
+reference_type varchar(50) · reference_id UUID   -- e.g. 'pharmacy_dispense', 'grn'
 performed_by UUID NOT NULL → users · reason text
 ```
 
@@ -816,7 +816,7 @@ no `previous_version_id` — the previous row is simply `version - 1`)
 ```
 prescription_id UUID NOT NULL → prescriptions
 visit_id UUID NULL → visits
-status varchar(30) NOT NULL                      -- DispenseStatus enum (§enums)
+status varchar(50) NOT NULL                      -- DispenseStatus enum (§enums)
 dispensed_by UUID NOT NULL → users
 version int NOT NULL · is_current boolean NOT NULL
 UNIQUE (prescription_id, version)
@@ -841,7 +841,7 @@ is_substitute boolean NOT NULL DEFAULT false · substitute_reason text
 item_id → inventory_items · batch_id → inventory_batches
 quantity_change numeric(12,2) NOT NULL CHECK (<> 0) · reason text NOT NULL
 first_approver_id UUID NOT NULL → users · second_approver_id UUID NULL → users
-status varchar(30) NOT NULL                      -- pending|approved|rejected
+status varchar(50) NOT NULL                      -- pending|approved|rejected
 CHECK (first_approver_id <> second_approver_id)  -- ck_adjustments_distinct_approvers
 ```
 **facility_settings** (was `hospital_settings`) — `facility_id UUID PK → facilities · stock_deduction_policy varchar(30) CHECK on_acceptance|on_dispense`
@@ -865,7 +865,7 @@ invoice_number varchar(30) UNIQUE NOT NULL       -- INV-<FACILITY>-<YYYYMMDD>-<S
 visit_id UUID NOT NULL → visits
 patient_id UUID NOT NULL → patients
 facility_id UUID NOT NULL → facilities
-status varchar(30) NOT NULL DEFAULT 'draft'      -- InvoiceStatus: draft|issued|partially_paid|paid|waived|cancelled
+status varchar(50) NOT NULL DEFAULT 'draft'      -- InvoiceStatus: draft|issued|partially_paid|paid|waived|cancelled
 gross_amount numeric(12,2) NOT NULL DEFAULT 0
 discount_amount numeric(12,2) NOT NULL DEFAULT 0
 scheme_adjustment numeric(12,2) NOT NULL DEFAULT 0
@@ -878,8 +878,8 @@ INDEX ix_invoices_visit_id (visit_id)
 **invoice_items** — frozen by the parent's trigger once invoice leaves `draft`
 ```
 invoice_id UUID NOT NULL → invoices
-charge_category varchar(30) NOT NULL             -- ChargeCategory: registration|consultation|lab|radiology|pharmacy|procedure|ipd_stay|blood|other
-reference_type varchar(30) · reference_id UUID   -- source row: 'lab_order_items', 'admissions', ...
+charge_category varchar(50) NOT NULL             -- ChargeCategory: registration|consultation|lab|radiology|pharmacy|procedure|ipd_stay|blood|other
+reference_type varchar(50) · reference_id UUID   -- source row: 'lab_order_items', 'admissions', ...
 description text NOT NULL
 quantity numeric(10,2) NOT NULL DEFAULT 1 CHECK (> 0)
 unit_price numeric(12,2) NOT NULL CHECK (>= 0)
@@ -892,8 +892,8 @@ receipt_number varchar(30) UNIQUE NOT NULL       -- RCP-<FACILITY>-<YYYYMMDD>-<S
 invoice_id UUID NOT NULL → invoices
 amount numeric(12,2) NOT NULL CHECK (> 0)
 currency char(3) NOT NULL DEFAULT 'INR'
-mode varchar(30) NOT NULL                        -- PaymentMode: cash|upi|card|netbanking
-status varchar(30) NOT NULL DEFAULT 'success'    -- PaymentStatus: success|reversed
+mode varchar(50) NOT NULL                        -- PaymentMode: cash|upi|card|netbanking
+status varchar(50) NOT NULL DEFAULT 'success'    -- PaymentStatus: success|reversed
 collected_by UUID NOT NULL → users · collected_at timestamptz NOT NULL
 sensitivity varchar(30) NOT NULL DEFAULT 'critical'
 ```
@@ -935,7 +935,7 @@ visit_id UUID NOT NULL → visits
 patient_id UUID NOT NULL → patients
 ward_id UUID NOT NULL → wards · bed_id UUID NOT NULL → beds
 admitted_at timestamptz NOT NULL · reason text
-status varchar(30) NOT NULL DEFAULT 'admitted'   -- AdmissionStatus enum
+status varchar(50) NOT NULL DEFAULT 'admitted'   -- AdmissionStatus enum
 ```
 
 **discharges** `[Blame]` — table name plural; discharge checks invoice settlement per
@@ -943,7 +943,7 @@ facility policy (ADR 0002) but is never hard-blocked for emergency/DAMA cases
 ```
 admission_id UUID UNIQUE NOT NULL → admissions
 discharged_at timestamptz NOT NULL
-discharge_type varchar(30) NOT NULL              -- discharged|dama|deceased|absconded|transferred
+discharge_type varchar(50) NOT NULL              -- discharged|dama|deceased|absconded|transferred
 discharge_summary text                           -- long form → Mongo clinical_notes
 follow_up_date date NULL
 ```
@@ -969,8 +969,8 @@ bag_number varchar(30) UNIQUE NOT NULL
 blood_group varchar(7) NOT NULL
 volume_ml int NOT NULL CHECK (> 0)
 collected_at timestamptz · expiry_date date NOT NULL
-screening_status varchar(30) NOT NULL DEFAULT 'pending'  -- pending|passed|failed
-status varchar(30) NOT NULL DEFAULT 'available'          -- BloodUnitStatus enum
+screening_status varchar(50) NOT NULL DEFAULT 'pending'  -- pending|passed|failed
+status varchar(50) NOT NULL DEFAULT 'available'          -- BloodUnitStatus enum
 issued_to_patient_id UUID NULL → patients
 ```
 
@@ -1034,9 +1034,9 @@ UNIQUE INDEX uq_dpo_active_facility ON (facility_id) WHERE is_active
 ```
 grievance_number varchar(30) UNIQUE NOT NULL      -- GRV-<FACILITY>-<YYYYMMDD>-<SEQ4>
 patient_id UUID NOT NULL → patients · facility_id UUID NOT NULL → facilities
-grievance_type varchar(30) NOT NULL               -- access|correction|erasure|consent|breach|other
+grievance_type varchar(50) NOT NULL               -- access|correction|erasure|consent|breach|other
 description text NOT NULL
-status varchar(30) NOT NULL DEFAULT 'pending'     -- pending|under_review|resolved|escalated_dpb|closed
+status varchar(50) NOT NULL DEFAULT 'pending'     -- pending|under_review|resolved|escalated_dpb|closed
 assigned_to UUID NULL → users · due_at timestamptz NOT NULL   -- created_at + 90 days, app-set
 resolution text · resolved_at timestamptz · escalation_reason text
 INDEX ix_patient_grievances_status_due_at (status, due_at)
@@ -1052,7 +1052,7 @@ dpb_detailed_report_at timestamptz                -- DPDP: within 72 h (extensio
 patients_notified_at timestamptz                  -- affected Data Principals, without delay
 affected_patients_count int
 nature text NOT NULL · extent text · mitigation_measures text · root_cause text
-status varchar(30) NOT NULL DEFAULT 'open'        -- open|contained|reported|closed
+status varchar(50) NOT NULL DEFAULT 'open'        -- open|contained|reported|closed
 facility_id UUID NOT NULL → facilities
 ```
 
@@ -1096,7 +1096,7 @@ handed_over_to UUID NOT NULL → users
 **intake_output_records** (0023) `[Blame]` — IPD fluid balance
 ```
 admission_id UUID NOT NULL → admissions · recorded_at timestamptz NOT NULL
-entry_type varchar(30) NOT NULL                   -- intake_oral|intake_iv|output_urine|output_drain|output_other
+entry_type varchar(50) NOT NULL                   -- intake_oral|intake_iv|output_urine|output_drain|output_other
 volume_ml int NOT NULL CHECK (volume_ml > 0) · notes text
 ```
 
@@ -1111,7 +1111,7 @@ moved_at timestamptz NOT NULL · reason text · moved_by UUID NOT NULL → users
 **purchase_orders / purchase_order_items** (0024, B6) `[Blame]` — precede GRN
 ```
 purchase_orders: po_number varchar(30) UNIQUE NOT NULL · supplier_id → suppliers ·
-  status varchar(30) (draft|approved|sent|partially_received|received|cancelled) ·
+  status varchar(50) (draft|approved|sent|partially_received|received|cancelled) ·
   approved_by UUID NULL → users · expected_date date
 purchase_order_items: purchase_order_id → purchase_orders CASCADE · item_id →
   inventory_items · quantity numeric CHECK (>0) · unit_price numeric(12,2)
@@ -1121,7 +1121,7 @@ purchase_order_items: purchase_order_id → purchase_orders CASCADE · item_id �
 **stock_transfers / stock_transfer_items** (0024, B6) `[Blame]`
 ```
 stock_transfers: from_location_id → stock_locations · to_location_id → stock_locations ·
-  status varchar(30) (requested|in_transit|received|cancelled) · CHECK (from ≠ to)
+  status varchar(50) (requested|in_transit|received|cancelled) · CHECK (from ≠ to)
 stock_transfer_items: stock_transfer_id CASCADE · item_id · batch_id · quantity CHECK (>0)
 ```
 Each leg writes `stock_ledger` (`transfer` out / in). **Damage write-offs are NOT a new
@@ -1131,7 +1131,7 @@ table** — 0024 adds `adjustments.adjustment_type varchar(30)`
 **machine_maintenance_logs** (0024, B6/B5) `[Blame]` — radiology/lab equipment
 ```
 machine_id varchar(50) NOT NULL · department_id UUID NULL → departments
-maintenance_type varchar(30) (preventive|breakdown|calibration|qa_check)
+maintenance_type varchar(50) (preventive|breakdown|calibration|qa_check)
 performed_at timestamptz NOT NULL · performed_by_vendor text · downtime_minutes int · notes text
 ```
 
@@ -1141,7 +1141,7 @@ staff_certifications: user_id → users · certification_name text NOT NULL ·
   issuing_body text · certificate_file_id UUID NULL → files ·
   issued_on date · valid_until date NULL · INDEX (user_id, valid_until)
 staff_training_records: user_id → users · training_name text NOT NULL ·
-  training_type varchar(30) (induction|clinical|digital_health|safety|other) ·
+  training_type varchar(50) (induction|clinical|digital_health|safety|other) ·
   completed_on date NOT NULL · score numeric(5,2) NULL · trainer text
 ```
 
@@ -1157,7 +1157,7 @@ UNIQUE (facility_id, kpi_code, period_start, period_end)
 ```
 bundle_id varchar(100) NOT NULL · abdm_request_id varchar(100)
 direction varchar(30) (hip_push|hiu_pull) · care_context_linked boolean
-gateway_response_status varchar(30) · signed_by_hpr_id varchar(50)
+gateway_response_status varchar(50) · signed_by_hpr_id varchar(50)
 patient_id UUID NULL → patients · consent_id UUID NULL → consent_records
 transmitted_at timestamptz NOT NULL
 INDEX ix_fhir_bundle_transactions_patient_id (patient_id, transmitted_at)
@@ -1167,7 +1167,7 @@ INDEX ix_fhir_bundle_transactions_patient_id (patient_id, transmitted_at)
 ```
 discharge_id UUID NOT NULL → discharges
 target_module varchar(30) NOT NULL                -- pharmacy|billing|nursing|lab|radiology|patient
-status varchar(30) NOT NULL DEFAULT 'queued'      -- NotificationStatus enum
+status varchar(50) NOT NULL DEFAULT 'queued'      -- NotificationStatus enum
 sent_at timestamptz · acknowledged_at timestamptz · acknowledged_by UUID NULL → users
 UNIQUE (discharge_id, target_module)
 ```
