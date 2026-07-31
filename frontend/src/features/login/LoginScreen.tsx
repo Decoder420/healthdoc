@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ROLES, type Role } from "@/config/roles";
 import { Button } from "@/components/ui/button";
@@ -63,24 +62,40 @@ const DEV_USERS: Record<
   },
 };
 
+const ROLE_OPTIONS = [
+  { value: ROLES.RECEPTIONIST, label: "Receptionist" },
+  { value: ROLES.DOCTOR, label: "Doctor" },
+  { value: ROLES.NURSE, label: "Nurse" },
+  { value: ROLES.ADMIN, label: "Admin" },
+  { value: ROLES.PHARMACIST, label: "Pharmacist" },
+  { value: ROLES.LAB_TECHNICIAN, label: "Lab Technician" },
+  { value: ROLES.ACCOUNTANT, label: "Accountant" },
+  { value: ROLES.INVENTORY_MANAGER, label: "Inventory Manager" },
+];
+
 export function LoginScreen() {
-  const searchParams = useSearchParams();
   const [role, setRole] = useState<Role>(ROLES.RECEPTIONIST);
 
   function handleDevLogin() {
     const user = DEV_USERS[role];
     setAuthSession(user, "dev-token");
-    const redirectTo = searchParams.get("redirect");
+
+    const redirectTo = new URLSearchParams(window.location.search).get(
+      "redirect",
+    );
     const destination =
       redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
         ? redirectTo
         : getDefaultRouteForRole(role);
+
     window.location.href = destination;
   }
 
   return (
     <div className="surface-card p-8">
-      <p className="brand-gradient text-3xl font-bold tracking-tight">healthdoc</p>
+      <p className="brand-gradient text-3xl font-bold tracking-tight">
+        healthdoc
+      </p>
       <h1 className="mt-4 text-2xl font-semibold text-foreground">Sign in</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Hospital Information Management System
@@ -91,16 +106,7 @@ export function LoginScreen() {
           label="Dev role"
           value={role}
           onChange={(event) => setRole(event.target.value as Role)}
-          options={[
-            { value: ROLES.RECEPTIONIST, label: "Receptionist" },
-            { value: ROLES.DOCTOR, label: "Doctor" },
-            { value: ROLES.NURSE, label: "Nurse" },
-            { value: ROLES.ADMIN, label: "Admin" },
-            { value: ROLES.PHARMACIST, label: "Pharmacist" },
-            { value: ROLES.LAB_TECHNICIAN, label: "Lab Technician" },
-            { value: ROLES.ACCOUNTANT, label: "Accountant" },
-            { value: ROLES.INVENTORY_MANAGER, label: "Inventory Manager" },
-          ]}
+          options={ROLE_OPTIONS}
         />
         <Button type="button" onClick={handleDevLogin} className="w-full">
           Continue (dev login)
@@ -116,3 +122,5 @@ export function LoginScreen() {
     </div>
   );
 }
+
+export default LoginScreen;
