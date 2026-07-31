@@ -22,8 +22,8 @@ anywhere:
   - write_audit_log() does session.add() + await session.flush(). It
     never calls session.commit(). Flush sends the INSERT to Postgres
     inside the CURRENT transaction — which is what lets the append-only
-    trigger, the hash-chain trigger, and any CHECK constraint on
-    audit_logs (all from migration 0003) actually run and raise
+    trigger, the chain_seq-assignment trigger, and any CHECK constraint
+    on audit_logs (all from migration 0003) actually run and raise
     immediately if something's wrong.
   - Nothing commits until the CALLER commits. In this repo that's
     app.common.db.get_db() — the FastAPI dependency every route already
@@ -41,17 +41,16 @@ anywhere:
     implements rollback logic itself — nothing commits early, so
     Postgres's own transaction rollback does the work.
 
-One thing flagged below rather than guessed at:
-
-  Ed25519 signing (`signature`, `signer_key_id` — both NOT NULL on
-  audit_logs, and NOT trigger-computed, unlike entry_hash/prev_hash).
-  No signing key/service exists in this repo yet. `sign_payload_stub()`
-  below is a stub that produces an obviously-fake value and logs a
-  warning every call, so it can never be mistaken for real signing.
-  Whoever owns key management (same territory as B2's AES/HMAC keys in
-  common/security.py) needs to wire up the real implementation. Both
-  this file and listeners.py depend on this one stub, so fixing it in
-  one place fixes both paths.
+Post-review update (schema doc §3 0003, v3.9+): `entry_hash`, `prev_hash`,
+`signature`, and `signer_key_id` are no longer written here at all. The
+inline stub that used to fake a signature on every insert made the table
+LOOK tamper-evident when it wasn't — a real signature and an
+"unsigned:..." placeholder were indistinguishable to a reader. All four
+columns are nullable now and stay NULL until a separate, single-threaded
+per-facility sealer job (not part of this file) walks unsealed rows in
+`chain_seq` order and fills them in. Absence is truthful; a fake
+signature was not. `_build_audit_log()` below sets none of these five
+columns — that's intentional, not an oversight.
 """
 
 import logging
@@ -66,23 +65,6 @@ from app.audit.context import get_current_actor
 from app.audit.models import AuditLog
 
 logger = logging.getLogger(__name__)
-
-
-def sign_payload_stub(payload: str) -> tuple[str, str]:
-    """
-    STUB. Returns (signature, signer_key_id).
-
-    No Ed25519 signing key exists in this repo yet — this produces an
-    obviously-fake value so audit_logs.signature / signer_key_id (both
-    NOT NULL, both app-computed per the schema doc) can still be
-    satisfied while the real signing service gets built. DO NOT ship
-    this to production as-is; it provides zero tamper-evidence right now.
-    """
-    logger.warning(
-        "audit.service: writing an UNSIGNED placeholder signature — "
-        "real Ed25519 signing is not wired up yet"
-    )
-    return f"unsigned:{payload[:16]}", "unconfigured-dev-key"
 
 
 def _build_audit_log(
@@ -131,9 +113,9 @@ def _build_audit_log(
             action, resource_type,
         )
 
-    payload_for_signing = f"{action}|{resource_type}|{resource_id}|{patient_id}|{new_value}"
-    signature, signer_key_id = sign_payload_stub(payload_for_signing)
-
+    # chain_seq is trigger-assigned on INSERT; prev_hash/entry_hash/
+    # signature/signer_key_id/sealed_at all stay NULL here — the async
+    # per-facility sealer job fills them in later (see module docstring).
     return AuditLog(
         facility_id=facility_id,
         user_id=user_id,
@@ -149,8 +131,6 @@ def _build_audit_log(
         reason=reason,
         ip_address=ip_address,
         device_id=device_id,
-        signature=signature,
-        signer_key_id=signer_key_id,
     )
 
 
@@ -209,7 +189,7 @@ async def write_audit_log(
     session.add(entry)
 
     # Flush (NOT commit): pushes the INSERT now, inside the still-open
-    # transaction, so the append-only + hash-chain triggers run and can
+    # transaction, so the append-only + chain_seq-assignment triggers run and can
     # raise immediately. If they do, the exception propagates straight
     # up to the caller's transaction block, which rolls EVERYTHING back
     # -- the mutation this row was meant to record, included.

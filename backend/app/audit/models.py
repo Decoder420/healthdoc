@@ -24,7 +24,7 @@ and users are real as of migration 0002.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, func, text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import CHAR, INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,10 +42,17 @@ class AuditLog(UUIDPk, Base):
     the pair. Deliberately NOT using the Timestamps mixin — this table has
     no `updated_at` (append-only tables never get one, per schema doc).
 
-    Do NOT set `entry_hash` / `prev_hash` from application code — the
-    BEFORE INSERT trigger `trg_audit_logs_compute_hash` computes both.
-    DO set `signature` and `signer_key_id` from application code — Ed25519
-    signing happens in the app layer, the DB has no private key.
+    Chaining is asynchronous and per-facility (schema doc §3 0003, post
+    review). The row is written with `chain_seq` only — assigned by the
+    BEFORE INSERT trigger `trg_audit_logs_assign_chain_seq` from a
+    per-facility sequence (seq_audit_<facility_id>). `prev_hash`,
+    `entry_hash`, `signature`, and `signer_key_id` are all NULL at insert
+    time; a separate single-threaded per-facility sealer job fills them
+    in afterwards, walking rows in chain_seq order. `sealed_at` NULL
+    means "not yet chained" (an alert if older than the 15-minute SLA).
+    Do NOT set any of prev_hash/entry_hash/signature/signer_key_id/
+    sealed_at from application code — the write path only ever supplies
+    the business columns.
 
     Every write to this table must happen in the SAME transaction as the
     mutation it's recording (repo rule) — e.g. wrap the patient update and
@@ -86,15 +93,28 @@ class AuditLog(UUIDPk, Base):
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
     device_id: Mapped[str | None] = mapped_column(nullable=True)
 
+    # Per-facility monotonic write order (trigger-assigned). This is what
+    # the async sealer walks in order — see class docstring.
+    chain_seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    # All five below are NULL until the sealer job runs.
     prev_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
-    entry_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)  # trigger-computed
-    signature: Mapped[str] = mapped_column(nullable=False)  # app-computed (Ed25519)
-    signer_key_id: Mapped[str] = mapped_column(nullable=False)  # app-computed
+    entry_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)  # sealer-computed
+    signature: Mapped[str | None] = mapped_column(nullable=True)  # sealer-computed (Ed25519)
+    signer_key_id: Mapped[str | None] = mapped_column(nullable=True)  # sealer-computed
+    sealed_at: Mapped[datetime | None] = mapped_column(nullable=True)  # NULL = not yet chained
 
     __table_args__ = (
         Index("ix_audit_logs_user_id", "user_id", "created_at"),
         Index("ix_audit_logs_patient_id", "patient_id", "created_at"),
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+        # created_at is appended only because Postgres requires a
+        # partitioned table's unique constraints to include the
+        # partition key — the logical constraint is (facility_id,
+        # chain_seq), per schema doc §3 0003.
+        UniqueConstraint(
+            "facility_id", "chain_seq", "created_at", name="uq_audit_logs_facility_chain_seq"
+        ),
         {"postgresql_partition_by": "RANGE (created_at)"},
     )
     # NOTE: a BRIN index on created_at (ix_audit_logs_created_at_brin, per

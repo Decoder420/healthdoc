@@ -44,8 +44,15 @@ def get_current_actor() -> AuditActor | None:
     background jobs, scripts, and any code path outside a normal HTTP
     request. write_audit_log() handles that case (logs a warning, writes
     NULL user_id/ip_address/device_id) rather than crashing, since those
-    columns are nullable on audit_logs. Flag for Tech Lead: is a NULL
-    actor acceptable for system-initiated mutations, or should those get
-    a dedicated "system" placeholder user instead?
+    columns are nullable on audit_logs.
+
+    Tech Lead answered the open question from the last review: a NULL
+    actor is NOT acceptable long-term — a NULL is indistinguishable from
+    a bug, so system-initiated mutations should attribute to a dedicated
+    "system" user row per facility instead. Not implemented here yet:
+    that requires a seeded system user per facility, which is
+    facilities/users territory (migration 0002), not this module. This
+    function keeps falling back to NULL until that row exists to point
+    at — tracked as a follow-up, not silently dropped.
     """
     return _actor_var.get()

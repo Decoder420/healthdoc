@@ -54,13 +54,37 @@ def upgrade() -> None:
             reason          TEXT,
             ip_address      INET,
             device_id       TEXT,
-            prev_hash       CHAR(64),
-            entry_hash      CHAR(64)    NOT NULL,
-            signature       TEXT        NOT NULL,
-            signer_key_id   TEXT        NOT NULL,
+            -- Per-facility monotonic write order (nextval'd by
+            -- trg_audit_logs_assign_chain_seq below). This is what the
+            -- async sealer walks in order to build the hash chain --
+            -- see the block comment above the trigger for why this can't
+            -- be computed inline anymore.
+            chain_seq       BIGINT      NOT NULL,
+            -- prev_hash/entry_hash/signature/signer_key_id are all NULL
+            -- at insert time now. A single-threaded per-facility sealer
+            -- job (separate, not part of this migration) fills them in
+            -- afterwards, walking rows in chain_seq order. sealed_at
+            -- NULL means "not yet chained"; sealed_at older than the
+            -- 15-minute SLA is an alert (sealer down), not a data error.
+            prev_hash       CHAR(64)    NULL,
+            entry_hash      CHAR(64)    NULL,
+            signature       TEXT        NULL,
+            signer_key_id   TEXT        NULL,
+            sealed_at       TIMESTAMPTZ NULL,
             CONSTRAINT pk_audit_logs PRIMARY KEY (id, created_at)
         ) PARTITION BY RANGE (created_at);
         """
+    )
+
+    # Uniqueness of the per-facility write sequence. Postgres requires a
+    # unique constraint on a partitioned table to include the partition
+    # key (created_at) -- schema doc §3 0003 states the logical
+    # constraint as UNIQUE (facility_id, chain_seq); created_at is
+    # appended here only to satisfy that Postgres requirement, it adds
+    # no looseness in practice since chain_seq is already monotonic.
+    op.execute(
+        "ALTER TABLE audit_logs ADD CONSTRAINT uq_audit_logs_facility_chain_seq "
+        "UNIQUE (facility_id, chain_seq, created_at);"
     )
 
     # Indexes on the parent — every partition inherits them automatically
@@ -109,6 +133,19 @@ def upgrade() -> None:
         """
     )
 
+    # DEFAULT partition -- mandatory, not optional (schema doc §3 0003).
+    # Without this, the first INSERT after the last provisioned month's
+    # range fails outright -- and because the audit write shares the
+    # mutation's own transaction, that takes every write in the hospital
+    # down with it at 00:00 on day one of the following month. Rows that
+    # land here are an alert for ops, not a failure for the user.
+    # TODO(follow-up issue): a scheduled job (pg_partman or a
+    # cron-triggered migration/function) must keep >=3 months of real
+    # partitions provisioned ahead of `now()` so DEFAULT stays empty in
+    # steady state -- not implemented in this migration, flagging per
+    # review comment #3.
+    op.execute("CREATE TABLE audit_logs_default PARTITION OF audit_logs DEFAULT;")
+
     # ------------------------------------------------------------------
     # 3. Append-only enforcement: block UPDATE and DELETE outright.
     # ------------------------------------------------------------------
@@ -130,40 +167,39 @@ def upgrade() -> None:
     )
 
     # ------------------------------------------------------------------
-    # 4. Hash chain: BEFORE INSERT, pull the previous row's entry_hash
-    #    and compute entry_hash = sha256(prev_hash || payload) using
-    #    pgcrypto's digest() (enabled in migration 0001).
+    # 4. Chain sequencing only -- NOT the hash chain itself anymore.
     #
-    #    Known limitation, flag it in your PR for Tech Lead visibility:
-    #    "SELECT ... ORDER BY created_at DESC LIMIT 1" scans across
-    #    partitions to find the latest row. Fine at pilot/dev volume. If
-    #    it becomes a bottleneck, replace with a small single-row
-    #    `audit_chain_state(last_hash)` table that the trigger
-    #    reads/updates instead — same hash chain, O(1) lookup.
+    #    Per review: computing entry_hash inline (old approach) reads
+    #    the previous row's hash with a plain SELECT, so two concurrent
+    #    INSERTs can read the same last_hash and silently fork the
+    #    chain -- a lost-update race, not just a performance problem.
+    #    The only way to make an inline chain race-free is to serialise
+    #    every audit write hospital-wide, which serialises every
+    #    mutation. Facilities also write offline and sync later, so one
+    #    global chain is impossible by construction.
+    #
+    #    So this trigger does only ONE thing: assign chain_seq from a
+    #    per-facility monotonic sequence (seq_audit_<facility_id>,
+    #    created on first use -- facilities are created dynamically, so
+    #    there's no fixed list of sequences to pre-create). The row is
+    #    written with prev_hash/entry_hash/signature/signer_key_id all
+    #    NULL and sealed_at NULL.
+    #
+    #    A separate, single-threaded per-facility sealer job (not part
+    #    of this migration -- tracked as its own follow-up) walks
+    #    unsealed rows in chain_seq order and fills prev_hash/
+    #    entry_hash/signature. Sealing is idempotent/restartable, and
+    #    the cloud verifies each facility's chain independently without
+    #    ever re-chaining on ingest.
     # ------------------------------------------------------------------
     op.execute(
         """
-        CREATE OR REPLACE FUNCTION trg_audit_logs_compute_hash() RETURNS trigger AS $$
+        CREATE OR REPLACE FUNCTION trg_audit_logs_assign_chain_seq() RETURNS trigger AS $$
         DECLARE
-            last_hash char(64);
-            payload text;
+            seq_name text := 'seq_audit_' || replace(NEW.facility_id::text, '-', '_');
         BEGIN
-            SELECT entry_hash INTO last_hash
-            FROM audit_logs
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1;
-
-            NEW.prev_hash := COALESCE(last_hash, repeat('0', 64));
-
-            payload := concat_ws('|',
-                NEW.id, NEW.created_at, NEW.facility_id, NEW.user_id,
-                NEW.action, NEW.resource_type, NEW.resource_id,
-                NEW.patient_id, NEW.visit_id,
-                COALESCE(NEW.old_value::text, ''),
-                COALESCE(NEW.new_value::text, '')
-            );
-
-            NEW.entry_hash := encode(digest(NEW.prev_hash || payload, 'sha256'), 'hex');
+            EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', seq_name);
+            EXECUTE format('SELECT nextval(%L)', seq_name) INTO NEW.chain_seq;
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -171,9 +207,9 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        CREATE TRIGGER trg_audit_logs_compute_hash
+        CREATE TRIGGER trg_audit_logs_assign_chain_seq
         BEFORE INSERT ON audit_logs
-        FOR EACH ROW EXECUTE FUNCTION trg_audit_logs_compute_hash();
+        FOR EACH ROW EXECUTE FUNCTION trg_audit_logs_assign_chain_seq();
         """
     )
 
@@ -246,8 +282,8 @@ def downgrade() -> None:
     op.drop_index("ix_audit_log_archive_facility_id", table_name="audit_log_archive")
     op.drop_table("audit_log_archive")
 
-    op.execute("DROP TRIGGER IF EXISTS trg_audit_logs_compute_hash ON audit_logs;")
-    op.execute("DROP FUNCTION IF EXISTS trg_audit_logs_compute_hash();")
+    op.execute("DROP TRIGGER IF EXISTS trg_audit_logs_assign_chain_seq ON audit_logs;")
+    op.execute("DROP FUNCTION IF EXISTS trg_audit_logs_assign_chain_seq();")
     op.execute("DROP TRIGGER IF EXISTS trg_audit_logs_block_update ON audit_logs;")
     op.execute("DROP FUNCTION IF EXISTS trg_audit_logs_block_update();")
     op.execute("DROP TABLE IF EXISTS audit_logs CASCADE;")

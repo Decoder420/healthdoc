@@ -21,20 +21,32 @@ string. It does NOT look up the app's own users.id (a UUID). But
 audit_logs.user_id is a UUID FOREIGN KEY to users.id (schema doc §3
 0002: "users.keycloak_sub varchar(64) UNIQUE NOT NULL -- Keycloak
 subject; JWT 'sub' maps here"). So this dependency does that lookup
-itself — one extra DB query per protected request. If no users row
-exists yet for a given keycloak_sub (token valid but profile row not
-yet provisioned), user_id is left None and a warning is logged instead
-of failing the request. Flag for Tech Lead: should that be a hard 403
-instead of a warning?
+itself — one extra DB query per protected request.
+
+Tech Lead review answered both open questions from the previous PR:
+
+  - No users row for a valid keycloak_sub -> 403, not a warning. A
+    token whose profile doesn't exist can't be attributed, so the
+    mutation must not proceed. Raised here as a plain HTTPException so
+    it happens before any business mutation runs.
+  - role -> the role the action was taken UNDER, not every role the
+    user holds. A comma-joined list makes "who was acting as what"
+    unanswerable in an audit trail. _select_acting_role() below picks
+    the highest-privilege match from a fixed priority order; this is a
+    placeholder ordering (see its docstring) until an endpoint-scoped
+    "acting role" concept exists.
 
 This dependency does NOT do authorization — require_roles() still owns
-the actual 401/403 decision. This only captures context for audit rows.
+the actual 401/403 decision for whether the request is allowed at all.
+This only captures context for audit rows, plus the identity-resolution
+403 above (a request with no attributable actor is never allowed to
+mutate, independent of what require_roles() would have said).
 """
 from __future__ import annotations
 
 import logging
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +55,48 @@ from app.auth.deps import AuthUser, get_current_user
 from app.common.db import get_db
 
 logger = logging.getLogger(__name__)
+
+# Highest-to-lowest privilege, used only to pick which single role an
+# action was taken "under" when a user's token carries several realm
+# roles (see _select_acting_role()). Order matches the authority roles
+# in schema doc §Account governance plus the remaining realm roles;
+# unrecognised roles sort after all of these.
+_ROLE_PRIORITY: tuple[str, ...] = (
+    "superadmin",
+    "admin",
+    "hod",
+    "supervisor",
+    "auditor",
+    "doctor",
+    "nurse",
+    "lab_tech",
+    "radiology_tech",
+    "pharmacist",
+    "emergency",
+    "receptionist",
+    "patient",
+)
+
+
+def _select_acting_role(roles: list[str]) -> str | None:
+    """
+    Picks ONE role to record as "acting under" for this request, instead
+    of joining all of a user's roles with commas — see module docstring.
+
+    This is a stand-in for a real "acting role" concept: today it just
+    takes the highest-privilege role the token carries, which is right
+    for most single-role staff accounts but not necessarily right for
+    someone with multiple roles doing a role-specific action (e.g. an
+    admin who is also a doctor, placing an order as a doctor). Flag for
+    Tech Lead if endpoints need to declare their own expected role
+    instead of relying on this global ordering.
+    """
+    if not roles:
+        return None
+    for candidate in _ROLE_PRIORITY:
+        if candidate in roles:
+            return candidate
+    return roles[0]
 
 
 def _extract_ip(request: Request) -> str | None:
@@ -87,19 +141,24 @@ async def get_current_actor_dependency(
     )
     row = result.first()
 
-    user_id = row.id if row else None
     if row is None:
+        # Tech Lead: 403, not a warning -- a token whose profile doesn't
+        # exist can't be attributed, so the mutation must not proceed.
         logger.warning(
             "get_current_actor_dependency: no users row for keycloak_sub=%s — "
-            "audit rows on this request will have user_id=NULL",
+            "rejecting request, cannot attribute an audit row to this actor",
             user.sub,
         )
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "actor_not_provisioned"},
+        )
 
-    # audit_logs.role is a single text column; the JWT can carry several
-    # realm roles. Joining them with commas is a placeholder — confirm
-    # with Tech Lead whether a single "primary" role should be picked
-    # instead (and if so, how "primary" is decided).
-    role = ",".join(user.roles) if user.roles else None
+    user_id = row.id
+
+    # audit_logs.role records the role the action was taken UNDER, not
+    # every role the user holds (see _select_acting_role() docstring).
+    role = _select_acting_role(user.roles)
 
     actor = AuditActor(
         user_id=user_id,

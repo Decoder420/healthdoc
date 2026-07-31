@@ -60,9 +60,19 @@ something one file can do unilaterally. Flag this in the team channel:
 "add __audit_resource_type__ + __audit_facility_id_field__ to any model
 that needs audit trail, see app/audit/listeners.py for the pattern."
 
+Audit is opt-out by default, and that's a real gap — a model in a
+known-auditable module that forgets the class attributes above gets NO
+audit at all, silently. `assert_audit_coverage()` below is a boot-time
+check for exactly that: call it once at startup, after all models (and
+this file) have been imported, and it fails fast instead of letting the
+gap through quietly. See its own docstring for how modules opt in.
+
 KNOWN LIMITATIONS (flagged, not hidden — this is a skeleton):
-1. sign_payload_stub() (service.py) is still an unsigned placeholder —
-   same caveat as before, unrelated to this file specifically.
+1. entry_hash/prev_hash/signature/signer_key_id are no longer computed
+   anywhere in this file or service.py — they're sealer-computed,
+   asynchronously, per facility (schema doc §3 0003). Rows written here
+   have all five chain columns NULL until the sealer job (not built yet)
+   runs. That job, and Ed25519 key management, still need an owner.
 2. Bulk operations (session.execute(update(...)), bulk_update_mappings,
    raw SQL) bypass the ORM's unit-of-work entirely and will NOT trigger
    this — they never touch session.new/dirty/deleted. Use
@@ -76,6 +86,7 @@ KNOWN LIMITATIONS (flagged, not hidden — this is a skeleton):
    app/main.py (or wherever the FastAPI app is constructed):
 
        from app.audit import listeners  # noqa: F401  (registers audit hooks)
+       listeners.assert_audit_coverage()  # fail fast on missing opt-in
 """
 from __future__ import annotations
 
@@ -89,6 +100,7 @@ from sqlalchemy.orm import Session, attributes
 from app.audit.actions import AuditAction
 from app.audit.models import AuditLog
 from app.audit.service import _build_audit_log
+from app.common.db import Base
 
 logger = logging.getLogger(__name__)
 
@@ -280,3 +292,54 @@ def _write_captured_audit_entries(session: Session, flush_context) -> None:
             new_value=entry["new_value"],
         )
         session.add(audit_log)
+
+
+# Module import paths (dotted prefixes of __module__) that are expected to
+# declare __audit_resource_type__ on every mapped model. This is a plain
+# allowlist, not a scan of the whole app, because plenty of real models
+# (lookup/reference tables, event logs already append-only by construction,
+# etc.) legitimately opt out — a blanket "every model must audit" check
+# would be wrong, not just noisy.
+#
+# TODO: this list is intentionally short right now (only what this repo
+# has built so far). Each module owner adds their own package here in the
+# same PR that adds __audit_resource_type__ to their models — see review
+# comment #4. An empty/incomplete list means assert_audit_coverage() can't
+# catch a gap it doesn't know to look for; growing this list is the actual
+# rollout, not a one-time task.
+AUDITABLE_MODULE_PREFIXES: tuple[str, ...] = (
+    # "app.patients",
+    # "app.billing",
+)
+
+
+def assert_audit_coverage() -> None:
+    """
+    Boot-time check for the "opt-out by default" gap flagged in review:
+    a model in a known-auditable module that forgets
+    __audit_resource_type__ gets no audit trail at all, silently. Call
+    this once at startup, after every model module has been imported
+    (so Base.registry.mappers is fully populated) — see this file's
+    top-of-module docstring for where.
+
+    Raises RuntimeError (fail the boot) rather than logging, on purpose:
+    a missing audit hook on a compliance-relevant table is a "must fix
+    before this process serves traffic" issue, not a warning someone
+    might not read.
+    """
+    missing: list[str] = []
+    for mapper in Base.registry.mappers:
+        cls = mapper.class_
+        module = getattr(cls, "__module__", "")
+        if not any(module.startswith(prefix) for prefix in AUDITABLE_MODULE_PREFIXES):
+            continue
+        if getattr(cls, "__audit_resource_type__", None) is None:
+            missing.append(f"{module}.{cls.__name__}")
+
+    if missing:
+        raise RuntimeError(
+            "assert_audit_coverage: the following models live in a "
+            "known-auditable module but don't declare "
+            "__audit_resource_type__ (see app/audit/listeners.py for the "
+            "pattern): " + ", ".join(sorted(missing))
+        )
