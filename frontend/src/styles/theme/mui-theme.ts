@@ -1,109 +1,94 @@
-"use client";
-
 import { createTheme } from "@mui/material/styles";
 import { meridian } from "./meridian";
 
-const baseTheme = {
+export const muiTheme = createTheme({
+  modularCssLayers: true,
+  palette: {
+    mode: "light",
+    primary: {
+      main: meridian.brandPrimary,
+      dark: meridian.brandDeep,
+      contrastText: "#ffffff",
+    },
+    secondary: {
+      main: meridian.textSecondary,
+      contrastText: "#ffffff",
+    },
+    success: {
+      main: meridian.success,
+      contrastText: "#ffffff",
+    },
+    warning: {
+      main: meridian.warning,
+      contrastText: "#ffffff",
+    },
+    error: {
+      main: meridian.danger,
+      contrastText: "#ffffff",
+    },
+    info: {
+      main: meridian.info,
+      contrastText: "#ffffff",
+    },
+    text: {
+      primary: meridian.textPrimary,
+      secondary: meridian.textSecondary,
+      disabled: meridian.textMuted,
+    },
+    background: {
+      default: meridian.canvas,
+      paper: meridian.surface,
+    },
+    divider: meridian.border,
+  },
   typography: {
-    fontFamily: "var(--font-ibm-plex-sans), Arial, sans-serif",
-    fontSize: 14,
+    fontFamily: 'var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif',
+    button: {
+      textTransform: "none",
+      fontWeight: 600,
+    },
   },
   shape: {
     borderRadius: 8,
   },
   components: {
-    MuiTextField: {
-      defaultProps: {
-        variant: "outlined" as const,
-        size: "small" as const,
-        fullWidth: true,
-      },
-      styleOverrides: {
-        root: {
-          "& .MuiOutlinedInput-root": {
-            backgroundColor: "var(--background)",
-            "& fieldset": {
-              borderColor: "var(--border)",
-            },
-            "&:hover fieldset": {
-              borderColor: meridian.primary,
-            },
-            "&.Mui-focused fieldset": {
-              borderColor: meridian.primary,
-              borderWidth: 2,
-            },
-          },
-          "& .MuiInputLabel-root.Mui-focused": {
-            color: meridian.primary,
-          },
-        },
-      },
-    },
-    MuiFormHelperText: {
-      styleOverrides: {
-        root: {
-          marginLeft: 0,
-          fontFamily: "var(--font-ibm-plex-mono), monospace",
-          fontSize: "0.75rem",
-        },
-      },
-    },
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: "none" as const,
-          fontWeight: 600,
+          boxShadow: "none",
+          "&:hover": {
+            boxShadow: "none",
+          },
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        root: {
+          flexShrink: 0,
+        },
+        paper: {
+          backgroundColor: meridian.surface,
+          borderColor: meridian.border,
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: meridian.surface,
+          color: meridian.textPrimary,
+          boxShadow: "0 1px 3px 0 rgb(0 31 84 / 0.06)",
+          borderBottom: `1px solid ${meridian.border}`,
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
           borderRadius: 8,
         },
       },
     },
-  },
-};
-
-export const muiTheme = createTheme({
-  ...baseTheme,
-  modularCssLayers: true,
-  palette: {
-    mode: "light",
-    primary: {
-      main: meridian.primary,
-      contrastText: meridian.primaryForeground,
-    },
-    background: {
-      default: meridian.background,
-      paper: meridian.card,
-    },
-    text: {
-      primary: meridian.foreground,
-      secondary: meridian.mutedForeground,
-    },
-    error: {
-      main: meridian.danger,
-    },
-    divider: meridian.border,
-  },
-});
-
-export const muiDarkTheme = createTheme({
-  ...baseTheme,
-  modularCssLayers: true,
-  palette: {
-    mode: "dark",
-    primary: {
-      main: meridian.dark.primary,
-      contrastText: meridian.primaryForeground,
-    },
-    background: {
-      default: meridian.dark.background,
-      paper: meridian.dark.card,
-    },
-    text: {
-      primary: meridian.dark.foreground,
-      secondary: meridian.dark.mutedForeground,
-    },
-    error: {
-      main: "#f87171",
-    },
-    divider: meridian.dark.border,
   },
 });

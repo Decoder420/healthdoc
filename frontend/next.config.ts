@@ -5,10 +5,12 @@ import type { NextConfig } from "next";
 const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  // Keep Turbopack rooted at frontend/ even if a parent lockfile exists.
+  reactStrictMode: true,
+  // Keep Turbopack / tracing rooted at frontend/ even if a parent lockfile exists.
   turbopack: {
     root: frontendRoot,
   },
+  outputFileTracingRoot: frontendRoot,
   // Allow every private/public IPv4 host to load Next.js HMR/dev assets
   allowedDevOrigins: [
     "*.*.*.*",
