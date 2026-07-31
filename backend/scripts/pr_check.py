@@ -27,6 +27,42 @@ class Finding:
 
 SKIP_PATTERNS = ("__init__.py", "/tests/", "\\tests\\", "scripts/pr_check.py")
 
+def _prose_line_numbers(src: str) -> set[int]:
+    """Line numbers consisting ONLY of comment/string content — no live code.
+
+    A trailing comment does not make a line prose: `col = String(30)  # note`
+    is still code and must still be checked. So we blank out every COMMENT and
+    STRING span and keep only the lines whose remainder is blank.
+
+    Why this exists: on PR #271 the SEQ-RACE rule fired on a docstring that
+    said "never MAX(col)+1 — it races", i.e. the author documenting that he had
+    done exactly the right thing. A checker that punishes people for describing
+    the rule teaches them to stop writing comments.
+    """
+    import io
+    import tokenize
+
+    lines = src.splitlines()
+    residual = [list(ln) for ln in lines]
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type not in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            (r1, c1), (r2, c2) = tok.start, tok.end
+            for row in range(r1, r2 + 1):
+                if row - 1 >= len(residual):
+                    break
+                chars = residual[row - 1]
+                lo = c1 if row == r1 else 0
+                hi = c2 if row == r2 else len(chars)
+                for col in range(lo, min(hi, len(chars))):
+                    chars[col] = " "
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return {n for n, ln in enumerate(lines, 1) if ln.strip().startswith("#")}
+
+    return {n for n, chars in enumerate(residual, 1) if not "".join(chars).strip()}
+
+
 def check_file(path: pathlib.Path) -> list[Finding]:
     rel_norm = str(path).replace("\\", "/")
     # Tests deliberately contain anti-patterns (they prove the patterns are wrong);
@@ -43,13 +79,22 @@ def check_file(path: pathlib.Path) -> list[Finding]:
     is_model = "models.py" in rel or "migrations/versions/" in rel.replace("\\", "/")
     is_migration = "migrations/versions/" in rel.replace("\\", "/")
 
+    # Comment/docstring line numbers — rules that look for *code* patterns must
+    # skip these, or a line like "never MAX(col)+1 — it races" in a docstring
+    # explaining that the author did the right thing gets reported as the wrong
+    # thing. (Found on PR #271: the SEQ-RACE rule fired on Priyanshu's docstring
+    # documenting that he used a Postgres sequence precisely to avoid MAX+1.)
+    prose_lines = _prose_line_numbers(src)
+
     for i, ln in enumerate(lines, 1):
         s = ln.strip()
         if "pr-check: ignore" in ln:
             continue
 
         # --- race conditions on identifier allocation -------------------------
-        if re.search(r"\bmax\s*\(", ln, re.I) and re.search(r"\+\s*1|\bfunc\.max\b", ln, re.I):
+        if (i not in prose_lines
+                and re.search(r"\bmax\s*\(", ln, re.I)
+                and re.search(r"\+\s*1|\bfunc\.max\b", ln, re.I)):
             f.append(Finding(BLOCK, "SEQ-RACE", rel, i,
                 "MAX(col)+1 allocation races under concurrency (duplicate UHID/token/receipt).",
                 "conventions §2.2: use a counters row with SELECT … FOR UPDATE"))
