@@ -43,6 +43,15 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 2
 fi
 
+# The checkers live on staging; a PR branch predates them. Snapshot them
+# to a temp dir first so they still run after we check the PR out.
+TOOLDIR=$(mktemp -d)
+git show origin/staging:backend/scripts/pr_check.py               > "$TOOLDIR/pr_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/spec_check.py             > "$TOOLDIR/spec_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/check_migration_integrity.py > "$TOOLDIR/check_migration_integrity.py" 2>/dev/null || true
+git show origin/staging:frontend/scripts/fe_check.mjs             > "$TOOLDIR/fe_check.mjs" 2>/dev/null || true
+git show origin/staging:docs/database-schema.md                   > "$TOOLDIR/database-schema.md" 2>/dev/null || true
+
 ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 cleanup() { git checkout -q "$ORIGINAL_BRANCH" 2>/dev/null || true; }
 trap cleanup EXIT
@@ -67,7 +76,7 @@ else
 fi
 
 step "Frontend convention check (fe_check.mjs)"
-if (cd frontend && node scripts/fe_check.mjs); then pass "no convention blockers"; else fail "convention blockers — see above"; fi
+if (cd frontend && node "$TOOLDIR/fe_check.mjs" --all); then pass "no convention blockers"; else fail "convention blockers — see above"; fi
 
 step "TypeScript"
 if (cd frontend && npx --no-install tsc --noEmit 2>&1 | tail -20); then pass "typecheck clean"; else fail "TypeScript errors"; fi

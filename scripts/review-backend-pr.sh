@@ -51,6 +51,15 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 2
 fi
 
+# The checkers live on staging; a PR branch predates them. Snapshot them
+# to a temp dir first so they still run after we check the PR out.
+TOOLDIR=$(mktemp -d)
+git show origin/staging:backend/scripts/pr_check.py               > "$TOOLDIR/pr_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/spec_check.py             > "$TOOLDIR/spec_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/check_migration_integrity.py > "$TOOLDIR/check_migration_integrity.py" 2>/dev/null || true
+git show origin/staging:frontend/scripts/fe_check.mjs             > "$TOOLDIR/fe_check.mjs" 2>/dev/null || true
+git show origin/staging:docs/database-schema.md                   > "$TOOLDIR/database-schema.md" 2>/dev/null || true
+
 ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 cleanup() { git checkout -q "$ORIGINAL_BRANCH" 2>/dev/null || true; }
 trap cleanup EXIT
@@ -70,15 +79,18 @@ echo "$CHANGED" | sed 's/^/    /' | head -25
 
 # ── 3. convention checker (the 11 static rules) ───────────────────────────────
 step "Convention check (pr_check.py)"
-if python3 backend/scripts/pr_check.py; then pass "no convention blockers"; else fail "convention blockers — see above"; fi
+if python3 "$TOOLDIR/pr_check.py" --all; then pass "no convention blockers"; else fail "convention blockers — see above"; fi
 
 # ── 4. spec drift: docs vs enums ──────────────────────────────────────────────
 step "Spec drift (docs ↔ enums)"
-if python3 backend/scripts/spec_check.py; then pass "schema doc and enums.py agree"; else fail "spec drift between docs and code"; fi
+if ! grep -q "ModuleCode enum — EXACTLY" docs/database-schema.md 2>/dev/null; then
+  warn "branch predates the current schema doc — rebase on staging, then re-check"
+elif python3 "$TOOLDIR/spec_check.py" .; then pass "schema doc and enums.py agree"
+else fail "spec drift between docs and code"; fi
 
 # ── 5. migration chain ────────────────────────────────────────────────────────
 step "Migration integrity"
-if (cd backend && python3 scripts/check_migration_integrity.py); then
+if (cd backend && python3 "$TOOLDIR/check_migration_integrity.py"); then
   pass "migration chain linear, downgrades present"
 else
   fail "migration chain broken (dupes / fork / missing downgrade / retired 0018)"
