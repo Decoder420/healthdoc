@@ -27,6 +27,7 @@ this document".
 | v2 | 2026-07-17 | ADR 0002: full departmental billing replaces registration-payment model; users table extended |
 | v2.1 | 2026-07-17 | Review hardening: mobile varchar(20), enum widths varchar(30), FK + audit indexes, single versioning pattern, 0018 retired |
 | v2.2 | 2026-07-17 | Security pass: crypto key_version on patient_identifiers, PII rules for notification payloads and error messages, page_size cap, retention notes; synced with architecture.html |
+| v3.13 | 2026-07-28 | **PR-review corrections (found reviewing #265):** `departments.code` unique per facility not globally (global unique makes multi-facility impossible); `queue_counters` rescoped to (department, business date) so two doctors in one department cannot both issue `MED-001` to the same display board; `initial_priority` on `queue_tokens`; partial unique on live `visit_id` (a double-click at the desk otherwise 500s that patient's consultation completion forever); enum column widths corrected to varchar(50) per the blanket rule |
 | v3.12 | 2026-07-23 | **Verification pass:** executable spec tests (10 passing) proving the timezone, race, invariant and concurrency findings; `scripts/spec_check.py` doc↔code drift checker added to CI; **restored §governance + user_account_requests/policies/outbox_events/idempotency_keys definitions silently dropped by an earlier edit**; fixed stale facility_modules block |
 | v3.11 | 2026-07-23 | **§4A reliability & safety contracts:** idempotency keys, optimistic concurrency (row_version/If-Match), Mongo dual-write via outbox, file-upload validation, visit auto-close, DPDP erasure position, public-display hardening, Keycloak SPOF mitigation, backup RPO/RTO + paper fallback |
 | v3.10 | 2026-07-23 | `blood_bank` made optional (5 toggleable modules); `procedure_records` added so procedures are recordable + billable without an OT |
@@ -405,9 +406,13 @@ notification_channel varchar(30)
 **departments**
 ```
 name        text NOT NULL
-code        varchar(20) UNIQUE NOT NULL          -- used in token numbers, e.g. MED
+code        varchar(20) NOT NULL                 -- used in token numbers, e.g. MED
 facility_id UUID NOT NULL → facilities
 is_active   boolean NOT NULL DEFAULT true
+UNIQUE (facility_id, code)                       -- per facility, NOT global. Two facilities
+                                                 -- both having a "MED" department is normal;
+                                                 -- a global unique makes multi-facility
+                                                 -- deployment impossible. (Corrected v3.13.)
 ```
 
 **rooms**
@@ -630,25 +635,46 @@ UNIQUE (department_id, doctor_user_id, service_date)
 INDEX ix_queues_department_id_service_date (department_id, service_date)
 ```
 
-**queue_counters** — race-safe per-queue token allocator (mirrors `billing_counters`)
+**queue_counters** — race-safe token allocator, scoped per department per day (mirrors `billing_counters`)
 ```
-queue_id UUID NOT NULL → queues · last_value int NOT NULL DEFAULT 0
-UNIQUE (queue_id)
+department_id UUID NOT NULL → departments
+counter_date  date NOT NULL                      -- facility business date, not UTC
+last_value    int  NOT NULL DEFAULT 0
+UNIQUE (department_id, counter_date)
 ```
+**Scope is (department, date), NOT (queue).** A per-queue counter makes every doctor in
+Medicine start at 1, so `MED-001` is issued to two different patients on the same day —
+who then stand in front of the *same* department display board and hear the same number
+called over the same PA. The token string must be unique on the board that shows it.
+`queue_tokens.sequence` stays per-queue for `UNIQUE (queue_id, sequence)` ordering;
+`token_display` is allocated from this department-scoped counter. (Corrected v3.13.)
 
 **queue_tokens**
 ```
 queue_id     UUID NOT NULL → queues
 visit_id     UUID NULL → visits
-sequence     int NOT NULL                        -- per-queue; allocated from queue_counters
-                                                 -- with SELECT ... FOR UPDATE in the token
-                                                 -- transaction (same pattern as billing_counters).
+sequence     int NOT NULL                        -- per-queue arrival order (1,2,3... within this
+                                                 -- doctor's queue). Ordering only — NOT the number
+                                                 -- printed on the slip.
+token_display varchar(20) NOT NULL               -- what screens show: <DEPT_CODE>-<SEQ3>, e.g. MED-042.
+                                                 -- Allocated from queue_counters (department, date)
+                                                 -- with SELECT ... FOR UPDATE in the token transaction
+                                                 -- (same pattern as billing_counters).
                                                  -- NOT a Postgres sequence, NOT MAX()+1.
-token_display varchar(20) NOT NULL               -- what screens show: <DEPT_CODE>-<SEQ3>, e.g. MED-042
-status       varchar(30) NOT NULL DEFAULT 'waiting'   -- QueueTokenStatus enum (incl. skipped/recalled/transferred)
-priority     varchar(30) NOT NULL DEFAULT 'normal'    -- QueuePriority enum
+                                                 -- Unique per (department, business date).
+initial_priority varchar(50) NOT NULL            -- the tier the token was ISSUED at; never updated.
+                                                 -- "issued normal, now emergency" must stay answerable.
+status       varchar(50) NOT NULL DEFAULT 'waiting'   -- QueueTokenStatus enum (incl. skipped/recalled/transferred)
+priority     varchar(50) NOT NULL DEFAULT 'normal'    -- QueuePriority enum
 called_at    timestamptz · completed_at timestamptz
-UNIQUE (queue_id, sequence)                      -- NOT a global unique token string
+UNIQUE (queue_id, sequence)                      -- arrival order within one doctor's queue
+UNIQUE (token_display, <department, business date>)  -- enforced via the counter; the printed
+                                                 -- number is unambiguous on the board that shows it
+PARTIAL UNIQUE (visit_id) WHERE status NOT IN ('completed','cancelled','no_show')
+                                                 -- one live token per visit. Without it a
+                                                 -- double-click at the desk issues two, and
+                                                 -- complete_by_visit_id() then 500s forever
+                                                 -- on that patient. (Added v3.13.)
 -- The doctor a token is for = queues.doctor_user_id via queue_id. The token STRING stays
 -- dept+sequence (MED-042); the display resolves doctor + room from the queue, so a token
 -- can be moved to another doctor (transferred) without reprinting the number.
