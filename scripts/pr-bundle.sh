@@ -25,6 +25,15 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 2
 fi
 
+# The checkers live on staging; a PR branch predates them. Snapshot them
+# to a temp dir first so they still run after we check the PR out.
+TOOLDIR=$(mktemp -d)
+git show origin/staging:backend/scripts/pr_check.py               > "$TOOLDIR/pr_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/spec_check.py             > "$TOOLDIR/spec_check.py" 2>/dev/null || true
+git show origin/staging:backend/scripts/check_migration_integrity.py > "$TOOLDIR/check_migration_integrity.py" 2>/dev/null || true
+git show origin/staging:frontend/scripts/fe_check.mjs             > "$TOOLDIR/fe_check.mjs" 2>/dev/null || true
+git show origin/staging:docs/database-schema.md                   > "$TOOLDIR/database-schema.md" 2>/dev/null || true
+
 ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 cleanup() { git checkout -q "$ORIGINAL_BRANCH" 2>/dev/null || true; }
 trap cleanup EXIT
@@ -53,11 +62,11 @@ git diff --stat "$BASE" HEAD
 
 echo
 echo "---------- AUTOMATED CHECKS ----------"
-echo "\$ pr_check.py"
-python3 backend/scripts/pr_check.py 2>&1 || true
+echo "\$ pr_check.py (from staging)"
+python3 "$TOOLDIR/pr_check.py" --all 2>&1 || true
 echo
 echo "\$ spec_check.py"
-python3 backend/scripts/spec_check.py 2>&1 || true
+python3 "$TOOLDIR/spec_check.py" . 2>&1 || true
 echo
 echo "\$ check_migration_integrity.py"
 (cd backend && python3 scripts/check_migration_integrity.py 2>&1) || true
