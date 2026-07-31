@@ -1,16 +1,36 @@
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Node / Next.js
 node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 .next/
-dist/
 out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Env & secrets
 .env
 .env.*
 !.env.example
+*.pem
+
+# Logs & OS
 *.log
 .DS_Store
+
+# Local data volumes
 postgres-data/
 mongo-data/
 minio-data/
