@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/providers/auth-provider";
-<<<<<<< Updated upstream
 import ExpiryTable from "@/components/dashboards/inventory/dashboard/ExpiryTable";
 import InventoryTrendChart from "@/components/dashboards/inventory/dashboard/InventoryTrendChart";
 import LowStockCategoryChart from "@/components/dashboards/inventory/dashboard/LowStockCard";
@@ -10,21 +9,6 @@ import {
   INVENTORY_ALERT_SUMMARY,
   INVENTORY_DASHBOARD_KPIS,
 } from "@/features/inventory/dashboard-data";
-=======
-import ExpiryTable from "@/components/dashboard/inventory/dashboard/ExpiryTable";
-import InventoryTrendChart from "@/components/dashboard/inventory/dashboard/InventoryTrendChart";
-import LowStockCategoryChart from "@/components/dashboard/inventory/dashboard/LowStockCard";
-import RecentInventoryTable from "@/components/dashboard/inventory/dashboard/RecentPurchasestable";
-
-const inventoryStats = [
-  { label: "Products", value: "2,150" },
-  { label: "Low Stock", value: "18", emphasis: "text-destructive" },
-  { label: "Suppliers", value: "96" },
-  { label: "Orders", value: "124" },
-  { label: "Expiring", value: "30", emphasis: "text-amber-600" },
-  { label: "Stock Value", value: "₹4.0M" },
-];
->>>>>>> Stashed changes
 
 export function InventoryScreen() {
   const { user } = useAuth();
