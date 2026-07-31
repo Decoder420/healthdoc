@@ -17,55 +17,57 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 
-const stats = [
-  {
-    id: 1,
-    title: "Patients in Queue",
-    value: 27,
-    subtitle: "Waiting for imaging",
-    trend: "+5 Today",
-    icon: <PeopleAltRoundedIcon color="primary" />,
-  },
-  {
-    id: 2,
-    title: "Emergency",
-    value: 4,
-    subtitle: "High priority cases",
-    trend: "Immediate",
-    icon: <WarningAmberRoundedIcon color="error" />,
-  },
-  {
-    id: 3,
-    title: "In Progress",
-    value: 8,
-    subtitle: "Scans running",
-    trend: "Live",
-    icon: <PlayCircleRoundedIcon color="warning" />,
-  },
-  {
-    id: 4,
-    title: "Completed",
-    value: 63,
-    subtitle: "Completed today",
-    trend: "+12%",
-    icon: <CheckCircleRoundedIcon color="success" />,
-  },
-  {
-    id: 5,
-    title: "Avg Waiting",
-    value: "14 min",
-    subtitle: "Current average",
-    trend: "-3 min",
-    icon: <ScheduleRoundedIcon color="info" />,
-  },
-];
+import { getRadiologyQueueStats } from "./DummyData";
 
 export default function QueueStats() {
+  const statsData = getRadiologyQueueStats();
+  const avgWait = `${10 + (statsData.inQueue % 8)} min`;
+
+  const stats = [
+    {
+      id: 1,
+      title: "Patients in Queue",
+      value: statsData.inQueue,
+      subtitle: "Waiting for imaging",
+      trend: `+${Math.max(3, statsData.inQueue % 9)} Today`,
+      icon: <PeopleAltRoundedIcon color="primary" />,
+    },
+    {
+      id: 2,
+      title: "Emergency",
+      value: statsData.emergency,
+      subtitle: "High priority cases",
+      trend: "Immediate",
+      icon: <WarningAmberRoundedIcon color="error" />,
+    },
+    {
+      id: 3,
+      title: "In Progress",
+      value: statsData.inProgress,
+      subtitle: "Scans running",
+      trend: "Live",
+      icon: <PlayCircleRoundedIcon color="warning" />,
+    },
+    {
+      id: 4,
+      title: "Completed",
+      value: statsData.completed,
+      subtitle: "Completed / verified",
+      trend: "+12%",
+      icon: <CheckCircleRoundedIcon color="success" />,
+    },
+    {
+      id: 5,
+      title: "Avg Waiting",
+      value: avgWait,
+      subtitle: "Current average",
+      trend: "-3 min",
+      icon: <ScheduleRoundedIcon color="info" />,
+    },
+  ];
+
   return (
-    <Grid
-      container
-      spacing={3}
-    >
+    <Grid container spacing={3}>
       {stats.map((item) => (
         <Grid
           key={item.id}
@@ -112,11 +114,7 @@ export default function QueueStats() {
                 </Box>
 
                 <Chip
-                  icon={
-                    <TrendingUpRoundedIcon
-                      sx={{ fontSize: 16 }}
-                    />
-                  }
+                  icon={<TrendingUpRoundedIcon sx={{ fontSize: 16 }} />}
                   label={item.trend}
                   size="small"
                   variant="outlined"
@@ -126,26 +124,15 @@ export default function QueueStats() {
                 />
               </Stack>
 
-              <Typography
-                variant="h4"
-                fontWeight={700}
-                mt={3}
-              >
+              <Typography variant="h4" fontWeight={700} mt={3}>
                 {item.value}
               </Typography>
 
-              <Typography
-                fontWeight={600}
-                mt={0.8}
-              >
+              <Typography fontWeight={600} mt={0.8}>
                 {item.title}
               </Typography>
 
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                mt={0.5}
-              >
+              <Typography variant="body2" color="text.secondary" mt={0.5}>
                 {item.subtitle}
               </Typography>
             </CardContent>

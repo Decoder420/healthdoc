@@ -93,6 +93,7 @@ export interface ModalityCard {
   completed: number;
   pending: number;
   averageTime: string;
+  icon?: ReactNode;
 }
 
 export interface WorkflowStep {

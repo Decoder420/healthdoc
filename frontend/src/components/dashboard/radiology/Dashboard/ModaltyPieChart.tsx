@@ -18,33 +18,9 @@ import {
   Tooltip,
 } from "recharts";
 
-const modalityData = [
-  {
-    name: "CT",
-    value: 82,
-    color: "#001F54",
-  },
-  {
-    name: "MRI",
-    value: 58,
-    color: "#3B82F6",
-  },
-  {
-    name: "X-Ray",
-    value: 96,
-    color: "#06B6D4",
-  },
-  {
-    name: "USG",
-    value: 34,
-    color: "#14B8A6",
-  },
-  {
-    name: "Mammography",
-    value: 16,
-    color: "#F59E0B",
-  },
-];
+import { getRadiologyModalityDistribution } from "@/components/dashboard/radiology/test_queue/DummyData";
+
+const modalityData = getRadiologyModalityDistribution();
 
 const total = modalityData.reduce(
   (sum, item) => sum + item.value,

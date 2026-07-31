@@ -28,35 +28,9 @@ import {
   Typography,
 } from "@mui/material";
 
-const todayData = [
-  { hour: "08:00", scans: 8 },
-  { hour: "09:00", scans: 13 },
-  { hour: "10:00", scans: 18 },
-  { hour: "11:00", scans: 25 },
-  { hour: "12:00", scans: 22 },
-  { hour: "13:00", scans: 29 },
-  { hour: "14:00", scans: 33 },
-  { hour: "15:00", scans: 31 },
-  { hour: "16:00", scans: 24 },
-  { hour: "17:00", scans: 18 },
-];
+import { getRadiologyImagingTrend } from "@/components/dashboard/radiology/test_queue/DummyData";
 
-const weekData = [
-  { hour: "Mon", scans: 96 },
-  { hour: "Tue", scans: 118 },
-  { hour: "Wed", scans: 136 },
-  { hour: "Thu", scans: 128 },
-  { hour: "Fri", scans: 152 },
-  { hour: "Sat", scans: 110 },
-  { hour: "Sun", scans: 82 },
-];
-
-const monthData = [
-  { hour: "W1", scans: 610 },
-  { hour: "W2", scans: 720 },
-  { hour: "W3", scans: 695 },
-  { hour: "W4", scans: 810 },
-];
+const { todayData, weekData, monthData } = getRadiologyImagingTrend();
 
 function CustomTooltip({
   active,

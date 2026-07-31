@@ -1,107 +1,19 @@
 "use client";
 
-import DepartmentDashboard from "../dashboard/layout";
 import { useRouter } from "next/navigation";
-
-import type {
-  RadiologyCase,
-  TrendChartData,
-  StatusDistributionData,
-  ReportingTimeData,
-} from "../dashboard/types";
-
+import DepartmentDashboard from "../dashboard/layout";
 import MedicalServicesOutlinedIcon from "@mui/icons-material/MedicalServicesOutlined";
-
-const mriRows: RadiologyCase[] = [
-  {
-    id: "MRI001",
-    patientName: "Rohit Sharma",
-    uhid: "UH20001",
-    accessionNo: "ACC-MRI-001",
-    study: "MRI Brain",
-    modality: "MRI",
-    doctor: "Dr. Sharma",
-    priority: "Routine",
-    status: "PROCESSING",
-    studyDate: "2026-07-25",
-  },
-  {
-    id: "MRI002",
-    patientName: "Neha Gupta",
-    uhid: "UH20002",
-    accessionNo: "ACC-MRI-002",
-    study: "MRI Spine",
-    modality: "MRI",
-    doctor: "Dr. Mehta",
-    priority: "Urgent",
-    status: "VERIFIED",
-    studyDate: "2026-07-25",
-  },
-  {
-    id: "MRI003",
-    patientName: "Amit Verma",
-    uhid: "UH20003",
-    accessionNo: "ACC-MRI-003",
-    study: "MRI Knee",
-    modality: "MRI",
-    doctor: "Dr. Kapoor",
-    priority: "STAT",
-    status: "PROCESSING",
-    studyDate: "2026-07-25",
-  },
-];
-
-const stats = [
-  {
-    title: "Total MRI Cases",
-    text: 38,
-  },
-  {
-    title: "Processing",
-    text: 6,
-  },
-  {
-    title: "Verified",
-    text: 29,
-  },
-  {
-    title: "Average Reporting",
-    text: "24 min",
-  },
-];
-
-const trendData: TrendChartData[] = [
-  { label: "08:00", value: 3 },
-  { label: "10:00", value: 7 },
-  { label: "12:00", value: 12 },
-  { label: "14:00", value: 18 },
-  { label: "16:00", value: 15 },
-  { label: "18:00", value: 9 },
-];
-
-const statusData: StatusDistributionData[] = [
-  {
-    name: "Processing",
-    value: 6,
-  },
-  {
-    name: "Verified",
-    value: 29,
-  },
-];
-
-const reportingData: ReportingTimeData[] = [
-  { day: "Mon", minutes: 24 },
-  { day: "Tue", minutes: 22 },
-  { day: "Wed", minutes: 26 },
-  { day: "Thu", minutes: 21 },
-  { day: "Fri", minutes: 20 },
-  { day: "Sat", minutes: 23 },
-  { day: "Sun", minutes: 19 },
-];
+import {
+  MRI_CASES,
+  getDepartmentReporting,
+  getDepartmentStats,
+  getDepartmentStatus,
+  getDepartmentTrend,
+} from "../departmentCases";
 
 export default function MRIDashboard() {
   const router = useRouter();
+  const rows = MRI_CASES;
 
   return (
     <DepartmentDashboard
@@ -109,10 +21,10 @@ export default function MRIDashboard() {
       subtitle="Today's MRI Workflow"
       description="Manage MRI studies, verification and reports."
       icon={<MedicalServicesOutlinedIcon />}
-      stats={stats}
-      trendData={trendData}
-      statusData={statusData}
-      reportingData={reportingData}
+      stats={getDepartmentStats(rows)}
+      trendData={getDepartmentTrend(rows)}
+      statusData={getDepartmentStatus(rows)}
+      reportingData={getDepartmentReporting()}
       chartConfig={{
         trendTitle: "MRI Study Volume",
         trendSubtitle: "Today's MRI studies",
@@ -121,13 +33,13 @@ export default function MRIDashboard() {
         reportingTitle: "MRI Reporting Time",
         reportingSubtitle: "Last 7 days",
       }}
-      rows={mriRows}
+      rows={rows}
       onVerify={(row) => {
         console.log("Verify MRI Report", row.id);
       }}
       onViewReport={(row) => {
-  router.push(`/radiology/reports/${row.id}`);
-}}
+        router.push(`/radiology/reports/${row.id}`);
+      }}
       onRefresh={() => {
         console.log("Refresh MRI Dashboard");
       }}

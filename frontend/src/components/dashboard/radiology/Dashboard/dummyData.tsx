@@ -12,12 +12,19 @@ import {
 } from "@mui/icons-material";
 
 import {
+  appointmentQueue as heavyQueue,
+  getRadiologyModalityDistribution,
+  getRadiologyQueueStats,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
+
+import {
   AppointmentQueue,
   CriticalAlert,
   DashboardSummary,
   ImagingTrendData,
   KPICardData,
   MachineUtilization,
+  Modality,
   ModalityCard,
   ModalityDistribution,
   QuickAction,
@@ -25,20 +32,30 @@ import {
   WorkflowStep,
 } from "./types";
 
+const queueStats = getRadiologyQueueStats(heavyQueue);
+const verifiedCount = heavyQueue.filter(
+  (item) => item.status === "Verified",
+).length;
+
+function toDashboardModality(modality: string): Modality {
+  if (modality === "USG") return "Ultrasound";
+  return modality as Modality;
+}
+
 export const dashboardSummary: DashboardSummary = {
-  totalOrders: 186,
-  pendingReports: 18,
-  completedReports: 152,
-  verifiedReports: 146,
+  totalOrders: queueStats.total,
+  pendingReports: queueStats.reporting,
+  completedReports: queueStats.completed,
+  verifiedReports: verifiedCount,
   cancelledOrders: 4,
-  criticalCases: 6,
+  criticalCases: queueStats.emergency,
 };
 
 export const kpiCards: KPICardData[] = [
   {
     id: 1,
     title: "Today's Orders",
-    value: 186,
+    value: queueStats.total,
     subtitle: "+12% from yesterday",
     trend: 12,
     icon: <Assignment color="primary" />,
@@ -46,7 +63,7 @@ export const kpiCards: KPICardData[] = [
   {
     id: 2,
     title: "Pending Reports",
-    value: 18,
+    value: queueStats.reporting,
     subtitle: "Awaiting reporting",
     trend: -4,
     icon: <PendingActions color="warning" />,
@@ -54,7 +71,7 @@ export const kpiCards: KPICardData[] = [
   {
     id: 3,
     title: "Completed Scans",
-    value: 152,
+    value: queueStats.completed,
     subtitle: "Today's completed studies",
     trend: 8,
     icon: <CheckCircle color="success" />,
@@ -62,7 +79,7 @@ export const kpiCards: KPICardData[] = [
   {
     id: 4,
     title: "Verified Reports",
-    value: 146,
+    value: verifiedCount,
     subtitle: "Ready for release",
     trend: 5,
     icon: <Verified color="success" />,
@@ -70,7 +87,7 @@ export const kpiCards: KPICardData[] = [
   {
     id: 5,
     title: "Critical Cases",
-    value: 6,
+    value: queueStats.emergency,
     subtitle: "Needs immediate review",
     trend: 2,
     icon: <Warning color="error" />,
@@ -78,7 +95,7 @@ export const kpiCards: KPICardData[] = [
   {
     id: 6,
     title: "Active Machines",
-    value: 12,
+    value: 10,
     subtitle: "Operational",
     trend: 0,
     icon: <LocalHospital color="info" />,
@@ -86,202 +103,117 @@ export const kpiCards: KPICardData[] = [
 ];
 
 export const imagingTrend: ImagingTrendData[] = [
-  { day: "Mon", xray: 28, ct: 12, mri: 8, ultrasound: 16 },
-  { day: "Tue", xray: 34, ct: 15, mri: 10, ultrasound: 18 },
-  { day: "Wed", xray: 31, ct: 18, mri: 9, ultrasound: 20 },
-  { day: "Thu", xray: 40, ct: 20, mri: 12, ultrasound: 23 },
-  { day: "Fri", xray: 37, ct: 17, mri: 10, ultrasound: 19 },
-  { day: "Sat", xray: 26, ct: 11, mri: 7, ultrasound: 13 },
-  { day: "Sun", xray: 22, ct: 9, mri: 6, ultrasound: 10 },
+  { day: "Mon", xray: 48, ct: 22, mri: 16, ultrasound: 28 },
+  { day: "Tue", xray: 54, ct: 25, mri: 18, ultrasound: 30 },
+  { day: "Wed", xray: 51, ct: 28, mri: 17, ultrasound: 32 },
+  { day: "Thu", xray: 60, ct: 30, mri: 20, ultrasound: 35 },
+  { day: "Fri", xray: 57, ct: 27, mri: 18, ultrasound: 31 },
+  { day: "Sat", xray: 46, ct: 21, mri: 14, ultrasound: 24 },
+  { day: "Sun", xray: 38, ct: 17, mri: 12, ultrasound: 20 },
 ];
 
-export const modalityDistribution: ModalityDistribution[] = [
-  { id: 0, label: "X-Ray", value: 82 },
-  { id: 1, label: "CT", value: 36 },
-  { id: 2, label: "MRI", value: 24 },
-  { id: 3, label: "Ultrasound", value: 34 },
-  { id: 4, label: "Mammography", value: 8 },
-  { id: 5, label: "ECG", value: 12 },
-];
+export const modalityDistribution: ModalityDistribution[] =
+  getRadiologyModalityDistribution(heavyQueue).map((item, index) => ({
+    id: index,
+    label: toDashboardModality(item.name),
+    value: item.value,
+  }));
 
 export const machineUtilization: MachineUtilization[] = [
-  {
-    machine: "MRI Scanner",
-    utilization: 92,
-  },
-  {
-    machine: "CT Scanner",
-    utilization: 84,
-  },
-  {
-    machine: "Digital X-Ray",
-    utilization: 76,
-  },
-  {
-    machine: "Ultrasound",
-    utilization: 71,
-  },
-  {
-    machine: "Mammography",
-    utilization: 58,
-  },
+  { machine: "MRI Scanner", utilization: 92 },
+  { machine: "CT Scanner 01", utilization: 88 },
+  { machine: "CT Scanner 02", utilization: 76 },
+  { machine: "Digital X-Ray A", utilization: 71 },
+  { machine: "Digital X-Ray B", utilization: 64 },
+  { machine: "Ultrasound 01", utilization: 74 },
+  { machine: "Ultrasound 02", utilization: 58 },
+  { machine: "Mammography", utilization: 55 },
+  { machine: "ECG Station", utilization: 42 },
 ];
 
-export const appointmentQueue: AppointmentQueue[] = [
-  {
-    id: 1,
-    token: "RAD001",
-    patientName: "Rahul Sharma",
-    uhid: "UH100245",
-    age: 36,
-    gender: "Male",
-    modality: "CT",
-    procedure: "CT Brain",
-    radiologist: "Dr. Mehta",
-    appointmentTime: "09:30 AM",
-    priority: "Emergency",
-    status: "Waiting",
-  },
-  {
-    id: 2,
-    token: "RAD002",
-    patientName: "Priya Singh",
-    uhid: "UH100312",
-    age: 42,
-    gender: "Female",
-    modality: "MRI",
-    procedure: "MRI Spine",
-    radiologist: "Dr. Sharma",
-    appointmentTime: "10:00 AM",
-    priority: "Urgent",
-    status: "Scheduled",
-  },
-  {
-    id: 3,
-    token: "RAD003",
-    patientName: "Amit Verma",
-    uhid: "UH100489",
-    age: 51,
-    gender: "Male",
-    modality: "X-Ray",
-    procedure: "Chest PA View",
-    radiologist: "Dr. Gupta",
-    appointmentTime: "10:20 AM",
-    priority: "Routine",
-    status: "In Progress",
-  },
-];
+export const appointmentQueue: AppointmentQueue[] = heavyQueue
+  .slice(0, 24)
+  .map((item) => ({
+    id: item.id,
+    token: item.token,
+    patientName: item.patientName,
+    uhid: item.uhid,
+    age: item.age,
+    gender: item.gender,
+    modality: toDashboardModality(item.modality),
+    procedure: item.procedure,
+    radiologist: item.radiologist,
+    appointmentTime: item.appointmentTime,
+    priority: item.priority,
+    status:
+      item.status === "Queue"
+        ? "Waiting"
+        : item.status === "In Progress"
+          ? "In Progress"
+          : item.status === "Reporting"
+            ? "Scheduled"
+            : "Completed",
+  }));
 
-export const recentReports: RecentReport[] = [
-  {
-    id: 1,
-    reportId: "REP240001",
-    patientName: "Rahul Sharma",
-    uhid: "UH100245",
-    modality: "CT",
-    procedure: "CT Brain",
-    radiologist: "Dr. Mehta",
-    reportDate: "23 Jul 2026",
-    status: "Verified",
-  },
-  {
-    id: 2,
-    reportId: "REP240002",
-    patientName: "Priya Singh",
-    uhid: "UH100312",
-    modality: "MRI",
-    procedure: "MRI Spine",
-    radiologist: "Dr. Sharma",
-    reportDate: "23 Jul 2026",
-    status: "Pending Verification",
-  },
-  {
-    id: 3,
-    reportId: "REP240003",
-    patientName: "Amit Verma",
-    uhid: "UH100489",
-    modality: "X-Ray",
-    procedure: "Chest PA View",
-    radiologist: "Dr. Gupta",
-    reportDate: "23 Jul 2026",
-    status: "Draft",
-  },
-];
+export const recentReports: RecentReport[] = heavyQueue
+  .filter((item) =>
+    ["Completed", "Verified", "Reporting"].includes(item.status),
+  )
+  .slice(0, 24)
+  .map((item, index) => ({
+    id: index + 1,
+    reportId: `REP${240000 + item.id}`,
+    patientName: item.patientName,
+    uhid: item.uhid,
+    modality: toDashboardModality(item.modality),
+    procedure: item.procedure,
+    radiologist: item.radiologist,
+    reportDate: item.appointmentDate,
+    status:
+      item.status === "Verified"
+        ? "Verified"
+        : item.status === "Reporting"
+          ? "Pending Verification"
+          : "Draft",
+  }));
 
-export const criticalAlerts: CriticalAlert[] = [
-  {
-    id: 1,
-    title: "Critical CT Brain",
-    description: "Immediate radiologist review required.",
-    severity: "High",
-    createdAt: "10 mins ago",
-  },
-  {
-    id: 2,
-    title: "MRI Maintenance",
-    description: "Machine scheduled for maintenance tonight.",
-    severity: "Medium",
-    createdAt: "1 hour ago",
-  },
-  {
-    id: 3,
-    title: "Contrast Stock Low",
-    description: "Contrast media below reorder level.",
-    severity: "Low",
-    createdAt: "Today",
-  },
-];
+export const criticalAlerts: CriticalAlert[] = heavyQueue
+  .filter((item) => item.priority === "Emergency")
+  .slice(0, 12)
+  .map((item, index) => ({
+    id: index + 1,
+    title: `Critical ${item.modality} — ${item.procedure}`,
+    description: `${item.patientName} (${item.uhid}) needs immediate radiologist review.`,
+    severity: (index % 3 === 0
+      ? "High"
+      : index % 3 === 1
+        ? "Medium"
+        : "Low") as CriticalAlert["severity"],
+    createdAt: `${8 + (index % 40)} mins ago`,
+  }));
 
-export const modalityCards: ModalityCard[] = [
-  {
-    id: 1,
-    modality: "X-Ray",
-    total: 82,
-    completed: 74,
-    pending: 8,
-    averageTime: "12 min",
-  },
-  {
-    id: 2,
-    modality: "CT",
-    total: 36,
-    completed: 30,
-    pending: 6,
-    averageTime: "28 min",
-  },
-  {
-    id: 3,
-    modality: "MRI",
-    total: 24,
-    completed: 18,
-    pending: 6,
-    averageTime: "45 min",
-  },
-  {
-    id: 4,
-    modality: "Ultrasound",
-    total: 34,
-    completed: 29,
-    pending: 5,
-    averageTime: "18 min",
-  },
-  {
-    id: 5,
-    modality: "Mammography",
-    total: 8,
-    completed: 7,
-    pending: 1,
-    averageTime: "20 min",
-  },
-  {
-    id: 6,
-    modality: "ECG",
-    total: 12,
-    completed: 12,
-    pending: 0,
-    averageTime: "8 min",
-  },
-];
+const avgByModality: Record<string, string> = {
+  "X-Ray": "12 min",
+  CT: "28 min",
+  MRI: "45 min",
+  USG: "18 min",
+  Mammography: "20 min",
+  ECG: "8 min",
+};
+
+export const modalityCards: ModalityCard[] = getRadiologyModalityDistribution(
+  heavyQueue,
+).map((item, index) => {
+  const completed = Math.round(item.value * 0.78);
+  return {
+    id: index + 1,
+    modality: toDashboardModality(item.name),
+    total: item.value,
+    completed,
+    pending: item.value - completed,
+    averageTime: avgByModality[item.name] ?? "20 min",
+  };
+});
 
 export const workflowSteps: WorkflowStep[] = [
   { id: 1, label: "Order Received", completed: true },

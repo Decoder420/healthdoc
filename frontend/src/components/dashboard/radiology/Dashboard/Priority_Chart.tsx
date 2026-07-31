@@ -19,23 +19,9 @@ import {
   Typography,
 } from "@mui/material";
 
-const priorityData = [
-  {
-    name: "Routine",
-    value: 68,
-    color: "#001F54",
-  },
-  {
-    name: "Urgent",
-    value: 22,
-    color: "#F59E0B",
-  },
-  {
-    name: "Emergency",
-    value: 10,
-    color: "#DC2626",
-  },
-];
+import { getRadiologyPriorityDistribution } from "@/components/dashboard/radiology/test_queue/DummyData";
+
+const priorityData = getRadiologyPriorityDistribution();
 
 export default function PriorityCasesChart() {
   const totalCases = priorityData.reduce(

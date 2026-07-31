@@ -126,7 +126,7 @@ const currentTime = now.toLocaleTimeString("en-IN", {
   hour12: true,
 });
 
-    patient.status = "PROCESSING";
+    patient.status = "IN_PROCESS";
 
     patient.sample = {
   sampleId,

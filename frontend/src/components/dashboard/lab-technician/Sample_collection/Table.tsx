@@ -39,68 +39,52 @@ import BarcodePrintDialog from "./BarcodePrintDialog";
 
 interface SampleData {
   id: number;
-
+  orderId: string;
   patientId: string;
-
   patientName: string;
-
   uhid: string;
-
   tests: string;
-
   barcode: string;
-
   collectedAt: string;
-
   status: "PROCESSING" | "COMPLETED";
-
   sampleType: string;
-
   container: string;
-
   priority: string;
-
   collectedBy: string;
-
   doctor: string;
-
   department: string;
+}
+
+function mapLabPatientToRow(
+  patient: (typeof labPatients)[number],
+  forceProcessing = false,
+): SampleData {
+  return {
+    // Order id is unique across historical visits; patient id is not.
+    id: Number(patient.order.orderId.replace(/\D/g, "")),
+    orderId: patient.order.orderId,
+    patientId: patient.patient.patientId,
+    patientName: patient.patient.name,
+    uhid: patient.patient.uhid,
+    tests: patient.requestedTests.join(", "),
+    barcode: patient.sample.barcode || "-",
+    collectedAt: patient.sample.collectedAt || "-",
+    status:
+      !forceProcessing && patient.status === "COMPLETED"
+        ? "COMPLETED"
+        : "PROCESSING",
+    sampleType: patient.sample.sampleType || "-",
+    container: patient.sample.container || "-",
+    priority: patient.order.priority,
+    collectedBy: patient.sample.collectedBy || "-",
+    doctor: patient.doctor.name,
+    department: patient.doctor.department,
+  };
 }
 
 export default function SampleCollectionTable() {
 const [tableRows, setTableRows] = useState<SampleData[]>(() =>
-  labPatients.map((patient) => ({
-    id: Number(patient.patient.patientId.replace("P", "")),
-
-    patientId: patient.patient.patientId,
-
-    patientName: patient.patient.name,
-
-    uhid: patient.patient.uhid,
-
-    tests: patient.requestedTests.join(", "),
-
-    barcode: patient.sample.barcode || "-",
-
-    collectedAt: patient.sample.collectedAt || "-",
-
-    status:
-  patient.status === "COMPLETED"
-    ? "COMPLETED"
-    : "PROCESSING",
-
-    sampleType: patient.sample.sampleType || "-",
-
-    container: patient.sample.container || "-",
-
-    priority: patient.order.priority,
-
-    collectedBy: patient.sample.collectedBy || "-",
-
-    doctor: patient.doctor.name,
-
-    department: patient.doctor.department,
-  }))
+  labPatients.map((patient) => mapLabPatientToRow(patient)),
 );
   const [search, setSearch] =
     useState("");
@@ -141,38 +125,10 @@ const [tableRows, setTableRows] = useState<SampleData[]>(() =>
 };
 
 const handleRefresh = () => {
-  setSearch("")
+  setSearch("");
   setTableRows(
-  labPatients.map((patient) => ({
-    id: Number(patient.patient.patientId.replace("P", "")),
-
-    patientId: patient.patient.patientId,
-
-    patientName: patient.patient.name,
-
-    uhid: patient.patient.uhid,
-
-    tests: patient.requestedTests.join(", "),
-
-    barcode: patient.sample.barcode || "-",
-
-    collectedAt: patient.sample.collectedAt || "-",
-
-    status: "PROCESSING",
-
-    sampleType: patient.sample.sampleType || "-",
-
-    container: patient.sample.container || "-",
-
-    priority: patient.order.priority,
-
-    collectedBy: patient.sample.collectedBy || "-",
-
-    doctor: patient.doctor.name,
-
-    department: patient.doctor.department,
-  }))
-);
+    labPatients.map((patient) => mapLabPatientToRow(patient, true)),
+  );
 };
     return (
     <>
@@ -250,7 +206,7 @@ const handleRefresh = () => {
             <TableBody>
               {filteredRows.map((row) => (
                 <TableRow
-                  key={row.id}
+                  key={row.orderId}
                   hover
                   sx={{
                     "& td": {

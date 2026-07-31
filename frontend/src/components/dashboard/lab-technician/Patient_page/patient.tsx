@@ -74,24 +74,18 @@ export default function PatientProfilePage({
 
       {tab === 3 && (
         <PatientReports
-          reports={[
-            {
-              reportId: "REP240001",
-              visitId: "VIS001",
-              testCount: 6,
-              verifiedBy: "Dr. Sharma",
-              verifiedDate: "2026-07-21T11:30:00Z",
-              status: "Verified",
-            },
-            {
-              reportId: "REP240002",
-              visitId: "VIS002",
-              testCount: 4,
-              verifiedBy: "Dr. Mehta",
-              verifiedDate: "2026-07-18T09:45:00Z",
-              status: "Verified",
-            },
-          ]}
+          reports={visits
+            .filter((visit) =>
+              ["VERIFIED", "COMPLETED"].includes(visit.status),
+            )
+            .map((visit, index) => ({
+              reportId: `RPT-${visit.order.orderId.replace(/\D/g, "").padStart(6, "0") || String(index + 1).padStart(6, "0")}`,
+              visitId: visit.visit.visitId,
+              testCount: visit.requestedTests.length,
+              verifiedBy: visit.doctor.name,
+              verifiedDate: visit.order.orderedAt,
+              status: visit.status === "COMPLETED" ? "Verified" : "Verified",
+            }))}
         />
       )}
 

@@ -60,7 +60,17 @@ export interface TrendChartData {
 
 }
 
-
+export interface TrendChartProps {
+  title: string;
+  subtitle?: string;
+  data: TrendChartData[];
+  color?: string;
+  trend?: string;
+  total?: number | string;
+  peakLabel?: string;
+  action?: ReactNode;
+  height?: number;
+}
 
 export interface StatusDistributionData {
 

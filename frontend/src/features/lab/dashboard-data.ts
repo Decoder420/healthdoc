@@ -37,6 +37,15 @@ export function getLabDashboardMetrics(list = patients) {
     (p) => p.patient.gender.toLowerCase() === "female"
   ).length;
 
+  const samplesCollected = list.filter((p) =>
+    ["COLLECTED", "IN_PROCESS", "VERIFIED", "COMPLETED"].includes(p.status),
+  ).length;
+  const inProcess = list.filter((p) => p.status === "IN_PROCESS").length;
+  const rejected = list.filter((p) => p.status === "REJECTED").length;
+  const reportsReleased = list.filter((p) =>
+    ["VERIFIED", "COMPLETED"].includes(p.status),
+  ).length;
+
   return {
     totalOrders: list.length,
     inQueue,
@@ -45,11 +54,11 @@ export function getLabDashboardMetrics(list = patients) {
     elective,
     male,
     female,
-    samplesCollected: Math.max(list.length - 2, 0),
-    inProcess: Math.min(5, list.length),
-    rejected: 3,
-    reportsReleased: 120,
-    criticalAlerts: emergency + 2,
+    samplesCollected,
+    inProcess,
+    rejected,
+    reportsReleased,
+    criticalAlerts: emergency + rejected,
   };
 }
 

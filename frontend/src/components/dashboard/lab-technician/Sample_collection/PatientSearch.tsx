@@ -22,17 +22,25 @@ export interface Patient {
   tests: string[];
 }
 
-const patientOptions: Patient[] = patients.map((p) => ({
-  id: p.patient.patientId,
-  uhid: p.patient.uhid,
-  patientName: p.patient.name,
-  age: p.patient.age,
-  gender: p.patient.gender,
-  mobile: p.patient.mobile,
-  doctor: p.doctor.name,
-  department: p.doctor.department,
-  tests: p.requestedTests,
-}));
+/** One option per patient — mock data can include multiple visits/orders. */
+const patientOptions: Patient[] = Array.from(
+  new Map(
+    patients.map((p) => [
+      p.patient.patientId,
+      {
+        id: p.patient.patientId,
+        uhid: p.patient.uhid,
+        patientName: p.patient.name,
+        age: p.patient.age,
+        gender: p.patient.gender,
+        mobile: p.patient.mobile,
+        doctor: p.doctor.name,
+        department: p.doctor.department,
+        tests: p.requestedTests,
+      } satisfies Patient,
+    ]),
+  ).values(),
+);
 
 interface PatientSearchProps {
   value: Patient | null;
