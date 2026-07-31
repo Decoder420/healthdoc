@@ -1,7 +1,7 @@
 export const supplierStats = [
   { label: "Total Suppliers", value: "96" },
   { label: "Active", value: "88" },
-  { label: "Inactive", value: "8", emphasis: "text-destructive" },
+  { label: "Inactive", value: "8", emphasis: "text-danger" },
   { label: "Purchase Orders", value: "124" },
   { label: "Pending Deliveries", value: "12", emphasis: "text-amber-600" },
   { label: "New This Month", value: "6" },

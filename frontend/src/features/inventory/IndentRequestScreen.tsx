@@ -64,8 +64,18 @@ export default function IndentRequestScreen() {
 
 
         <button
+          type="button"
           className="btn btn-primary"
           onClick={() => setOpenCreate(true)}
+          style={{
+            backgroundColor: "#001f54",
+            borderColor: "#001f54",
+            color: "#ffffff",
+            minHeight: 40,
+            padding: "0.625rem 1rem",
+            borderRadius: "0.5rem",
+            fontWeight: 600,
+          }}
         >
           Create Indent
         </button>

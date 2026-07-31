@@ -2,7 +2,9 @@ import { createTheme } from "@mui/material/styles";
 import { meridian } from "./meridian";
 
 export const muiTheme = createTheme({
-  modularCssLayers: true,
+  // Keep false: Emotion cache is custom (no enableCssLayer), and
+  // modularCssLayers leaves Dialog/Drawer/Modal paper unstyled.
+  modularCssLayers: false,
   palette: {
     mode: "light",
     primary: {
@@ -53,11 +55,49 @@ export const muiTheme = createTheme({
   },
   components: {
     MuiButton: {
+      defaultProps: {
+        disableElevation: true,
+      },
       styleOverrides: {
         root: {
           boxShadow: "none",
+          minHeight: 40,
+          paddingInline: "1rem",
+          borderRadius: 8,
+          fontWeight: 600,
+          textTransform: "none",
           "&:hover": {
             boxShadow: "none",
+          },
+        },
+        contained: {
+          backgroundColor: meridian.brandPrimary,
+          color: "#ffffff",
+          "&:hover": {
+            backgroundColor: meridian.brandDeep,
+          },
+        },
+        containedPrimary: {
+          backgroundColor: meridian.brandPrimary,
+          color: "#ffffff",
+          "&:hover": {
+            backgroundColor: meridian.brandDeep,
+          },
+        },
+        outlined: {
+          borderColor: meridian.border,
+          color: meridian.textPrimary,
+          backgroundColor: meridian.surface,
+          "&:hover": {
+            borderColor: meridian.brandPrimary,
+            backgroundColor: meridian.canvas,
+          },
+        },
+        text: {
+          color: meridian.textPrimary,
+          minWidth: 64,
+          "&:hover": {
+            backgroundColor: meridian.canvas,
           },
         },
       },

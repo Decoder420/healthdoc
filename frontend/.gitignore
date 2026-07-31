@@ -1,6 +1,5 @@
-<<<<<<< HEAD
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -19,6 +18,7 @@
 # production
 /build
 /dist
+/certificates
 
 # misc
 .DS_Store
@@ -32,21 +32,3 @@
 
 # typescript
 *.tsbuildinfo
-=======
-__pycache__/
-*.pyc
-.venv/
-venv/
-node_modules/
-.next/
-dist/
-out/
-.env
-.env.*
-!.env.example
-*.log
-.DS_Store
-postgres-data/
-mongo-data/
-minio-data/
->>>>>>> 7a4e73a7f74a0e55f1562a354d4aa04392ac12a7

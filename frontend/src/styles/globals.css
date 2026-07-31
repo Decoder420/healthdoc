@@ -97,16 +97,17 @@
   --color-warning-muted: var(--warning-muted);
   --color-danger: var(--danger);
   --color-danger-muted: var(--danger-muted);
+  --color-destructive: var(--danger);
   --color-info: var(--info);
   --color-info-muted: var(--info-muted);
 
-  --color-brand-teal: var(--color-brand-teal);
-  --color-brand-deep: var(--color-brand-deep);
-  --color-canvas: var(--color-canvas);
-  --color-surface: var(--color-surface);
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-muted: var(--color-text-muted);
+  --color-brand-teal: var(--primary);
+  --color-brand-deep: #001536;
+  --color-canvas: var(--background);
+  --color-surface: var(--card);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-muted: var(--muted-foreground);
 
   --font-sans: var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
@@ -192,6 +193,56 @@
     @apply w-full rounded-lg border border-dashed border-border bg-background px-3 py-2.5 font-sans text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-foreground hover:file:opacity-90;
   }
 
+  /* ── Inventory / dashboard cards ───────────────────── */
+  .table-card,
+  .chart-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 100%;
+    padding: 0;
+    background: transparent;
+  }
+
+  .table-header,
+  .chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .table-title,
+  .chart-title {
+    margin: 0;
+    font-family: var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--foreground);
+  }
+
+  .dashboard-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+  }
+
+  .chart-body {
+    width: 100%;
+    min-height: 220px;
+    flex: 1;
+  }
+
+  .quantity-text {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
   /* ── Button base ───────────────────────────────────── */
   .btn {
     display: inline-flex;
@@ -208,6 +259,8 @@
     line-height: 1.25rem;
     white-space: nowrap;
     text-decoration: none;
+    background-color: transparent;
+    color: var(--foreground);
     transition:
       background-color 0.15s ease,
       border-color 0.15s ease,
@@ -308,6 +361,31 @@
   .dark .link-primary {
     color: var(--info);
   }
+
+  /* Login / brand wordmark — solid fallback so text never disappears */
+  .brand-gradient {
+    background-image: linear-gradient(120deg, #001f54 0%, #0b4f8a 55%, #1d6fb8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: #001f54;
+  }
+
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .brand-gradient {
+      color: transparent;
+    }
+  }
+
+  .dark .brand-gradient {
+    background-image: linear-gradient(120deg, #93c5fd 0%, #e2e8f0 100%);
+    color: #e2e8f0;
+  }
+
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .dark .brand-gradient {
+      color: transparent;
+    }
+  }
 }
 
 @media print {
@@ -321,11 +399,17 @@
   }
 
   #opd-fee-receipt,
-  #opd-fee-receipt * {
+  #opd-fee-receipt *,
+  #lab-report,
+  #lab-report *,
+  #radiology-report,
+  #radiology-report * {
     visibility: visible;
   }
 
-  #opd-fee-receipt {
+  #opd-fee-receipt,
+  #lab-report,
+  #radiology-report {
     position: absolute;
     left: 0;
     top: 0;

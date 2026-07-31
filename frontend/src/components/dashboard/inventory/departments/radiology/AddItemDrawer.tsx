@@ -297,19 +297,11 @@ export default function AddItemDrawer({
           gap: 2,
         }}
       >
-        <Button
-          onClick={onClose}
-          variant="outlined"
-          className="btn btn-secondary"
-        >
+        <Button onClick={onClose} variant="outlined">
           Cancel
         </Button>
 
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          className="btn btn-primary"
-        >
+        <Button onClick={handleSave} variant="contained" color="primary">
           Save Item
         </Button>
       </DialogActions>

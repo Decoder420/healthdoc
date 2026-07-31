@@ -2,9 +2,12 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 const PORT = Number(process.env.PORT) || 3000;
-const USE_HTTPS = process.env.HEALTHDOC_HTTPS !== "0";
+// Default HTTP for reliable LAN access; use --https or HEALTHDOC_HTTPS=1 for camera.
+const USE_HTTPS =
+  process.env.HEALTHDOC_HTTPS === "1" || process.argv.includes("--https");
 const isDirectRun = process.argv[1]
   ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
   : false;
@@ -55,27 +58,43 @@ export function getLanIp() {
   return wifi[0]?.address ?? wired[0]?.address ?? other[0]?.address ?? null;
 }
 
+export function getAllLanIps() {
+  const ips = [];
+  for (const [name, entries] of Object.entries(os.networkInterfaces())) {
+    if (isVirtualAdapter(name)) continue;
+    for (const entry of entries ?? []) {
+      if (!isIpv4(entry) || !isPrivateLan(entry.address)) continue;
+      ips.push({ name, address: entry.address });
+    }
+  }
+  return ips;
+}
+
 export function printLanBanner(ip = getLanIp()) {
   const scheme = USE_HTTPS ? "https" : "http";
   const localhostUrl = `${scheme}://localhost:${PORT}`;
   const lanUrl = ip ? `${scheme}://${ip}:${PORT}` : null;
+  const extras = getAllLanIps().filter((item) => item.address !== ip);
 
   console.log("");
   console.log("=================================================");
-  console.log("  healthdoc");
+  console.log("  healthdoc frontend");
   console.log("=================================================");
   console.log(`  This PC:          ${localhostUrl}`);
   if (lanUrl) {
     console.log(`  LAN (other devices): ${lanUrl}`);
+  } else {
+    console.log("  LAN:                (no Wi-Fi/Ethernet IP found)");
   }
+  for (const item of extras.slice(0, 3)) {
+    console.log(`  Also:               ${scheme}://${item.address}:${PORT} (${item.name})`);
+  }
+  console.log("");
   if (USE_HTTPS) {
-    console.log("");
-    console.log("  HTTPS enabled — camera works on localhost and LAN.");
-    console.log("  On other devices, accept the certificate warning once.");
-  } else if (lanUrl) {
-    console.log("");
-    console.log("  Camera on LAN needs HTTPS (default is on).");
-    console.log(`  Or use ${localhostUrl} on this PC only.`);
+    console.log("  HTTPS on — accept the certificate warning on other devices.");
+  } else {
+    console.log("  HTTP mode (reliable CSS/login on LAN).");
+    console.log("  For camera on phones: HEALTHDOC_HTTPS=1 npm run dev");
   }
   console.log("=================================================");
   console.log("");
@@ -83,10 +102,8 @@ export function printLanBanner(ip = getLanIp()) {
   return ip;
 }
 
-function startDevServer() {
-  // 0.0.0.0 = listen on all interfaces (localhost + LAN IP)
-  const hostname = "0.0.0.0";
-  const nextCli = path.join(
+function resolveNextCli() {
+  const local = path.join(
     process.cwd(),
     "node_modules",
     "next",
@@ -94,6 +111,15 @@ function startDevServer() {
     "bin",
     "next",
   );
+  if (fs.existsSync(local)) return local;
+  throw new Error(
+    `Next.js CLI not found at ${local}. Run npm install in the frontend folder.`,
+  );
+}
+
+function startDevServer() {
+  const hostname = "0.0.0.0";
+  const nextCli = resolveNextCli();
 
   const devArgs = [
     nextCli,
@@ -115,6 +141,8 @@ function startDevServer() {
       HOSTNAME: hostname,
       PORT: String(PORT),
     },
+    // Avoid DEP0190 / arg concatenation issues on Windows
+    shell: false,
   });
 
   child.on("exit", (code, signal) => {

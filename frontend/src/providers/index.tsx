@@ -1,18 +1,21 @@
 "use client";
 
-import { AppProviders } from "@/components/providers";
-import { OpdQueueProvider } from "@/features/opd/context/opd-queue-context";
+import { ThemeProvider } from "./theme-provider";
+import { MuiProvider } from "./mui-provider";
 import { AuthProvider } from "./auth-provider";
 import { QueryProvider } from "./query-provider";
+import { OpdQueueProvider } from "@/features/opd/context/opd-queue-context";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AppProviders>
-      <QueryProvider>
-        <AuthProvider>
-          <OpdQueueProvider>{children}</OpdQueueProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </AppProviders>
+    <ThemeProvider>
+      <MuiProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <OpdQueueProvider>{children}</OpdQueueProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </MuiProvider>
+    </ThemeProvider>
   );
 }

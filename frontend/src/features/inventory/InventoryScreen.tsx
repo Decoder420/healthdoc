@@ -1,10 +1,10 @@
 "use client";
 
 import { useAuth } from "@/providers/auth-provider";
-import ExpiryTable from "@/components/dashboards/inventory/dashboard/ExpiryTable";
-import InventoryTrendChart from "@/components/dashboards/inventory/dashboard/InventoryTrendChart";
-import LowStockCategoryChart from "@/components/dashboards/inventory/dashboard/LowStockCard";
-import RecentInventoryTable from "@/components/dashboards/inventory/dashboard/RecentPurchasestable";
+import ExpiryTable from "@/components/dashboard/inventory/dashboard/ExpiryTable";
+import InventoryTrendChart from "@/components/dashboard/inventory/dashboard/InventoryTrendChart";
+import LowStockCategoryChart from "@/components/dashboard/inventory/dashboard/LowStockCard";
+import RecentInventoryTable from "@/components/dashboard/inventory/dashboard/RecentPurchasestable";
 import {
   INVENTORY_ALERT_SUMMARY,
   INVENTORY_DASHBOARD_KPIS,
@@ -42,11 +42,11 @@ export function InventoryScreen() {
         aria-label="Alert summary"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
-        <article className="surface-card border-l-4 border-l-destructive p-4">
+        <article className="surface-card border-l-4 border-l-danger p-4">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
             Critical low stock
           </p>
-          <p className="mt-1 text-xl font-semibold text-destructive">
+          <p className="mt-1 text-xl font-semibold text-danger">
             {INVENTORY_ALERT_SUMMARY.criticalLowStock}
           </p>
         </article>

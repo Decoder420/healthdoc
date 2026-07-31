@@ -252,7 +252,7 @@ export const departmentStats = [
   {
     label: "Inactive Departments",
     value: "1",
-    emphasis: "text-destructive",
+    emphasis: "text-danger",
   },
   {
     label: "Total Inventory Items",

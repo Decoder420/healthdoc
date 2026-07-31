@@ -72,11 +72,36 @@ const ROLE_OPTIONS = [
   { value: ROLES.INVENTORY_MANAGER, label: "Inventory Manager" },
 ];
 
+/** Inline fallbacks so login stays readable if remote CSS fails to load. */
+const cardStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "2rem",
+  borderRadius: "0.75rem",
+  border: "1px solid #d6dee8",
+  background: "#ffffff",
+  color: "#001f54",
+  boxShadow: "0 1px 2px rgba(0, 31, 84, 0.06)",
+};
+
+const selectStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  minHeight: "2.75rem",
+  marginTop: "0.375rem",
+  padding: "0.625rem 0.75rem",
+  borderRadius: "0.5rem",
+  border: "1px solid #d6dee8",
+  background: "#ffffff",
+  color: "#001f54",
+  fontSize: "0.875rem",
+};
+
 export function LoginScreen() {
   const [role, setRole] = useState<Role>(ROLES.RECEPTIONIST);
 
   function handleDevLogin() {
     const user = DEV_USERS[role];
+    if (!user) return;
     setAuthSession(user, "dev-token");
 
     const redirectTo = new URLSearchParams(window.location.search).get(
@@ -91,20 +116,37 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="surface-card p-8">
-      <p className="brand-gradient text-3xl font-bold tracking-tight">
+    <div className="surface-card p-8" style={cardStyle}>
+      <p
+        className="brand-gradient text-3xl font-bold tracking-tight"
+        style={{ color: "#001f54", fontSize: "1.875rem", fontWeight: 700 }}
+      >
         healthdoc
       </p>
-      <h1 className="mt-4 text-2xl font-semibold text-foreground">Sign in</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <h1
+        className="mt-4 text-2xl font-semibold text-foreground"
+        style={{ marginTop: "1rem", fontSize: "1.5rem", fontWeight: 600 }}
+      >
+        Sign in
+      </h1>
+      <p
+        className="mt-2 text-sm text-muted-foreground"
+        style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#4a6282" }}
+      >
         Hospital Information Management System
       </p>
 
-      <div className="mt-6 space-y-4">
-        <label className="block space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Dev role</span>
+      <div className="mt-6 space-y-4" style={{ marginTop: "1.5rem" }}>
+        <label className="block space-y-1.5" style={{ display: "block" }}>
+          <span
+            className="text-sm font-medium text-foreground"
+            style={{ fontSize: "0.875rem", fontWeight: 600 }}
+          >
+            Dev role
+          </span>
           <select
             className="file-input cursor-pointer appearance-auto"
+            style={selectStyle}
             value={role}
             onChange={(event) => setRole(event.target.value as Role)}
           >
@@ -120,9 +162,12 @@ export function LoginScreen() {
         </Button>
       </div>
 
-      <p className="mt-4 text-xs text-muted-foreground">
+      <p
+        className="mt-4 text-xs text-muted-foreground"
+        style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#4a6282" }}
+      >
         No account?{" "}
-        <Link href="/register" className="link-primary">
+        <Link href="/register" className="link-primary" style={{ color: "#001f54" }}>
           Register
         </Link>
       </p>

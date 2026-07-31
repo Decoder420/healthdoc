@@ -2,6 +2,7 @@
 
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
+import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider as MuiThemeProvider } from "@mui/material/styles";
 import { useServerInsertedHTML } from "next/navigation";
 import { useState } from "react";
@@ -54,6 +55,7 @@ export function MuiProvider({ children }: { children: React.ReactNode }) {
   return (
     <CacheProvider value={cache}>
       <MuiThemeProvider theme={resolvedTheme === "dark" ? muiDarkTheme : muiTheme}>
+        <CssBaseline />
         {children}
       </MuiThemeProvider>
     </CacheProvider>

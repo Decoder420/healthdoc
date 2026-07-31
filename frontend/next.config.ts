@@ -1,8 +1,36 @@
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
+
+/** Every local IPv4 + localhost so LAN devices can load /_next CSS/JS in dev. */
+function getAllowedDevOrigins(): string[] {
+  const origins = new Set<string>([
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "*.localhost",
+    "*.local",
+  ]);
+
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      const family = String(entry.family);
+      if ((family === "IPv4" || family === "4") && !entry.internal) {
+        origins.add(entry.address);
+      }
+    }
+  }
+
+  // Broad private-network patterns (Next 16 cross-origin /_next guard)
+  origins.add("*.*.*.*");
+  origins.add("*.*.*");
+  origins.add("*.*");
+
+  return [...origins];
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -11,15 +39,7 @@ const nextConfig: NextConfig = {
     root: frontendRoot,
   },
   outputFileTracingRoot: frontendRoot,
-  // Allow every private/public IPv4 host to load Next.js HMR/dev assets
-  allowedDevOrigins: [
-    "*.*.*.*",
-    "*.*.*",
-    "*.*",
-    "localhost",
-    "*.localhost",
-    "127.0.0.1",
-  ],
+  allowedDevOrigins: getAllowedDevOrigins(),
   async headers() {
     return [
       {

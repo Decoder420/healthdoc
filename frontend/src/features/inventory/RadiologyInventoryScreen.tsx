@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Header from "@/components/dashboards/inventory/departments/radiology/Header";
-import DashboardCards from "@/components/dashboards/inventory/departments/radiology/DashboardCards";
-import FilmStockChart from "@/components/dashboards/inventory/departments/radiology/FilmStockChart";
-import MachineStatus from "@/components/dashboards/inventory/departments/radiology/Machinestatus";
-import ContrastChart from "@/components/dashboards/inventory/departments/radiology/ContrastChart";
-import ConsumableStatus from "@/components/dashboards/inventory/departments/radiology/ConsumableStatus";
-import RecentInventoryTable from "@/components/dashboards/inventory/departments/radiology/RecentInventoryTable";
-import MachineAvailabilityTable from "@/components/dashboards/inventory/departments/radiology/MachineAvailabilityTable";
-import MachineMaintenanceTable from "@/components/dashboards/inventory/departments/radiology/MachineMaintenanceTable";
-import TechnicianAssignmentTable from "@/components/dashboards/inventory/departments/radiology/TechnicianAssignmentTable";
-import LowStockAlert from "@/components/dashboards/inventory/departments/radiology/LowStockAlert";
-import ExpiringItems from "@/components/dashboards/inventory/departments/radiology/ExpiringItems";
-import PurchaseOrders from "@/components/dashboards/inventory/departments/radiology/PurchaseOrders";
-import VendorPerformance from "@/components/dashboards/inventory/departments/radiology/VendorPerformance";
+import Header from "@/components/dashboard/inventory/departments/radiology/Header";
+import DashboardCards from "@/components/dashboard/inventory/departments/radiology/DashboardCards";
+import FilmStockChart from "@/components/dashboard/inventory/departments/radiology/FilmStockChart";
+import MachineStatus from "@/components/dashboard/inventory/departments/radiology/Machinestatus";
+import ContrastChart from "@/components/dashboard/inventory/departments/radiology/ContrastChart";
+import ConsumableStatus from "@/components/dashboard/inventory/departments/radiology/ConsumableStatus";
+import RecentInventoryTable from "@/components/dashboard/inventory/departments/radiology/RecentInventoryTable";
+import MachineAvailabilityTable from "@/components/dashboard/inventory/departments/radiology/MachineAvailabilityTable";
+import MachineMaintenanceTable from "@/components/dashboard/inventory/departments/radiology/MachineMaintenanceTable";
+import TechnicianAssignmentTable from "@/components/dashboard/inventory/departments/radiology/TechnicianAssignmentTable";
+import LowStockAlert from "@/components/dashboard/inventory/departments/radiology/LowStockAlert";
+import ExpiringItems from "@/components/dashboard/inventory/departments/radiology/ExpiringItems";
+import PurchaseOrders from "@/components/dashboard/inventory/departments/radiology/PurchaseOrders";
+import VendorPerformance from "@/components/dashboard/inventory/departments/radiology/VendorPerformance";
 import type { InventoryItem } from "@/types/inventory";
 import { INITIAL_RADIOLOGY_INVENTORY } from "@/features/inventory/radiology-data";
 

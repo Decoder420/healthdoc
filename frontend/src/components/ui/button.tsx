@@ -36,12 +36,29 @@ export function Button({
   size = "default",
   className,
   type = "button",
+  style,
   ...props
 }: ButtonProps) {
+  const fallbackStyle: React.CSSProperties =
+    variant === "primary"
+      ? {
+          backgroundColor: "#001f54",
+          borderColor: "#001f54",
+          color: "#ffffff",
+        }
+      : variant === "secondary" || variant === "outline"
+        ? {
+            backgroundColor: "#ffffff",
+            borderColor: "#d6dee8",
+            color: "#001f54",
+          }
+        : {};
+
   return (
     <button
       type={type}
       className={cn(variantClasses[variant], sizeClasses[size], className)}
+      style={{ ...fallbackStyle, ...style }}
       {...props}
     />
   );

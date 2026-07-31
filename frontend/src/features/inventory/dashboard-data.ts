@@ -235,7 +235,7 @@ export const INVENTORY_DASHBOARD_KPIS: DashboardKpi[] = [
   {
     label: "Low Stock",
     value: String(lowStockTotal),
-    emphasis: "text-destructive",
+    emphasis: "text-danger",
   },
   { label: "Suppliers", value: "128" },
   { label: "Open Orders", value: "86" },
