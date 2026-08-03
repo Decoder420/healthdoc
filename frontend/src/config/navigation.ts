@@ -42,11 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/lab/pathology/verification",
     roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
   },
-  {
-    label: "Settings",
-    href: "/lab/pathology/settings",
-    roles: [ROLES.LAB, ROLES.LAB_TECHNICIAN],
-  },
+
 
   // Radiology
   {

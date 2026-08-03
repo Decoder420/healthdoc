@@ -39,11 +39,9 @@ const DetailItem = ({
   </Box>
 );
 
-
 export default function PatientDetails({
   patient,
 }: PatientDetailsProps) {
-
   if (!patient) {
     return (
       <Paper
@@ -61,7 +59,6 @@ export default function PatientDetails({
     );
   }
 
-
   return (
     <Paper
       variant="outlined"
@@ -70,7 +67,6 @@ export default function PatientDetails({
         borderRadius: 3,
       }}
     >
-
       <Typography
         variant="h6"
         fontWeight={600}
@@ -78,7 +74,6 @@ export default function PatientDetails({
       >
         Patient Information
       </Typography>
-
 
       <Box
         sx={{
@@ -90,44 +85,41 @@ export default function PatientDetails({
           gap: 3,
         }}
       >
+        <DetailItem
+          label="Order ID"
+          value={patient.id}
+        />
 
         <DetailItem
           label="Patient Name"
           value={patient.patientName}
         />
 
-
         <DetailItem
           label="UHID"
           value={patient.uhid}
         />
-
 
         <DetailItem
           label="Age / Gender"
           value={`${patient.age} Years / ${patient.gender}`}
         />
 
-
         <DetailItem
           label="Mobile"
           value={patient.mobile}
         />
-
 
         <DetailItem
           label="Doctor"
           value={patient.doctor}
         />
 
-
         <DetailItem
           label="Department"
           value={patient.department}
         />
-
       </Box>
-
     </Paper>
   );
 }

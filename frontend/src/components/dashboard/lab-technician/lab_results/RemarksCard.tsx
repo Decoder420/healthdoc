@@ -8,27 +8,30 @@ import {
   Typography,
 } from "@mui/material";
 
-interface Props {
+export type ReportData = {
   interpretation: string;
   remarks: string;
   recommendation: string;
+};
 
+interface Props {
+  report: ReportData;
   remarkError?: string;
-
-  onInterpretationChange: (value: string) => void;
-  onRemarksChange: (value: string) => void;
-  onRecommendationChange: (value: string) => void;
+  onChange: (
+    field: keyof ReportData,
+    value: string
+  ) => void;
 }
 
 export default function RemarksCard({
-  interpretation,
-  remarks,
-  recommendation,
+  report,
   remarkError = "",
-  onInterpretationChange,
-  onRemarksChange,
-  onRecommendationChange,
+  onChange,
 }: Props) {
+  const interpretationError = !report.interpretation.trim();
+  const remarksError =
+    Boolean(remarkError) || !report.remarks.trim();
+
   return (
     <Card
       sx={{
@@ -46,25 +49,30 @@ export default function RemarksCard({
         </Typography>
 
         <Stack spacing={3} mt={2}>
-          
+          {/* Interpretation - Required */}
           <TextField
             label="Interpretation"
             placeholder="Enter interpretation of the laboratory findings..."
             multiline
-            required
             rows={3}
             fullWidth
-            value={interpretation}
+            required
+            value={report.interpretation}
             onChange={(e) =>
-              onInterpretationChange(e.target.value)
+              onChange("interpretation", e.target.value)
+            }
+            error={interpretationError}
+            helperText={
+              interpretationError
+                ? "Interpretation is required."
+                : `${report.interpretation.length}/500`
             }
             inputProps={{
               maxLength: 500,
             }}
-            helperText={`${interpretation.length}/500`}
           />
 
-
+          {/* Remarks - Required */}
           <TextField
             label="Remarks"
             placeholder="Enter additional clinical or laboratory remarks..."
@@ -72,40 +80,38 @@ export default function RemarksCard({
             rows={4}
             fullWidth
             required
-            value={remarks}
+            value={report.remarks}
             onChange={(e) =>
-              onRemarksChange(e.target.value)
+              onChange("remarks", e.target.value)
             }
-            error={Boolean(remarkError)}
+            error={remarksError}
             helperText={
               remarkError ||
-              `${remarks.length}/1000`
+              (remarksError
+                ? "Remarks are required."
+                : `${report.remarks.length}/1000`)
             }
             inputProps={{
               maxLength: 1000,
             }}
           />
 
-
+          {/* Recommendation - Optional */}
           <TextField
             label="Recommendation"
             placeholder="Enter recommendations or follow-up advice..."
             multiline
-            required
             rows={3}
             fullWidth
-            value={recommendation}
+            value={report.recommendation}
             onChange={(e) =>
-              onRecommendationChange(
-                e.target.value
-              )
+              onChange("recommendation", e.target.value)
             }
+            helperText={`${report.recommendation.length}/500`}
             inputProps={{
               maxLength: 500,
             }}
-            helperText={`${recommendation.length}/500`}
           />
-
         </Stack>
       </CardContent>
     </Card>

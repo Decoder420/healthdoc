@@ -1,9 +1,10 @@
-type LabStatus = "QUEUE" | "COLLECTED" | "IN_PROCESS" | "VERIFIED" | "COMPLETED" | "REJECTED";
+type LabStatus = "QUEUE" | "COLLECTED" | "PROCESSING" | "VERIFIED" | "COMPLETED" | "REJECTED";
 type LabPriority = "elective" | "urgent" | "emergency";
 type VisitType = "OPD" | "IPD" | "Emergency";
 
 export type LabPatientOrder = {
   status: LabStatus;
+
   patient: {
     patientId: string;
     uhid: string;
@@ -12,20 +13,24 @@ export type LabPatientOrder = {
     gender: "Male" | "Female" | "Other";
     mobile: string;
   };
+
   visit: {
     visitId: string;
     visitType: VisitType;
   };
+
   doctor: {
     doctorId: string;
     name: string;
     department: string;
   };
+
   order: {
     orderId: string;
     priority: LabPriority;
     orderedAt: string;
   };
+
   sample: {
     sampleId: string;
     barcode: string;
@@ -34,10 +39,38 @@ export type LabPatientOrder = {
     collectedAt: string;
     collectedBy: string;
   };
-  requestedTests: string[];
-  results: unknown[];
-};
 
+
+  // Tests ordered by doctor
+  requestedTests: string[];
+
+
+  // Result entry data
+  results: {
+    id: string;
+    testName: string;
+    result: string;
+    unit: string;
+    referenceRange: string;
+    flag: "Normal" | "High" | "Low" | "-";
+    remarks: string;
+    status:
+      | "Pending"
+      | "Processing"
+      | "Completed";
+  }[];
+
+
+  // Pathology report details
+  report: {
+    interpretation: string;
+    remarks: string;
+    recommendation: string;
+
+    verifiedBy?: string;
+    verifiedAt?: string;
+  };
+};
 const FIRST_NAMES = [
   "Anjali", "Rohit", "Meena", "Vikram", "Sneha", "Amit", "Priya", "Karan",
   "Neha", "Rahul", "Pooja", "Suresh", "Kavya", "Arjun", "Divya", "Manish",
@@ -77,12 +110,8 @@ const TEST_PANELS = [
 
 const STATUSES: LabStatus[] = [
   "QUEUE",
-  "QUEUE",
-  "QUEUE",
   "COLLECTED",
-  "COLLECTED",
-  "IN_PROCESS",
-  "IN_PROCESS",
+  "PROCESSING",
   "VERIFIED",
   "COMPLETED",
   "REJECTED",
@@ -90,14 +119,11 @@ const STATUSES: LabStatus[] = [
 
 const PRIORITIES: LabPriority[] = [
   "elective",
-  "elective",
-  "elective",
-  "urgent",
   "urgent",
   "emergency",
 ];
 
-const VISIT_TYPES: VisitType[] = ["OPD", "OPD", "IPD", "Emergency"];
+const VISIT_TYPES: VisitType[] = ["OPD", "IPD", "Emergency"];
 
 const SAMPLE_TYPES = [
   ["Whole Blood", "EDTA Tube"],
@@ -191,6 +217,12 @@ function makeOrder(
     sample: collected,
     requestedTests: [...tests],
     results: [],
+    report: {
+    interpretation: "",
+    remarks: "",
+    recommendation: "",
+  },
+
   };
 }
 

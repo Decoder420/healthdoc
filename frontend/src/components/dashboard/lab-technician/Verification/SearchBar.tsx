@@ -25,16 +25,21 @@ export default function SearchBar({
   return (
     <Box mb={3}>
       <Stack
-        direction="row"
+        direction={{
+          xs: "column",
+          sm: "row",
+        }}
         spacing={2}
         alignItems="center"
       >
         <TextField
           fullWidth
           size="small"
-          placeholder="Search by Patient Name / UHID / Barcode / Report No."
+          placeholder="Search by Order ID / Patient Name / UHID / Barcode / Report No."
           value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) =>
+            onSearchChange(e.target.value)
+          }
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">

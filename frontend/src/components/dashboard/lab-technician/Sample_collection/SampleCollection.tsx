@@ -44,68 +44,30 @@ export default function SampleInformation({
 
 
   useEffect(() => {
+  const now = new Date();
 
-    const updateDateTime = () => {
+  setCurrentDate(
+    now.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  );
 
-      const now = new Date();
+  setCurrentTime(
+    now.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+  );
 
-
-      setCurrentDate(
-        now.toLocaleDateString(
-          "en-IN",
-          {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          }
-        )
-      );
-
-
-      setCurrentTime(
-        now.toLocaleTimeString(
-          "en-IN",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-          }
-        )
-      );
-
-
-
-      // store automatically in parent state
-      onChange({
-        ...value,
-        collectionDate:
-          now.toISOString().split("T")[0],
-
-        collectionTime:
-          now.toTimeString().slice(0,5),
-      });
-
-    };
-
-
-    updateDateTime();
-
-
-    const timer =
-      setInterval(
-        updateDateTime,
-        1000
-      );
-
-
-    return () =>
-      clearInterval(timer);
-
-
-  }, []);
-
-
+  onChange({
+    ...value,
+    collectionDate: now.toISOString().split("T")[0],
+    collectionTime: now.toTimeString().slice(0, 5),
+  });
+}, [])
 
 
 
@@ -369,6 +331,7 @@ export default function SampleInformation({
         <TextField
 
           label="Collected By"
+          required
 
           value={
             value.collectedBy

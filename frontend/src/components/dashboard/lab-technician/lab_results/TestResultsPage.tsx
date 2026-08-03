@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
-  Chip,
-  Stack,
   Alert,
+  Chip,
   Container,
   Snackbar,
+  Stack,
   Typography,
 } from "@mui/material";
+
 
 import SearchPatient from "@/components/dashboard/lab-technician/lab_results/SearchPatient";
 import PatientInfoCard from "@/components/dashboard/lab-technician/lab_results/PatientInfoCard";
@@ -18,144 +20,244 @@ import TestResultsTable from "@/components/dashboard/lab-technician/lab_results/
 import RemarksCard from "@/components/dashboard/lab-technician/lab_results/RemarksCard";
 import ActionButtons from "@/components/dashboard/lab-technician/lab_results/ActionButtons";
 
-import dummyPatients from "@/components/dashboard/lab-technician/lab_results/dummyData";
 
 import {
-  LabTest,
-  ResultEntryData,
-  PatientSearchOption,
-} from "@/components/dashboard/lab-technician/lab_results/types";
+  patients as labPatients,
+  LabPatientOrder,
+} from "@/lib/mock/lab_data";
+
+
+
+type LabResult =
+  LabPatientOrder["results"][number];
+
 
 
 export default function TestResultsPage() {
 
-  const [search, setSearch] = useState("");
+
+  const router = useRouter();
+
+  const searchParams =
+    useSearchParams();
 
 
-  // Only completed reports allowed
+  const orderId =
+    searchParams.get("orderId");
+
+
+
   const completedPatients =
-    dummyPatients.filter(
+    labPatients.filter(
       (item) =>
-        item.reportStatus?.toLowerCase() ===
-        "completed"
+        item.status === "COMPLETED"
     );
 
 
-  const patientOptions: PatientSearchOption[] =
-    completedPatients.map((item) => ({
-      patientId: item.patient.patientId,
-      name: item.patient.name,
-      uhid: item.patient.uhid,
-      barcode: item.sample.barcode,
-    }));
 
-
-  const [data, setData] =
-    useState<ResultEntryData | null>(
-      completedPatients.length
-        ? completedPatients[0]
-        : null
-    );
-
-
-  const [interpretation, setInterpretation] =
-    useState("");
-
-  const [remarks, setRemarks] =
-    useState("");
-
-  const [recommendation, setRecommendation] =
+  const [search,setSearch] =
     useState("");
 
 
-  const [remarkError, setRemarkError] =
-    useState("");
 
-
-  const [approving, setApproving] =
+  const [disableSearch,setDisableSearch] =
     useState(false);
 
 
 
-  const [snackbar, setSnackbar] =
+  const [data,setData] =
+    useState<LabPatientOrder | null>(
+      null
+    );
+
+
+
+  const [approving,setApproving] =
+    useState(false);
+
+
+  const [saving,setSaving] =
+    useState(false);
+
+
+  const [resetting,setResetting] =
+    useState(false);
+
+
+
+  const [remarkError,setRemarkError] =
+    useState("");
+
+
+
+  const [snackbar,setSnackbar] =
     useState({
-      open: false,
-      message: "",
+
+      open:false,
+
+      message:"",
+
       severity:
         "success" as
         | "success"
-        | "warning"
         | "error"
-        | "info",
+        | "warning",
+
     });
+
+
 
 
 
   const showMessage = (
-    message: string,
+    message:string,
     severity:
-      | "success"
-      | "warning"
-      | "error"
-      | "info" = "success"
+    | "success"
+    | "error"
+    | "warning" = "success"
   ) => {
 
+
     setSnackbar({
-      open: true,
+
+      open:true,
+
       message,
+
       severity,
+
     });
+
 
   };
 
 
 
 
-  const handleSearch = () => {
 
-    if (!search.trim()) {
+  useEffect(()=>{
 
-      showMessage(
-        "Enter UHID, Barcode or Patient Name.",
-        "warning"
+
+    if(orderId){
+
+
+      const patient =
+        completedPatients.find(
+          (item)=>
+            item.order.orderId === orderId
+        );
+
+
+
+      if(patient){
+
+
+        setData(patient);
+
+
+        setSearch(
+          patient.order.orderId
+        );
+
+
+        setDisableSearch(true);
+
+
+      }
+      else{
+
+
+        showMessage(
+          "Order not found",
+          "error"
+        );
+
+
+      }
+
+
+
+    }
+    else{
+
+
+      setData(
+        completedPatients[0] ?? null
       );
 
-      return;
+
     }
 
 
+  },[orderId]);
+
+
+
+
+
+
+
+  const patientOptions =
+    completedPatients;
+
+
+
+
+
+
+
+  const handleSearch = ()=>{
+
+
     const value =
-      search.toLowerCase();
+      search
+      .toLowerCase()
+      .trim();
 
 
 
     const patient =
-      completedPatients.find((item) => {
+      completedPatients.find(
+        (item)=>
 
-        return (
-          item.patient.uhid
-            .toLowerCase() === value ||
+          item.order.orderId
+          .toLowerCase()
+          .includes(value)
 
-          item.sample.barcode
-            .toLowerCase() === value ||
+          ||
 
           item.patient.name
-            .toLowerCase()
-            .includes(value)
-        );
+          .toLowerCase()
+          .includes(value)
 
-      });
+          ||
+
+          item.patient.uhid
+          .toLowerCase()
+          .includes(value)
+
+          ||
+
+          item.sample.barcode
+          .toLowerCase()
+          .includes(value)
+
+      );
 
 
 
-    if (!patient) {
+    if(!patient){
+
 
       showMessage(
-        "No completed patient found.",
+        "Completed patient not found",
         "error"
       );
 
+
       return;
+
+
     }
 
 
@@ -163,76 +265,65 @@ export default function TestResultsPage() {
     setData(patient);
 
 
-    setInterpretation(
-      patient.report.interpretation
-    );
-
-
-    setRemarks(
-      patient.report.remarks
-    );
-
-
-    setRecommendation(
-      patient.report.recommendation
-    );
-
-
-    setRemarkError("");
-
 
     showMessage(
-      "Completed patient loaded successfully."
+      "Patient loaded successfully"
     );
 
+
   };
+
+
 
 
 
 
 
   const handleTestChange = (
-    index: number,
-    field: keyof LabTest,
-    value: string
-  ) => {
 
-    if (!data) return;
+    index:number,
 
+    field:keyof LabResult,
 
-    setData((prev) => {
+    value:string
 
-      if (!prev) return prev;
+  )=>{
 
 
-      const updatedTests =
-        [...prev.tests];
+    setData(prev=>{
 
 
-      updatedTests[index] = {
-        ...updatedTests[index],
-        [field]: value,
+      if(!prev)
+        return prev;
+
+
+
+      const updated =
+        [...prev.results];
+
+
+
+      updated[index] = {
+
+        ...updated[index],
+
+        [field]:value,
+
       };
+
 
 
       return {
+
         ...prev,
-        tests: updatedTests,
+
+        results:updated,
+
       };
+
 
     });
 
-  };
-
-
-
-
-
-  const handleSaveDraft = () => {
-
-    showMessage(
-      "Draft saved successfully."
-    );
 
   };
 
@@ -240,22 +331,158 @@ export default function TestResultsPage() {
 
 
 
-  const validateRemarks = () => {
 
-    if (!remarks.trim()) {
 
-      setRemarkError(
-        "Pathologist remark is required."
+  const handleAddRow = ()=>{
+
+
+    setData(prev=>{
+
+
+      if(!prev)
+        return prev;
+
+
+
+      const newRow:LabResult = {
+
+
+        id:
+          `TEST-${Date.now()}`,
+
+
+        testName:"",
+
+
+        result:"",
+
+
+        unit:"",
+
+
+        referenceRange:"",
+
+
+        flag:"-",
+
+
+        remarks:"",
+
+
+        status:"Pending",
+
+
+      };
+
+
+
+      return {
+
+
+        ...prev,
+
+
+        results:[
+
+          ...prev.results,
+
+          newRow,
+
+        ],
+
+
+      };
+
+
+    });
+
+
+  };
+
+
+
+
+
+
+
+
+
+  const handleReportChange = (
+
+    field:
+    keyof LabPatientOrder["report"],
+
+    value:string
+
+  )=>{
+
+
+    setData(prev=>{
+
+
+      if(!prev)
+        return prev;
+
+
+
+      return {
+
+        ...prev,
+
+        report:{
+
+          ...prev.report,
+
+          [field]:value,
+
+        },
+
+      };
+
+
+    });
+
+
+
+    if(field==="remarks"){
+
+      setRemarkError("");
+
+    }
+
+
+  };
+
+
+
+
+
+
+
+
+
+  const handleSaveDraft = ()=>{
+
+
+    setSaving(true);
+
+
+
+    setTimeout(()=>{
+
+
+      setSaving(false);
+
+
+
+      showMessage(
+        "Draft saved successfully",
+        "success"
       );
 
-      return false;
 
-    }
+    },800);
 
-
-    setRemarkError("");
-
-    return true;
 
   };
 
@@ -263,48 +490,174 @@ export default function TestResultsPage() {
 
 
 
-  const handleApprove = () => {
-
-
-    if (!validateRemarks()) {
-      return;
-    }
-
-
-    setApproving(true);
 
 
 
-    setTimeout(() => {
+
+  const handleReset = ()=>{
 
 
-      setData((prev) => {
+    setResetting(true);
 
-        if (!prev) return prev;
+
+
+    setTimeout(()=>{
+
+
+      setData(prev=>{
+
+
+        if(!prev)
+          return prev;
+
 
 
         return {
 
           ...prev,
 
-          reportStatus: "Verified",
 
-          report: {
+          status:"COMPLETED",
+
+
+          results:
+
+            prev.results.map(test=>({
+
+              ...test,
+
+              result:"",
+
+              flag:"-",
+
+              remarks:"",
+
+              status:"Pending",
+
+            })),
+
+
+
+          report:{
 
             ...prev.report,
 
-            remarks,
+            interpretation:"",
+
+            remarks:"",
+
+            recommendation:"",
+
+            verifiedBy:undefined,
+
+            verifiedAt:undefined,
+
+          },
+
+
+        };
+
+
+      });
+
+
+
+      setRemarkError("");
+
+      setResetting(false);
+
+
+
+      showMessage(
+        "Report reset successfully",
+        "warning"
+      );
+
+
+    },500);
+
+
+
+  };
+
+
+
+
+
+
+
+
+
+  const handleApprove = ()=>{
+
+
+    if(
+      !data ||
+      !data.report.remarks.trim()
+    ){
+
+
+      setRemarkError(
+        "Pathologist remark is required"
+      );
+
+
+      return;
+
+
+    }
+
+
+
+    setApproving(true);
+
+
+
+    const verifiedOrderId =
+      data.order.orderId;
+
+
+
+    setTimeout(()=>{
+
+
+      setData(prev=>{
+
+
+        if(!prev)
+          return prev;
+
+
+
+        return {
+
+
+          ...prev,
+
+
+          status:"VERIFIED",
+
+
+          report:{
+
+
+            ...prev.report,
+
 
             verifiedBy:
               "Dr. Meena Kapoor",
 
+
             verifiedAt:
               new Date()
-                .toLocaleString(),
+              .toLocaleString(),
+
 
           },
 
+
         };
+
 
       });
 
@@ -315,12 +668,25 @@ export default function TestResultsPage() {
 
 
       showMessage(
-        "Report verified successfully.",
-        "success"
+        "Report verified successfully"
       );
 
 
-    },1500);
+
+      setTimeout(()=>{
+
+
+        router.push(
+          `/lab/pathology/verification`
+        );
+
+
+      },1000);
+
+
+
+    },1000);
+
 
 
   };
@@ -329,126 +695,20 @@ export default function TestResultsPage() {
 
 
 
-  const handleReset = () => {
-
-
-    const patient =
-      completedPatients[0];
-
-
-    if (!patient) {
-
-      showMessage(
-        "No completed patient available.",
-        "warning"
-      );
-
-      return;
-    }
-
-
-
-    setData(patient);
-
-
-    setInterpretation(
-      patient.report.interpretation
-    );
-
-
-    setRemarks(
-      patient.report.remarks
-    );
-
-
-    setRecommendation(
-      patient.report.recommendation
-    );
-
-
-    setRemarkError("");
-
-  };
 
 
 
 
+  if(!data){
 
-  const handleAddRow = () => {
-
-
-    if (!data) return;
-
-
-    setData((prev)=>{
-
-      if(!prev) return prev;
-
-
-      return {
-
-        ...prev,
-
-        tests:[
-
-          ...prev.tests,
-
-          {
-
-            id:
-              `TEST-${Date.now()}`,
-
-            testName:"",
-
-            category:"",
-
-            result:"",
-
-            unit:"",
-
-            referenceRange:"",
-
-            flag:"-",
-
-            remarks:"",
-
-            status:"Pending",
-
-          }
-
-        ]
-
-      };
-
-    });
-
-
-    showMessage(
-      "New test row added."
-    );
-
-  };
-
-
-
-
-
-  // No completed patient available
-  if (!data) {
 
     return (
 
-      <Container
-        maxWidth="xl"
-        sx={{
-          py:4,
-        }}
-      >
+      <Container sx={{py:4}}>
 
         <Alert severity="warning">
 
-          No completed pathology reports
-          available for result entry.
+          No completed reports available.
 
         </Alert>
 
@@ -456,7 +716,10 @@ export default function TestResultsPage() {
 
     );
 
+
   }
+
+
 
 
 
@@ -464,169 +727,163 @@ export default function TestResultsPage() {
 
   return (
 
-    <>
+    <Container
+      maxWidth="xl"
+      sx={{
+        py:4,
+      }}
+    >
 
-      <Container
-        maxWidth="xl"
-        sx={{
-          py:4,
-        }}
+
+      <Stack
+
+        direction="row"
+
+        justifyContent="space-between"
+
+        alignItems="center"
+
+        mb={4}
+
       >
 
 
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={4}
-        >
+        <div>
 
-          <div>
+          <Typography
+            variant="h4"
+            fontWeight={700}
+          >
 
-            <Typography
-              variant="h4"
-              fontWeight={700}
-            >
-              Pathology Test Results
-            </Typography>
+            Pathology Test Results
 
+          </Typography>
 
-            <Typography
-              variant="body1"
-              color="text.secondary"
-            >
-              Search completed patients,
-              enter results and approve reports.
-            </Typography>
 
+          <Typography
+            color="text.secondary"
+          >
 
-          </div>
+            Enter results and verify reports.
 
+          </Typography>
 
 
-          <Chip
+        </div>
 
-            label={data.reportStatus}
 
-            color={
-              data.reportStatus === "Verified"
-                ? "success"
-                : "warning"
-            }
 
-            sx={{
-              fontWeight:700,
-            }}
 
-          />
+        <Chip
 
+          label={data.status}
 
-        </Stack>
+          color={
+            data.status==="VERIFIED"
+            ||
+            data.status==="COMPLETED"
 
+            ? "success"
 
-
-
-
-        <SearchPatient
-
-          search={search}
-
-          patients={patientOptions}
-
-          onSearchChange={setSearch}
-
-          onSearch={handleSearch}
-
-        />
-
-
-
-
-
-        <PatientInfoCard
-
-          patient={data.patient}
-
-          doctor={data.doctor}
-
-          visit={data.visit}
-
-        />
-
-
-
-
-
-        <SampleInfoCard
-
-          sample={data.sample}
-
-        />
-
-
-
-
-
-        <TestResultsTable
-
-          tests={data.tests}
-
-          onChange={handleTestChange}
-
-          onAddRow={handleAddRow}
-
-        />
-
-
-
-
-
-        <RemarksCard
-
-          interpretation={interpretation}
-
-          remarks={remarks}
-
-          recommendation={recommendation}
-
-          remarkError={remarkError}
-
-          onInterpretationChange={
-            setInterpretation
-          }
-
-          onRemarksChange={(value)=>{
-
-            setRemarks(value);
-
-            setRemarkError("");
-
-          }}
-
-          onRecommendationChange={
-            setRecommendation
+            : "warning"
           }
 
         />
 
 
+      </Stack>
 
 
 
-        <ActionButtons
-
-          onSaveDraft={handleSaveDraft}
-
-          onApprove={handleApprove}
-
-          onReset={handleReset}
-
-          approving={approving}
-
-        />
 
 
-      </Container>
+      <SearchPatient
+
+        search={search}
+
+        patients={patientOptions}
+
+        onSearchChange={setSearch}
+
+        onSearch={handleSearch}
+
+        disabled={disableSearch}
+
+      />
+
+
+
+
+
+      <PatientInfoCard
+
+        patient={data.patient}
+
+        doctor={data.doctor}
+
+        visit={data.visit}
+
+      />
+
+
+
+
+
+      <SampleInfoCard
+
+        sample={data.sample}
+
+        status={data.status}
+
+      />
+
+
+
+
+
+      <TestResultsTable
+
+        tests={data.results}
+
+        onChange={handleTestChange}
+
+        onAddRow={handleAddRow}
+
+      />
+
+
+
+
+
+      <RemarksCard
+
+        report={data.report}
+
+        remarkError={remarkError}
+
+        onChange={handleReportChange}
+
+      />
+
+
+
+
+
+      <ActionButtons
+
+        onSaveDraft={handleSaveDraft}
+
+        onApprove={handleApprove}
+
+        onReset={handleReset}
+
+        approving={approving}
+
+        saving={saving}
+
+        resetting={resetting}
+
+      />
 
 
 
@@ -638,32 +895,23 @@ export default function TestResultsPage() {
 
         autoHideDuration={3000}
 
-        anchorOrigin={{
-          vertical:"top",
-          horizontal:"right",
-        }}
+        onClose={()=>
 
-        onClose={()=>{
 
-          setSnackbar((prev)=>({
+          setSnackbar(prev=>({
 
             ...prev,
 
             open:false,
 
-          }));
+          }))
 
-        }}
+
+        }
 
       >
 
-        <Alert
-
-          severity={snackbar.severity}
-
-          variant="filled"
-
-        >
+        <Alert severity={snackbar.severity}>
 
           {snackbar.message}
 
@@ -673,7 +921,8 @@ export default function TestResultsPage() {
       </Snackbar>
 
 
-    </>
+
+    </Container>
 
   );
 
