@@ -12,6 +12,15 @@ class CheckedEnum(str, Enum):
         vals = ", ".join(f"'{v.value}'" for v in cls)
         return f"{column} IN ({vals})"
 
+    @classmethod
+    def values(cls) -> set[str]:
+        """The raw values, for validation and tests.
+
+        Use this instead of hardcoding a list anywhere — a literal list is how the
+        doc and the code drift apart, which is what spec_check.py exists to catch.
+        """
+        return {v.value for v in cls}
+
 
 class Sex(CheckedEnum):
     MALE = "male"
@@ -456,3 +465,28 @@ class ProcedureSetting(CheckedEnum):
 class FulfilmentMode(CheckedEnum):
     INTERNAL = "internal"
     EXTERNAL_REFERRAL = "external_referral"
+
+class AllergenType(CheckedEnum):
+    DRUG = "drug"
+    FOOD = "food"
+    ENVIRONMENTAL = "environmental"
+    OTHER = "other"
+
+
+class AllergySeverity(CheckedEnum):
+    """Reaction severity as observed. `anaphylaxis` is deliberately separate from
+    `severe` — it drives a hard block at prescribing, not a warning."""
+    MILD = "mild"
+    MODERATE = "moderate"
+    SEVERE = "severe"
+    ANAPHYLAXIS = "anaphylaxis"
+
+
+class AllergyStatus(CheckedEnum):
+    """Allergy records are corrected, never deleted — a removed allergy that was
+    real is the failure mode this enum exists to prevent. `refuted` = clinically
+    ruled out; `entered_in_error` = wrong patient/typo."""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    REFUTED = "refuted"
+    ENTERED_IN_ERROR = "entered_in_error"
