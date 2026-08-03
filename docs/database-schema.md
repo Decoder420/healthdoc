@@ -27,6 +27,7 @@ this document".
 | v2 | 2026-07-17 | ADR 0002: full departmental billing replaces registration-payment model; users table extended |
 | v2.1 | 2026-07-17 | Review hardening: mobile varchar(20), enum widths varchar(30), FK + audit indexes, single versioning pattern, 0018 retired |
 | v2.2 | 2026-07-17 | Security pass: crypto key_version on patient_identifiers, PII rules for notification payloads and error messages, page_size cap, retention notes; synced with architecture.html |
+| v3.14 | 2026-07-28 | **Clinical & financial gaps found in review:** `allergies` table + ingredient-code matching rule + server-side prescribing gate (0032); `charge_master` with effective-dated and scheme tariffs, plus `UNIQUE (invoice_id, reference_type, reference_id)` to stop double-billing (0033); partial unique index enforcing one active admission per bed and a transfer destination on discharges (0034). Drug–drug interaction checking explicitly ruled out of scope pending a licensed database |
 | v3.13 | 2026-07-28 | **PR-review corrections (found reviewing #265):** `departments.code` unique per facility not globally (global unique makes multi-facility impossible); `queue_counters` rescoped to (department, business date) so two doctors in one department cannot both issue `MED-001` to the same display board; `initial_priority` on `queue_tokens`; partial unique on live `visit_id` (a double-click at the desk otherwise 500s that patient's consultation completion forever); enum column widths corrected to varchar(50) per the blanket rule |
 | v3.12 | 2026-07-23 | **Verification pass:** executable spec tests (10 passing) proving the timezone, race, invariant and concurrency findings; `scripts/spec_check.py` doc↔code drift checker added to CI; **restored §governance + user_account_requests/policies/outbox_events/idempotency_keys definitions silently dropped by an earlier edit**; fixed stale facility_modules block |
 | v3.11 | 2026-07-23 | **§4A reliability & safety contracts:** idempotency keys, optimistic concurrency (row_version/If-Match), Mongo dual-write via outbox, file-upload validation, visit auto-close, DPDP erasure position, public-display hardening, Keycloak SPOF mitigation, backup RPO/RTO + paper fallback |
@@ -138,6 +139,9 @@ do not merge out of order.**
 | 0029 | abac_policies | policies | B1 (W2-02) |
 | 0030 | abha_linking_token | ALTER patients: abha_linking_token_encrypted, abha_linking_key_version, abha_linked_at | B1 (W3-02) |
 | 0031 | outbox | outbox_events (+ seq_outbox) | B1 (W6-01) |
+| 0032 | allergies | allergies, ALTER inventory_items | B3 (B3-W?-01) |
+| 0033 | charge_master | charge_master, ALTER invoice_items | B7 (B7-W?-01) |
+| 0034 | ipd_bed_integrity | ALTER admissions, ALTER discharges | B4 (B4-W?-01) |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -1393,6 +1397,133 @@ Rules:
 - **BRIN on `created_at`/`accessed_at`** inside audit/access-log partitions — near-zero
   write cost, fast range scans; partition pruning handles month granularity, BRIN
   handles ranges within a partition.
+
+### 0032 — allergies (B3) — **patient safety, v3.14**
+
+Until this exists the prescribing screen has nothing structured to check against, and
+an allergy recorded as free text in a consultation note is invisible to the prescriber.
+This is the most common preventable medication harm in any hospital system; NABH
+requires it documented and ABDM/FHIR needs it as `AllergyIntolerance`.
+
+**allergies** `[Blame]` — corrected, never deleted (see `AllergyStatus`)
+```
+patient_id       UUID NOT NULL → patients
+allergen_type    varchar(50) NOT NULL             -- AllergenType enum
+substance_text   text NOT NULL                    -- ALWAYS populated, even when coded.
+                                                  -- Rural reality: the attendant says
+                                                  -- "penicillin injection" and that is
+                                                  -- the whole record. Never lose it.
+ingredient_code  varchar(50) NULL                 -- THE matchable key (see below)
+inventory_item_id UUID NULL → inventory_items     -- optional, only if a stocked item
+reaction         text NULL                        -- "rash", "swelling", "collapse"
+severity         varchar(50) NOT NULL             -- AllergySeverity enum
+status           varchar(50) NOT NULL DEFAULT 'active'   -- AllergyStatus enum
+onset_date       date NULL
+recorded_by      UUID NOT NULL → users
+verified_by      UUID NULL → users · verified_at timestamptz NULL
+row_version      int NOT NULL DEFAULT 1
+INDEX ix_allergies_patient_id_status (patient_id, status)
+```
+
+> **Matching rule — the part that makes this work or not.**
+> Matching an allergy on `inventory_item_id` is *useless*: a patient allergic to
+> penicillin must also trigger on amoxicillin, ampicillin and cloxacillin, which are
+> different rows in `inventory_items`. The check therefore matches on
+> **`ingredient_code`**, and `0032` also does
+> `ALTER TABLE inventory_items ADD COLUMN ingredient_code varchar(50) NULL` (WHO ATC
+> level-5, or a local ingredient list where ATC is unavailable), plus
+> `INDEX ix_inventory_items_ingredient_code`.
+> An allergy with `ingredient_code IS NULL` is **display-only** — it shows in the banner
+> but cannot block, and the UI must say so. Silently failing to match is the one outcome
+> worse than not having the feature.
+
+**Prescribing gate (contract, enforced server-side):**
+
+1. `GET /patients/{id}/allergies` is called when the **consultation opens**, not when
+   the prescription is written. The banner is persistent and always visible; a modal
+   shown at save time is dismissed reflexively and does not count as a check.
+2. `POST /prescriptions/{id}/items` matches the item's `ingredient_code` against the
+   patient's `active` allergies. On a hit: **`409 allergy_conflict`** with the allergy
+   row in the envelope. `severity = 'anaphylaxis'` cannot be overridden by any role.
+3. Any other severity may be overridden with `override_reason` (≥20 chars), which is
+   stored on `prescription_items.allergy_override_reason` and written to `audit_logs`
+   in the same transaction.
+4. **Drug–drug interaction checking is explicitly out of scope** and must not be faked.
+   It requires a licensed interaction database; a partial implementation that misses
+   interactions is more dangerous than none, because clinicians calibrate their trust to
+   what the system claims to do. Revisit as a paid integration, tracked separately.
+
+### 0033 — charge_master (B7) — **v3.14**
+
+`invoice_items.unit_price` is currently typed by whoever creates the line. That means
+two clerks charge different amounts for the same test, "what was the tariff on 12 March"
+is unanswerable, and PM-JAY rates — which are *mandated*, not suggested — cannot be
+enforced, making an overcharge a compliance breach rather than a pricing mistake.
+
+**charge_master** `[Blame]` — effective-dated; a price is never UPDATEd, a new row supersedes it
+```
+facility_id     UUID NOT NULL → facilities
+charge_code     varchar(30) NOT NULL             -- stable across price changes
+description     text NOT NULL
+charge_category varchar(50) NOT NULL             -- ChargeCategory enum (same as invoice_items)
+unit_price      numeric(12,2) NOT NULL CHECK (>= 0)
+scheme_code     varchar(30) NULL                 -- NULL = general tariff; 'PMJAY' = scheme rate
+effective_from  date NOT NULL · effective_to date NULL
+is_active       boolean NOT NULL DEFAULT true
+UNIQUE (facility_id, charge_code, scheme_code, effective_from)
+INDEX ix_charge_master_lookup (facility_id, charge_code, scheme_code, effective_from DESC)
+CHECK (effective_to IS NULL OR effective_to > effective_from)
+```
+
+Also in 0033: `ALTER TABLE invoice_items ADD COLUMN charge_master_id UUID NULL → charge_master`.
+
+**Accrual rules:**
+
+1. `unit_price` is **copied onto the invoice line at accrual time**, not joined at read
+   time. A tariff revision must never retroactively change an issued invoice — the
+   `trg_invoices_freeze` trigger already protects the totals, and this keeps the line
+   items consistent with them.
+2. **`UNIQUE (invoice_id, reference_type, reference_id)` on `invoice_items`.** Without
+   it, a lab result finalised twice bills twice, and nothing currently prevents that.
+   This single constraint is the difference between an accrual service that is safe to
+   retry and one that silently double-charges patients.
+3. Bed-day accrual is time-based, not event-driven: a nightly job charges one `ipd_stay`
+   line per completed bed-day using the **facility business date**
+   (`(now() AT TIME ZONE facilities.timezone)::date`), not UTC. The idempotency key is
+   `('admissions', admission_id, business_date)`.
+4. A charge with no matching `charge_master` row is a **`409 no_tariff`**, not a
+   zero-rupee line. Silent zero-rating is how revenue disappears.
+
+### 0034 — IPD bed integrity (B4) — **v3.14**
+
+**One active admission per bed** is currently left to the service layer, so a single bug
+double-books a bed — and the second patient's admission looks perfectly valid. Make it
+impossible in the database:
+
+```sql
+CREATE UNIQUE INDEX uq_admissions_active_bed
+  ON admissions (bed_id) WHERE status = 'admitted';
+```
+
+Same partial-unique pattern as `uq_pharmacy_dispenses_current`. One line, and the race
+stops existing rather than being handled.
+
+> **`beds.status` is a denormalised mirror of `admissions` and can drift from it** —
+> the same class of problem as `inventory_batches.quantity` vs `stock_ledger`. Treat
+> `admissions` as authoritative: `beds.status` is maintained in the same transaction, and
+> a reconciliation job flags any bed whose status disagrees with its active admission.
+
+**Transfer destination** — a `transferred` discharge currently records no destination,
+so a patient leaves the system with no forward reference. Also in 0034:
+
+```
+ALTER discharges ADD destination_facility_id   UUID NULL → facilities   -- in-network
+ALTER discharges ADD destination_facility_name text NULL                -- outside the network
+CHECK (discharge_type <> 'transferred'
+       OR destination_facility_id IS NOT NULL
+       OR destination_facility_name IS NOT NULL)
+```
+
 
 ## 4. API field contract (backend → frontend)
 
