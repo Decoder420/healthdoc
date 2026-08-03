@@ -18,7 +18,9 @@ import {
 export default function KPICards() {
   const stats = getRadiologyQueueStats();
   const scanned = appointmentQueue.filter((item) =>
-    ["Completed", "Verified", "Reporting"].includes(item.status),
+    ["Completed", "Verified", "Reporting", "Scan Started"].includes(
+      item.status,
+    ),
   ).length;
   const pendingVerification = appointmentQueue.filter(
     (item) => item.status === "Reporting",

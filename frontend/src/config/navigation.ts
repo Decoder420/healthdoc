@@ -89,6 +89,12 @@ export const NAV_ITEMS: NavItem[] = [
     roles: RADIOLOGY_ROLES,
     section: "Departments",
   },
+  {
+    label: "ECG",
+    href: "/radiology/ecg",
+    roles: RADIOLOGY_ROLES,
+    section: "Departments",
+  },
 
   {
     label: "Home",

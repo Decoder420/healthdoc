@@ -148,11 +148,13 @@ export const appointmentQueue: AppointmentQueue[] = heavyQueue
     status:
       item.status === "Queue"
         ? "Waiting"
-        : item.status === "In Progress"
+        : item.status === "Scan Started"
           ? "In Progress"
           : item.status === "Reporting"
             ? "Scheduled"
-            : "Completed",
+            : item.status === "No Show" || item.status === "Removed"
+              ? "Cancelled"
+              : "Completed",
   }));
 
 export const recentReports: RecentReport[] = heavyQueue

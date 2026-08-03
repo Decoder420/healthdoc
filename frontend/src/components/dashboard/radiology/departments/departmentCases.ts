@@ -26,6 +26,16 @@ const NAMES = [
   "Sneha Kapoor",
   "Rahul Das",
   "Kavya Nair",
+  "Arjun Malhotra",
+  "Meera Krishnan",
+  "Farhan Ali",
+  "Pooja Deshmukh",
+  "Nikhil Banerjee",
+  "Ishita Bose",
+  "Aditya Rao",
+  "Shreya Menon",
+  "Harsh Vardhan",
+  "Tanvi Shah",
 ];
 
 const DOCTORS = [
@@ -35,19 +45,101 @@ const DOCTORS = [
   "Dr. Nair",
   "Dr. Gupta",
   "Dr. Iyer",
+  "Dr. Banerjee",
+  "Dr. Krishnan",
 ];
 
 const STUDIES: Record<ModalityKey, string[]> = {
-  CT: ["CT Brain", "CT Chest", "CT Abdomen", "CT KUB", "CT Angiography"],
-  MRI: ["MRI Brain", "MRI Spine", "MRI Knee", "MRI Shoulder", "MRI Pelvis"],
-  XRAY: ["Chest PA", "Knee AP/Lat", "Spine LS", "PNS", "Hand AP"],
-  USG: ["USG Abdomen", "USG Pelvis", "Obstetric USG", "Thyroid USG", "Doppler"],
-  MAMMOGRAPHY: ["Bilateral Mammogram", "Screening Mammo", "Diagnostic Mammo"],
-  ECG: ["12-Lead ECG", "Stress ECG", "Rhythm Strip"],
+  CT: [
+    "CT Brain",
+    "CT Chest",
+    "CT Abdomen",
+    "CT KUB",
+    "CT Angiography",
+    "CT PNS",
+    "CT Cervical Spine",
+    "CT Pulmonary Angiogram",
+  ],
+  MRI: [
+    "MRI Brain",
+    "MRI Spine",
+    "MRI Knee",
+    "MRI Shoulder",
+    "MRI Pelvis",
+    "MRI Lumbar Spine",
+    "MRCP",
+    "MRI Breast",
+  ],
+  XRAY: [
+    "Chest PA",
+    "Knee AP/Lat",
+    "Spine LS",
+    "PNS",
+    "Hand AP",
+    "Skull AP/Lat",
+    "Pelvis AP",
+    "Shoulder AP",
+  ],
+  USG: [
+    "USG Abdomen",
+    "USG Pelvis",
+    "Obstetric USG",
+    "Thyroid USG",
+    "Doppler",
+    "Breast USG",
+    "Carotid Doppler",
+    "Scrotal USG",
+  ],
+  MAMMOGRAPHY: [
+    "Bilateral Mammogram",
+    "Screening Mammo",
+    "Diagnostic Mammo",
+    "Mammo + Tomosynthesis",
+    "Unilateral Mammogram",
+  ],
+  ECG: [
+    "12-Lead ECG",
+    "Stress ECG",
+    "Rhythm Strip",
+    "Holter Review",
+    "Pre-Op ECG",
+  ],
 };
 
-const STATUSES: RadiologyStatus[] = ["PROCESSING", "VERIFIED"];
-const PRIORITIES: Priority[] = ["Routine", "Urgent", "STAT"];
+const STATUSES: RadiologyStatus[] = [
+  "PROCESSING",
+  "PROCESSING",
+  "VERIFIED",
+  "VERIFIED",
+  "VERIFIED",
+];
+
+const PRIORITIES: Priority[] = [
+  "Routine",
+  "Routine",
+  "Urgent",
+  "STAT",
+  "Routine",
+];
+
+function todayPlus(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Spread dates around "today" so the department default date filter
+ * (today) always has rows, while older/newer dates remain filterable.
+ */
+function studyDateForIndex(index: number): string {
+  const bucket = index % 7;
+  if (bucket <= 2) return todayPlus(0);
+  if (bucket === 3) return todayPlus(-1);
+  if (bucket === 4) return todayPlus(-2);
+  if (bucket === 5) return todayPlus(-3);
+  return todayPlus(1);
+}
 
 function buildCases(modality: ModalityKey, count: number): RadiologyCase[] {
   const prefix =
@@ -59,7 +151,6 @@ function buildCases(modality: ModalityKey, count: number): RadiologyCase[] {
 
   return Array.from({ length: count }, (_, index) => {
     const idNum = index + 1;
-    const day = 20 + (index % 10);
     return {
       id: `${prefix}${String(idNum).padStart(3, "0")}`,
       patientName: NAMES[index % NAMES.length],
@@ -70,17 +161,17 @@ function buildCases(modality: ModalityKey, count: number): RadiologyCase[] {
       doctor: DOCTORS[index % DOCTORS.length],
       priority: PRIORITIES[index % PRIORITIES.length],
       status: STATUSES[index % STATUSES.length],
-      studyDate: `2026-07-${String(day).padStart(2, "0")}`,
+      studyDate: studyDateForIndex(index),
     };
   });
 }
 
-export const CT_CASES = buildCases("CT", 48);
-export const MRI_CASES = buildCases("MRI", 48);
-export const XRAY_CASES = buildCases("XRAY", 48);
-export const USG_CASES = buildCases("USG", 48);
-export const MAMMO_CASES = buildCases("MAMMOGRAPHY", 36);
-export const ECG_CASES = buildCases("ECG", 36);
+export const CT_CASES = buildCases("CT", 60);
+export const MRI_CASES = buildCases("MRI", 60);
+export const XRAY_CASES = buildCases("XRAY", 60);
+export const USG_CASES = buildCases("USG", 60);
+export const MAMMO_CASES = buildCases("MAMMOGRAPHY", 48);
+export const ECG_CASES = buildCases("ECG", 48);
 
 export function getDepartmentStats(rows: RadiologyCase[]) {
   const processing = rows.filter((r) => r.status === "PROCESSING").length;

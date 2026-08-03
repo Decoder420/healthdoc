@@ -1,3 +1,12 @@
+export type RadiologyQueueStatus =
+  | "Queue"
+  | "Scan Started"
+  | "Completed"
+  | "No Show"
+  | "Removed"
+  | "Reporting"
+  | "Verified";
+
 export type RadiologyQueueItem = {
   id: number;
   token: string;
@@ -11,7 +20,7 @@ export type RadiologyQueueItem = {
   appointmentDate: string;
   appointmentTime: string;
   priority: "Emergency" | "Urgent" | "Routine";
-  status: "Queue" | "In Progress" | "Completed" | "Reporting" | "Verified";
+  status: RadiologyQueueStatus;
 };
 
 const NAMES = [
@@ -27,6 +36,18 @@ const NAMES = [
   "Kavya Nair",
   "Suresh Reddy",
   "Divya Iyer",
+  "Arjun Malhotra",
+  "Meera Krishnan",
+  "Farhan Ali",
+  "Pooja Deshmukh",
+  "Nikhil Banerjee",
+  "Ishita Bose",
+  "Aditya Rao",
+  "Shreya Menon",
+  "Harsh Vardhan",
+  "Tanvi Shah",
+  "Manish Pillai",
+  "Ritika Jain",
 ];
 
 const RADIOLOGISTS = [
@@ -36,29 +57,90 @@ const RADIOLOGISTS = [
   "Dr. Nair",
   "Dr. Kapoor",
   "Dr. Iyer",
+  "Dr. Banerjee",
+  "Dr. Krishnan",
 ];
 
 const PROCEDURES: Record<RadiologyQueueItem["modality"], string[]> = {
-  CT: ["CT Brain", "CT Chest", "CT Abdomen", "CT KUB", "CT Angiography"],
-  MRI: ["MRI Brain", "MRI Spine", "MRI Knee", "MRI Shoulder", "MRI Pelvis"],
-  "X-Ray": ["Chest PA View", "Knee AP/Lat", "Spine LS", "PNS View", "Hand AP"],
-  USG: ["Whole Abdomen", "Pelvis", "Obstetric USG", "Thyroid", "Doppler Limb"],
-  Mammography: ["Bilateral Mammogram", "Unilateral Mammogram", "Screening Mammo"],
-  ECG: ["12-Lead ECG", "Stress ECG", "Holter Review"],
+  CT: [
+    "CT Brain",
+    "CT Chest",
+    "CT Abdomen",
+    "CT KUB",
+    "CT Angiography",
+    "CT PNS",
+    "CT Cervical Spine",
+    "CT Pulmonary Angiogram",
+  ],
+  MRI: [
+    "MRI Brain",
+    "MRI Spine",
+    "MRI Knee",
+    "MRI Shoulder",
+    "MRI Pelvis",
+    "MRI Lumbar Spine",
+    "MRCP",
+    "MRI Breast",
+  ],
+  "X-Ray": [
+    "Chest PA View",
+    "Knee AP/Lat",
+    "Spine LS",
+    "PNS View",
+    "Hand AP",
+    "Skull AP/Lat",
+    "Pelvis AP",
+    "Shoulder AP",
+  ],
+  USG: [
+    "Whole Abdomen",
+    "Pelvis",
+    "Obstetric USG",
+    "Thyroid",
+    "Doppler Limb",
+    "Scrotal USG",
+    "Breast USG",
+    "Carotid Doppler",
+  ],
+  Mammography: [
+    "Bilateral Mammogram",
+    "Unilateral Mammogram",
+    "Screening Mammo",
+    "Diagnostic Mammo",
+    "Mammo + Tomosynthesis",
+  ],
+  ECG: [
+    "12-Lead ECG",
+    "Stress ECG",
+    "Holter Review",
+    "Rhythm Strip",
+    "Pre-Op ECG",
+  ],
 };
 
-const STATUSES: RadiologyQueueItem["status"][] = [
+/** Weighted so every workflow + reporting state is testable. */
+const STATUSES: RadiologyQueueStatus[] = [
   "Queue",
   "Queue",
-  "In Progress",
-  "Reporting",
+  "Queue",
+  "Queue",
+  "Scan Started",
+  "Scan Started",
   "Completed",
+  "Completed",
+  "Reporting",
+  "Reporting",
   "Verified",
+  "Verified",
+  "No Show",
+  "Removed",
 ];
 
 const PRIORITIES: RadiologyQueueItem["priority"][] = [
   "Routine",
   "Routine",
+  "Routine",
+  "Urgent",
   "Urgent",
   "Emergency",
 ];
@@ -79,20 +161,26 @@ function timeLabel(index: number) {
   return `${String(h12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
-/** Heavy radiology appointment queue for dashboard + queue page. */
+/**
+ * Heavy radiology appointment queue for dashboard + queue page.
+ * ~60% dated today so KPI / today filters stay populated; remaining span
+ * yesterday / tomorrow for reschedule & historical filter testing.
+ */
 export const appointmentQueue: RadiologyQueueItem[] = Array.from(
-  { length: 120 },
+  { length: 180 },
   (_, index) => {
     const modality = MODALITIES[index % MODALITIES.length];
     const procedures = PROCEDURES[modality];
-    // Bias ~50% of appointments to today so dashboard "today" filters stay full.
-    const dayOffset = index % 2 === 0 ? 0 : -((index % 3) + 1);
+    const dayBucket = index % 5;
+    const dayOffset =
+      dayBucket <= 2 ? 0 : dayBucket === 3 ? -1 : 1;
+
     return {
       id: index + 1,
       token: `RAD${String(index + 1).padStart(3, "0")}`,
       patientName: NAMES[index % NAMES.length],
       uhid: `UH${100245 + index}`,
-      age: 20 + ((index * 3) % 55),
+      age: 18 + ((index * 3) % 62),
       gender: index % 2 === 0 ? "Male" : "Female",
       modality,
       procedure: procedures[index % procedures.length],
@@ -109,11 +197,14 @@ export function getRadiologyQueueStats(list = appointmentQueue) {
   return {
     inQueue: list.filter((item) => item.status === "Queue").length,
     emergency: list.filter((item) => item.priority === "Emergency").length,
-    inProgress: list.filter((item) => item.status === "In Progress").length,
-    completed: list.filter(
-      (item) => item.status === "Completed" || item.status === "Verified",
+    inProgress: list.filter((item) => item.status === "Scan Started").length,
+    completed: list.filter((item) =>
+      ["Completed", "Verified"].includes(item.status),
     ).length,
     reporting: list.filter((item) => item.status === "Reporting").length,
+    verified: list.filter((item) => item.status === "Verified").length,
+    noShow: list.filter((item) => item.status === "No Show").length,
+    removed: list.filter((item) => item.status === "Removed").length,
     total: list.length,
   };
 }
@@ -188,3 +279,14 @@ export function getRadiologyImagingTrend(list = appointmentQueue) {
   }));
   return { todayData, weekData, monthData };
 }
+
+export const QUEUE_STATUS_FILTERS: Array<"All" | RadiologyQueueStatus> = [
+  "All",
+  "Queue",
+  "Scan Started",
+  "Completed",
+  "Reporting",
+  "Verified",
+  "No Show",
+  "Removed",
+];

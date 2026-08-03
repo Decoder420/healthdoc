@@ -18,6 +18,7 @@ import ViewInArRoundedIcon from "@mui/icons-material/ViewInArRounded";
 import WbIridescentRoundedIcon from "@mui/icons-material/WbIridescentRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
+import MonitorHeartRoundedIcon from "@mui/icons-material/MonitorHeartRounded";
 
 import { getNavigationForRole } from "@/config/navigation";
 import { useUserRole } from "@/providers/auth-provider";
@@ -47,6 +48,7 @@ const ICON_BY_HREF: Record<string, React.ReactNode> = {
   "/radiology/xray": <WbIridescentRoundedIcon fontSize="small" />,
   "/radiology/mamography": <FavoriteRoundedIcon fontSize="small" />,
   "/radiology/usg": <GraphicEqRoundedIcon fontSize="small" />,
+  "/radiology/ecg": <MonitorHeartRoundedIcon fontSize="small" />,
 };
 
 function isNavActive(pathname: string, href: string) {
