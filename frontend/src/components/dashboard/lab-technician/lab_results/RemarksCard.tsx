@@ -8,35 +8,52 @@ import {
   Typography,
 } from "@mui/material";
 
-interface Props {
+
+export type ReportData = {
   interpretation: string;
   remarks: string;
   recommendation: string;
+};
+
+
+interface Props {
+
+  report: ReportData;
 
   remarkError?: string;
 
-  onInterpretationChange: (value: string) => void;
-  onRemarksChange: (value: string) => void;
-  onRecommendationChange: (value: string) => void;
+  onChange: (
+    field: keyof ReportData,
+    value: string
+  ) => void;
+
 }
 
+
+
 export default function RemarksCard({
-  interpretation,
-  remarks,
-  recommendation,
+
+  report,
+
   remarkError = "",
-  onInterpretationChange,
-  onRemarksChange,
-  onRecommendationChange,
+
+  onChange,
+
 }: Props) {
+
+
   return (
+
     <Card
       sx={{
         mt: 3,
         borderRadius: 3,
       }}
     >
+
       <CardContent>
+
+
         <Typography
           variant="h6"
           fontWeight={700}
@@ -45,69 +62,150 @@ export default function RemarksCard({
           Pathologist Remarks
         </Typography>
 
-        <Stack spacing={3} mt={2}>
-          
+
+
+        <Stack
+          spacing={3}
+          mt={2}
+        >
+
+
           <TextField
+
             label="Interpretation"
+
             placeholder="Enter interpretation of the laboratory findings..."
+
             multiline
-            required
+
             rows={3}
-            fullWidth
-            value={interpretation}
-            onChange={(e) =>
-              onInterpretationChange(e.target.value)
-            }
-            inputProps={{
-              maxLength: 500,
-            }}
-            helperText={`${interpretation.length}/500`}
-          />
-
-
-          <TextField
-            label="Remarks"
-            placeholder="Enter additional clinical or laboratory remarks..."
-            multiline
-            rows={4}
-            fullWidth
             required
-            value={remarks}
-            onChange={(e) =>
-              onRemarksChange(e.target.value)
-            }
-            error={Boolean(remarkError)}
-            helperText={
-              remarkError ||
-              `${remarks.length}/1000`
-            }
-            inputProps={{
-              maxLength: 1000,
-            }}
-          />
 
-
-          <TextField
-            label="Recommendation"
-            placeholder="Enter recommendations or follow-up advice..."
-            multiline
-            required
-            rows={3}
             fullWidth
-            value={recommendation}
-            onChange={(e) =>
-              onRecommendationChange(
+
+            value={
+              report.interpretation
+            }
+
+
+            onChange={(e)=>
+              onChange(
+                "interpretation",
                 e.target.value
               )
             }
+
+
             inputProps={{
-              maxLength: 500,
+              maxLength:500,
             }}
-            helperText={`${recommendation.length}/500`}
+
+
+            helperText={
+              `${report.interpretation.length}/500`
+            }
+
           />
 
+
+
+
+
+          <TextField
+
+            label="Remarks"
+
+            placeholder="Enter additional clinical or laboratory remarks..."
+
+            multiline
+
+            rows={4}
+
+            fullWidth
+
+            required
+
+
+            value={
+              report.remarks
+            }
+
+
+            onChange={(e)=>
+              onChange(
+                "remarks",
+                e.target.value
+              )
+            }
+
+
+            error={
+              Boolean(remarkError)
+            }
+
+
+            helperText={
+              remarkError ||
+              `${report.remarks.length}/1000`
+            }
+
+
+            inputProps={{
+              maxLength:1000,
+            }}
+
+          />
+
+
+
+
+
+          <TextField
+
+            label="Recommendation"
+
+            placeholder="Enter recommendations or follow-up advice..."
+
+            multiline
+
+            rows={3}
+
+            fullWidth
+            required
+
+
+            value={
+              report.recommendation
+            }
+
+
+            onChange={(e)=>
+              onChange(
+                "recommendation",
+                e.target.value
+              )
+            }
+
+
+            inputProps={{
+              maxLength:500,
+            }}
+
+
+            helperText={
+              `${report.recommendation.length}/500`
+            }
+
+          />
+
+
         </Stack>
+
+
       </CardContent>
+
     </Card>
+
   );
+
 }

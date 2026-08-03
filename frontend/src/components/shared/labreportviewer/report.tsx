@@ -1,7 +1,7 @@
 "use client";
 
 import "./pathology-report.css";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment } from "react";
 import { Printer } from "lucide-react";
 import QRCode from "react-qr-code";
@@ -33,6 +33,7 @@ const FLAG_LABEL: Record<string, string> = {
 
 export default function Report({ report }: ReportProps) {
   const searchParams = useSearchParams();
+   const router = useRouter();
   const isPdfMode = searchParams.get("pdf") === "1";
 
   if (isPdfMode) {
@@ -54,6 +55,15 @@ export default function Report({ report }: ReportProps) {
           </p>
         </div>
         <div className="pr-actions">
+           <button
+      type="button"
+      className="pr-btn-print"
+      onClick={() =>
+        router.push("/lab/pathology/verification")
+      }
+    >
+      ← Back
+    </button>
           <button
             type="button"
             className="pr-btn-print"

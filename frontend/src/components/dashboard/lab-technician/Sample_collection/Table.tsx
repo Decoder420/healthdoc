@@ -70,9 +70,9 @@ function mapLabPatientToRow(
     barcode: patient.sample.barcode || "-",
     collectedAt: patient.sample.collectedAt || "-",
     status:
-      !forceProcessing && patient.status === "COMPLETED"
-        ? "COMPLETED"
-        : "PROCESSING",
+  patient.status === "COMPLETED"
+    ? "COMPLETED"
+    : "PROCESSING",
     sampleType: patient.sample.sampleType || "-",
     container: patient.sample.container || "-",
     priority: patient.order.priority,
@@ -98,20 +98,29 @@ const [tableRows, setTableRows] = useState<SampleData[]>(() =>
   const [openPrint, setOpenPrint] =
     useState(false);
 
-  const filteredRows = useMemo(() => {
-  const keyword = search.toLowerCase();
+ const filteredRows = useMemo(() => {
+  const keyword = search.trim().toLowerCase();
 
-  return tableRows.filter((row) =>
-    row.patientName.toLowerCase().includes(keyword) ||
-    row.uhid.toLowerCase().includes(keyword) ||
-    row.barcode.toLowerCase().includes(keyword)
+  return tableRows.filter(
+    (row) =>
+      row.status === "PROCESSING" &&
+      (
+        row.patientName.toLowerCase().includes(keyword) ||
+        row.uhid.toLowerCase().includes(keyword) ||
+        row.orderId.toLowerCase().includes(keyword) ||
+        row.barcode.toLowerCase().includes(keyword)
+      )
   );
 }, [tableRows, search]);
 
- const updateStatus = (
+ const router = useRouter();
+
+const updateStatus = (
   id: number,
   nextStatus: SampleData["status"]
 ) => {
+
+  // Update table
   setTableRows((prev) =>
     prev.map((row) =>
       row.id === id
@@ -122,6 +131,36 @@ const [tableRows, setTableRows] = useState<SampleData[]>(() =>
         : row
     )
   );
+
+
+  // Find matching order
+  const patient = labPatients.find(
+    (p) =>
+      Number(
+        p.order.orderId.replace(/\D/g, "")
+      ) === id
+  );
+
+
+  if (!patient) {
+    return;
+  }
+
+
+  // Update mock data
+  patient.status =
+    nextStatus;
+
+
+  // Redirect with orderId
+  if (nextStatus === "COMPLETED") {
+
+    router.push(
+      `/lab/pathology/lab_results?orderId=${patient.order.orderId}`
+    );
+
+  }
+
 };
 
 const handleRefresh = () => {
@@ -152,7 +191,7 @@ const handleRefresh = () => {
 >
   <TextField
     size="small"
-    placeholder="Search Patient / UHID / Barcode"
+    placeholder="Search Patient / UHID / Order ID / Barcode"
     value={search}
     onChange={(e) => setSearch(e.target.value)}
     sx={{
@@ -286,21 +325,16 @@ const handleRefresh = () => {
                       {row.status ===
                         "PROCESSING" && (
                         <Button
-                          size="small"
-                          variant="contained"
-                          color="success"
-                          startIcon={
-                            <CheckCircleRoundedIcon />
-                          }
-                          onClick={() =>
-                            updateStatus(
-                              row.id,
-                              "COMPLETED"
-                            )
-                          }
-                        >
-                          Completed
-                        </Button>
+  size="small"
+  variant="contained"
+  color="success"
+  startIcon={<CheckCircleRoundedIcon />}
+  onClick={() =>
+    updateStatus(row.id, "COMPLETED")
+  }
+>
+  Completed
+</Button>
                       )}
 
                       <Tooltip title="View Sample">

@@ -35,7 +35,6 @@ const ICON_BY_HREF: Record<string, React.ReactNode> = {
   "/lab/pathology/sample": <ScienceRoundedIcon fontSize="small" />,
   "/lab/pathology/lab_results": <BiotechRoundedIcon fontSize="small" />,
   "/lab/pathology/verification": <VerifiedRoundedIcon fontSize="small" />,
-  "/lab/pathology/settings": <SettingsRoundedIcon fontSize="small" />,
   "/dashboard": <HomeRoundedIcon fontSize="small" />,
   "/doctor/dashboard": <LocalHospitalRoundedIcon fontSize="small" />,
 
@@ -106,22 +105,22 @@ export function Sidebar({ open: _open, onClose: _onClose }: SidebarProps = {}) {
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? "bg-primary font-medium text-primary-foreground shadow-sm"
-                    : "text-foreground hover:bg-muted",
+      ? "bg-[#001F54] font-medium text-white shadow-sm"
+      : "text-[#001F54] hover:bg-muted",
                 )}
               >
                 <span
-                  className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-md",
-                    isActive
-                      ? "bg-primary-foreground/15 text-primary-foreground"
-                      : "bg-muted text-primary",
-                  )}
-                >
-                  {ICON_BY_HREF[item.href] ?? (
-                    <DashboardRoundedIcon fontSize="small" />
-                  )}
-                </span>
+  className={cn(
+    "flex h-7 w-7 items-center justify-center rounded-md",
+    isActive
+      ? "bg-primary-foreground/15"
+      : "bg-muted",
+  )}
+>
+  {ICON_BY_HREF[item.href] ?? (
+    <DashboardRoundedIcon fontSize="small" />
+  )}
+</span>
                 {item.label}
               </Link>
             </div>

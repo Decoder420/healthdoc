@@ -30,16 +30,16 @@ import BarcodeSection from "./BarcodeSection";
 
 interface CollectSampleDialogProps {
   open: boolean;
-  patientId: string | null;
+  orderId: string | null;
   onClose: () => void;
   onCollectSuccess: (
-    patientId: string
+    orderId: string
   ) => void;
 }
 
 export default function CollectSampleDialog({
   open,
-  patientId,
+  orderId,
   onClose,
   onCollectSuccess,
 }: CollectSampleDialogProps) {
@@ -67,14 +67,14 @@ export default function CollectSampleDialog({
     });
 
   useEffect(() => {
-    if (!patientId) {
+    if (!orderId) {
       setSelectedPatient(null);
       return;
     }
 
     const patient = patients.find(
       (p) =>
-        p.patient.patientId === patientId
+        p.order.orderId === orderId
     );
 
     if (!patient) {
@@ -83,7 +83,7 @@ export default function CollectSampleDialog({
     }
 
     const mappedPatient: Patient = {
-      id: patient.patient.patientId,
+      id: patient.order.orderId,
       uhid: patient.patient.uhid,
       patientName: patient.patient.name,
       age: patient.patient.age,
@@ -96,22 +96,24 @@ export default function CollectSampleDialog({
     };
 
     setSelectedPatient(mappedPatient);
-  }, [patientId]);
+  }, [orderId]);
 
  const handleCollectSample = () => {
   if (!selectedPatient) return;
 
   const patient = patients.find(
-    (p) => p.patient.patientId === selectedPatient.id
+    (p) => p.order.orderId === selectedPatient.id
   );
 
   if (patient) {
     // Extract numeric part of patient id
-    const patientNumber = selectedPatient.id.replace("P", "").padStart(4, "0");
+   const orderNumber = patient.order.orderId
+  .replace("ORD", "")
+  .padStart(3, "0");
 
-    // Generate unique sample & barcode
-    const sampleId = `SMP${patientNumber}`;
-    const generatedBarcode = `LAB${new Date().getFullYear()}${patientNumber}`;
+const sampleId = `SMP${orderNumber}`;
+const generatedBarcode = `LAB${new Date().getFullYear()}${orderNumber}`;
+
     const now = new Date();
 
 const currentDate = now.toLocaleDateString("en-IN", {
@@ -126,7 +128,7 @@ const currentTime = now.toLocaleTimeString("en-IN", {
   hour12: true,
 });
 
-    patient.status = "IN_PROCESS";
+    patient.status = "PROCESSING";
 
     patient.sample = {
   sampleId,
@@ -197,7 +199,7 @@ const currentTime = now.toLocaleTimeString("en-IN", {
           <PatientSearch
             value={selectedPatient}
             onChange={setSelectedPatient}
-            disabled={!!patientId}
+            disabled={!!orderId}
           />
 
           <PatientDetails

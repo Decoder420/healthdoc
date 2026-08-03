@@ -12,6 +12,8 @@ interface Props {
   onReset: () => void;
 
   approving?: boolean;
+  saving?: boolean;
+  resetting?: boolean;
 
   disableSave?: boolean;
 }
@@ -21,57 +23,137 @@ export default function ActionButtons({
   onApprove,
   onReset,
   approving = false,
+  saving = false,
+  resetting = false,
   disableSave = false,
 }: Props) {
+
+  const disabled =
+    approving ||
+    saving ||
+    resetting;
+
+
   return (
+
     <Paper
       elevation={2}
       sx={{
-        mt: 3,
-        p: 2,
-        borderRadius: 3,
+        mt:3,
+        p:2,
+        borderRadius:3,
       }}
     >
+
       <Stack
         direction={{
-          xs: "column",
-          md: "row",
+          xs:"column",
+          md:"row",
         }}
         spacing={2}
         justifyContent="flex-end"
-        flexWrap="wrap"
-        useFlexGap
       >
+
+
         <Button
+
           variant="outlined"
-          startIcon={<RestartAltRoundedIcon />}
+
+          startIcon={
+            <RestartAltRoundedIcon />
+          }
+
           onClick={onReset}
-          sx={{ minWidth: 160 }}
+
+          disabled={disabled}
+
+          sx={{
+            minWidth:160,
+          }}
+
         >
-          Reset
+
+          {
+            resetting
+            ? "Resetting..."
+            : "Reset"
+          }
+
         </Button>
 
+
+
+
+
         <Button
+
           variant="contained"
-          startIcon={<SaveRoundedIcon />}
+
+          startIcon={
+            <SaveRoundedIcon />
+          }
+
           onClick={onSaveDraft}
-          disabled={disableSave}
-          sx={{ minWidth: 160 }}
+
+          disabled={
+            disableSave ||
+            disabled
+          }
+
+          sx={{
+            minWidth:160,
+          }}
+
         >
-          Save Draft
+
+          {
+            saving
+            ? "Saving..."
+            : "Save Draft"
+          }
+
         </Button>
 
+
+
+
+
+
         <Button
+
           variant="contained"
+
           color="success"
-          disabled={approving}
-          startIcon={<VerifiedRoundedIcon />}
+
+          startIcon={
+            <VerifiedRoundedIcon />
+          }
+
           onClick={onApprove}
-          sx={{ minWidth: 160 }}
+
+          disabled={disabled}
+
+          sx={{
+            minWidth:160,
+          }}
+
         >
-          {approving ? "Approving..." : "Approve Report"}
+
+          {
+            approving
+            ? "Approving..."
+            : "Approve Report"
+          }
+
         </Button>
+
+
+
       </Stack>
+
+
     </Paper>
+
   );
+
 }

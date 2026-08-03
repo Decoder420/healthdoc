@@ -38,6 +38,10 @@ export default function OrderedTests({
         <Typography color="text.secondary">
           Select a patient to view ordered tests.
         </Typography>
+      ) : patient.tests.length === 0 ? (
+        <Typography color="text.secondary">
+          No tests ordered.
+        </Typography>
       ) : (
         <Box
           sx={{

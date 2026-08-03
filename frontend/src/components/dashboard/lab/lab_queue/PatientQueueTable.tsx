@@ -102,39 +102,50 @@ export default function PatientQueueTable({
 
 const router = useRouter();
 
-  const filteredPatients = useMemo(() => {
-    return patients.filter((patient) => {
-      const query = search.toLowerCase();
+  const visibleStatuses = [
+  "QUEUE",
+  "COLLECTED",
+  "NO_SHOW",
+  "RECOLLECTION_REQUIRED",
+];
 
-      const matchesSearch =
-        patient.patient.name
-          .toLowerCase()
-          .includes(query) ||
-        patient.patient.uhid
-          .toLowerCase()
-          .includes(query);
+const filteredPatients = useMemo(() => {
+  return patients.filter((patient) => {
+    // Show only these statuses
+    if (!visibleStatuses.includes(patient.status)) {
+      return false;
+    }
 
-      const matchesStatus =
-        statusFilter === "ALL" ||
-        patient.status === statusFilter;
+    const query = search.toLowerCase();
 
-      const matchesPriority =
-        priorityFilter === "ALL" ||
-        patient.order.priority ===
-          priorityFilter;
+    const matchesSearch =
+      patient.patient.name
+        .toLowerCase()
+        .includes(query) ||
+      patient.patient.uhid
+        .toLowerCase()
+        .includes(query);
 
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesPriority
-      );
-    });
-  }, [
-    patients,
-    search,
-    statusFilter,
-    priorityFilter,
-  ]);
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      patient.status === statusFilter;
+
+    const matchesPriority =
+      priorityFilter === "ALL" ||
+      patient.order.priority === priorityFilter;
+
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesPriority
+    );
+  });
+}, [
+  patients,
+  search,
+  statusFilter,
+  priorityFilter,
+]);
 
   return (
     <TableContainer
@@ -439,7 +450,7 @@ const router = useRouter();
   workflow={pathologyWorkflow}
   onStatusChange={(payload) =>
     onStatusChange(
-      patient.patient.patientId,
+      patient.order.orderId,
       payload
     )
   }
@@ -461,7 +472,7 @@ const router = useRouter();
       variant="contained"
       size="small"
       onClick={() =>
-        onStatusChange(patient.patient.patientId, {
+        onStatusChange(patient.order.orderId, {
           from: patient.status,
           to: "COLLECTED",
           action: "collect",
@@ -477,7 +488,7 @@ const router = useRouter();
       size="small"
       onClick={() =>
         onWorkflowAction(
-          patient.patient.patientId,
+          patient.order.orderId,
           pathologyWorkflow.find(
             step => step.value === "QUEUE"
           )!.actions!.find(
@@ -495,7 +506,7 @@ const router = useRouter();
       size="small"
       onClick={() =>
         onWorkflowAction(
-          patient.patient.patientId,
+          patient.order.orderId,
           pathologyWorkflow.find(
             step => step.value === "QUEUE"
           )!.actions!.find(
@@ -516,7 +527,7 @@ const router = useRouter();
   size="small"
   onClick={() =>
     router.push(
-      `/lab/pathology/sample?patientId=${patient.patient.patientId}`
+      `/lab/pathology/sample?orderId=${patient.order.orderId}`
     )
   }
 >
@@ -529,7 +540,7 @@ const router = useRouter();
                   size="small"
                   onClick={() =>
                     onWorkflowAction(
-                      patient.patient.patientId,
+                      patient.order.orderId,
                       pathologyWorkflow[2].actions![1]
                     )
                   }
@@ -545,7 +556,7 @@ const router = useRouter();
     size="small"
     onClick={() =>
       onWorkflowAction(
-        patient.patient.patientId,
+        patient.order.orderId,
         pathologyWorkflow.find(
           (step) => step.value === "NO_SHOW"
         )!.actions![0]
@@ -563,7 +574,7 @@ const router = useRouter();
     size="small"
     onClick={() =>
       onWorkflowAction(
-        patient.patient.patientId,
+        patient.order.orderId,
         pathologyWorkflow.find(
           (step) => step.value === "RECOLLECTION_REQUIRED"
         )!.actions![0]

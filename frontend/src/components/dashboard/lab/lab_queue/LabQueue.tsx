@@ -25,7 +25,8 @@ export default function PathologyQueueClient({
 }: Props) {
   const [patients, setPatients] = useState(initialPatients);
 
-  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [selectedOrderId, setSelectedOrderId] =
+    useState<string>("");
 
   const [selectedAction, setSelectedAction] =
     useState<WorkflowAction | null>(null);
@@ -40,16 +41,21 @@ export default function PathologyQueueClient({
     setReasonDialogOpen(false);
     setConfirmationDialogOpen(false);
     setSelectedAction(null);
-    setSelectedPatientId("");
+    setSelectedOrderId("");
   };
 
+  const getPatientByOrderId = (orderId: string) =>
+    patients.find(
+      (patient) => patient.order.orderId === orderId
+    );
+
   const handleStatusChange = (
-    patientId: string,
+    orderId: string,
     payload: StatusChangePayload
   ) => {
     setPatients((prev) =>
       prev.map((patient) =>
-        patient.patient.patientId === patientId
+        patient.order.orderId === orderId
           ? {
               ...patient,
               status: payload.to,
@@ -59,11 +65,32 @@ export default function PathologyQueueClient({
     );
   };
 
+  const updatePatientStatus = (
+    orderId: string,
+    action: WorkflowAction,
+    reason?: string,
+    remarks?: string
+  ) => {
+    const patient = getPatientByOrderId(orderId);
+
+    if (!patient) return;
+
+    handleStatusChange(orderId, {
+      from: patient.status,
+      to: action.nextStatus,
+      action: action.id,
+      reason,
+      remarks,
+    });
+
+    resetDialogs();
+  };
+
   const handleWorkflowAction = (
-    patientId: string,
+    orderId: string,
     action: WorkflowAction
   ) => {
-    setSelectedPatientId(patientId);
+    setSelectedOrderId(orderId);
     setSelectedAction(action);
 
     if (action.requiresReason) {
@@ -76,13 +103,7 @@ export default function PathologyQueueClient({
       return;
     }
 
-    handleStatusChange(patientId, {
-      from: "",
-      to: action.nextStatus,
-      action: action.id,
-    });
-
-    resetDialogs();
+    updatePatientStatus(orderId, action);
   };
 
   const handleReasonSubmit = ({
@@ -92,29 +113,23 @@ export default function PathologyQueueClient({
     reason: string;
     remarks?: string;
   }) => {
-    if (!selectedAction) return;
+    if (!selectedAction || !selectedOrderId) return;
 
-    handleStatusChange(selectedPatientId, {
-      from: "",
-      to: selectedAction.nextStatus,
-      action: selectedAction.id,
+    updatePatientStatus(
+      selectedOrderId,
+      selectedAction,
       reason,
-      // remarks,
-    });
-
-    resetDialogs();
+      remarks
+    );
   };
 
   const handleConfirm = () => {
-    if (!selectedAction) return;
+    if (!selectedAction || !selectedOrderId) return;
 
-    handleStatusChange(selectedPatientId, {
-      from: "",
-      to: selectedAction.nextStatus,
-      action: selectedAction.id,
-    });
-
-    resetDialogs();
+    updatePatientStatus(
+      selectedOrderId,
+      selectedAction
+    );
   };
 
   const reasonOptions: ReasonOption[] =
@@ -142,7 +157,9 @@ export default function PathologyQueueClient({
       <ConfirmationDialog
         open={confirmationDialogOpen}
         title="Confirmation"
-        description={`Are you sure you want to ${selectedAction?.label ?? ""}?`}
+        description={`Are you sure you want to ${
+          selectedAction?.label ?? ""
+        }?`}
         onClose={resetDialogs}
         onConfirm={handleConfirm}
       />

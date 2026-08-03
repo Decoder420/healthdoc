@@ -23,24 +23,17 @@ export interface Patient {
 }
 
 /** One option per patient — mock data can include multiple visits/orders. */
-const patientOptions: Patient[] = Array.from(
-  new Map(
-    patients.map((p) => [
-      p.patient.patientId,
-      {
-        id: p.patient.patientId,
-        uhid: p.patient.uhid,
-        patientName: p.patient.name,
-        age: p.patient.age,
-        gender: p.patient.gender,
-        mobile: p.patient.mobile,
-        doctor: p.doctor.name,
-        department: p.doctor.department,
-        tests: p.requestedTests,
-      } satisfies Patient,
-    ]),
-  ).values(),
-);
+const patientOptions: Patient[] = patients.map((p) => ({
+  id: p.order.orderId,
+  uhid: p.patient.uhid,
+  patientName: p.patient.name,
+  age: p.patient.age,
+  gender: p.patient.gender,
+  mobile: p.patient.mobile,
+  doctor: p.doctor.name,
+  department: p.doctor.department,
+  tests: p.requestedTests,
+}));
 
 interface PatientSearchProps {
   value: Patient | null;
@@ -53,6 +46,8 @@ export default function PatientSearch({
   onChange,
   disabled = false,
 }: PatientSearchProps) {
+
+  
   return (
     <Box>
       <Typography
@@ -64,70 +59,85 @@ export default function PatientSearch({
       </Typography>
 
       <Autocomplete
-        disabled={disabled}
-        options={patientOptions}
-        value={value}
-        onChange={(_, newValue) => onChange(newValue)}
-        fullWidth
-        getOptionLabel={(option) =>
-          `${option.patientName} (${option.uhid})`
-        }
-        isOptionEqualToValue={(option, value) =>
-          option.id === value.id
-        }
-        renderInput={(params) => (
-          <TextField
-            {...params}
-            label="Search Patient"
-            placeholder="Search by UHID, Name or Mobile"
-            InputProps={{
-              ...params.InputProps,
-              startAdornment: (
-                <>
-                  <SearchRoundedIcon
-                    sx={{
-                      mr: 1,
-                      color: "text.secondary",
-                    }}
-                  />
-                  {params.InputProps.startAdornment}
-                </>
-              ),
-            }}
-          />
-        )}
-        renderOption={(props, option) => (
-          <Box
-            component="li"
-            {...props}
-            key={option.id}
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              py: 1,
-            }}
-          >
-            <Typography fontWeight={600}>
-              {option.patientName}
-            </Typography>
+  disabled={disabled}
+  options={patientOptions}
+  value={value}
+  onChange={(_, newValue) => onChange(newValue)}
+  fullWidth
+  filterOptions={(options, { inputValue }) => {
+    const query = inputValue.toLowerCase().trim();
 
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              UHID: {option.uhid} • {option.age} Years •{" "}
-              {option.gender}
-            </Typography>
+    return options.filter(
+      (option) =>
+        option.patientName.toLowerCase().includes(query) ||
+        option.uhid.toLowerCase().includes(query) ||
+        option.mobile.includes(query) ||
+        option.id.toLowerCase().includes(query)
+    );
+  }}
+  getOptionLabel={(option) => option.patientName}
+  isOptionEqualToValue={(option, value) =>
+    option.id === value.id
+  }
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      label="Search Patient"
+      placeholder="Search by Order ID, UHID, Name or Mobile"
+      InputProps={{
+        ...params.InputProps,
+        startAdornment: (
+          <>
+            <SearchRoundedIcon
+              sx={{
+                mr: 1,
+                color: "text.secondary",
+              }}
+            />
+            {params.InputProps.startAdornment}
+          </>
+        ),
+      }}
+    />
+  )}
+  renderOption={(props, option) => (
+    <Box
+      component="li"
+      {...props}
+      key={option.id}
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        py: 1,
+      }}
+    >
+      <Typography fontWeight={600}>
+        {option.patientName}
+      </Typography>
 
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              {option.mobile}
-            </Typography>
-          </Box>
-        )}
-      />
+      <Typography
+        variant="body2"
+        color="text.secondary"
+      >
+        UHID: {option.uhid} • Order: {option.id}
+      </Typography>
+
+      <Typography
+        variant="body2"
+        color="text.secondary"
+      >
+        {option.age} Years • {option.gender}
+      </Typography>
+
+      <Typography
+        variant="caption"
+        color="text.secondary"
+      >
+        {option.mobile}
+      </Typography>
+    </Box>
+  )}
+/>
     </Box>
   );
 }
