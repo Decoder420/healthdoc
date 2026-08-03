@@ -1,5 +1,6 @@
 import { PurchaseOrder } from "../types/purchaseOrder";
 
+
 export const purchaseOrders: PurchaseOrder[] = [
   {
     id: "PO-001",
@@ -90,3 +91,74 @@ export const purchaseOrders: PurchaseOrder[] = [
     ],
   },
 ];
+
+
+
+const STORAGE_KEY = "hospital_purchase_orders";
+
+export function getStoredPurchaseOrders(
+  fallback: PurchaseOrder[]
+): PurchaseOrder[] {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (!stored) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(fallback)
+      );
+
+      return fallback;
+    }
+
+    return JSON.parse(stored);
+  } catch {
+    return fallback;
+  }
+}
+
+export function savePurchaseOrders(
+  purchaseOrders: PurchaseOrder[]
+) {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(purchaseOrders)
+  );
+}
+
+export function addPurchaseOrder(
+  purchaseOrder: PurchaseOrder
+) {
+  const existing = getStoredPurchaseOrders([]);
+
+  const updated = [
+    ...existing,
+    purchaseOrder,
+  ];
+
+  savePurchaseOrders(updated);
+
+  return updated;
+}
+
+export function updatePurchaseOrder(
+  purchaseOrder: PurchaseOrder
+) {
+  const existing = getStoredPurchaseOrders([]);
+
+  const updated = existing.map((po) =>
+    po.id === purchaseOrder.id
+      ? purchaseOrder
+      : po
+  );
+
+  savePurchaseOrders(updated);
+
+  return updated;
+}

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { type ReactElement, useState } from "react";
+import { useState } from "react";
 
 import PurchaseOrderTable from "@/components/dashboard/inventory/purchase/order/PurchaseOrderTable";
 import PurchaseOrderViewDialog from "@/components/dashboard/inventory/purchase/order/PurchaseOrderViewDialog";
@@ -24,15 +24,18 @@ export default function PurchaseOrderScreen() {
    * ============================================================
    */
 
-  // All purchase orders
   const [purchaseOrders, setPurchaseOrders] =
     useState<PurchaseOrder[]>(initialPurchaseOrders);
 
-  // Purchase order selected for creating GRN
+  /*
+   * PO currently opened for receiving
+   */
   const [selectedPurchaseOrder, setSelectedPurchaseOrder] =
     useState<PurchaseOrder | null>(null);
 
-  // Purchase order selected for viewing
+  /*
+   * PO currently opened in View dialog
+   */
   const [viewPurchaseOrder, setViewPurchaseOrder] =
     useState<PurchaseOrder | null>(null);
 
@@ -52,29 +55,21 @@ export default function PurchaseOrderScreen() {
    * ============================================================
    */
 
-  const handleApprove = (
-    purchaseOrder: PurchaseOrder
-  ) => {
+  const handleApprove = (purchaseOrder: PurchaseOrder) => {
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
-
       status: "Approved",
-
       approvedBy: "Inventory Manager",
-
-      approvedAt:
-        new Date().toLocaleDateString("en-IN"),
+      approvedAt: new Date().toLocaleDateString("en-IN"),
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
-        po.id === purchaseOrder.id
-          ? updatedPurchaseOrder
-          : po
+    const updatedOrders = purchaseOrders.map((po) =>
+      po.id === purchaseOrder.id
+        ? updatedPurchaseOrder
+        : po
     );
 
     setPurchaseOrders(updatedOrders);
-
     savePurchaseOrders(updatedOrders);
   };
 
@@ -89,19 +84,16 @@ export default function PurchaseOrderScreen() {
   ) => {
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
-
       status: "Sent to Supplier",
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
-        po.id === purchaseOrder.id
-          ? updatedPurchaseOrder
-          : po
+    const updatedOrders = purchaseOrders.map((po) =>
+      po.id === purchaseOrder.id
+        ? updatedPurchaseOrder
+        : po
     );
 
     setPurchaseOrders(updatedOrders);
-
     savePurchaseOrders(updatedOrders);
   };
 
@@ -116,13 +108,6 @@ export default function PurchaseOrderScreen() {
   ) => {
     setSelectedPurchaseOrder(purchaseOrder);
   };
-
-  const GoodsReceivingFormComponent =
-    GoodsReceivingForm as unknown as (props: {
-      purchaseOrder: PurchaseOrder;
-      onCancel: () => void;
-      onSubmit: (grn: GRN) => void;
-    }) => ReactElement;
 
   /*
    * ============================================================
@@ -146,14 +131,15 @@ export default function PurchaseOrderScreen() {
      */
 
     const updatedOrders = purchaseOrders.map((po) => {
-      // GRN belongs to another PO
+      /*
+       * This is not the PO for this GRN.
+       */
       if (po.id !== grn.purchaseOrderId) {
         return po;
       }
 
       /*
-       * Update received quantity for every
-       * item included in the GRN.
+       * Update received quantity item by item.
        */
 
       const updatedItems =
@@ -163,7 +149,10 @@ export default function PurchaseOrderScreen() {
               item.itemId === poItem.itemId
           );
 
-          // Item was not received in this GRN
+          /*
+           * This PO item was not received
+           * in the current GRN.
+           */
           if (!grnItem) {
             return poItem;
           }
@@ -179,7 +168,7 @@ export default function PurchaseOrderScreen() {
 
       /*
        * --------------------------------------------------------
-       * CALCULATE TOTAL RECEIVED
+       * Calculate total received
        * --------------------------------------------------------
        */
 
@@ -193,38 +182,45 @@ export default function PurchaseOrderScreen() {
 
       /*
        * --------------------------------------------------------
-       * CALCULATE TOTAL ORDERED
+       * Calculate total ordered
        * --------------------------------------------------------
        */
 
       const totalOrdered =
         updatedItems.reduce(
           (sum, item) =>
-            sum + item.orderedQuantity,
+            sum +
+            item.orderedQuantity,
           0
         );
 
       /*
        * --------------------------------------------------------
-       * DETERMINE PURCHASE ORDER STATUS
+       * Determine PO status
        * --------------------------------------------------------
+       *
+       * Example:
+       *
+       * Ordered = 100
+       * Received = 40
+       * => Partially Received
+       *
+       * Ordered = 100
+       * Received = 100
+       * => Fully Received
        */
 
-      const status: PurchaseOrder["status"] =
-        totalReceived >= totalOrdered
-          ? "Fully Received"
-          : "Partially Received";
+      let status: PurchaseOrder["status"];
 
-      /*
-       * Return updated purchase order
-       */
+      if (totalReceived >= totalOrdered) {
+        status = "Fully Received";
+      } else {
+        status = "Partially Received";
+      }
 
       return {
         ...po,
-
-        purchaseOrderItems:
-          updatedItems,
-
+        purchaseOrderItems: updatedItems,
         status,
       };
     });
@@ -239,7 +235,7 @@ export default function PurchaseOrderScreen() {
 
     /*
      * ----------------------------------------------------------
-     * 4. SAVE PURCHASE ORDERS
+     * 4. SAVE UPDATED PURCHASE ORDERS
      * ----------------------------------------------------------
      */
 
@@ -247,7 +243,7 @@ export default function PurchaseOrderScreen() {
 
     /*
      * ----------------------------------------------------------
-     * 5. CLOSE GOODS RECEIVING FORM
+     * 5. CLOSE RECEIVING FORM
      * ----------------------------------------------------------
      */
 
@@ -275,19 +271,16 @@ export default function PurchaseOrderScreen() {
   ) => {
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
-
       status: "Cancelled",
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
-        po.id === purchaseOrder.id
-          ? updatedPurchaseOrder
-          : po
+    const updatedOrders = purchaseOrders.map((po) =>
+      po.id === purchaseOrder.id
+        ? updatedPurchaseOrder
+        : po
     );
 
     setPurchaseOrders(updatedOrders);
-
     savePurchaseOrders(updatedOrders);
   };
 
@@ -328,17 +321,11 @@ export default function PurchaseOrderScreen() {
           <div className="surface-card overflow-hidden p-5">
 
             <PurchaseOrderTable
-              purchaseOrders={
-                purchaseOrders
-              }
+              purchaseOrders={purchaseOrders}
 
-              onView={
-                handleView
-              }
+              onView={handleView}
 
-              onApprove={
-                handleApprove
-              }
+              onApprove={handleApprove}
 
               onSendToSupplier={
                 handleSendToSupplier
@@ -358,19 +345,15 @@ export default function PurchaseOrderScreen() {
       )}
 
       {/* ======================================================
-          VIEW PURCHASE ORDER DIALOG
+          PURCHASE ORDER VIEW DIALOG
           ====================================================== */}
 
       {viewPurchaseOrder && (
         <PurchaseOrderViewDialog
           open={true}
-          purchaseOrder={
-            viewPurchaseOrder
-          }
+          purchaseOrder={viewPurchaseOrder}
           onClose={() =>
-            setViewPurchaseOrder(
-              null
-            )
+            setViewPurchaseOrder(null)
           }
         />
       )}
@@ -383,15 +366,13 @@ export default function PurchaseOrderScreen() {
         <section>
           <div className="surface-card p-5">
 
-            <GoodsReceivingFormComponent
+            <GoodsReceivingForm
               purchaseOrder={
                 selectedPurchaseOrder
               }
 
               onCancel={() =>
-                setSelectedPurchaseOrder(
-                  null
-                )
+                setSelectedPurchaseOrder(null)
               }
 
               onSubmit={

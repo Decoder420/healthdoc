@@ -12,12 +12,19 @@ import {
   Divider,
   TextField,
   Chip,
+  Box,
 } from "@mui/material";
 
 import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  FileText,
+  Building2,
+  User,
+  Package,
+  CalendarDays,
+  Truck,
 } from "lucide-react";
 
 import { PurchaseRequisition } from "@/features/inventory/types/purchaseRequisition";
@@ -64,6 +71,12 @@ export default function PurchaseRequisitionApprovalDialog({
 
   if (!requisition) return null;
 
+  /*
+   * --------------------------------------------------
+   * TOTAL AMOUNT
+   * --------------------------------------------------
+   */
+
   const totalAmount =
     requisition.requisitionItems.reduce(
       (sum, item) =>
@@ -71,42 +84,79 @@ export default function PurchaseRequisitionApprovalDialog({
       0
     );
 
+  /*
+   * --------------------------------------------------
+   * STATUS
+   * --------------------------------------------------
+   */
+
+  const isPending =
+    requisition.approvalStatus === "Pending";
+
+  /*
+   * --------------------------------------------------
+   * CLOSE
+   * --------------------------------------------------
+   */
+
   const handleClose = () => {
     setAction(null);
     setComment("");
     onClose();
   };
 
+  /*
+   * --------------------------------------------------
+   * SUBMIT DECISION
+   * --------------------------------------------------
+   */
+
   const handleSubmit = () => {
-    if (!comment.trim()) return;
+    const value = comment.trim();
+
+    if (!value || !action) return;
 
     if (action === "approve") {
-      onApprove(
-        requisition,
-        comment.trim()
-      );
+      onApprove(requisition, value);
     }
 
     if (action === "reject") {
-      onReject(
-        requisition,
-        comment.trim()
-      );
+      onReject(requisition, value);
     }
 
     if (action === "sendBack") {
-      onSendBack(
-        requisition,
-        comment.trim()
-      );
+      onSendBack(requisition, value);
     }
 
     setAction(null);
     setComment("");
   };
 
-  const isPending =
-    requisition.approvalStatus === "Pending";
+  /*
+   * --------------------------------------------------
+   * ACTION LABEL
+   * --------------------------------------------------
+   */
+
+  const actionLabel =
+    action === "approve"
+      ? "Approval Comment"
+      : action === "reject"
+      ? "Reason for Rejection"
+      : "Correction Required";
+
+  /*
+   * --------------------------------------------------
+   * ACTION PLACEHOLDER
+   * --------------------------------------------------
+   */
+
+  const actionPlaceholder =
+    action === "approve"
+      ? "Add approval remarks..."
+      : action === "reject"
+      ? "Explain why this requisition is being rejected..."
+      : "Explain what needs to be corrected...";
 
   return (
     <Dialog
@@ -115,151 +165,271 @@ export default function PurchaseRequisitionApprovalDialog({
       fullWidth
       maxWidth="md"
     >
-      <DialogTitle>
-        <div>
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
+      <DialogTitle sx={{ pb: 2 }}>
+        <div className="flex items-start justify-between">
+
+          <div className="flex items-start gap-3">
+
+            <div className="rounded-lg bg-primary/10 p-2">
+              <FileText
+                size={21}
+                className="text-primary"
+              />
+            </div>
+
+            <div>
+              <Typography
+                variant="h6"
+                fontWeight={600}
+              >
+                Purchase Requisition Approval
+              </Typography>
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+              >
+                Review requisition before it proceeds
+                to Purchase Order.
+              </Typography>
+            </div>
+
+          </div>
+
+          <Chip
+            size="small"
+            label={requisition.approvalStatus}
+            color={
+              requisition.approvalStatus ===
+              "Approved"
+                ? "success"
+                : requisition.approvalStatus ===
+                  "Rejected"
+                ? "error"
+                : requisition.approvalStatus ===
+                  "Sent Back"
+                ? "warning"
+                : "default"
+            }
+          />
+
+        </div>
+      </DialogTitle>
+
+      <DialogContent dividers>
+
+        {/* =================================================
+            PR HEADER INFORMATION
+        ================================================= */}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+
+          <InfoCard
+            icon={<FileText size={16} />}
+            label="Requisition"
+            value={requisition.requisitionNumber}
+          />
+
+          <InfoCard
+            icon={<FileText size={16} />}
+            label="Source Indent"
+            value={requisition.indentNumber}
+          />
+
+          <InfoCard
+            icon={<Building2 size={16} />}
+            label="Department"
+            value={requisition.departmentName}
+          />
+
+          <InfoCard
+            icon={<User size={16} />}
+            label="Requested By"
+            value={requisition.requestedBy}
+          />
+
+          <InfoCard
+            icon={<Truck size={16} />}
+            label="Supplier"
+            value={
+              requisition.supplierName ||
+              "Not Assigned"
+            }
+          />
+
+          <InfoCard
+            icon={<CalendarDays size={16} />}
+            label="Created"
+            value={requisition.createdAt}
+          />
+
+        </div>
+
+        <Divider sx={{ my: 3 }} />
+
+        {/* =================================================
+            PRIORITY + REQUEST SUMMARY
+        ================================================= */}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+
+          <div className="rounded-lg border border-border p-4">
+
+            <p className="text-xs text-muted-foreground">
+              Priority
+            </p>
+
+            <div className="mt-2">
+              <Chip
+                label={requisition.priority}
+                size="small"
+                color={
+                  requisition.priority ===
+                  "Emergency"
+                    ? "error"
+                    : requisition.priority ===
+                      "Urgent"
+                    ? "warning"
+                    : "default"
+                }
+              />
+            </div>
+
+          </div>
+
+          <div className="rounded-lg border border-border p-4">
+
+            <div className="flex items-center gap-2">
+              <Package size={16} />
+
+              <p className="text-xs text-muted-foreground">
+                Total Items
+              </p>
+            </div>
+
+            <p className="mt-2 text-lg font-semibold">
+              {requisition.items}
+            </p>
+
+          </div>
+
+          <div className="rounded-lg border border-border p-4">
+
+            <p className="text-xs text-muted-foreground">
+              Total Quantity
+            </p>
+
+            <p className="mt-2 text-lg font-semibold">
+              {requisition.totalQuantity}
+            </p>
+
+          </div>
+
+        </div>
+
+        <Divider sx={{ my: 3 }} />
+
+        {/* =================================================
+            REQUESTED ITEMS
+        ================================================= */}
+
+        <div className="mb-3">
+
           <Typography
-            variant="h6"
+            variant="subtitle1"
             fontWeight={600}
           >
-            Purchase Requisition Approval
+            Requested Items
           </Typography>
 
           <Typography
             variant="body2"
             color="text.secondary"
           >
-            {requisition.requisitionNumber}
+            Verify the requested quantities and
+            estimated cost before approval.
           </Typography>
-        </div>
-      </DialogTitle>
 
-      <DialogContent dividers>
-        {/* Basic Information */}
-
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Requisition Number
-            </p>
-
-            <p className="mt-1 font-medium">
-              {requisition.requisitionNumber}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Indent Number
-            </p>
-
-            <p className="mt-1 font-medium">
-              {requisition.indentNumber}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Department
-            </p>
-
-            <p className="mt-1 font-medium">
-              {requisition.departmentName}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Requested By
-            </p>
-
-            <p className="mt-1 font-medium">
-              {requisition.requestedBy}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Supplier
-            </p>
-
-            <p className="mt-1 font-medium">
-              {requisition.supplierName ??
-                "Not Assigned"}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Priority
-            </p>
-
-            <div className="mt-1">
-              <Chip
-                label={requisition.priority}
-                size="small"
-              />
-            </div>
-          </div>
         </div>
 
-        <Divider className="my-6" />
+        <div className="overflow-hidden rounded-lg border border-border">
 
-        {/* Items */}
+          <div className="max-h-[280px] overflow-y-auto">
 
-        <Typography
-          variant="subtitle1"
-          fontWeight={600}
-        >
-          Requested Items
-        </Typography>
+            <table className="w-full">
 
-        <div className="mt-3 overflow-x-auto rounded-lg border">
-          <table className="w-full">
-            <thead className="border-b bg-muted/40">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm">
-                  Item
-                </th>
+              <thead className="sticky top-0 z-10 border-b bg-muted/90">
 
-                <th className="px-4 py-3 text-center text-sm">
-                  Quantity
-                </th>
+                <tr>
 
-                <th className="px-4 py-3 text-right text-sm">
-                  Est. Amount
-                </th>
-              </tr>
-            </thead>
+                  <th className="px-4 py-3 text-left text-xs font-semibold">
+                    Item
+                  </th>
 
-            <tbody>
-              {requisition.requisitionItems.map(
-                (item) => (
-                  <tr
-                    key={item.id}
-                    className="border-b last:border-0"
-                  >
-                    <td className="px-4 py-3">
-                      {item.itemName}
-                    </td>
+                  <th className="px-4 py-3 text-center text-xs font-semibold">
+                    Quantity
+                  </th>
 
-                    <td className="px-4 py-3 text-center">
-                      {item.quantity}
-                    </td>
+                  <th className="px-4 py-3 text-right text-xs font-semibold">
+                    Estimated Amount
+                  </th>
 
-                    <td className="px-4 py-3 text-right">
-                      {item.estimatedAmount != null
-                        ? `₹${item.estimatedAmount.toLocaleString()}`
-                        : "—"}
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {requisition.requisitionItems.map(
+                  (item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b border-border last:border-0"
+                    >
+
+                      <td className="px-4 py-3">
+
+                        <p className="text-sm font-medium">
+                          {item.itemName}
+                        </p>
+
+                      </td>
+
+                      <td className="px-4 py-3 text-center text-sm">
+                        {item.quantity}
+                      </td>
+
+                      <td className="px-4 py-3 text-right text-sm font-medium">
+                        {item.estimatedAmount !=
+                        null
+                          ? `₹${item.estimatedAmount.toLocaleString()}`
+                          : "—"}
+                      </td>
+
+                    </tr>
+                  )
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
         </div>
+
+        {/* =================================================
+            COST SUMMARY
+        ================================================= */}
 
         <div className="mt-4 rounded-lg bg-muted/40 p-4">
+
           <div className="flex justify-between">
+
             <span className="text-sm text-muted-foreground">
               Total Items
             </span>
@@ -267,9 +437,11 @@ export default function PurchaseRequisitionApprovalDialog({
             <span className="font-medium">
               {requisition.items}
             </span>
+
           </div>
 
           <div className="mt-2 flex justify-between">
+
             <span className="text-sm text-muted-foreground">
               Total Quantity
             </span>
@@ -277,24 +449,32 @@ export default function PurchaseRequisitionApprovalDialog({
             <span className="font-medium">
               {requisition.totalQuantity}
             </span>
+
           </div>
 
-          <div className="mt-2 flex justify-between">
+          <Divider sx={{ my: 1.5 }} />
+
+          <div className="flex justify-between">
+
             <span className="font-semibold">
               Estimated Total
             </span>
 
-            <span className="font-semibold">
+            <span className="text-lg font-semibold">
               ₹{totalAmount.toLocaleString()}
             </span>
+
           </div>
+
         </div>
 
-        <Divider className="my-6" />
+        <Divider sx={{ my: 3 }} />
 
-        {/* Approval */}
+        {/* =================================================
+            APPROVAL DECISION
+        ================================================= */}
 
-        {isPending && (
+        {isPending ? (
           <>
             <Typography
               variant="subtitle1"
@@ -303,7 +483,19 @@ export default function PurchaseRequisitionApprovalDialog({
               Approval Decision
             </Typography>
 
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.5 }}
+            >
+              Select what should happen to this
+              purchase requisition.
+            </Typography>
+
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+
+              {/* APPROVE */}
+
               <Button
                 variant={
                   action === "approve"
@@ -314,29 +506,15 @@ export default function PurchaseRequisitionApprovalDialog({
                 startIcon={
                   <CheckCircle2 size={18} />
                 }
-                onClick={() =>
-                  setAction("approve")
-                }
+                onClick={() => {
+                  setAction("approve");
+                  setComment("");
+                }}
               >
                 Approve
               </Button>
 
-              <Button
-                variant={
-                  action === "reject"
-                    ? "contained"
-                    : "outlined"
-                }
-                color="error"
-                startIcon={
-                  <XCircle size={18} />
-                }
-                onClick={() =>
-                  setAction("reject")
-                }
-              >
-                Reject
-              </Button>
+              {/* SEND BACK */}
 
               <Button
                 variant={
@@ -348,53 +526,93 @@ export default function PurchaseRequisitionApprovalDialog({
                 startIcon={
                   <RotateCcw size={18} />
                 }
-                onClick={() =>
-                  setAction("sendBack")
-                }
+                onClick={() => {
+                  setAction("sendBack");
+                  setComment("");
+                }}
               >
                 Send Back
               </Button>
+
+              {/* REJECT */}
+
+              <Button
+                variant={
+                  action === "reject"
+                    ? "contained"
+                    : "outlined"
+                }
+                color="error"
+                startIcon={
+                  <XCircle size={18} />
+                }
+                onClick={() => {
+                  setAction("reject");
+                  setComment("");
+                }}
+              >
+                Reject
+              </Button>
+
             </div>
+
+            {/* DECISION COMMENT */}
 
             {action && (
               <div className="mt-5">
+
                 <TextField
                   fullWidth
                   multiline
                   rows={4}
                   required
-                  label={
-                    action === "approve"
-                      ? "Approval Comment"
-                      : action === "reject"
-                      ? "Reason for Rejection"
-                      : "Correction Required"
-                  }
-                  placeholder={
-                    action === "approve"
-                      ? "Add approval remarks..."
-                      : action === "reject"
-                      ? "Enter reason for rejecting this requisition..."
-                      : "Explain what needs to be corrected..."
-                  }
+                  label={actionLabel}
+                  placeholder={actionPlaceholder}
                   value={comment}
                   onChange={(e) =>
                     setComment(e.target.value)
                   }
+                  error={
+                    comment.length > 0 &&
+                    !comment.trim()
+                  }
+                  helperText={
+                    action === "approve"
+                      ? "Add remarks for the approval record."
+                      : action === "sendBack"
+                      ? "Mention exactly what the requester needs to correct."
+                      : "Provide a clear reason for rejection."
+                  }
                 />
+
               </div>
             )}
           </>
-        )}
+        ) : (
+          /* =================================================
+             EXISTING DECISION
+          ================================================= */
 
-        {/* Existing decision */}
+          <div className="rounded-lg border border-border bg-muted/20 p-4">
 
-        {!isPending && (
-          <div className="rounded-lg border p-4">
             <div className="flex items-center justify-between">
-              <Typography fontWeight={600}>
-                Approval Status
-              </Typography>
+
+              <div>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={600}
+                >
+                  Approval Decision
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                >
+                  This requisition has already been
+                  processed.
+                </Typography>
+              </div>
 
               <Chip
                 label={requisition.approvalStatus}
@@ -409,47 +627,142 @@ export default function PurchaseRequisitionApprovalDialog({
                 }
                 size="small"
               />
+
             </div>
 
             {requisition.approvalComment && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                className="mt-3"
-              >
-                {requisition.approvalComment}
-              </Typography>
+              <div className="mt-4 rounded-md border border-border bg-background p-3">
+
+                <p className="text-xs text-muted-foreground">
+                  Decision Comment
+                </p>
+
+                <p className="mt-1 text-sm">
+                  {requisition.approvalComment}
+                </p>
+
+              </div>
             )}
+
+            {requisition.approvedBy && (
+              <div className="mt-3 flex justify-between text-sm">
+
+                <span className="text-muted-foreground">
+                  Approved By
+                </span>
+
+                <span className="font-medium">
+                  {requisition.approvedBy}
+                </span>
+
+              </div>
+            )}
+
+            {requisition.approvedAt && (
+              <div className="mt-2 flex justify-between text-sm">
+
+                <span className="text-muted-foreground">
+                  Decision Date
+                </span>
+
+                <span className="font-medium">
+                  {requisition.approvedAt}
+                </span>
+
+              </div>
+            )}
+
           </div>
         )}
+
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={handleClose}>
-          Cancel
-        </Button>
+      {/* =================================================
+          FOOTER
+      ================================================= */}
 
-        {action && (
-          <Button
-            variant="contained"
-            color={
-              action === "approve"
-                ? "success"
-                : action === "reject"
-                ? "error"
-                : "warning"
-            }
-            onClick={handleSubmit}
-            disabled={!comment.trim()}
-          >
-            {action === "approve"
-              ? "Approve Requisition"
-              : action === "reject"
-              ? "Reject Requisition"
-              : "Send Back"}
+      <DialogActions
+        sx={{
+          px: 3,
+          py: 2,
+          justifyContent: "space-between",
+        }}
+      >
+
+        <Typography
+          variant="caption"
+          color="text.secondary"
+        >
+          PR → Approval → Purchase Order
+        </Typography>
+
+        <div className="flex gap-2">
+
+          <Button onClick={handleClose}>
+            Close
           </Button>
-        )}
+
+          {action && (
+            <Button
+              variant="contained"
+              color={
+                action === "approve"
+                  ? "success"
+                  : action === "reject"
+                  ? "error"
+                  : "warning"
+              }
+              onClick={handleSubmit}
+              disabled={!comment.trim()}
+            >
+              {action === "approve"
+                ? "Approve Requisition"
+                : action === "reject"
+                ? "Reject Requisition"
+                : "Send Back"}
+            </Button>
+          )}
+
+        </div>
+
       </DialogActions>
+
     </Dialog>
+  );
+}
+
+/*
+ * ======================================================
+ * INFO CARD
+ * ======================================================
+ */
+
+function InfoCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+
+      <div className="flex items-center gap-2 text-muted-foreground">
+
+        {icon}
+
+        <span className="text-xs">
+          {label}
+        </span>
+
+      </div>
+
+      <p className="mt-2 text-sm font-medium">
+        {value}
+      </p>
+
+    </div>
   );
 }

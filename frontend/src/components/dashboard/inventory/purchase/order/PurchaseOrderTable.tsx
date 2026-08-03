@@ -1,31 +1,58 @@
 "use client";
 
-import { Eye, Pencil } from "lucide-react";
+import {
+  Eye,
+  Send,
+  XCircle,
+  ClipboardPlus,
+} from "lucide-react";
 
 import { PurchaseOrder } from "@/features/inventory/types/purchaseOrder";
 
 interface Props {
   purchaseOrders: PurchaseOrder[];
 
-  onView: (purchaseOrder: PurchaseOrder) => void;
+  onView: (
+    purchaseOrder: PurchaseOrder
+  ) => void;
 
-  onEdit: (purchaseOrder: PurchaseOrder) => void;
+  onApprove: (
+    purchaseOrder: PurchaseOrder
+  ) => void;
+
+  onSendToSupplier: (
+    purchaseOrder: PurchaseOrder
+  ) => void;
+
+  onCreateGRN: (
+    purchaseOrder: PurchaseOrder
+  ) => void;
+
+  onCancel: (
+    purchaseOrder: PurchaseOrder
+  ) => void;
 }
 
 export default function PurchaseOrderTable({
   purchaseOrders,
   onView,
-  onEdit,
+  onApprove,
+  onSendToSupplier,
+  onCreateGRN,
+  onCancel,
 }: Props) {
   const getStatusClass = (
     status: PurchaseOrder["status"]
   ) => {
     switch (status) {
-      case "Approved":
-        return "bg-green-100 text-green-700";
+      case "Draft":
+        return "bg-gray-100 text-gray-700";
 
       case "Pending Approval":
         return "bg-amber-100 text-amber-700";
+
+      case "Approved":
+        return "bg-green-100 text-green-700";
 
       case "Sent to Supplier":
         return "bg-blue-100 text-blue-700";
@@ -55,46 +82,23 @@ export default function PurchaseOrderTable({
         </h3>
 
         <p className="text-sm text-muted-foreground">
-          Manage purchase orders generated from approved purchase
-          requisitions.
+          Manage purchase orders generated from approved
+          purchase requisitions.
         </p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[1100px]">
           <thead className="border-b border-border">
             <tr className="text-left">
-              <th className="pb-3">
-                PO Number
-              </th>
-
-              <th className="pb-3">
-                Requisition
-              </th>
-
-              <th className="pb-3">
-                Supplier
-              </th>
-
-              <th className="pb-3">
-                Department
-              </th>
-
-              <th className="pb-3 text-center">
-                Items
-              </th>
-
-              <th className="pb-3 text-right">
-                Total
-              </th>
-
-              <th className="pb-3 text-center">
-                Status
-              </th>
-
-              <th className="pb-3 text-center">
-                Actions
-              </th>
+              <th className="pb-3">PO Number</th>
+              <th className="pb-3">Requisition</th>
+              <th className="pb-3">Supplier</th>
+              <th className="pb-3">Department</th>
+              <th className="pb-3 text-center">Items</th>
+              <th className="pb-3 text-right">Total</th>
+              <th className="pb-3 text-center">Status</th>
+              <th className="pb-3 text-center">Actions</th>
             </tr>
           </thead>
 
@@ -109,69 +113,45 @@ export default function PurchaseOrderTable({
                 </td>
               </tr>
             ) : (
-              purchaseOrders.map(
-                (purchaseOrder) => (
+              purchaseOrders.map((purchaseOrder) => {
+                const canCreateGRN =
+                  purchaseOrder.status ===
+                    "Sent to Supplier" ||
+                  purchaseOrder.status ===
+                    "Partially Received";
+
+                return (
                   <tr
                     key={purchaseOrder.id}
                     className="border-b border-border last:border-0"
                   >
-                    {/* PO */}
-
                     <td className="py-4">
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {
-                            purchaseOrder.poNumber
-                          }
-                        </p>
+                      <p className="font-medium">
+                        {purchaseOrder.poNumber}
+                      </p>
 
-                        <p className="text-xs text-muted-foreground">
-                          {
-                            purchaseOrder.orderDate
-                          }
-                        </p>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {purchaseOrder.orderDate}
+                      </p>
                     </td>
 
-                    {/* PR */}
-
-                    <td className="py-4">
-                      <span className="text-sm">
-                        {
-                          purchaseOrder.requisitionNumber
-                        }
-                      </span>
+                    <td className="py-4 text-sm">
+                      {purchaseOrder.requisitionNumber}
                     </td>
-
-                    {/* Supplier */}
 
                     <td className="py-4">
                       <span className="font-medium">
-                        {
-                          purchaseOrder.supplierName
-                        }
+                        {purchaseOrder.supplierName}
                       </span>
                     </td>
-
-                    {/* Department */}
 
                     <td className="py-4">
-                      <span>
-                        {
-                          purchaseOrder.departmentName
-                        }
-                      </span>
+                      {purchaseOrder.departmentName}
                     </td>
-
-                    {/* Items */}
 
                     <td className="py-4 text-center">
-                      {
-                        purchaseOrder.items
-                      }
+                      {purchaseOrder.items}
                     </td>
-
-                    {/* Total */}
 
                     <td className="py-4 text-right font-medium">
                       ₹
@@ -180,63 +160,112 @@ export default function PurchaseOrderTable({
                       )}
                     </td>
 
-                    {/* Status */}
-
                     <td className="py-4 text-center">
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClass(
                           purchaseOrder.status
                         )}`}
                       >
-                        {
-                          purchaseOrder.status
-                        }
+                        {purchaseOrder.status}
                       </span>
                     </td>
 
-                    {/* Actions */}
+                    <td className="py-4">
+                      <div className="flex items-center justify-center gap-1">
 
-                    <td className="py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                        {/* VIEW */}
+
                         <button
                           type="button"
                           className="btn btn-ghost btn-icon"
                           onClick={() =>
-                            onView(
-                              purchaseOrder
-                            )
+                            onView(purchaseOrder)
                           }
                           title="View Purchase Order"
                         >
                           <Eye size={16} />
                         </button>
 
+                        {/* APPROVE */}
+
+                        {purchaseOrder.status ===
+                          "Pending Approval" && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon"
+                            onClick={() =>
+                              onApprove(purchaseOrder)
+                            }
+                            title="Approve Purchase Order"
+                          >
+                            ✓
+                          </button>
+                        )}
+
+                        {/* SEND */}
+
+                        {purchaseOrder.status ===
+                          "Approved" && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-icon"
+                            onClick={() =>
+                              onSendToSupplier(
+                                purchaseOrder
+                              )
+                            }
+                            title="Send to Supplier"
+                          >
+                            <Send size={16} />
+                          </button>
+                        )}
+
+                        {/* CREATE GRN */}
+
+                        {canCreateGRN && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10"
+                            onClick={() =>
+                              onCreateGRN(
+                                purchaseOrder
+                              )
+                            }
+                            title="Create GRN"
+                          >
+                            <ClipboardPlus size={14} />
+                            Create GRN
+                          </button>
+                        )}
+
+                        {/* CANCEL */}
+
                         {purchaseOrder.status !==
-                          "Closed" &&
+                          "Fully Received" &&
                           purchaseOrder.status !==
-                            "Fully Received" &&
+                            "Closed" &&
                           purchaseOrder.status !==
-                            "Cancelled" && (
+                            "Cancelled" &&
+                          purchaseOrder.status !==
+                            "Partially Received" && (
                             <button
                               type="button"
                               className="btn btn-ghost btn-icon"
                               onClick={() =>
-                                onEdit(
+                                onCancel(
                                   purchaseOrder
                                 )
                               }
-                              title="Edit Purchase Order"
+                              title="Cancel Purchase Order"
                             >
-                              <Pencil
-                                size={16}
-                              />
+                              <XCircle size={16} />
                             </button>
                           )}
                       </div>
                     </td>
                   </tr>
-                )
-              )
+                );
+              })
             )}
           </tbody>
         </table>
