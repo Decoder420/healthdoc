@@ -25,8 +25,27 @@ import re
 import sys
 from pathlib import Path
 
-VERSIONS = Path(__file__).resolve().parents[1] / "migrations" / "versions"
-DOC = Path(__file__).resolve().parents[2] / "docs" / "database-schema.md"
+def _locate() -> tuple[Path, Path]:
+    """Find migrations/ and the schema doc.
+
+    Resolve from the CWD first, not from __file__: pr-bundle.sh snapshots this
+    script into a temp dir (so it can run against PR branches that predate it)
+    and invokes it with `cd backend`. Anchoring on __file__ then points at
+    /tmp/.../migrations and the check silently reports "no versions dir" —
+    which is what it did on PRs #279 and #261.
+    """
+    for base in (Path.cwd(), Path.cwd().parent, Path(__file__).resolve().parents[1]):
+        versions = base / "migrations" / "versions"
+        if versions.is_dir():
+            for docbase in (base, base.parent):
+                doc = docbase / "docs" / "database-schema.md"
+                if doc.exists():
+                    return versions, doc
+            return versions, base / "docs" / "database-schema.md"
+    return Path.cwd() / "migrations" / "versions", Path.cwd() / "docs" / "database-schema.md"
+
+
+VERSIONS, DOC = _locate()
 RETIRED = {"0018"}
 
 
