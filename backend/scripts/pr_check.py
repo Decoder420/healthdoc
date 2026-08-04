@@ -28,39 +28,59 @@ class Finding:
 SKIP_PATTERNS = ("__init__.py", "/tests/", "\\tests\\", "scripts/pr_check.py")
 
 def _prose_line_numbers(src: str) -> set[int]:
-    """Line numbers consisting ONLY of comment/string content — no live code.
+    """Lines that are ONLY commentary — comments and docstrings.
 
-    A trailing comment does not make a line prose: `col = String(30)  # note`
-    is still code and must still be checked. So we blank out every COMMENT and
-    STRING span and keep only the lines whose remainder is blank.
+    Deliberately NOT "all string literals". Raw SQL lives in text(\"\"\"...\"\"\")
+    blocks all over this codebase, and that SQL is executable code that must be
+    checked. Skipping every string made pr_check blind to it — #270 had
+    `SELECT COALESCE(MAX(version), 0) + 1` inside a text() block and SEQ-RACE
+    stayed silent.
 
-    Why this exists: on PR #271 the SEQ-RACE rule fired on a docstring that
-    said "never MAX(col)+1 — it races", i.e. the author documenting that he had
-    done exactly the right thing. A checker that punishes people for describing
-    the rule teaches them to stop writing comments.
+    So: skip comment-only lines, and skip docstrings (identified via the AST,
+    not by "is a string"). Everything else is checked.
     """
+    import ast
     import io
     import tokenize
 
     lines = src.splitlines()
-    residual = [list(ln) for ln in lines]
+    prose: set[int] = set()
+
+    # 1. comment-only lines (a trailing comment does not excuse the code on it)
     try:
+        residual = [list(ln) for ln in lines]
         for tok in tokenize.generate_tokens(io.StringIO(src).readline):
-            if tok.type not in (tokenize.COMMENT, tokenize.STRING):
+            if tok.type != tokenize.COMMENT:
                 continue
             (r1, c1), (r2, c2) = tok.start, tok.end
-            for row in range(r1, r2 + 1):
-                if row - 1 >= len(residual):
-                    break
+            for row in range(r1, min(r2, len(residual)) + 1):
                 chars = residual[row - 1]
                 lo = c1 if row == r1 else 0
                 hi = c2 if row == r2 else len(chars)
                 for col in range(lo, min(hi, len(chars))):
                     chars[col] = " "
+        prose |= {n for n, chars in enumerate(residual, 1) if not "".join(chars).strip()}
     except (tokenize.TokenError, IndentationError, SyntaxError):
         return {n for n, ln in enumerate(lines, 1) if ln.strip().startswith("#")}
 
-    return {n for n, chars in enumerate(residual, 1) if not "".join(chars).strip()}
+    # 2. docstrings only — module, class, function. Not arbitrary strings.
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return prose
+
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            prose |= set(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+
+    return prose
 
 
 def check_file(path: pathlib.Path) -> list[Finding]:
