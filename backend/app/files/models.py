@@ -10,11 +10,12 @@ patient_id gets a REAL ForeignKey here — patients (migration 0006) sits
 earlier in the chain by number, so no need to defer it. uploaded_by is
 real too, same reasoning.
 
-Migration 0019 ALSO wires up two FK constraints onto EARLIER tables now
-that files finally exists: patients.photo_file_id and
-consent_records.guardian_id_proof_file_id both start pointing at
-files.id. That ALTER TABLE work lives in the migration file, not here —
-this file only describes the two new tables.
+Migration 0019 ALSO wires up three FK constraints onto EARLIER tables
+now that files finally exists: patients.photo_file_id,
+consent_records.guardian_id_proof_file_id, and
+order_external_results.result_file_id all start pointing at files.id.
+That ALTER TABLE work lives in the migration file, not here — this file
+only describes the two new tables.
 """
 
 import uuid
@@ -25,6 +26,7 @@ from sqlalchemy.dialects.postgresql import CHAR, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.db import Base
+from app.common.enums import FileAction
 from app.common.models import Timestamps, UUIDPk
 
 
@@ -56,6 +58,11 @@ class FileRecord(UUIDPk, Timestamps, Base):
         nullable=False,
     )
     sensitivity: Mapped[str] = mapped_column(String(30), nullable=False, server_default="normal")
+    scan_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="skipped")
+    # ^ §4A.4: no malware scanner wired up for MVP. This column exists so the gap
+    # is visible on every row ('skipped') instead of implied by silence. No
+    # CheckedEnum in enums.py yet — schema doc only pins the default, not the
+    # full vocabulary (e.g. clean/infected/error) — so no CHECK constraint here.
 
     __table_args__ = (
         Index("ix_files_patient_id", "patient_id"),
@@ -100,7 +107,7 @@ class FileAccessLog(UUIDPk, Base):
         Index("ix_file_access_log_file_id", "file_id"),
         Index("ix_file_access_log_user_id", "user_id"),
         CheckConstraint(
-            "action IN ('view', 'download', 'upload', 'delete_attempt')",
+            FileAction.sql_check("action"),
             name="ck_file_access_log_action",
         ),
     )
