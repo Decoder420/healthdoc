@@ -83,6 +83,35 @@ def _prose_line_numbers(src: str) -> set[int]:
     return prose
 
 
+def _downgrade_line_numbers(src: str) -> set[int]:
+    """Lines inside a migration's downgrade() body.
+
+    A downgrade exists to restore the PREVIOUS schema state, so by definition it
+    recreates things the current rules forbid. Reverting `facility_type` to
+    varchar(30) is what a correct downgrade of a widening migration looks like —
+    flagging it as an ENUM-WIDTH violation asks the author to write a downgrade
+    that doesn't downgrade. (Found on PR #264, migration 0035.)
+
+    Only shape rules ("the schema must look like X") skip these lines. Danger
+    rules — SEQ-RACE, PII-AADHAAR, MONGO-DUALWRITE, TZ-DATE — still apply: a
+    downgrade that leaks Aadhaar or races on a counter is wrong in either
+    direction.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return set()
+
+    for node in ast.walk(tree):
+        if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == "downgrade"):
+            end = node.end_lineno or node.lineno
+            return set(range(node.lineno, end + 1))
+    return set()
+
+
 def check_file(path: pathlib.Path) -> list[Finding]:
     rel_norm = str(path).replace("\\", "/")
     # Tests deliberately contain anti-patterns (they prove the patterns are wrong);
@@ -123,6 +152,9 @@ def check_file(path: pathlib.Path) -> list[Finding]:
     # documenting that he used a Postgres sequence precisely to avoid MAX+1.)
     prose_lines = _prose_line_numbers(src)
 
+    # Shape rules skip downgrade() — see _downgrade_line_numbers. Danger rules don't.
+    downgrade_lines = _downgrade_line_numbers(src) if is_migration else set()
+
     for i, ln in enumerate(lines, 1):
         s = ln.strip()
         if "pr-check: ignore" in ln:
@@ -149,7 +181,9 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                 "schema §3: (now() AT TIME ZONE facilities.timezone)::date"))
 
         # --- money as float ---------------------------------------------------
-        if re.search(r"\b(Float|REAL|DOUBLE|float)\b", ln) and any(h in ln.lower() for h in MONEY_HINTS):
+        if (i not in downgrade_lines
+                and re.search(r"\b(Float|REAL|DOUBLE|float)\b", ln)
+                and any(h in ln.lower() for h in MONEY_HINTS)):
             f.append(Finding(BLOCK, "MONEY-FLOAT", rel, i,
                 "Money must never be float — paise drift is unrecoverable.",
                 "conventions §1.6: NUMERIC(12,2)"))
@@ -168,7 +202,7 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                 "architecture §4: modules never read os.environ"))
 
         # --- enum column width + inline strings ---------------------------------
-        if is_model and re.search(r"String\((\d{1,2})\)", ln):
+        if is_model and i not in downgrade_lines and re.search(r"String\((\d{1,2})\)", ln):
             width = int(re.search(r"String\((\d{1,2})\)", ln).group(1))
             if width < 50 and any(h in ln.lower() for h in ENUM_COL_HINTS):
                 f.append(Finding(BLOCK, "ENUM-WIDTH", rel, i,
