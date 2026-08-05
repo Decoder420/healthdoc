@@ -19,13 +19,14 @@ export interface StudyCardProps {
     accessionNo: string;
     studyId: string;
     studyName: string;
-    modality:
-      | "X-Ray"
-      | "CT"
-      | "MRI"
-      | "Ultrasound"
-      | "Mammography"
-      | "PET-CT";
+   modality:
+  | "X-Ray"
+  | "CT"
+  | "MRI"
+  | "Ultrasound"
+  | "Mammography"
+  | "PET-CT"
+  | "ECG";
     bodyPart: string;
     studyDate: string;
     studyTime: string;

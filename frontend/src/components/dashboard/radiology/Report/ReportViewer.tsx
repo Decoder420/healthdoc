@@ -27,7 +27,7 @@ import ReportFooter from "./ReportFooter";
 import type { RadiologyReport } from "./types";
 
 interface ReportViewerProps {
-  report: RadiologyReport;
+  report?: RadiologyReport | null;
 }
 
 export default function ReportViewer({
@@ -35,226 +35,431 @@ export default function ReportViewer({
 }: ReportViewerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isPdfMode = searchParams.get("pdf") === "1";
+
+  const isPdfMode =
+    searchParams.get("pdf") === "1";
+
+
+  /* =========================
+     Safety Check
+  ========================= */
+
+  if (!report) {
+    return (
+      <Box
+        sx={{
+          minHeight: "60vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Typography
+          variant="h6"
+          color="text.secondary"
+        >
+          Report not found
+        </Typography>
+      </Box>
+    );
+  }
+
+
+  /* =========================
+     Actions
+  ========================= */
 
   const handlePrint = () => {
     window.print();
   };
 
+
   const handleDownload = () => {
+
+    if (!report.id) {
+      console.error(
+        "Missing report id"
+      );
+      return;
+    }
+
+
     window.open(
       `/api/radiology/reports/${report.id}`,
       "_blank"
     );
   };
 
+
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        bgcolor: isPdfMode ? "#fff" : "#F5F7FB",
-        py: isPdfMode ? 0 : { xs: 2, md: 3 },
-        px: isPdfMode ? 0 : { xs: 1, md: 2 },
+
+        bgcolor:
+          isPdfMode
+            ? "#fff"
+            : "#F5F7FB",
+
+        py:
+          isPdfMode
+            ? 0
+            : {
+                xs: 2,
+                md: 3,
+              },
+
+        px:
+          isPdfMode
+            ? 0
+            : {
+                xs: 1,
+                md: 2,
+              },
       }}
     >
+
+
       {/* ================= Toolbar ================= */}
+
       {!isPdfMode && (
-      <Paper
-        elevation={2}
-        className="no-print"
-        sx={{
-          position: "sticky",
-          top: 16,
-          zIndex: 1000,
 
-          maxWidth: 980,
-          mx: "auto",
-          mb: 2.5,
+        <Paper
+          className="no-print"
+          elevation={2}
 
-          borderRadius: 3,
-
-          border: "1px solid",
-          borderColor: "divider",
-        }}
-      >
-        <Stack
-          direction={{
-            xs: "column",
-            md: "row",
-          }}
-          justifyContent="space-between"
-          alignItems={{
-            xs: "stretch",
-            md: "center",
-          }}
-          spacing={2}
           sx={{
-            p: 2,
+            position: "sticky",
+            top: 16,
+            zIndex: 1000,
+
+            maxWidth: 980,
+            mx: "auto",
+            mb: 2.5,
+
+            borderRadius: 3,
+
+            border:
+              "1px solid",
+
+            borderColor:
+              "divider",
           }}
         >
-          <Box>
-            <Typography
-              variant="h5"
-              fontWeight={700}
-            >
-              Radiology Report
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Report No.
-              {" "}
-              <strong>
-                {report.report.reportNo}
-              </strong>
-            </Typography>
-          </Box>
 
           <Stack
             direction={{
-              xs: "column",
-              sm: "row",
+              xs:"column",
+              md:"row",
             }}
-            spacing={1.5}
+
+            justifyContent="space-between"
+
+            alignItems={{
+              xs:"stretch",
+              md:"center",
+            }}
+
+            spacing={2}
+
+            sx={{
+              p:2,
+            }}
           >
-            <Button
-              variant="outlined"
-              startIcon={
-                <ArrowBackRoundedIcon />
-              }
-              onClick={() => router.back()}
-              sx={{
-                borderRadius: 2,
-                minWidth: 110,
-              }}
-            >
-              Back
-            </Button>
 
-            <Button
-              variant="outlined"
-              startIcon={
-                <PrintRoundedIcon />
-              }
-              onClick={handlePrint}
-              sx={{
-                borderRadius: 2,
-                minWidth: 110,
-              }}
-            >
-              Print
-            </Button>
 
-            <Button
-              variant="contained"
-              startIcon={
-                <DownloadRoundedIcon />
-              }
-              onClick={handleDownload}
-              sx={{
-                borderRadius: 2,
-                minWidth: 170,
+            <Box>
+
+              <Typography
+                variant="h5"
+                fontWeight={700}
+              >
+                Radiology Report
+              </Typography>
+
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+              >
+
+                Report No:
+
+                {" "}
+
+                <strong>
+                  {
+                    report.report
+                      ?.reportNo
+                    ??
+                    "N/A"
+                  }
+                </strong>
+
+              </Typography>
+
+
+            </Box>
+
+
+
+            <Stack
+              direction={{
+                xs:"column",
+                sm:"row",
               }}
+
+              spacing={1.5}
             >
-              Download PDF
-            </Button>
+
+
+              <Button
+                variant="outlined"
+
+                startIcon={
+                  <ArrowBackRoundedIcon/>
+                }
+
+                onClick={() =>
+                  router.back()
+                }
+
+                sx={{
+                  borderRadius:2,
+                  minWidth:110,
+                }}
+              >
+                Back
+              </Button>
+
+
+
+              <Button
+                variant="outlined"
+
+                startIcon={
+                  <PrintRoundedIcon/>
+                }
+
+                onClick={
+                  handlePrint
+                }
+
+                sx={{
+                  borderRadius:2,
+                  minWidth:110,
+                }}
+              >
+                Print
+              </Button>
+
+
+
+              <Button
+                variant="contained"
+
+                startIcon={
+                  <DownloadRoundedIcon/>
+                }
+
+                onClick={
+                  handleDownload
+                }
+
+                sx={{
+                  borderRadius:2,
+                  minWidth:170,
+                }}
+              >
+                Download PDF
+              </Button>
+
+
+            </Stack>
+
+
           </Stack>
-        </Stack>
-      </Paper>
+
+
+        </Paper>
+
       )}
 
-      {/* ================= Report ================= */}
+
+
+      {/* ================= Report Body ================= */}
+
 
       <Paper
+
         id="radiology-report"
+
         elevation={6}
+
         sx={{
-          maxWidth: 980,
-          mx: "auto",
 
-          bgcolor: "#fff",
+          maxWidth:980,
 
-          borderRadius: 3,
+          mx:"auto",
 
-          border: "1px solid",
-          borderColor: "divider",
+          bgcolor:"#fff",
 
-          p: {
-            xs: 2,
-            md: 4,
+          borderRadius:3,
+
+          border:
+            "1px solid",
+
+          borderColor:
+            "divider",
+
+
+          p:{
+            xs:2,
+            md:4,
           },
 
-          display: "flex",
-          flexDirection: "column",
 
-          gap: 2,
+          display:"flex",
 
-          "@media print": {
-            maxWidth: "100%",
-            border: "none",
-            borderRadius: 0,
-            boxShadow: "none",
-            p: 0,
+          flexDirection:"column",
+
+          gap:2,
+
+
+          "@media print":{
+
+            maxWidth:"100%",
+
+            border:"none",
+
+            borderRadius:0,
+
+            boxShadow:"none",
+
+            p:0,
           },
+
         }}
       >
-        {/* Header */}
+
+
+
         <ReportHeader
-          hospital={report.hospital}
-          report={report.report}
+
+          hospital={
+            report.hospital
+          }
+
+          report={
+            report.report
+          }
+
         />
 
-        {/* Patient Information */}
+
+
         <PatientCard
-          patient={report.patient}
-          doctor={report.doctor}
-          visit={report.visit}
+
+          patient={
+            report.patient
+          }
+
+          doctor={
+            report.doctor
+          }
+
+          visit={
+            report.visit
+          }
+
         />
 
-        {/* Study Information */}
+
+
         <StudyCard
-          study={report.study}
+
+          study={
+            report.study
+          }
+
         />
 
-        {/* Clinical History */}
+
+
         <ClinicalHistory
+
           clinicalHistory={
             report.clinicalHistory
+            ??
+            ""
           }
+
         />
 
-        {/* Images */}
+
+
         <ImageGallery
-          images={report.images}
+
+          images={
+            report.images
+            ??
+            []
+          }
+
         />
 
-        {/* Findings */}
+
+
         <Findings
-          findings={report.findings}
+
+          findings={
+            report.findings
+            ??
+            ""
+          }
+
         />
 
-        {/* Impression */}
+
+
         <Impression
-          impression={report.impression}
+
+          impression={
+            report.impression
+            ??
+            ""
+          }
+
         />
 
-        {/* Signature */}
+
+
         <Signature
+
           radiologist={
             report.radiologist
           }
+
         />
 
-        {/* Footer */}
+
+
         <ReportFooter
+
           generatedOn={
             report.generatedOn
           }
-          hospital={report.hospital}
+
+          hospital={
+            report.hospital
+          }
+
         />
+
+
       </Paper>
+
+
     </Box>
   );
 }
