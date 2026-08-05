@@ -1,8 +1,8 @@
 "use client";
 
-import { LoadingButton } from "@mui/lab";
 import {
   Button,
+   CircularProgress,
   Stack,
 } from "@mui/material";
 
@@ -37,15 +37,22 @@ export default function ActionButtons({
         Save Draft
       </Button>
 
-      <LoadingButton
-        variant="contained"
-        size="large"
-        loading={loading}
-        disabled={!canVerify}
-        onClick={onVerify}
-      >
-        Verify Report
-      </LoadingButton>
+      <Button
+  variant="contained"
+  size="large"
+  disabled={!canVerify || loading}
+  onClick={onVerify}
+  startIcon={
+    loading ? (
+      <CircularProgress
+        size={18}
+        color="inherit"
+      />
+    ) : undefined
+  }
+>
+  {loading ? "Verifying..." : "Verify Report"}
+</Button>
     </Stack>
   );
 }

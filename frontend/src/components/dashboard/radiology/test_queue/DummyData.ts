@@ -40,6 +40,20 @@ export type RadiologyQueueItem = {
   status: RadiologyQueueStatus;
 
   reportAvailable: boolean;
+
+
+  // ADD THESE
+
+  reportId: string;
+
+  reportStatus:
+    | "Not Started"
+    | "Draft"
+    | "Verified";
+
+  dicomStudyId: string;
+
+  imageCount: number;
 };
 
 
@@ -251,7 +265,29 @@ export const appointmentQueue: RadiologyQueueItem[] =
       status,
 
       reportAvailable:
-        status === "Verified",
+  status === "Verified",
+
+
+reportId:
+  `REP-${String(index + 1).padStart(6, "0")}`,
+
+
+reportStatus:
+  status === "Verified"
+    ? "Verified"
+    : status === "Processing"
+    ? "Draft"
+    : "Not Started",
+
+
+dicomStudyId:
+  `STUDY-${100000 + index}`,
+
+
+imageCount:
+  modality === "ECG"
+    ? 0
+    : 20 + (index % 50),
     };
   });
 

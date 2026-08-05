@@ -285,7 +285,7 @@ const handleVerify = async () => {
 
   const verifiedReport = {
     ...selectedPatient,
-    studyStatus: "Verified",
+    status: "Verified",
     report: {
       ...selectedPatient.report,
       findings,

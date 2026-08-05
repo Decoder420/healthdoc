@@ -1,26 +1,68 @@
 import { notFound } from "next/navigation";
 
-import ReportViewer from "@/components/dashboard/radiology/Report/ReportViewer"
-import { radiologyReports } from "@/components/dashboard/radiology/Report/dummyData"
+import ReportViewer from "@/components/dashboard/radiology/Report/ReportViewer";
+
+import {
+  appointmentQueue,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
+
+import {
+  buildReport,
+} from "@/components/dashboard/radiology/Report/ReportBuilder";
+
 
 interface ReportPageProps {
   params: Promise<{
-    id: string;
+    accessionNo: string;
   }>;
 }
+
 
 export default async function ReportPage({
   params,
 }: ReportPageProps) {
-  const { id } = await params;
 
- const report = radiologyReports.find(
-  (item) => item.id === id
-);
 
-  if (!report) {
+  const {
+    accessionNo,
+  } = await params;
+
+
+
+  const queueItem =
+    appointmentQueue.find(
+
+      (item) =>
+
+        item.accessionNumber === accessionNo
+
+    );
+
+
+
+  if (!queueItem) {
+
     notFound();
+
   }
 
-  return <ReportViewer report={report} />;
+
+
+  const report =
+    buildReport(
+      queueItem
+    );
+
+
+
+  return (
+
+    <ReportViewer
+
+      report={report}
+
+    />
+
+  );
+
 }
