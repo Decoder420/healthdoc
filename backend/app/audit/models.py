@@ -24,7 +24,7 @@ and users are real as of migration 0002.
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import CHAR, INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,12 +43,17 @@ class AuditLog(UUIDPk, Base):
     no `updated_at` (append-only tables never get one, per schema doc).
 
     Chaining is asynchronous and per-facility (schema doc §3 0003, post
-    review). The row is written with `chain_seq` only — assigned by the
-    BEFORE INSERT trigger `trg_audit_logs_assign_chain_seq` from a
-    per-facility sequence (seq_audit_<facility_id>). `prev_hash`,
-    `entry_hash`, `signature`, and `signer_key_id` are all NULL at insert
-    time; a separate single-threaded per-facility sealer job fills them
-    in afterwards, walking rows in chain_seq order. `sealed_at` NULL
+    review). The row is written with `chain_seq` only — assigned
+    gaplessly by the BEFORE INSERT trigger
+    `trg_audit_logs_assign_chain_seq` from a row in `audit_counters`
+    (never a raw Postgres SEQUENCE — sequences aren't transactional, so
+    a rolled-back insert still consumes a number and leaves a gap that
+    looks identical to a deleted row; a counter row incremented inside
+    the same transaction has no such gap, so any gap the sealer finds
+    is unambiguous tampering evidence). `prev_hash`, `entry_hash`,
+    `signature`, and `signer_key_id` are all NULL at insert time; a
+    separate single-threaded per-facility sealer job fills them in
+    afterwards, walking rows in chain_seq order. `sealed_at` NULL
     means "not yet chained" (an alert if older than the 15-minute SLA).
     Do NOT set any of prev_hash/entry_hash/signature/signer_key_id/
     sealed_at from application code — the write path only ever supplies
@@ -67,7 +72,7 @@ class AuditLog(UUIDPk, Base):
     __tablename__ = "audit_logs"
 
     created_at: Mapped[datetime] = mapped_column(
-        primary_key=True, server_default=func.now(), nullable=False
+        DateTime(timezone=True), primary_key=True, server_default=func.now(), nullable=False
     )
 
     facility_id: Mapped[uuid.UUID] = mapped_column(
@@ -102,7 +107,9 @@ class AuditLog(UUIDPk, Base):
     entry_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)  # sealer-computed
     signature: Mapped[str | None] = mapped_column(nullable=True)  # sealer-computed (Ed25519)
     signer_key_id: Mapped[str | None] = mapped_column(nullable=True)  # sealer-computed
-    sealed_at: Mapped[datetime | None] = mapped_column(nullable=True)  # NULL = not yet chained
+    sealed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # NULL = not yet chained
 
     __table_args__ = (
         Index("ix_audit_logs_user_id", "user_id", "created_at"),
@@ -124,6 +131,35 @@ class AuditLog(UUIDPk, Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<AuditLog id={self.id} action={self.action} resource={self.resource_type}:{self.resource_id}>"
+
+
+class AuditCounter(Base):
+    """
+    Gapless per-facility allocator for `audit_logs.chain_seq` — same
+    pattern as `billing_counters`. Row is upserted on first audit write
+    for a facility by the `trg_audit_logs_assign_chain_seq` trigger
+    (migration 0003); this ORM class exists mainly so tests and any
+    future facility-creation code can read/seed it directly, not
+    because application code should increment it (the trigger owns
+    that, inside the same transaction as the audit insert).
+
+    No `id`/`created_at`/`updated_at` — `facility_id` IS the primary
+    key, one row per facility, and there's no meaningful "when was this
+    row created" beyond "whenever the first audit event for this
+    facility happened."
+    """
+
+    __tablename__ = "audit_counters"
+
+    facility_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facilities.id", ondelete="RESTRICT", name="fk_audit_counters_facility_id"),
+        primary_key=True,
+    )
+    last_value: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<AuditCounter facility_id={self.facility_id} last_value={self.last_value}>"
 
 
 class AuditLogArchive(UUIDPk, Timestamps, Base):
@@ -153,8 +189,8 @@ class AuditLogArchive(UUIDPk, Timestamps, Base):
     object_storage_bucket: Mapped[str | None] = mapped_column(nullable=True)
     object_storage_key: Mapped[str | None] = mapped_column(nullable=True)
     archive_file_hash: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
-    archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # v3.4.1: enum/status columns are varchar(50) — overrides any narrower
     # width shown inline in the schema doc for this column.
     verification_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="pending")
@@ -181,7 +217,7 @@ class AuditIntegrityCheck(UUIDPk, Timestamps, Base):
         nullable=False,
     )
     partition_name: Mapped[str] = mapped_column(nullable=False)
-    checked_at: Mapped[datetime] = mapped_column(nullable=False)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     rows_checked: Mapped[int] = mapped_column(BigInteger, nullable=False)
     chain_valid: Mapped[bool] = mapped_column(nullable=False)
     signatures_valid: Mapped[int] = mapped_column(BigInteger, nullable=False)

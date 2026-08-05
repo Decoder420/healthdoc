@@ -70,9 +70,13 @@ gap through quietly. See its own docstring for how modules opt in.
 KNOWN LIMITATIONS (flagged, not hidden — this is a skeleton):
 1. entry_hash/prev_hash/signature/signer_key_id are no longer computed
    anywhere in this file or service.py — they're sealer-computed,
-   asynchronously, per facility (schema doc §3 0003). Rows written here
-   have all five chain columns NULL until the sealer job (not built yet)
-   runs. That job, and Ed25519 key management, still need an owner.
+   asynchronously, per facility (schema doc §3 0003). chain_seq itself
+   is gapless (assigned from audit_counters, migration 0003 — see that
+   migration's comments for why a raw Postgres SEQUENCE was wrong here).
+   Rows written here have all five chain columns NULL until the sealer
+   job runs. That job has no owner yet; Tech Lead opened it as its own
+   blocking issue (#291) rather than leaving it implicit in this PR —
+   the table is not tamper-evident in production until it lands.
 2. Bulk operations (session.execute(update(...)), bulk_update_mappings,
    raw SQL) bypass the ORM's unit-of-work entirely and will NOT trigger
    this — they never touch session.new/dirty/deleted. Use
@@ -91,6 +95,8 @@ KNOWN LIMITATIONS (flagged, not hidden — this is a skeleton):
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -141,12 +147,38 @@ def _resolve_related_id(obj: Any, attr_name: str | None) -> UUID | None:
     return getattr(obj, attr_name, None)
 
 
+def _json_safe(value: Any) -> Any:
+    """
+    Convert a raw Python attribute value into something SQLAlchemy's
+    JSON serializer can actually write to a JSONB column.
+
+    get_history() hands back real Python objects -- uuid.UUID,
+    datetime/date, Decimal -- not JSON primitives. The stdlib json
+    encoder (what SQLAlchemy's JSON type uses by default) has no idea
+    how to serialize those and raises TypeError. Since schema-
+    conventions.md rule #2 makes UUID the primary key of every table in
+    this app, this bit ANY auditable model's first insert -- caught by
+    test_opted_in_model_create_produces_exactly_one_audit_row, not
+    found in review, because nobody had wired a real model into
+    listeners.py yet to notice.
+    """
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    return value
+
+
 def _column_snapshot(obj: Any, *, want_old: bool) -> dict[str, Any]:
     """
     A {column_name: value} dict for every mapped column that actually
     changed on this object, using SQLAlchemy's own attribute history.
     want_old=True -> values BEFORE the change (for old_value).
     want_old=False -> values AFTER the change (for new_value).
+    Values are passed through _json_safe() so old_value/new_value can
+    actually be written to their JSONB columns.
     """
     mapper = inspect(type(obj))
     snapshot: dict[str, Any] = {}
@@ -154,10 +186,10 @@ def _column_snapshot(obj: Any, *, want_old: bool) -> dict[str, Any]:
         history = attributes.get_history(obj, column_attr.key)
         if want_old:
             if history.deleted:
-                snapshot[column_attr.key] = history.deleted[0]
+                snapshot[column_attr.key] = _json_safe(history.deleted[0])
         else:
             if history.added:
-                snapshot[column_attr.key] = history.added[0]
+                snapshot[column_attr.key] = _json_safe(history.added[0])
     return snapshot
 
 
@@ -301,12 +333,14 @@ def _write_captured_audit_entries(session: Session, flush_context) -> None:
 # etc.) legitimately opt out — a blanket "every model must audit" check
 # would be wrong, not just noisy.
 #
-# TODO: this list is intentionally short right now (only what this repo
-# has built so far). Each module owner adds their own package here in the
-# same PR that adds __audit_resource_type__ to their models — see review
-# comment #4. An empty/incomplete list means assert_audit_coverage() can't
-# catch a gap it doesn't know to look for; growing this list is the actual
-# rollout, not a one-time task.
+# Rollout owner: Vaani Choudhary (B7) — tracked in issue #290
+# (audit-opt-in-rollout). Target: every core-clinical/financial module
+# (patients, visits, orders, billing, consent, files) added here by end
+# of Sprint W2, one PR per module alongside that module's own
+# __audit_resource_type__ additions. This list starts empty on purpose:
+# an empty/incomplete list means assert_audit_coverage() can't catch a
+# gap it doesn't know to look for, so growing it module-by-module IS the
+# rollout — not a one-time task, and not blocking on this PR.
 AUDITABLE_MODULE_PREFIXES: tuple[str, ...] = (
     # "app.patients",
     # "app.billing",

@@ -92,9 +92,14 @@ def _build_audit_log(
     aware, no I/O happens in here regardless).
 
     Single source of truth for: falling back to the current request's
-    actor (app/audit/context.py) when caller-supplied fields are None,
-    and for signing the payload. Never sets prev_hash/entry_hash — the
-    audit_logs BEFORE INSERT trigger (migration 0003) computes those.
+    actor (app/audit/context.py) when caller-supplied fields are None.
+    Sets none of chain_seq/prev_hash/entry_hash/signature/
+    signer_key_id/sealed_at — chain_seq is assigned by the
+    trg_audit_logs_assign_chain_seq BEFORE INSERT trigger (migration
+    0003), and the other five stay NULL until the async per-facility
+    sealer job runs (see AuditLog's docstring in models.py). This
+    function no longer signs anything — that moved out of the write
+    path entirely.
     """
     actor = get_current_actor()
     if user_id is None and actor is not None:

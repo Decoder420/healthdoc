@@ -1,5 +1,5 @@
 """audit — audit_logs (append-only, hash-chained, monthly-partitioned),
-audit_log_archive, audit_integrity_checks
+audit_counters, audit_log_archive, audit_integrity_checks
 
 Revision ID: 0003
 Revises: 0002
@@ -54,11 +54,12 @@ def upgrade() -> None:
             reason          TEXT,
             ip_address      INET,
             device_id       TEXT,
-            -- Per-facility monotonic write order (nextval'd by
-            -- trg_audit_logs_assign_chain_seq below). This is what the
-            -- async sealer walks in order to build the hash chain --
-            -- see the block comment above the trigger for why this can't
-            -- be computed inline anymore.
+            -- Per-facility monotonic write order, gaplessly assigned by
+            -- trg_audit_logs_assign_chain_seq below from the
+            -- audit_counters table (never a raw Postgres SEQUENCE --
+            -- see the trigger's comment for why gaplessness matters
+            -- here specifically). This is what the async sealer walks
+            -- in order to build the hash chain.
             chain_seq       BIGINT      NOT NULL,
             -- prev_hash/entry_hash/signature/signer_key_id are all NULL
             -- at insert time now. A single-threaded per-facility sealer
@@ -167,7 +168,41 @@ def upgrade() -> None:
     )
 
     # ------------------------------------------------------------------
-    # 4. Chain sequencing only -- NOT the hash chain itself anymore.
+    # 4. audit_counters — the gapless per-facility chain_seq allocator.
+    #    Same pattern as billing_counters: one row per facility,
+    #    incremented with a locking UPDATE inside the SAME transaction
+    #    as the audit insert, so a rollback undoes the increment too.
+    #
+    #    Why not a Postgres SEQUENCE (previous version of this
+    #    migration): sequences are NOT transactional -- a rolled-back
+    #    insert still permanently consumes its nextval(). In normal
+    #    operation that produces chain_seq values like 1, 2, 4, 5, and
+    #    the sealer then cannot tell "transaction 3 rolled back"
+    #    (harmless, constant) apart from "someone deleted row 3" (the
+    #    exact tampering the chain exists to catch) -- the two are
+    #    indistinguishable from gaps alone. A counter row that only
+    #    advances on commit has no such gaps: any gap the sealer finds
+    #    is unambiguous evidence of tampering.
+    #
+    #    Created here as an ordinary table (not partitioned -- one row
+    #    per facility, not one row per audit event). No FK from
+    #    facilities to here; a row is upserted on first audit write for
+    #    a facility inside the trigger below (see its comment for why),
+    #    so this table doesn't need facilities-module code to seed it.
+    # ------------------------------------------------------------------
+    op.create_table(
+        "audit_counters",
+        sa.Column(
+            "facility_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("facilities.id", ondelete="RESTRICT", name="fk_audit_counters_facility_id"),
+            primary_key=True,
+        ),
+        sa.Column("last_value", sa.BigInteger(), nullable=False, server_default="0"),
+    )
+
+    # ------------------------------------------------------------------
+    # 5. Chain sequencing only -- NOT the hash chain itself anymore.
     #
     #    Per review: computing entry_hash inline (old approach) reads
     #    the previous row's hash with a plain SELECT, so two concurrent
@@ -178,28 +213,44 @@ def upgrade() -> None:
     #    mutation. Facilities also write offline and sync later, so one
     #    global chain is impossible by construction.
     #
-    #    So this trigger does only ONE thing: assign chain_seq from a
-    #    per-facility monotonic sequence (seq_audit_<facility_id>,
-    #    created on first use -- facilities are created dynamically, so
-    #    there's no fixed list of sequences to pre-create). The row is
+    #    So this trigger does only ONE thing: assign chain_seq from
+    #    audit_counters (above), gaplessly. The INSERT..ON CONFLICT
+    #    upsert followed by an UPDATE..RETURNING is one atomic path:
+    #    the UPDATE takes a row lock on this facility's counter row for
+    #    the rest of the transaction, so concurrent inserts for the
+    #    SAME facility serialise on that one row (not on all of
+    #    audit_logs), and a rollback releases the lock without having
+    #    consumed a number -- gapless by construction, no DDL on the
+    #    write path, no sequence-name string-building. The row is
     #    written with prev_hash/entry_hash/signature/signer_key_id all
     #    NULL and sealed_at NULL.
     #
     #    A separate, single-threaded per-facility sealer job (not part
-    #    of this migration -- tracked as its own follow-up) walks
-    #    unsealed rows in chain_seq order and fills prev_hash/
-    #    entry_hash/signature. Sealing is idempotent/restartable, and
-    #    the cloud verifies each facility's chain independently without
-    #    ever re-chaining on ingest.
+    #    of this migration -- tracked as its own follow-up, opened by
+    #    Tech Lead as a blocking issue since it's what makes the table
+    #    tamper-evident in production) walks unsealed rows in chain_seq
+    #    order and fills prev_hash/entry_hash/signature. Sealing is
+    #    idempotent/restartable, and the cloud verifies each facility's
+    #    chain independently without ever re-chaining on ingest. A gap
+    #    in chain_seq found by the sealer/verifier is now unambiguous:
+    #    it can only mean a row was removed.
     # ------------------------------------------------------------------
     op.execute(
         """
         CREATE OR REPLACE FUNCTION trg_audit_logs_assign_chain_seq() RETURNS trigger AS $$
         DECLARE
-            seq_name text := 'seq_audit_' || replace(NEW.facility_id::text, '-', '_');
+            next_seq bigint;
         BEGIN
-            EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I', seq_name);
-            EXECUTE format('SELECT nextval(%L)', seq_name) INTO NEW.chain_seq;
+            INSERT INTO audit_counters (facility_id, last_value)
+            VALUES (NEW.facility_id, 0)
+            ON CONFLICT (facility_id) DO NOTHING;
+
+            UPDATE audit_counters
+            SET last_value = last_value + 1
+            WHERE facility_id = NEW.facility_id
+            RETURNING last_value INTO next_seq;
+
+            NEW.chain_seq := next_seq;
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -214,7 +265,7 @@ def upgrade() -> None:
     )
 
     # ------------------------------------------------------------------
-    # 5. audit_log_archive — ordinary table, normal Alembic ops.
+    # 6. audit_log_archive — ordinary table, normal Alembic ops.
     #    See models.py docstring for the nullability reasoning: only
     #    facility_id + partition_name are required at creation time.
     # ------------------------------------------------------------------
@@ -250,7 +301,7 @@ def upgrade() -> None:
     op.create_index("ix_audit_log_archive_facility_id", "audit_log_archive", ["facility_id"])
 
     # ------------------------------------------------------------------
-    # 6. audit_integrity_checks — ordinary table.
+    # 7. audit_integrity_checks — ordinary table.
     # ------------------------------------------------------------------
     op.create_table(
         "audit_integrity_checks",
@@ -284,6 +335,7 @@ def downgrade() -> None:
 
     op.execute("DROP TRIGGER IF EXISTS trg_audit_logs_assign_chain_seq ON audit_logs;")
     op.execute("DROP FUNCTION IF EXISTS trg_audit_logs_assign_chain_seq();")
+    op.drop_table("audit_counters")
     op.execute("DROP TRIGGER IF EXISTS trg_audit_logs_block_update ON audit_logs;")
     op.execute("DROP FUNCTION IF EXISTS trg_audit_logs_block_update();")
     op.execute("DROP TABLE IF EXISTS audit_logs CASCADE;")
