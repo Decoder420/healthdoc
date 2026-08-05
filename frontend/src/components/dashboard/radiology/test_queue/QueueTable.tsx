@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 
 import {
-  Box,
+  Alert,
   Chip,
   Paper,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -27,42 +28,51 @@ import {
 
 import { appointmentQueue } from "./DummyData";
 
-
 interface Props {
   search: string;
   modality: string;
   priority: string;
   status: string;
-}
 
+  onNotify: (
+    message: string,
+    severity: "success" | "info" | "warning" | "error"
+  ) => void;
+}
 
 export interface QueuePatient {
   id: number;
-  token: string;
+
+  orderId: string;
+  accessionNumber: string;
+  patientId: string;
+  visitId: string;
+
   patientName: string;
   uhid: string;
+
   age: number;
   gender: string;
+
   modality: string;
   procedure: string;
+
   radiologist: string;
+
   appointmentDate: string;
   appointmentTime: string;
+
   priority: string;
   status: string;
-}
 
+  reportAvailable: boolean;
+}
 
 const priorityOrder: Record<string, number> = {
   Emergency: 1,
   Urgent: 2,
   Routine: 3,
 };
-
-
-/* ======================================================
-   RADIOLOGY WORKFLOW
-====================================================== */
 
 const RADIOLOGY_QUEUE_WORKFLOW: StatusStep[] = [
   {
@@ -73,72 +83,60 @@ const RADIOLOGY_QUEUE_WORKFLOW: StatusStep[] = [
       {
         id: "START_SCAN",
         label: "Start Scan",
-        nextStatus: "Scan Started",
+        nextStatus: "Processing",
         variant: "contained",
         color: "primary",
       },
-
       {
         id: "NO_SHOW",
         label: "No Show",
         nextStatus: "No Show",
-        variant: "contained",
-        color: "primary",
+        variant: "outlined",
+        color: "warning",
         requiresConfirmation: true,
       },
-
       {
         id: "REMOVE",
         label: "Remove",
         nextStatus: "Removed",
-        variant: "contained",
-        color: "primary",
+        variant: "outlined",
+        color: "error",
         requiresConfirmation: true,
       },
     ],
   },
 
-
   {
-    value: "Scan Started",
+    value: "Processing",
     label: "Processing",
 
     actions: [
       {
-        id: "COMPLETE_SCAN",
-        label: "Complete",
-        nextStatus: "Completed",
+        id: "VERIFY",
+        label: "Verify Report",
+        nextStatus: "Verified",
         variant: "contained",
-        color: "primary",
+        color: "success",
       },
-
       {
         id: "REMOVE",
         label: "Remove",
         nextStatus: "Removed",
-        variant: "contained",
-        color: "primary",
+        variant: "outlined",
+        color: "error",
       },
     ],
   },
 
-
   {
-    value: "Completed",
-    label: "Completed",
+    value: "Verified",
+    label: "Verified",
     terminal: true,
   },
-
 
   {
     value: "No Show",
     label: "No Show",
-
-    alert: {
-      severity: "warning",
-      message:
-        "Patient did not arrive for scheduled scan",
-    },
 
     actions: [
       {
@@ -148,17 +146,15 @@ const RADIOLOGY_QUEUE_WORKFLOW: StatusStep[] = [
         variant: "contained",
         color: "primary",
       },
-
       {
         id: "REMOVE",
         label: "Remove",
         nextStatus: "Removed",
-        variant: "contained",
-        color: "primary",
+        variant: "outlined",
+        color: "error",
       },
     ],
   },
-
 
   {
     value: "Removed",
@@ -166,14 +162,12 @@ const RADIOLOGY_QUEUE_WORKFLOW: StatusStep[] = [
 
     alert: {
       severity: "error",
-      message:
-        "Appointment removed from queue",
+      message: "Appointment removed from queue",
     },
 
     terminal: true,
   },
 ];
-
 
 export default function QueueTable({
   search,
@@ -181,69 +175,62 @@ export default function QueueTable({
   priority,
   status,
 }: Props) {
+  const [rows, setRows] =
+    useState<QueuePatient[]>(appointmentQueue);
 
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success" as
+      | "success"
+      | "info"
+      | "warning"
+      | "error",
+  });
 
-  const [rows,setRows] =
-    useState<QueuePatient[]>(
-      appointmentQueue
-    );
-
-
-
-  /* ===============================
+  /* ===========================================
      FILTER
-  =============================== */
+  =========================================== */
 
-  const filteredRows = useMemo(()=>{
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
 
     return rows
-      .filter((patient)=>{
-
-        const keyword =
-          search
-          .trim()
-          .toLowerCase();
-
+      .filter((patient) => {
+        // Show only Queue & No Show
+        if (
+          patient.status !== "Queue" &&
+          patient.status !== "No Show"
+        ) {
+          return false;
+        }
 
         const matchesSearch =
+          keyword === "" ||
           patient.patientName
-          .toLowerCase()
-          .includes(keyword)
-
-          ||
-
+            .toLowerCase()
+            .includes(keyword) ||
           patient.uhid
-          .toLowerCase()
-          .includes(keyword)
-
-          ||
-
-          patient.token
-          .toLowerCase()
-          .includes(keyword);
-
-
+            .toLowerCase()
+            .includes(keyword) ||
+          patient.accessionNumber
+            .toLowerCase()
+            .includes(keyword) ||
+          patient.orderId
+            .toLowerCase()
+            .includes(keyword);
 
         const matchesModality =
-          modality==="All"
-          ||
-          patient.modality===modality;
-
-
+          modality === "All" ||
+          patient.modality === modality;
 
         const matchesPriority =
-          priority==="All"
-          ||
-          patient.priority===priority;
-
-
+          priority === "All" ||
+          patient.priority === priority;
 
         const matchesStatus =
-          status==="All"
-          ||
-          patient.status===status;
-
-
+          status === "All" ||
+          patient.status === status;
 
         return (
           matchesSearch &&
@@ -251,354 +238,337 @@ export default function QueueTable({
           matchesPriority &&
           matchesStatus
         );
-
       })
-
-
       .sort(
-        (a,b)=>
-          priorityOrder[a.priority]
-          -
+        (a, b) =>
+          priorityOrder[a.priority] -
           priorityOrder[b.priority]
       );
-
-
-  },[
+  }, [
     rows,
     search,
     modality,
     priority,
-    status
+    status,
   ]);
 
-
-
-
-  /* ===============================
+    /* ===========================================
      ACTION HANDLER
-  =============================== */
-
+  =========================================== */
 
   function handleWorkflowAction(
-    patientId:number,
-    action:WorkflowAction
-  ){
+    patientId: number,
+    action: WorkflowAction
+  ) {
+    let message = "";
+    let severity: "success" | "info" | "warning" | "error" =
+      "success";
 
-    setRows(prev=>
-      prev.map(row=>{
+    switch (action.nextStatus) {
+      case "Scan Started":
+        message = "Scan started successfully.";
+        severity = "success";
+        break;
 
-        if(row.id!==patientId)
+      case "Completed":
+        message = "Scan completed successfully.";
+        severity = "success";
+        break;
+
+      case "Queue":
+        message = "Appointment rescheduled successfully.";
+        severity = "info";
+        break;
+
+      case "No Show":
+        message = "Patient marked as No Show.";
+        severity = "warning";
+        break;
+
+      case "Removed":
+        message = "Appointment removed successfully.";
+        severity = "error";
+        break;
+
+      default:
+        message = `Status changed to ${action.nextStatus}.`;
+        severity = "success";
+    }
+
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== patientId) {
           return row;
-
+        }
 
         return {
           ...row,
-          status:action.nextStatus
+          status: action.nextStatus,
+          reportAvailable:
+            action.nextStatus === "Reporting" ||
+            action.nextStatus === "Verified",
         };
-
       })
     );
 
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
   }
 
-
-
-
   return (
-
-    <Paper
+    <>
+        <Paper
       elevation={0}
       sx={{
-        borderRadius:3,
-        border:"1px solid",
-        borderColor:"divider",
-        overflow:"hidden",
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        overflow: "hidden",
       }}
     >
-
-
       <TableContainer
         sx={{
-          maxHeight:720
+          maxHeight: 720,
         }}
       >
-
-
-       <Table
-  stickyHeader
-  size="small"
-  sx={{
-    "& th": {
-      textAlign: "center",
-      fontWeight: 700,
-      whiteSpace: "nowrap",
-    },
-
-    "& td": {
-      textAlign: "center",
-      verticalAlign: "middle",
-    },
-  }}
->
-
-
-<TableHead>
-
-<TableRow>
-
-{
-[
-"Token",
-"Patient",
-"UHID",
-"Modality",
-"Procedure",
-"Time",
-"Priority",
-"Status",
-"Actions"
-]
-.map((head)=>(
-<TableCell
-key={head}
-sx={{
-fontWeight:700
-}}
->
-{head}
-</TableCell>
-))
-}
-
-</TableRow>
-
-</TableHead>
-
-
-
-<TableBody>
-
-
-{
-filteredRows.map((patient)=>(
-
-<TableRow
-key={patient.id}
-hover
-sx={{
-"& td":{
-py:1
-}
-}}
->
-
-
-<TableCell>
-
-<Typography
-fontWeight={700}
-color="primary"
->
-{patient.token}
-</Typography>
-
-</TableCell>
-
-
-
-<TableCell>
-
-<Stack spacing={0.2}>
-
-<Typography
-fontWeight={600}
->
-{patient.patientName}
-</Typography>
-
-
-<Typography
-variant="caption"
-color="text.secondary"
->
-{patient.age} yrs • {patient.gender}
-</Typography>
-
-</Stack>
-
-</TableCell>
-
-
-
-
-<TableCell>
-{patient.uhid}
-</TableCell>
-
-
-
-<TableCell>
-
-<Chip
-label={patient.modality}
-size="small"
-variant="outlined"
-/>
-
-</TableCell>
-
-
-
-<TableCell>
-{patient.procedure}
-</TableCell>
-
-
-
-<TableCell>
-{patient.appointmentTime}
-</TableCell>
-
-
-
-
-<TableCell>
-
-<Chip
-label={patient.priority}
-size="small"
-variant="outlined"
-/>
-
-</TableCell>
-
-
-<TableCell
-  align="center"
-  sx={{
-    minWidth: 180,
-  }}
->
-  <Stack
-    direction="column"
-    alignItems="center"
-    justifyContent="center"
-    spacing={1}
-  >
-    <WorkflowStatusStepper
-      currentStatus={patient.status}
-      workflow={RADIOLOGY_QUEUE_WORKFLOW}
-      onStatusChange={() => {}}
-    />
-  </Stack>
-</TableCell>
-
-
-<TableCell>
-
-
-<Stack
-direction="row"
-spacing={1}
-justifyContent="center"
-alignItems="center"
-flexWrap="wrap"
->
-
-<WorkflowStatusAction
-
-currentStatus={
-patient.status
-}
-
-workflow={
-RADIOLOGY_QUEUE_WORKFLOW
-}
-
-onAction={(action)=>
-handleWorkflowAction(
-patient.id,
-action
-)
-}
-
-/>
-
-
-<StatusAlert
-
-status={
-patient.status
-}
-
-workflow={
-RADIOLOGY_QUEUE_WORKFLOW
-}
-
-/>
-
-</Stack>
-
-
-</TableCell>
-
-
-
-</TableRow>
-
-))
-
-}
-
-
-
-{
-filteredRows.length===0 && (
-
-<TableRow>
-
-<TableCell
-colSpan={9}
-align="center"
-sx={{
-py:8
-}}
->
-
-<Typography
-fontWeight={600}
->
-No Patients Found
-</Typography>
-
-<Typography
-color="text.secondary"
->
-Try changing search or filters.
-</Typography>
-
-
-</TableCell>
-
-</TableRow>
-
-)
-
-}
-
-
-
-</TableBody>
-
-
+        <Table
+          stickyHeader
+          size="small"
+          sx={{
+            "& th": {
+              textAlign: "center",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            },
+            "& td": {
+              textAlign: "center",
+              verticalAlign: "middle",
+            },
+          }}
+        >
+          <TableHead>
+            <TableRow>
+              {[
+                "Accession No.",
+                "Patient",
+                "Modality",
+                "Procedure",
+                "Radiologist",
+                "Scheduled",
+                "Priority",
+                "Status",
+                "Actions",
+              ].map((head) => (
+                <TableCell
+                  key={head}
+                  sx={{
+                    fontWeight: 700,
+                  }}
+                >
+                  {head}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {filteredRows.map((patient) => (
+              <TableRow
+                key={patient.id}
+                hover
+                sx={{
+                  "& td": {
+                    py: 1,
+                  },
+                }}
+              >
+                {/* Accession Number */}
+                <TableCell>
+                  <Stack spacing={0.2}>
+                    <Typography
+                      fontWeight={700}
+                      color="primary"
+                    >
+                      {patient.accessionNumber}
+                    </Typography>
+
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                    >
+                      {patient.orderId}
+                    </Typography>
+                  </Stack>
+                </TableCell>
+
+                {/* Patient */}
+                <TableCell>
+                  <Stack spacing={0.2}>
+                    <Typography fontWeight={600}>
+                      {patient.patientName}
+                    </Typography>
+
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                    >
+                      {patient.age} yrs • {patient.gender}
+                    </Typography>
+                  </Stack>
+                </TableCell>
+
+                {/* Modality */}
+                <TableCell>
+                  <Chip
+                    label={patient.modality}
+                    size="small"
+                    variant="outlined"
+                  />
+                </TableCell>
+
+                {/* Procedure */}
+                <TableCell>
+                  {patient.procedure}
+                </TableCell>
+
+                {/* Radiologist */}
+                <TableCell>
+                  {patient.radiologist}
+                </TableCell>
+
+                {/* Scheduled */}
+                <TableCell>
+                  <Stack spacing={0.3}>
+                    <Typography fontWeight={600}>
+                      {patient.appointmentDate}
+                    </Typography>
+
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                    >
+                      {patient.appointmentTime}
+                    </Typography>
+                  </Stack>
+                </TableCell>
+
+                {/* Priority */}
+                <TableCell>
+                  <Chip
+                    label={patient.priority}
+                    size="small"
+                    color={
+                      patient.priority === "Emergency"
+                        ? "error"
+                        : patient.priority === "Urgent"
+                        ? "warning"
+                        : "default"
+                    }
+                  />
+                </TableCell>
+
+                {/* Status */}
+                <TableCell
+                  sx={{
+                    minWidth: 190,
+                  }}
+                >
+                  <Stack
+                    spacing={1}
+                    alignItems="center"
+                  >
+                    <WorkflowStatusStepper
+                      currentStatus={patient.status}
+                      workflow={RADIOLOGY_QUEUE_WORKFLOW}
+                      onStatusChange={() => {}}
+                    />
+                  </Stack>
+                </TableCell>
+
+                {/* Actions */}
+                <TableCell>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    justifyContent="center"
+                    alignItems="center"
+                    flexWrap="wrap"
+                  >
+                    <WorkflowStatusAction
+                      currentStatus={patient.status}
+                      workflow={RADIOLOGY_QUEUE_WORKFLOW}
+                      onAction={(action) =>
+                        handleWorkflowAction(
+                          patient.id,
+                          action
+                        )
+                      }
+                    />
+
+                    <StatusAlert
+                      status={patient.status}
+                      workflow={RADIOLOGY_QUEUE_WORKFLOW}
+                    />
+                  </Stack>
+                </TableCell>
+              </TableRow>
+            ))}
+
+            {filteredRows.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={9}
+                  align="center"
+                  sx={{
+                    py: 8,
+                  }}
+                >
+                  <Typography fontWeight={600}>
+                    No Patients Found
+                  </Typography>
+
+                  <Typography color="text.secondary">
+                    There are currently no patients in
+                    Queue or No Show status.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
         </Table>
-
-
       </TableContainer>
-
-
     </Paper>
 
+     <Snackbar
+      open={snackbar.open}
+      autoHideDuration={3000}
+      anchorOrigin={{
+        vertical: "top",
+        horizontal: "right",
+      }}
+      onClose={() =>
+        setSnackbar((prev) => ({
+          ...prev,
+          open: false,
+        }))
+      }
+    >
+      <Alert
+        severity={snackbar.severity}
+        variant="filled"
+        onClose={() =>
+          setSnackbar((prev) => ({
+            ...prev,
+            open: false,
+          }))
+        }
+      >
+        {snackbar.message}
+      </Alert>
+    </Snackbar>
+    </>
   );
-
 }

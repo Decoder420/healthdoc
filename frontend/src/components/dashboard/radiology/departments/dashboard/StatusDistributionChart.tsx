@@ -46,129 +46,70 @@ export default function StatusDistributionChart({
   return (
 
     <Paper
-
       elevation={0}
-
       sx={{
-
-        p:3,
-
-        borderRadius:4,
-
-        height:"100%",
-
-        display:"flex",
-
-        flexDirection:"column",
-
+        p: 3,
+        borderRadius: 4,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
-
     >
-
 
 
       {/* Header */}
 
       <Stack
-
-        width="100%"
-
         direction="row"
-
         justifyContent="space-between"
-
         alignItems="flex-start"
-
         mb={3}
-
       >
-
 
         <Box>
 
-
           <Typography
-
             variant="h6"
-
             fontWeight={700}
-
-            textAlign="left"
-
           >
-
             {title}
-
           </Typography>
 
 
-
           {subtitle && (
-
             <Typography
-
               variant="body2"
-
               color="text.secondary"
-
-              textAlign="left"
-
             >
-
               {subtitle}
-
             </Typography>
-
           )}
-
 
         </Box>
 
 
-
         {action}
-
-
 
       </Stack>
 
 
 
 
-
-      {/* Pie Chart */}
-
+      {/* Chart */}
 
       <Box
-
         sx={{
-
           height,
-
-          width:"100%",
-
-          display:"flex",
-
-          justifyContent:"center",
-
-          alignItems:"center",
-
+          width: "100%",
         }}
-
       >
 
-
         <ResponsiveContainer
-
           width="100%"
-
           height="100%"
-
         >
 
-
           <PieChart>
-
 
             <Pie
 
@@ -178,49 +119,36 @@ export default function StatusDistributionChart({
 
               nameKey="name"
 
-              innerRadius={75}
+              innerRadius={70}
 
-              outerRadius={105}
+              outerRadius={100}
 
-              paddingAngle={4}
-
-              cx="50%"
-
-              cy="50%"
+              paddingAngle={3}
 
             >
 
-
               {
-
                 data.map((entry,index)=>(
 
                   <Cell
-
                     key={entry.name}
-
                     fill={
+                      entry.color ??
                       COLORS[index % COLORS.length]
                     }
-
                   />
 
                 ))
-
               }
-
 
             </Pie>
 
 
-            <Tooltip/>
-
+            <Tooltip />
 
           </PieChart>
 
-
         </ResponsiveContainer>
-
 
       </Box>
 
@@ -228,36 +156,22 @@ export default function StatusDistributionChart({
 
 
 
-
-
-      {/* Total Count */}
-
+      {/* Total */}
 
       {
-
         total !== undefined && (
 
           <Typography
-
             variant="h5"
-
             fontWeight={700}
-
             textAlign="center"
-
             mt={1}
-
           >
-
             {total}
-
           </Typography>
 
         )
-
       }
-
-
 
 
 
@@ -265,28 +179,17 @@ export default function StatusDistributionChart({
 
       {/* Legend */}
 
-
       <Stack
-
         direction="row"
-
         spacing={1}
-
         mt={3}
-
         justifyContent="center"
-
         flexWrap="wrap"
-
         useFlexGap
-
       >
 
-
         {
-
           data.map((item,index)=>(
-
 
             <Chip
 
@@ -297,30 +200,23 @@ export default function StatusDistributionChart({
               sx={{
 
                 "& .MuiChip-label":{
-
                   fontWeight:600,
-
                 },
 
-
                 borderLeft:
-
-                `4px solid ${
-                  COLORS[index % COLORS.length]
-                }`,
+                  `4px solid ${
+                    item.color ??
+                    COLORS[index % COLORS.length]
+                  }`,
 
               }}
 
             />
 
-
           ))
-
         }
 
-
       </Stack>
-
 
 
     </Paper>

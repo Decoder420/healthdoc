@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import {
   Box,
   Card,
@@ -18,32 +20,54 @@ import {
   Tooltip,
 } from "recharts";
 
-import { getRadiologyModalityDistribution } from "@/components/dashboard/radiology/test_queue/DummyData";
+import {
+  getRadiologyModalityDistribution,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
-const modalityData = getRadiologyModalityDistribution();
-
-const total = modalityData.reduce(
-  (sum, item) => sum + item.value,
-  0
-);
 
 export default function RadiologyModalityDistribution() {
+
+  const modalityData = useMemo(
+    () => getRadiologyModalityDistribution(),
+    []
+  );
+
+
+  const total = useMemo(
+    () =>
+      modalityData.reduce(
+        (sum, item) => sum + item.value,
+        0
+      ),
+    [modalityData]
+  );
+
+
   return (
     <Card
       elevation={0}
       sx={{
-        borderRadius: 4,
-        border: "1px solid",
-        borderColor: "divider",
-        height: "100%",
-        transition: "0.25s",
+        borderRadius:4,
+        border:"1px solid",
+        borderColor:"divider",
+        height:"100%",
 
-        "&:hover": {
-          boxShadow: "0 12px 30px rgba(0,0,0,.06)",
+        transition:"0.25s",
+
+        "&:hover":{
+          boxShadow:
+            "0 12px 30px rgba(0,0,0,.06)",
         },
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+
+      <CardContent
+        sx={{
+          p:3,
+        }}
+      >
+
+
         {/* Header */}
         <Stack
           direction="row"
@@ -51,7 +75,9 @@ export default function RadiologyModalityDistribution() {
           alignItems="center"
           mb={2.5}
         >
+
           <Box>
+
             <Typography
               variant="h6"
               fontWeight={700}
@@ -59,80 +85,106 @@ export default function RadiologyModalityDistribution() {
               Modality Distribution
             </Typography>
 
+
             <Typography
               variant="body2"
               color="text.secondary"
             >
               Imaging studies by modality
             </Typography>
+
           </Box>
+
 
           <Chip
             label="Today"
             size="small"
             variant="outlined"
             sx={{
-              fontWeight: 600,
+              fontWeight:600,
             }}
           />
+
         </Stack>
 
-        <Divider sx={{ mb: 2.5 }} />
 
-        {/* Donut Chart */}
+
+        <Divider
+          sx={{
+            mb:2.5,
+          }}
+        />
+
+
+
+        {/* Donut */}
         <Box
           position="relative"
-          height={210}
+          height={220}
         >
+
           <ResponsiveContainer
             width="100%"
             height="100%"
           >
+
             <PieChart>
+
               <Pie
                 data={modalityData}
                 dataKey="value"
                 nameKey="name"
-                innerRadius={58}
-                outerRadius={86}
+                innerRadius={60}
+                outerRadius={88}
                 paddingAngle={3}
                 stroke="none"
               >
-                {modalityData.map((item) => (
-                  <Cell
-                    key={item.name}
-                    fill={item.color}
-                  />
-                ))}
+
+                {modalityData.map(
+                  (item)=>(
+                    <Cell
+                      key={item.name}
+                      fill={item.color}
+                    />
+                  )
+                )}
+
               </Pie>
 
+
               <Tooltip
-                formatter={(value: number) => [
+                formatter={(value:number)=>[
                   `${value} Studies`,
                   "Count",
                 ]}
               />
+
             </PieChart>
+
           </ResponsiveContainer>
 
-          {/* Center Text */}
+
+
+          {/* Center */}
           <Box
             sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              textAlign: "center",
+              position:"absolute",
+              top:"50%",
+              left:"50%",
+              transform:
+                "translate(-50%, -50%)",
+              textAlign:"center",
             }}
           >
+
             <Typography
               fontSize={30}
               fontWeight={700}
               color="#001F54"
-              lineHeight={1}
             >
               {total}
             </Typography>
+
 
             <Typography
               variant="caption"
@@ -140,40 +192,60 @@ export default function RadiologyModalityDistribution() {
             >
               Studies
             </Typography>
+
           </Box>
+
+
         </Box>
 
-        <Divider sx={{ my: 2.5 }} />
+
+
+        <Divider
+          sx={{
+            my:2.5,
+          }}
+        />
+
+
 
         {/* Legend */}
-        <Stack spacing={1.25}>
-          {modalityData.map((item) => {
-            const percentage = Math.round(
-              (item.value / total) * 100
-            );
+        <Stack spacing={1.5}>
+
+          {modalityData.map((item)=>{
+
+            const percentage =
+              total === 0
+                ? 0
+                : Math.round(
+                    (item.value / total) * 100
+                  );
+
 
             return (
+
               <Stack
                 key={item.name}
                 direction="row"
                 justifyContent="space-between"
                 alignItems="center"
               >
-                {/* Left */}
+
+
                 <Stack
                   direction="row"
                   spacing={1.2}
                   alignItems="center"
                 >
+
                   <Box
                     sx={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      bgcolor: item.color,
-                      flexShrink: 0,
+                      width:10,
+                      height:10,
+                      borderRadius:"50%",
+                      bgcolor:item.color,
                     }}
                   />
+
 
                   <Typography
                     variant="body2"
@@ -181,38 +253,50 @@ export default function RadiologyModalityDistribution() {
                   >
                     {item.name}
                   </Typography>
+
                 </Stack>
 
-                {/* Right */}
+
+
                 <Stack
                   direction="row"
                   spacing={1}
                   alignItems="center"
                 >
+
                   <Typography
-                    variant="body2"
                     fontWeight={700}
                     color="#001F54"
                   >
                     {item.value}
                   </Typography>
 
+
                   <Typography
                     variant="caption"
                     color="text.secondary"
                     sx={{
-                      minWidth: 32,
-                      textAlign: "right",
+                      minWidth:35,
+                      textAlign:"right",
                     }}
                   >
                     {percentage}%
                   </Typography>
+
                 </Stack>
+
+
               </Stack>
+
             );
+
           })}
+
         </Stack>
+
+
       </CardContent>
+
     </Card>
   );
 }

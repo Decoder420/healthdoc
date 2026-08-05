@@ -58,7 +58,9 @@ export default function SearchToolbar({
             size="small"
             placeholder="Search Patient, UHID or Accession No."
             value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) =>
+              onSearchChange(e.target.value)
+            }
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -84,34 +86,43 @@ export default function SearchToolbar({
             size="small"
             label="Status"
             value={status}
-            onChange={(e) => onStatusChange(e.target.value)}
+            onChange={(e) =>
+              onStatusChange(e.target.value)
+            }
             sx={{
               width: {
                 xs: "100%",
-                sm: 170,
+                sm: 180,
               },
               "& .MuiOutlinedInput-root": {
                 height: 40,
               },
             }}
           >
-            <MenuItem value="ALL">All Status</MenuItem>
-            <MenuItem value="PROCESSING">Processing</MenuItem>
-            <MenuItem value="VERIFIED">Verified</MenuItem>
+            <MenuItem value="All">
+              All Status
+            </MenuItem>
+
+            <MenuItem value="Processing">
+              Processing
+            </MenuItem>
+
+            <MenuItem value="Verified">
+              Verified
+            </MenuItem>
           </TextField>
 
           {/* Date */}
           <TextField
             type="date"
             size="small"
-            label="Study Date"
+            label="Appointment Date"
             value={date}
-            onChange={(e) => onDateChange(e.target.value)}
+            onChange={(e) =>
+              onDateChange(e.target.value)
+            }
             InputLabelProps={{
               shrink: true,
-            }}
-            inputProps={{
-              max: new Date().toISOString().split("T")[0],
             }}
             sx={{
               width: {
@@ -125,7 +136,7 @@ export default function SearchToolbar({
           />
         </Stack>
 
-        {/* Buttons */}
+        {/* Actions */}
         <Stack
           direction="row"
           spacing={1.5}
@@ -133,7 +144,9 @@ export default function SearchToolbar({
         >
           <Button
             variant="outlined"
-            startIcon={<RefreshOutlinedIcon />}
+            startIcon={
+              <RefreshOutlinedIcon />
+            }
             onClick={onRefresh}
             sx={{
               height: 40,
@@ -147,7 +160,9 @@ export default function SearchToolbar({
 
           <Button
             variant="contained"
-            startIcon={<FileUploadOutlinedIcon />}
+            startIcon={
+              <FileUploadOutlinedIcon />
+            }
             onClick={onExport}
             sx={{
               height: 40,

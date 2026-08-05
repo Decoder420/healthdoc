@@ -18,17 +18,30 @@ import {
   Typography,
 } from "@mui/material";
 
-import { appointmentQueue } from "@/components/dashboard/radiology/test_queue/DummyData";
+import {
+  appointmentQueue,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
 const today = new Date();
 
 const queuePatients = appointmentQueue
   .filter((patient) => {
+    const appointmentDate = new Date(patient.appointmentDate);
+
     const isToday =
-      new Date(patient.appointmentDate).toDateString() === today.toDateString();
-    return patient.status === "Queue" && isToday;
+      appointmentDate.toDateString() === today.toDateString();
+
+    return (
+      [
+        "Queue",
+        "Scan Started",
+        "No Show",
+      ].includes(patient.status) &&
+      isToday
+    );
   })
   .slice(0, 12);
+
 
 function getPriorityStyle(priority: string) {
   switch (priority) {
@@ -52,6 +65,7 @@ function getPriorityStyle(priority: string) {
   }
 }
 
+
 export default function AppointmentQueueTable() {
   return (
     <Paper
@@ -63,6 +77,8 @@ export default function AppointmentQueueTable() {
         overflow: "hidden",
       }}
     >
+
+      {/* Header */}
       <Box
         sx={{
           px: 3,
@@ -84,11 +100,16 @@ export default function AppointmentQueueTable() {
           </Typography>
         </Box>
 
+
         <Button
           component={Link}
           href="/radiology/queue"
           variant="text"
-          endIcon={<ArrowForwardIosRoundedIcon sx={{ fontSize: 14 }} />}
+          endIcon={
+            <ArrowForwardIosRoundedIcon
+              sx={{ fontSize: 14 }}
+            />
+          }
           sx={{
             color: "#001F54",
             textTransform: "none",
@@ -97,121 +118,212 @@ export default function AppointmentQueueTable() {
         >
           View Full Queue
         </Button>
+
       </Box>
 
+
       <TableContainer>
+
         <Table>
+
           <TableHead>
+
             <TableRow sx={{ bgcolor: "grey.50" }}>
-              <TableCell sx={{ fontWeight: 700 }}>Token</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Patient</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Modality</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Procedure</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Time</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Priority</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+
+              {[
+                "Accession No.",
+                "Patient",
+                "Modality",
+                "Procedure",
+                "Time",
+                "Priority",
+                "Status",
+              ].map((head) => (
+
+                <TableCell
+                  key={head}
+                  align="center"
+                  sx={{
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {head}
+                </TableCell>
+
+              ))}
+
             </TableRow>
+
           </TableHead>
 
+
           <TableBody>
+
             {queuePatients.map((patient) => (
+
               <TableRow
                 key={patient.id}
                 hover
-                sx={{
-                  "&:last-child td": {
-                    borderBottom: 0,
-                  },
-                  "&:hover": {
-                    bgcolor: "action.hover",
-                  },
-                }}
               >
-                <TableCell>
-                  <Typography fontWeight={700} color="#001F54">
-                    {patient.token}
+
+                {/* Accession */}
+                <TableCell align="center">
+
+                  <Typography
+                    fontWeight={700}
+                    color="#001F54"
+                  >
+                    {patient.accessionNumber}
                   </Typography>
+
                 </TableCell>
 
-                <TableCell>
-                  <Box>
-                    <Typography fontWeight={600} fontSize={14}>
+
+                {/* Patient */}
+                <TableCell align="center">
+
+                  <Box
+                    display="flex"
+                    flexDirection="column"
+                    alignItems="center"
+                  >
+
+                    <Typography
+                      fontWeight={600}
+                      fontSize={14}
+                    >
                       {patient.patientName}
                     </Typography>
 
-                    <Typography variant="caption" color="text.secondary">
+
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                    >
                       {patient.age} yrs • {patient.gender}
                     </Typography>
+
                   </Box>
+
                 </TableCell>
 
-                <TableCell>
+
+                {/* Modality */}
+                <TableCell align="center">
+
                   <Chip
                     label={patient.modality}
                     size="small"
                     sx={{
-                      bgcolor: "#EEF4FF",
-                      color: "#001F54",
-                      fontWeight: 600,
-                      borderRadius: 2,
-                      minWidth: 70,
+                      bgcolor:"#EEF4FF",
+                      color:"#001F54",
+                      fontWeight:600,
+                      borderRadius:2,
+                      minWidth:70,
                     }}
                   />
+
                 </TableCell>
 
-                <TableCell>
-                  <Typography variant="body2" sx={{ maxWidth: 180 }}>
+
+                {/* Procedure */}
+                <TableCell align="center">
+
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      maxWidth:180,
+                      margin:"auto",
+                    }}
+                  >
                     {patient.procedure}
                   </Typography>
+
                 </TableCell>
 
-                <TableCell>
+
+                {/* Time */}
+                <TableCell align="center">
+
                   <Typography fontWeight={500}>
                     {patient.appointmentTime}
                   </Typography>
+
                 </TableCell>
 
-                <TableCell>
+
+                {/* Priority */}
+                <TableCell align="center">
+
                   <Chip
                     label={patient.priority}
                     size="small"
                     sx={{
                       ...getPriorityStyle(patient.priority),
-                      fontWeight: 600,
-                      borderRadius: 2,
-                      minWidth: 80,
+                      fontWeight:600,
+                      borderRadius:2,
+                      minWidth:80,
                     }}
                   />
+
                 </TableCell>
 
-                <TableCell>
+
+                {/* Status */}
+                <TableCell align="center">
+
                   <Chip
-                    label={patient.status}
+                    label={
+                      patient.status === "Processing"
+                        ? "Processing"
+                        : patient.status
+                    }
                     size="small"
+                    variant="outlined"
                     sx={{
-                      bgcolor: "#EEF4FF",
-                      color: "#001F54",
-                      fontWeight: 600,
-                      borderRadius: 2,
-                      minWidth: 70,
+                      fontWeight:600,
+                      borderRadius:2,
+                      minWidth:90,
+                      color:"text.primary",
+                      borderColor:"divider",
                     }}
                   />
+
                 </TableCell>
+
+
               </TableRow>
+
             ))}
 
+
             {queuePatients.length === 0 && (
+
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+
+                <TableCell
+                  colSpan={7}
+                  align="center"
+                  sx={{ py:6 }}
+                >
+
                   <Typography color="text.secondary">
-                    No patients are currently waiting in the queue.
+                    No patients are currently waiting.
                   </Typography>
+
                 </TableCell>
+
               </TableRow>
+
             )}
+
           </TableBody>
+
         </Table>
+
       </TableContainer>
+
     </Paper>
   );
 }

@@ -74,7 +74,7 @@ export default function QueueFilters({
         <TextField
           fullWidth
           size="small"
-          placeholder="Search Patient / UHID / Token"
+          placeholder="Search Patient / UHID / Accession No. / Order ID"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           InputProps={{

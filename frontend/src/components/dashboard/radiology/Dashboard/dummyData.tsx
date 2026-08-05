@@ -203,19 +203,39 @@ const avgByModality: Record<string, string> = {
   ECG: "8 min",
 };
 
-export const modalityCards: ModalityCard[] = getRadiologyModalityDistribution(
-  heavyQueue,
-).map((item, index) => {
-  const completed = Math.round(item.value * 0.78);
-  return {
-    id: index + 1,
-    modality: toDashboardModality(item.name),
-    total: item.value,
-    completed,
-    pending: item.value - completed,
-    averageTime: avgByModality[item.name] ?? "20 min",
-  };
-});
+export const modalityCards: ModalityCard[] =
+  getRadiologyModalityDistribution(heavyQueue).map(
+    (item, index) => {
+
+      const completed =
+        heavyQueue.filter(
+          (row) =>
+            row.modality === item.name &&
+            ["Completed","Verified"].includes(
+              row.status
+            )
+        ).length;
+
+
+      return {
+        id:index + 1,
+
+        modality:
+          toDashboardModality(item.name),
+
+        total:item.value,
+
+        completed,
+
+        pending:
+          item.value - completed,
+
+        averageTime:
+          avgByModality[item.name] ??
+          "20 min",
+      };
+    }
+  );
 
 export const workflowSteps: WorkflowStep[] = [
   { id: 1, label: "Order Received", completed: true },

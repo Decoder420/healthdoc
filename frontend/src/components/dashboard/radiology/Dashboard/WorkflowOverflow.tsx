@@ -8,43 +8,87 @@ import {
   Typography,
 } from "@mui/material";
 
-import { workflowSteps } from "./dummyData";
+import {
+  appointmentQueue,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
+
+const workflowSteps = [
+  "Order Received",
+  "Scheduled",
+  "Patient Arrived",
+  "Scan Started",
+  "Reporting",
+  "Verified",
+  "Released",
+];
+
+function getActiveStep() {
+  const hasVerified = appointmentQueue.some(
+    (item) => item.status === "Verified"
+  );
+
+  if (hasVerified) return 5;
+
+  const hasReporting = appointmentQueue.some(
+    (item) => item.status === "Reporting"
+  );
+
+  if (hasReporting) return 4;
+
+  const hasCompleted = appointmentQueue.some(
+    (item) => item.status === "Completed"
+  );
+
+  if (hasCompleted) return 4;
+
+  const hasScanStarted = appointmentQueue.some(
+    (item) => item.status === "Scan Started"
+  );
+
+  if (hasScanStarted) return 3;
+
+  const hasQueue = appointmentQueue.some(
+    (item) => item.status === "Queue"
+  );
+
+  if (hasQueue) return 1;
+
+  return 0;
+}
 
 export default function WorkflowOverview() {
-  const activeStep = workflowSteps.findIndex(
-    (step) => !step.completed
-  );
+  const activeStep = getActiveStep();
 
   return (
     <Paper
-      elevation={2}
+      elevation={0}
       sx={{
-      p: 2,
+        p: 3,
         borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
       }}
     >
       <Typography
         variant="h6"
-        fontWeight={500}
+        fontWeight={700}
         mb={3}
       >
         Workflow Overview
       </Typography>
 
       <Stepper
-        activeStep={
-          activeStep === -1
-            ? workflowSteps.length
-            : activeStep
-        }
+        activeStep={activeStep}
         alternativeLabel
       >
-        {workflowSteps.map((step) => (
+        {workflowSteps.map((label, index) => (
           <Step
-            key={step.id}
-            completed={step.completed}
+            key={label}
+            completed={index < activeStep}
           >
-            <StepLabel>{step.label}</StepLabel>
+            <StepLabel>
+              {label}
+            </StepLabel>
           </Step>
         ))}
       </Stepper>

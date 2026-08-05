@@ -1,9 +1,7 @@
 "use client";
 
-import MemoryRoundedIcon from "@mui/icons-material/MemoryRounded";
 import CircleRoundedIcon from "@mui/icons-material/CircleRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 
 import {
   Box,
@@ -11,10 +9,8 @@ import {
   CardContent,
   Chip,
   Divider,
-  IconButton,
   LinearProgress,
   Stack,
-  Tooltip,
   Typography,
 } from "@mui/material";
 
@@ -23,27 +19,40 @@ import {
   getRadiologyModalityDistribution,
 } from "@/components/dashboard/radiology/test_queue/DummyData";
 
+
 const modalityCounts = Object.fromEntries(
-  getRadiologyModalityDistribution().map((item) => [item.name, item.value]),
+  getRadiologyModalityDistribution(
+    appointmentQueue
+  ).map((item) => [
+    item.name,
+    item.value,
+  ])
 );
+
 
 const machineData = [
   {
     id: 1,
     machine: "CT Scanner 01",
-    studies: Math.round((modalityCounts.CT ?? 20) * 0.6),
+    studies: Math.round(
+      (modalityCounts.CT ?? 20) * 0.6
+    ),
     utilization: 92,
     status: "Busy",
     next: "03:20 PM",
   },
+
   {
     id: 2,
     machine: "CT Scanner 02",
-    studies: Math.round((modalityCounts.CT ?? 20) * 0.4),
+    studies: Math.round(
+      (modalityCounts.CT ?? 20) * 0.4
+    ),
     utilization: 78,
     status: "Busy",
     next: "03:35 PM",
   },
+
   {
     id: 3,
     machine: "MRI Scanner 1.5T",
@@ -52,65 +61,90 @@ const machineData = [
     status: "Busy",
     next: "03:45 PM",
   },
+
   {
     id: 4,
     machine: "X-Ray Room A",
-    studies: Math.round((modalityCounts["X-Ray"] ?? 20) * 0.55),
+    studies: Math.round(
+      (modalityCounts["X-Ray"] ?? 20) * 0.55
+    ),
     utilization: 64,
     status: "Available",
     next: "Now",
   },
+
   {
     id: 5,
     machine: "X-Ray Room B",
-    studies: Math.round((modalityCounts["X-Ray"] ?? 20) * 0.45),
+    studies: Math.round(
+      (modalityCounts["X-Ray"] ?? 20) * 0.45
+    ),
     utilization: 71,
     status: "Busy",
     next: "03:10 PM",
   },
+
   {
     id: 6,
     machine: "Ultrasound 01",
-    studies: Math.round((modalityCounts.USG ?? 16) * 0.6),
+    studies: Math.round(
+      (modalityCounts.USG ?? 16) * 0.6
+    ),
     utilization: 74,
     status: "Busy",
     next: "03:15 PM",
   },
+
   {
     id: 7,
     machine: "Ultrasound 02",
-    studies: Math.round((modalityCounts.USG ?? 16) * 0.4),
+    studies: Math.round(
+      (modalityCounts.USG ?? 16) * 0.4
+    ),
     utilization: 52,
     status: "Available",
     next: "Now",
   },
+
   {
     id: 8,
     machine: "Mammography",
-    studies: modalityCounts.Mammography ?? 8,
+    studies:
+      modalityCounts.Mammography ?? 8,
     utilization: 58,
-    status: "Busy",
+    status: "Available",
     next: "04:00 PM",
   },
+
   {
     id: 9,
     machine: "ECG Station",
-    studies: modalityCounts.ECG ?? 10,
+    studies:
+      modalityCounts.ECG ?? 10,
     utilization: 45,
     status: "Available",
     next: "Now",
   },
+
   {
     id: 10,
     machine: "Fluoroscopy",
-    studies: Math.max(4, Math.round(appointmentQueue.length * 0.05)),
+    studies: Math.max(
+      4,
+      Math.round(
+        appointmentQueue.length * 0.05
+      )
+    ),
     utilization: 0,
     status: "Maintenance",
     next: "04:30 PM",
   },
 ];
 
-function statusColor(status: string) {
+
+function statusColor(
+  status: string
+) {
   switch (status) {
     case "Available":
       return "#16A34A";
@@ -126,202 +160,285 @@ function statusColor(status: string) {
   }
 }
 
-function progressColor(value: number) {
-  if (value >= 90) return "#DC2626";
-  if (value >= 70) return "#F59E0B";
+
+function progressColor(
+  value: number
+) {
+  if (value >= 90) {
+    return "#DC2626";
+  }
+
+  if (value >= 70) {
+    return "#F59E0B";
+  }
+
   return "#16A34A";
 }
 
+
 export default function RadiologyMachineUtilization() {
-  const totalMachines = machineData.length;
 
-  const available = machineData.filter(
-    (m) => m.status === "Available"
-  ).length;
+  const totalMachines =
+    machineData.length;
 
-  const busy = machineData.filter(
-    (m) => m.status === "Busy"
-  ).length;
 
-  const maintenance = machineData.filter(
-    (m) => m.status === "Maintenance"
-  ).length;
+  const available =
+    machineData.filter(
+      (m) =>
+        m.status === "Available"
+    ).length;
 
-  const avgUtilization = Math.round(
-    machineData.reduce(
-      (sum, item) => sum + item.utilization,
-      0
-    ) / totalMachines
-  );
+
+  const busy =
+    machineData.filter(
+      (m) =>
+        m.status === "Busy"
+    ).length;
+
+
+  const maintenance =
+    machineData.filter(
+      (m) =>
+        m.status === "Maintenance"
+    ).length;
+
+
+  const avgUtilization =
+    Math.round(
+      machineData.reduce(
+        (sum, item) =>
+          sum + item.utilization,
+        0
+      ) / totalMachines
+    );
+
 
   return (
-<Card
-  elevation={0}
-  sx={{
-    borderRadius: 4,
-    border: "1px solid",
-    borderColor: "divider",
-    height: "100%",
-  }}
->
-  <CardContent sx={{ p: 3 }}>
-    {/* Header */}
-    <Stack
-      direction="row"
-      justifyContent="space-between"
-      alignItems="center"
-      mb={3}
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 4,
+        border: "1px solid",
+        borderColor: "divider",
+        height: "100%",
+      }}
     >
-      <Box>
-        <Typography
-          variant="h6"
-          fontWeight={700}
-        >
-          Machine Utilization
-        </Typography>
-
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          Live equipment usage
-        </Typography>
-      </Box>
-
-      <Chip
-        icon={<TrendingUpRoundedIcon sx={{ fontSize: 18 }} />}
-        label={`${avgUtilization}% Avg`}
-        size="small"
+      <CardContent
         sx={{
-          bgcolor: "#EEF4FF",
-          color: "#001F54",
-          fontWeight: 700,
+          p: 3,
         }}
-      />
-    </Stack>
-
-    <Stack spacing={2.5}>
-      {machineData.map((item) => (
-        <Box key={item.id}>
-          {/* Top */}
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            mb={1}
-          >
-            <Stack spacing={0.3}>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-              >
-                <CircleRoundedIcon
-                  sx={{
-                    fontSize: 10,
-                    color: statusColor(item.status),
-                  }}
-                />
-
-                <Typography
-                  fontWeight={600}
-                  fontSize={14}
-                >
-                  {item.machine}
-                </Typography>
-              </Stack>
-
-              <Typography
-                variant="caption"
-                color="text.secondary"
-              >
-                {item.studies} Studies • Next: {item.next}
-              </Typography>
-            </Stack>
+      >
+                {/* Header */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
+          <Box>
+            <Typography
+              variant="h6"
+              fontWeight={700}
+            >
+              Machine Utilization
+            </Typography>
 
             <Typography
-              fontWeight={700}
-              color="#001F54"
+              variant="body2"
+              color="text.secondary"
             >
-              {item.utilization}%
+              Live equipment usage
             </Typography>
-          </Stack>
+          </Box>
 
-          {/* Progress */}
-          <LinearProgress
-            variant="determinate"
-            value={item.utilization}
+
+          <Chip
+            icon={
+              <TrendingUpRoundedIcon
+                sx={{
+                  fontSize: 18,
+                }}
+              />
+            }
+            label={`${avgUtilization}% Avg`}
+            size="small"
             sx={{
-              height: 8,
-              borderRadius: 10,
-              bgcolor: "#EEF2F7",
-
-             "& .MuiLinearProgress-bar": {
-  borderRadius: 10,
-  backgroundColor: "#001F54",
-},
+              bgcolor: "#EEF4FF",
+              color: "#001F54",
+              fontWeight: 700,
             }}
           />
-        </Box>
-      ))}
-    </Stack>
+        </Stack>
 
-    <Divider sx={{ my: 3 }} />
 
-    {/* Footer */}
-    <Stack
-      direction="row"
-      justifyContent="space-between"
-    >
-      <Stack alignItems="center">
-        <Typography
-          fontWeight={700}
-          color="#16A34A"
+        {/* Machines */}
+        <Stack spacing={2.5}>
+          {machineData.map((item) => (
+            <Box
+              key={item.id}
+            >
+
+              {/* Machine info */}
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={1}
+              >
+
+                <Stack spacing={0.3}>
+
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                  >
+
+                    <CircleRoundedIcon
+                      sx={{
+                        fontSize: 10,
+                        color:
+                          statusColor(
+                            item.status
+                          ),
+                      }}
+                    />
+
+
+                    <Typography
+                      fontWeight={600}
+                      fontSize={14}
+                    >
+                      {item.machine}
+                    </Typography>
+
+                  </Stack>
+
+
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                  >
+                    {item.studies} Studies
+                    {" • "}
+                    Next: {item.next}
+                  </Typography>
+
+                </Stack>
+
+
+                <Typography
+                  fontWeight={700}
+                  color="#001F54"
+                >
+                  {item.utilization}%
+                </Typography>
+
+              </Stack>
+
+
+              {/* Utilization progress */}
+              <LinearProgress
+                variant="determinate"
+                value={item.utilization}
+                sx={{
+                  height: 8,
+                  borderRadius: 10,
+                  bgcolor: "#EEF2F7",
+
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 10,
+                    backgroundColor:
+                      progressColor(
+                        item.utilization
+                      ),
+                  },
+                }}
+              />
+
+            </Box>
+          ))}
+        </Stack>
+
+
+        <Divider
+          sx={{
+            my: 3,
+          }}
+        />
+
+
+        {/* Footer Summary */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
         >
-          {available}
-        </Typography>
 
-        <Typography
-          variant="caption"
-          color="text.secondary"
-        >
-          Available
-        </Typography>
-      </Stack>
+          <Stack
+            alignItems="center"
+          >
+            <Typography
+              fontWeight={700}
+              color="#16A34A"
+            >
+              {available}
+            </Typography>
 
-      <Stack alignItems="center">
-        <Typography
-          fontWeight={700}
-          color="#F59E0B"
-        >
-          {busy}
-        </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+            >
+              Available
+            </Typography>
 
-        <Typography
-          variant="caption"
-          color="text.secondary"
-        >
-          Busy
-        </Typography>
-      </Stack>
+          </Stack>
 
-      <Stack alignItems="center">
-        <Typography
-          fontWeight={700}
-          color="#EF4444"
-        >
-          {maintenance}
-        </Typography>
 
-        <Typography
-          variant="caption"
-          color="text.secondary"
-        >
-          Maintenance
-        </Typography>
-      </Stack>
-    </Stack>
-  </CardContent>
-</Card>
+
+          <Stack
+            alignItems="center"
+          >
+            <Typography
+              fontWeight={700}
+              color="#F59E0B"
+            >
+              {busy}
+            </Typography>
+
+            <Typography
+              variant="caption"
+              color="text.secondary"
+            >
+              Busy
+            </Typography>
+
+          </Stack>
+
+
+
+          <Stack
+            alignItems="center"
+          >
+            <Typography
+              fontWeight={700}
+              color="#EF4444"
+            >
+              {maintenance}
+            </Typography>
+
+            <Typography
+              variant="caption"
+              color="text.secondary"
+            >
+              Maintenance
+            </Typography>
+
+          </Stack>
+
+        </Stack>
+
+
+      </CardContent>
+    </Card>
   );
 }

@@ -7,30 +7,32 @@ import type { QuickAction } from "@/features/dashboard/types";
 export const radiologyQuickActions: QuickAction[] = [
   {
     label: "Imaging Queue",
-    description: "View pending imaging requests",
+    description: "View scheduled and pending imaging studies",
     href: "/radiology/queue",
     color: "violet",
   },
+
   {
     label: "Perform Scan",
-    description: "Start CT, MRI, X-Ray or USG",
+    description: "Perform CT, MRI, X-Ray, USG and other studies",
     href: "/radiology/scan",
     color: "blue",
   },
+
   {
     label: "Reporting",
-    description: "Create radiology reports",
+    description: "Prepare radiology reports for completed scans",
     href: "/radiology/reporting",
     color: "teal",
   },
+
   {
     label: "Verify Reports",
-    description: "Review and release reports",
+    description: "Review, approve and verify reports",
     href: "/radiology/verification",
     color: "amber",
   },
 ];
-
 
 export default function RadiologyQuickActions() {
   return (

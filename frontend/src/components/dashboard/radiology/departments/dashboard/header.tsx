@@ -1,6 +1,6 @@
 "use client";
 
-import { Paper, Stack, Typography, Box } from "@mui/material";
+import { Box, Paper, Stack, Typography } from "@mui/material";
 
 import type { DashboardHeaderProps } from "./types";
 
@@ -16,17 +16,24 @@ export default function DashboardHeader({
     <Paper
       elevation={0}
       sx={{
-        p: 1,
+        p: 2,
         borderRadius: 3,
       }}
     >
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
+        alignItems={{ xs: "stretch", md: "flex-start" }}
         spacing={3}
       >
-        {/* Left */}
-        <Stack direction="row" spacing={2} alignItems="flex-start">
+
+        {/* Header Left */}
+        <Stack
+          direction="row"
+          spacing={2}
+          alignItems="flex-start"
+        >
+
           {icon && (
             <Box
               sx={{
@@ -37,16 +44,23 @@ export default function DashboardHeader({
                 height: 52,
                 borderRadius: 2,
                 bgcolor: "action.hover",
+                flexShrink: 0,
               }}
             >
               {icon}
             </Box>
           )}
 
+
           <Stack spacing={0.5}>
-            <Typography variant="h4" fontWeight={700}>
+
+            <Typography
+              variant="h4"
+              fontWeight={700}
+            >
               {title}
             </Typography>
+
 
             {subtitle && (
               <Typography
@@ -57,6 +71,7 @@ export default function DashboardHeader({
               </Typography>
             )}
 
+
             {description && (
               <Typography
                 variant="body2"
@@ -65,10 +80,14 @@ export default function DashboardHeader({
                 {description}
               </Typography>
             )}
+
           </Stack>
+
         </Stack>
 
-        {/* Right Actions */}
+
+
+        {/* Actions */}
         {actions && (
           <Stack
             direction="row"
@@ -82,14 +101,18 @@ export default function DashboardHeader({
             {actions}
           </Stack>
         )}
+
       </Stack>
 
-      {/* Optional Content */}
+
+
+      {/* Extra Content */}
       {children && (
         <Box mt={3}>
           {children}
         </Box>
       )}
+
     </Paper>
   );
 }

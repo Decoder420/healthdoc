@@ -7,17 +7,17 @@ import { ReactNode } from "react";
 
 export interface DashboardHeaderProps {
 
-  title:string;
+  title: string;
 
-  subtitle?:string;
+  subtitle?: string;
 
-  description?:string;
+  description?: string;
 
-  icon?:ReactNode;
+  icon?: ReactNode;
 
-  actions?:ReactNode;
+  actions?: ReactNode;
 
-  children?:ReactNode;
+  children?: ReactNode;
 
 }
 
@@ -29,21 +29,20 @@ export interface DashboardHeaderProps {
 
 export interface DashboardStat {
 
-  title:string;
+  title: string;
 
-  text:string | number;
+  text: string | number;
 
-  icon?:ReactNode;
+  icon?: ReactNode;
 
 }
 
 
 export interface DashboardStatsProps {
 
-  stats:DashboardStat[];
+  stats: DashboardStat[];
 
 }
-
 
 
 
@@ -54,31 +53,46 @@ export interface DashboardStatsProps {
 
 export interface TrendChartData {
 
-  label:string;
+  label: string;
 
-  value:number;
+  value: number;
 
 }
+
 
 export interface TrendChartProps {
+
   title: string;
+
   subtitle?: string;
+
   data: TrendChartData[];
+
   color?: string;
+
   trend?: string;
+
   total?: number | string;
+
   peakLabel?: string;
+
   action?: ReactNode;
+
   height?: number;
+
 }
+
 
 export interface StatusDistributionData {
 
-  name:string;
+  name: string;
 
-  value:number;
+  value: number;
+
+  color?: string;
 
 }
+
 
 export interface StatusDistributionChartProps {
 
@@ -98,48 +112,62 @@ export interface StatusDistributionChartProps {
 
 
 
+
 export interface ReportingTimeData {
 
-  day:string;
+  day: string;
 
-  minutes:number;
+  minutes: number;
 
 }
+
+
 
 export interface ReportingTimeChartProps {
+
   title: string;
+
   subtitle?: string;
+
   data: ReportingTimeData[];
+
   average?: number;
+
   target?: number;
+
   action?: ReactNode;
+
   height?: number;
+
 }
 
 
 
 
+
+// =======================
+// Chart Configuration
+// =======================
 
 export interface ChartConfig {
 
 
-  trendTitle?:string;
+  trendTitle?: string;
 
-  trendSubtitle?:string;
-
-
-  statusTitle?:string;
-
-  statusSubtitle?:string;
+  trendSubtitle?: string;
 
 
-  reportingTitle?:string;
+  statusTitle?: string;
 
-  reportingSubtitle?:string;
+  statusSubtitle?: string;
+
+
+  reportingTitle?: string;
+
+  reportingSubtitle?: string;
 
 
 }
-
 
 
 
@@ -151,34 +179,49 @@ export interface ChartConfig {
 
 export interface SearchToolbarProps {
 
-  search:string;
 
-  status:string;
+  search: string;
 
-  date:string;
+
+  status: string;
+
+
+  date: string;
+
 
 
   onSearchChange:
-  (value:string)=>void;
+  (
+    value: string
+  ) => void;
+
 
 
   onStatusChange:
-  (value:string)=>void;
+  (
+    value: string
+  ) => void;
+
 
 
   onDateChange:
-  (value:string)=>void;
+  (
+    value: string
+  ) => void;
+
 
 
   onRefresh?:
-  ()=>void;
+  () => void;
+
 
 
   onExport?:
-  ()=>void;
+  () => void;
 
 
-  actions?:ReactNode;
+
+  actions?: ReactNode;
 
 }
 
@@ -186,24 +229,59 @@ export interface SearchToolbarProps {
 
 
 
+
+
 // =======================
-// Radiology Case
+// Radiology Queue
 // =======================
 
 
 export type RadiologyStatus =
-  | "PROCESSING"
-  | "VERIFIED";
+
+  | "Queue"
+
+  | "Processing"
+
+  | "Completed"
+
+  | "No Show"
+
+  | "Removed"
+
+  | "Verified";
+
+
 
 
 
 export type Priority =
 
-| "Routine"
+  | "Routine"
 
-| "Urgent"
+  | "Urgent"
 
-| "STAT";
+  | "Emergency";
+
+
+
+
+
+export type RadiologyModality =
+
+  | "CT"
+
+  | "MRI"
+
+  | "X-Ray"
+
+  | "USG"
+
+  | "Mammography"
+
+  | "ECG";
+
+
+
 
 
 
@@ -211,47 +289,83 @@ export type Priority =
 export interface RadiologyCase {
 
 
-  id:string;
-
-
-  patientName:string;
-
-
-  uhid:string;
-
-
-  accessionNo:string;
-
-
-  study:string;
-
-
-  modality:
-  | "CT"
-  | "MRI"
-  | "XRAY"
-  | "USG"
-  | "MAMMOGRAPHY"
-  | "ECG";
+  id: number;
 
 
 
-  doctor:string;
+  orderId: string;
 
 
 
-  priority:Priority;
+  accessionNumber: string;
 
 
 
-  status:RadiologyStatus;
+  patientId: string;
 
 
 
-  studyDate:string;
+  visitId: string;
+
+
+
+  token: string;
+
+
+
+  patientName: string;
+
+
+
+  uhid: string;
+
+
+
+  age: number;
+
+
+
+  gender:
+
+  | "Male"
+
+  | "Female";
+
+
+
+  modality: RadiologyModality;
+
+
+
+  procedure: string;
+
+
+
+  radiologist: string;
+
+
+
+  appointmentDate: string;
+
+
+
+  appointmentTime: string;
+
+
+
+  priority: Priority;
+
+
+
+  status: RadiologyStatus;
+
+
+
+  reportAvailable: boolean;
 
 
 }
+
 
 
 
@@ -263,31 +377,42 @@ export interface RadiologyCase {
 // Radiology Table
 // =======================
 
-
 export interface RadiologyTableProps {
 
 
-  rows:RadiologyCase[];
+  rows: RadiologyCase[];
 
 
-  loading?:boolean;
+
+  loading?: boolean;
+
 
 
 
   renderStatus?:
+
   (
-    row:RadiologyCase
-  )=>ReactNode;
+
+    row: RadiologyCase
+
+  ) => ReactNode;
+
+
 
 
 
   renderActions?:
+
   (
-    row:RadiologyCase
-  )=>ReactNode;
+
+    row: RadiologyCase
+
+  ) => ReactNode;
+
 
 
 }
+
 
 
 
@@ -300,27 +425,30 @@ export interface RadiologyTableProps {
 // Radiology Dashboard
 // =======================
 
-
 export interface DepartmentDashboardProps {
 
 
 
   // Header
 
-  title:string;
+  title: string;
 
-  subtitle?:string;
 
-  description?:string;
+  subtitle?: string;
 
-  icon?:ReactNode;
+
+  description?: string;
+
+
+  icon?: ReactNode;
+
 
 
 
 
   // KPI Cards
 
-  stats:DashboardStat[];
+  stats: DashboardStat[];
 
 
 
@@ -328,43 +456,55 @@ export interface DepartmentDashboardProps {
 
   // Charts
 
-  trendData:TrendChartData[];
+  trendData: TrendChartData[];
 
 
-  statusData:StatusDistributionData[];
+  statusData: StatusDistributionData[];
 
 
-  reportingData:ReportingTimeData[];
-
-
-
-
-  chartConfig?:ChartConfig;
+  reportingData: ReportingTimeData[];
 
 
 
 
 
-  // Table
-
-  rows:RadiologyCase[];
+  chartConfig?: ChartConfig;
 
 
 
 
-  // Custom Rendering
+
+  // Queue Table
+
+  rows: RadiologyCase[];
+
+
+
+
+
+
+  // Custom Render
 
   renderStatus?:
+
   (
-    row:RadiologyCase
-  )=>ReactNode;
+
+    row: RadiologyCase
+
+  ) => ReactNode;
+
+
 
 
 
   renderActions?:
+
   (
-    row:RadiologyCase
-  )=>ReactNode;
+
+    row: RadiologyCase
+
+  ) => ReactNode;
+
 
 
 
@@ -372,16 +512,119 @@ export interface DepartmentDashboardProps {
 
   // Events
 
-// Events
+  onRefresh?:
 
-onRefresh?: () => void;
+  () => void;
 
-onExport?: () => void;
 
- onVerify?: (row: RadiologyCase) => void;
 
-onViewReport?: (row: RadiologyCase) => void;
-loading?: boolean;
+  onExport?:
+
+  () => void;
+
+
+
+
+  onVerify?:
+
+  (
+
+    row: RadiologyCase
+
+  ) => void;
+
+
+
+
+  onViewReport?:
+
+  (
+
+    row: RadiologyCase
+
+  ) => void;
+
+
+
+
+  loading?: boolean;
+
+
+}
+
+
+
+
+
+
+// =======================
+// Filters
+// =======================
+
+export interface RadiologyFilters {
+
+
+  search: string;
+
+
+  status:
+
+  | "All"
+
+  | RadiologyStatus;
+
+
+
+  modality:
+
+  | "All"
+
+  | RadiologyModality;
+
+
+
+  priority:
+
+  | "All"
+
+  | Priority;
+
+
+
+  date: string;
+
+
+}
+
+
+
+
+
+// =======================
+// Table Actions
+// =======================
+
+export type RadiologyAction =
+
+  | "START_SCAN"
+
+  | "COMPLETE_SCAN"
+
+  | "UPLOAD_REPORT"
+
+  | "VERIFY_REPORT"
+
+  | "VIEW_REPORT";
+
+
+
+export interface RadiologyActionPayload {
+
+
+  action: RadiologyAction;
+
+
+  row: RadiologyCase;
 
 
 }

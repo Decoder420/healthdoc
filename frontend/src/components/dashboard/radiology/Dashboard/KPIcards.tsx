@@ -10,78 +10,93 @@ import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
 import DynamicCard from "@/components/dashboard/lab/Lab_KpiCards";
+
 import {
   appointmentQueue,
   getRadiologyQueueStats,
 } from "@/components/dashboard/radiology/test_queue/DummyData";
 
+
 export default function KPICards() {
-  const stats = getRadiologyQueueStats();
-  const scanned = appointmentQueue.filter((item) =>
-    ["Completed", "Verified", "Reporting", "Scan Started"].includes(
-      item.status,
-    ),
+
+  const stats = getRadiologyQueueStats(
+    appointmentQueue
+  );
+
+
+  const scanned = appointmentQueue.filter(
+    (item) =>
+      [
+        "Scan Started",
+        "Completed",
+        "Reporting",
+        "Verified",
+      ].includes(item.status)
   ).length;
-  const pendingVerification = appointmentQueue.filter(
-    (item) => item.status === "Reporting",
-  ).length;
-  const released = appointmentQueue.filter(
-    (item) => item.status === "Verified",
-  ).length;
+
 
   const kpiCards = [
     {
       id: 1,
       title: "In Queue",
       value: stats.inQueue,
-      icon: <GroupsRoundedIcon fontSize="large" />,
-      linkText: "View Queue",
-      linkHref: "/radiology/queue",
+      icon: (
+        <GroupsRoundedIcon fontSize="large" />
+      ),
     },
+
     {
       id: 2,
       title: "Scanned",
       value: scanned,
-      icon: <CameraAltRoundedIcon fontSize="large" />,
-      linkText: "View Scans",
-      linkHref: "/radiology/ct",
+      icon: (
+        <CameraAltRoundedIcon fontSize="large" />
+      ),
     },
+
     {
       id: 3,
       title: "Reporting",
       value: stats.reporting,
-      icon: <EditNoteRoundedIcon fontSize="large" />,
-      linkText: "Open Reporting",
-      linkHref: "/radiology/mri",
+      icon: (
+        <EditNoteRoundedIcon fontSize="large" />
+      ),
     },
+
     {
       id: 4,
       title: "Pending Verification",
-      value: pendingVerification,
-      icon: <PendingActionsRoundedIcon fontSize="large" />,
-      linkText: "Verify Reports",
-      linkHref: "/radiology/queue",
+      value: stats.reporting,
+      icon: (
+        <PendingActionsRoundedIcon fontSize="large" />
+      ),
     },
+
     {
       id: 5,
       title: "Reports Released",
-      value: released,
-      icon: <VerifiedRoundedIcon fontSize="large" />,
-      linkText: "Released Reports",
-      linkHref: "/radiology/xray",
+      value: stats.verified,
+      icon: (
+        <VerifiedRoundedIcon fontSize="large" />
+      ),
     },
+
     {
       id: 6,
       title: "Critical Alerts",
       value: stats.emergency,
-      icon: <WarningAmberRoundedIcon fontSize="large" />,
-      linkText: "View Alerts",
-      linkHref: "/radiology/queue",
+      icon: (
+        <WarningAmberRoundedIcon fontSize="large" />
+      ),
     },
   ];
 
+
   return (
-    <Grid container spacing={3}>
+    <Grid
+      container
+      spacing={3}
+    >
       {kpiCards.map((card) => (
         <Grid
           key={card.id}

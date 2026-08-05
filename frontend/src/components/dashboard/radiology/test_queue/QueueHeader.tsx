@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 
 import {
   Box,
@@ -28,13 +28,12 @@ export default function QueueHeader({
 }: QueueHeaderProps) {
   const [now, setNow] = useState(new Date());
 
-  // Live Clock
   useEffect(() => {
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       setNow(new Date());
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, []);
 
   const currentDate = now.toLocaleDateString("en-IN", {
@@ -61,29 +60,14 @@ export default function QueueHeader({
       }}
     >
       <Stack
-        direction={{
-          xs: "column",
-          md: "row",
-        }}
+        direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
-        alignItems={{
-          xs: "flex-start",
-          md: "center",
-        }}
+        alignItems={{ xs: "flex-start", md: "center" }}
         spacing={3}
       >
-        {/* Left */}
         <Box>
-          <Breadcrumbs
-            sx={{
-              mb: 1,
-              fontSize: 13,
-            }}
-          >
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
+          <Breadcrumbs sx={{ mb: 1, fontSize: 13 }}>
+            <Typography variant="body2" color="text.secondary">
               Radiology
             </Typography>
 
@@ -109,21 +93,15 @@ export default function QueueHeader({
             color="text.secondary"
             mt={1}
           >
-            Manage today's imaging appointments,
-            prioritize emergency cases and start
-            radiology procedures.
+            Manage radiology orders, monitor scan progress,
+            review reporting status, and track verified studies.
           </Typography>
         </Box>
 
-        {/* Right */}
         <Stack
           spacing={2}
-          alignItems={{
-            xs: "flex-start",
-            md: "flex-end",
-          }}
+          alignItems={{ xs: "flex-start", md: "flex-end" }}
         >
-          {/* Live Date & Time */}
           <Stack
             direction="row"
             spacing={1.5}
@@ -133,9 +111,7 @@ export default function QueueHeader({
               icon={<CalendarTodayRoundedIcon />}
               label={currentDate}
               variant="outlined"
-              sx={{
-                fontWeight: 500,
-              }}
+              sx={{ fontWeight: 500 }}
             />
 
             <Chip
@@ -150,15 +126,12 @@ export default function QueueHeader({
             />
           </Stack>
 
-          {/* Action Buttons */}
-          <Stack
-            direction="row"
-            spacing={1.5}
-          >
+          <Stack direction="row" spacing={1.5}>
             <Button
               variant="outlined"
               startIcon={<RefreshRoundedIcon />}
               onClick={onRefresh}
+              aria-label="Refresh radiology queue"
               sx={{
                 textTransform: "none",
                 borderRadius: 2,
@@ -169,8 +142,9 @@ export default function QueueHeader({
 
             <Button
               variant="contained"
-              startIcon={<FileUploadOutlinedIcon  />}
+              startIcon={<FileUploadOutlinedIcon />}
               onClick={onExport}
+              aria-label="Export radiology queue"
               sx={{
                 textTransform: "none",
                 borderRadius: 2,

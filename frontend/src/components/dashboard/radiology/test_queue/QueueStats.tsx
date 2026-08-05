@@ -1,11 +1,11 @@
 "use client";
 
-import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
-import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
-import PlayCircleRoundedIcon from "@mui/icons-material/PlayCircleRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
+import PlayCircleRoundedIcon from "@mui/icons-material/PlayCircleRounded";
 import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
 import {
   Box,
@@ -21,6 +21,7 @@ import { getRadiologyQueueStats } from "./DummyData";
 
 export default function QueueStats() {
   const statsData = getRadiologyQueueStats();
+
   const avgWait = `${10 + (statsData.inQueue % 8)} min`;
 
   const stats = [
@@ -50,10 +51,10 @@ export default function QueueStats() {
     },
     {
       id: 4,
-      title: "Completed",
-      value: statsData.completed,
-      subtitle: "Completed / verified",
-      trend: "+12%",
+      title: "Verified",
+      value: statsData.verified,
+      subtitle: "Reports verified",
+      trend: `${statsData.finished} Finished`,
       icon: <CheckCircleRoundedIcon color="success" />,
     },
     {
@@ -132,7 +133,11 @@ export default function QueueStats() {
                 {item.title}
               </Typography>
 
-              <Typography variant="body2" color="text.secondary" mt={0.5}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                mt={0.5}
+              >
                 {item.subtitle}
               </Typography>
             </CardContent>

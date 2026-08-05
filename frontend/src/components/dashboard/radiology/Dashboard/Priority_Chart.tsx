@@ -19,15 +19,22 @@ import {
   Typography,
 } from "@mui/material";
 
-import { getRadiologyPriorityDistribution } from "@/components/dashboard/radiology/test_queue/DummyData";
+import {
+  getRadiologyPriorityDistribution,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
-const priorityData = getRadiologyPriorityDistribution();
 
 export default function PriorityCasesChart() {
+
+  const priorityData =
+    getRadiologyPriorityDistribution();
+
+
   const totalCases = priorityData.reduce(
     (sum, item) => sum + item.value,
     0
   );
+
 
   return (
     <Card
@@ -40,7 +47,13 @@ export default function PriorityCasesChart() {
         backgroundColor: "background.paper",
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+
+      <CardContent
+        sx={{
+          p:3,
+        }}
+      >
+
         {/* Header */}
         <Stack
           direction="row"
@@ -48,7 +61,9 @@ export default function PriorityCasesChart() {
           alignItems="center"
           mb={3}
         >
+
           <Box>
+
             <Typography
               variant="h6"
               fontWeight={700}
@@ -56,41 +71,53 @@ export default function PriorityCasesChart() {
               Priority Cases
             </Typography>
 
+
             <Typography
               variant="body2"
               color="text.secondary"
             >
               Today's imaging priority distribution
             </Typography>
+
           </Box>
 
+
           <Chip
-            icon={<LocalHospitalRoundedIcon />}
+            icon={
+              <LocalHospitalRoundedIcon />
+            }
             label={`${totalCases} Cases`}
             size="small"
             sx={{
-              bgcolor: "action.hover",
-              color: "primary.main",
-              fontWeight: 700,
+              bgcolor:"action.hover",
+              color:"primary.main",
+              fontWeight:700,
             }}
           />
+
         </Stack>
+
+
 
         {/* Chart */}
         <Box
           sx={{
-            height: 260,
-            position: "relative",
+            height:260,
+            position:"relative",
           }}
         >
+
           <ResponsiveContainer
             width="100%"
             height="100%"
           >
+
             <PieChart>
+
               <Pie
                 data={priorityData}
                 dataKey="value"
+                nameKey="name"
                 innerRadius={70}
                 outerRadius={95}
                 paddingAngle={4}
@@ -98,28 +125,35 @@ export default function PriorityCasesChart() {
                 stroke="#fff"
                 strokeWidth={3}
               >
-                {priorityData.map((item) => (
-                  <Cell
-                    key={item.name}
-                    fill={item.color}
-                  />
-                ))}
+
+                {priorityData.map(
+                  (item)=>(
+                    <Cell
+                      key={item.name}
+                      fill={item.color}
+                    />
+                  )
+                )}
+
               </Pie>
 
-              {/* Center Text */}
+
+
               <text
                 x="50%"
                 y="45%"
                 textAnchor="middle"
                 dominantBaseline="middle"
                 style={{
-                  fontSize: 14,
-                  fill: "#64748B",
-                  fontWeight: 500,
+                  fontSize:14,
+                  fill:"#64748B",
+                  fontWeight:500,
                 }}
               >
                 Total
               </text>
+
+
 
               <text
                 x="50%"
@@ -127,75 +161,115 @@ export default function PriorityCasesChart() {
                 textAnchor="middle"
                 dominantBaseline="middle"
                 style={{
-                  fontSize: 30,
-                  fontWeight: 700,
-                  fill: "#001F54",
+                  fontSize:30,
+                  fontWeight:700,
+                  fill:"#001F54",
                 }}
               >
                 {totalCases}
               </text>
+
+
             </PieChart>
+
           </ResponsiveContainer>
+
         </Box>
 
-        <Divider sx={{ my: 2.5 }} />
+
+
+        <Divider
+          sx={{
+            my:2.5,
+          }}
+        />
+
+
 
         {/* Legend */}
         <Stack spacing={2}>
-          {priorityData.map((item) => (
-            <Stack
-              key={item.name}
-              direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-            >
-              <Stack
-                direction="row"
-                spacing={1.5}
-                alignItems="center"
-              >
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    bgcolor: item.color,
-                  }}
-                />
 
-                <Typography
-                  fontWeight={600}
-                  fontSize={14}
-                >
-                  {item.name}
-                </Typography>
-              </Stack>
+          {priorityData.map((item)=>{
+
+            const percentage =
+              totalCases === 0
+                ? 0
+                : Math.round(
+                    (item.value / totalCases) * 100
+                  );
+
+
+            return (
 
               <Stack
+                key={item.name}
                 direction="row"
-                spacing={2}
+                justifyContent="space-between"
                 alignItems="center"
               >
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                >
-                  {item.value}%
-                </Typography>
 
-                <Typography
-                  fontWeight={700}
-                  color="primary.main"
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  alignItems="center"
                 >
-                  {Math.round(
-                    (item.value / 100) * totalCases
-                  )}
-                </Typography>
+
+                  <Box
+                    sx={{
+                      width:12,
+                      height:12,
+                      borderRadius:"50%",
+                      bgcolor:item.color,
+                    }}
+                  />
+
+
+                  <Typography
+                    fontWeight={600}
+                    fontSize={14}
+                  >
+                    {item.name}
+                  </Typography>
+
+                </Stack>
+
+
+
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  alignItems="center"
+                >
+
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    {percentage}%
+                  </Typography>
+
+
+                  <Typography
+                    fontWeight={700}
+                    color="primary.main"
+                  >
+                    {item.value}
+                  </Typography>
+
+
+                </Stack>
+
               </Stack>
-            </Stack>
-          ))}
+
+            );
+
+          })}
+
         </Stack>
+
+
       </CardContent>
+
     </Card>
   );
 }
