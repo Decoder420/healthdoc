@@ -93,6 +93,23 @@ def check_file(path: pathlib.Path) -> list[Finding]:
         src = path.read_text()
     except Exception:
         return []
+
+    # --- unresolved merge conflict markers ------------------------------------
+    # Checked before anything else and returned immediately: a file with conflict
+    # markers is not valid Python, so every AST-based rule below silently skips it
+    # and the file reports clean. That is exactly what happened on PR #284 —
+    # pr_check said "0 blockers" on three files that could not even be imported.
+    conflict_lines = [
+        i for i, ln in enumerate(src.splitlines(), 1)
+        if ln.startswith(("<<<<<<< ", "=======", ">>>>>>> ")) and ln.rstrip() != "======="
+        or ln.rstrip() == "======="
+        and any(o.startswith("<<<<<<< ") for o in src.splitlines())
+    ]
+    if conflict_lines:
+        return [Finding(BLOCK, "MERGE-CONFLICT", str(path), conflict_lines[0],
+                        f"Unresolved merge conflict markers on {len(conflict_lines)} line(s) "
+                        f"— the file is not valid source and every other check skips it.",
+                        "resolve the conflict, then re-run the checks")]
     f: list[Finding] = []
     rel = str(path)
     lines = src.splitlines()
