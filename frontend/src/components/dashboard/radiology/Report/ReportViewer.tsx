@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import {
@@ -23,28 +24,64 @@ import Findings from "./Findings";
 import Impression from "./Impression";
 import Signature from "./Signature";
 import ReportFooter from "./ReportFooter";
+import { loadReportDraft } from "@/components/dashboard/radiology/test_result/reportDraftStorage";
 
 import type { RadiologyReport } from "./types";
 
 interface ReportViewerProps {
   report?: RadiologyReport | null;
+  accessionNumber?: string;
 }
 
 export default function ReportViewer({
   report,
+  accessionNumber,
 }: ReportViewerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [resolvedReport, setResolvedReport] =
+    useState<RadiologyReport | null>(report ?? null);
 
   const isPdfMode =
     searchParams.get("pdf") === "1";
+
+  useEffect(() => {
+    if (!report) {
+      setResolvedReport(null);
+      return;
+    }
+
+    const draftKey =
+      accessionNumber || report.report.accessionNo;
+    const draft = draftKey
+      ? loadReportDraft(draftKey)
+      : null;
+
+    if (!draft) {
+      setResolvedReport(report);
+      return;
+    }
+
+    setResolvedReport({
+      ...report,
+      findings: draft.findings.trim() || report.findings,
+      impression:
+        draft.impression.trim() || report.impression,
+      report: {
+        ...report.report,
+        status: draft.verified
+          ? "VERIFIED"
+          : report.report.status,
+      },
+    });
+  }, [report, accessionNumber]);
 
 
   /* =========================
      Safety Check
   ========================= */
 
-  if (!report) {
+  if (!resolvedReport) {
     return (
       <Box
         sx={{
@@ -76,7 +113,7 @@ export default function ReportViewer({
 
   const handleDownload = () => {
 
-    if (!report.id) {
+    if (!resolvedReport.id) {
       console.error(
         "Missing report id"
       );
@@ -85,7 +122,7 @@ export default function ReportViewer({
 
 
     window.open(
-      `/api/radiology/reports/${report.id}`,
+      `/api/radiology/reports/${resolvedReport.id}`,
       "_blank"
     );
   };
@@ -189,7 +226,7 @@ export default function ReportViewer({
 
                 <strong>
                   {
-                    report.report
+                    resolvedReport.report
                       ?.reportNo
                     ??
                     "N/A"
@@ -347,11 +384,11 @@ export default function ReportViewer({
         <ReportHeader
 
           hospital={
-            report.hospital
+            resolvedReport.hospital
           }
 
           report={
-            report.report
+            resolvedReport.report
           }
 
         />
@@ -361,15 +398,15 @@ export default function ReportViewer({
         <PatientCard
 
           patient={
-            report.patient
+            resolvedReport.patient
           }
 
           doctor={
-            report.doctor
+            resolvedReport.doctor
           }
 
           visit={
-            report.visit
+            resolvedReport.visit
           }
 
         />
@@ -379,7 +416,7 @@ export default function ReportViewer({
         <StudyCard
 
           study={
-            report.study
+            resolvedReport.study
           }
 
         />
@@ -389,7 +426,7 @@ export default function ReportViewer({
         <ClinicalHistory
 
           clinicalHistory={
-            report.clinicalHistory
+            resolvedReport.clinicalHistory
             ??
             ""
           }
@@ -401,7 +438,7 @@ export default function ReportViewer({
         <ImageGallery
 
           images={
-            report.images
+            resolvedReport.images
             ??
             []
           }
@@ -413,7 +450,7 @@ export default function ReportViewer({
         <Findings
 
           findings={
-            report.findings
+            resolvedReport.findings
             ??
             ""
           }
@@ -425,7 +462,7 @@ export default function ReportViewer({
         <Impression
 
           impression={
-            report.impression
+            resolvedReport.impression
             ??
             ""
           }
@@ -437,7 +474,7 @@ export default function ReportViewer({
         <Signature
 
           radiologist={
-            report.radiologist
+            resolvedReport.radiologist
           }
 
         />
@@ -447,11 +484,11 @@ export default function ReportViewer({
         <ReportFooter
 
           generatedOn={
-            report.generatedOn
+            resolvedReport.generatedOn
           }
 
           hospital={
-            report.hospital
+            resolvedReport.hospital
           }
 
         />

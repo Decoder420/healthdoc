@@ -2,7 +2,7 @@
 
 import {
   Button,
-   CircularProgress,
+  CircularProgress,
   Stack,
 } from "@mui/material";
 
@@ -11,6 +11,7 @@ interface ActionButtonsProps {
   canVerify: boolean;
   onSaveDraft: () => void;
   onVerify: () => void;
+  onViewReport: () => void;
 }
 
 export default function ActionButtons({
@@ -18,12 +19,11 @@ export default function ActionButtons({
   canVerify,
   onSaveDraft,
   onVerify,
+  onViewReport,
 }: ActionButtonsProps) {
-
-  
   return (
     <Stack
-      direction="row"
+      direction={{ xs: "column", sm: "row" }}
       spacing={2}
       justifyContent="flex-end"
       sx={{ mt: 3 }}
@@ -38,21 +38,28 @@ export default function ActionButtons({
       </Button>
 
       <Button
-  variant="contained"
-  size="large"
-  disabled={!canVerify || loading}
-  onClick={onVerify}
-  startIcon={
-    loading ? (
-      <CircularProgress
-        size={18}
-        color="inherit"
-      />
-    ) : undefined
-  }
->
-  {loading ? "Verifying..." : "Verify Report"}
-</Button>
+        variant="outlined"
+        color="success"
+        size="large"
+        disabled={!canVerify || loading}
+        onClick={onViewReport}
+      >
+        View Report
+      </Button>
+
+      <Button
+        variant="contained"
+        size="large"
+        disabled={!canVerify || loading}
+        onClick={onVerify}
+        startIcon={
+          loading ? (
+            <CircularProgress size={18} color="inherit" />
+          ) : undefined
+        }
+      >
+        {loading ? "Verifying..." : "Verify Report"}
+      </Button>
     </Stack>
   );
 }

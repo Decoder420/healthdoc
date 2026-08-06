@@ -36,6 +36,7 @@ import {
   reportPatients,
   searchPatients,
 } from "./dummyReportData";
+import { saveReportDraft } from "./reportDraftStorage";
 
 import type {
   RadiologyReportPatient,
@@ -183,6 +184,26 @@ export default function ReportEntryPage() {
     }
   };
 
+const persistDraft = (verified = false) => {
+  if (!selectedPatient) return;
+
+  saveReportDraft(selectedPatient.accessionNumber, {
+    findings,
+    impression,
+    recommendation,
+    verified,
+  });
+};
+
+const openCompletedReport = (verified = false) => {
+  if (!selectedPatient) return;
+
+  persistDraft(verified);
+  router.push(
+    `/radiology/reports/${selectedPatient.accessionNumber}`
+  );
+};
+
  // =====================================
 // Save Draft
 // =====================================
@@ -197,62 +218,28 @@ const handleSaveDraft = async () => {
     setTimeout(resolve, 1000)
   );
 
-  const draftReport = {
-    ...selectedPatient,
-    studyStatus: "Processing",
-    report: {
-      ...selectedPatient.report,
-      findings,
-      impression,
-      recommendation,
-    },
-  };
-
-  console.log("Draft Saved:", draftReport);
-
-  // TODO: API CALL
-  // await axios.put(`/api/radiology/report/${selectedPatient.accessionNumber}`, draftReport)
+  persistDraft(false);
 
   setLoading(false);
-
-  redirectToModalityPage();
 };
 
 // =====================================
-// Redirect after Save / Verify
+// View completed report (after fields filled)
 // =====================================
-const redirectToModalityPage = () => {
-  if (!selectedPatient) return;
-
-  switch (selectedPatient.modality) {
-    case "CT":
-      router.push("/radiology/ct");
-      break;
-
-    case "MRI":
-      router.push("/radiology/mri");
-      break;
-
-    case "X-Ray":
-      router.push("/radiology/xray");
-      break;
-
-    case "USG":
-      router.push("/radiology/usg");
-      break;
-
-    case "Mammography":
-      router.push("/radiology/mammography");
-      break;
-
-    case "ECG":
-      router.push("/radiology/ecg");
-      break;
-
-    default:
-      router.push("/radiology");
+const handleViewReport = () => {
+  if (!findings.trim()) {
+    setFindingsError("Findings are required.");
+    return;
   }
+
+  if (!impression.trim()) {
+    setImpressionError("Impression is required.");
+    return;
+  }
+
+  openCompletedReport(false);
 };
+
 // =====================================
 // Verify Report
 // =====================================
@@ -283,31 +270,9 @@ const handleVerify = async () => {
     setTimeout(resolve, 1200)
   );
 
-  const verifiedReport = {
-    ...selectedPatient,
-    status: "Verified",
-    report: {
-      ...selectedPatient.report,
-      findings,
-      impression,
-      recommendation,
-    },
-  };
-
-
-  console.log("Report Verified:", verifiedReport);
-
-
-  // TODO: API CALL
-  // await axios.put(
-  // `/api/radiology/report/${selectedPatient.accessionNumber}`,
-  // verifiedReport
-  // );
-
-
   setLoading(false);
 
-  redirectToModalityPage();
+  openCompletedReport(true);
 };
 
 
@@ -449,12 +414,9 @@ const handleVerify = async () => {
             <ActionButtons
               loading={loading}
               canVerify={canVerify}
-              onSaveDraft={
-                handleSaveDraft
-              }
-              onVerify={
-                handleVerify
-              }
+              onSaveDraft={handleSaveDraft}
+              onVerify={handleVerify}
+              onViewReport={handleViewReport}
             />
           </>
         )}

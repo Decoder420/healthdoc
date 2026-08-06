@@ -98,7 +98,9 @@ export default function MammographyDashboard() {
       }}
 
       onViewReport={(row) => {
-        router.push(`/radiology/reports/${row.id}`);
+        router.push(
+          `/radiology/reports/${row.accessionNumber}`
+        );
       }}
 
       onRefresh={() => {

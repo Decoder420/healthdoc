@@ -324,7 +324,7 @@ const defaultActions = (row: RadiologyCase) => {
             )
           }
         >
-          Complete Report
+          View Report
         </Button>
       );
 
@@ -336,8 +336,8 @@ const defaultActions = (row: RadiologyCase) => {
           size="small"
           onClick={() =>
             router.push(
-          `/radiology/reports/${row.accessionNumber}`
-        )
+              `/radiology/reports/${row.accessionNumber}`
+            )
           }
         >
           View Report

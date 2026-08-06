@@ -184,11 +184,9 @@ export default function ECGDashboard() {
 
 
       onViewReport={(row) => {
-
         router.push(
-          `/radiology/reports/${row.id}`
+          `/radiology/reports/${row.accessionNumber}`
         );
-
       }}
 
 

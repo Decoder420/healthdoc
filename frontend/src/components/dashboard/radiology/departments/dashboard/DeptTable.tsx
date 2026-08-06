@@ -198,11 +198,11 @@ export default function RadiologyTable({
           size="small"
           onClick={() =>
             router.push(
-              `/dashboard/radiology/report-entry?orderId=${row.orderId}`
+              `/radiology/test_results?accessionNumber=${row.accessionNumber}`
             )
           }
         >
-          Complete Report
+          View Report
         </Button>
       )}
 
@@ -213,7 +213,7 @@ export default function RadiologyTable({
           size="small"
           onClick={() =>
             router.push(
-              `/dashboard/radiology/reports/${row.orderId}`
+              `/radiology/reports/${row.accessionNumber}`
             )
           }
         >
