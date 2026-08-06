@@ -1,301 +1,236 @@
-
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import PurchaseOrderTable from "@/components/dashboard/inventory/purchase/order/PurchaseOrderTable";
-import PurchaseOrderViewDialog from "@/components/dashboard/inventory/purchase/order/PurchaseOrderViewDialog";
-import GoodsReceivingForm from "@/components/dashboard/inventory/purchase/grn/GoodsReceivingForm";
+import { useAuth } from "@/providers/auth-provider";
 
-import {
-  purchaseOrders as initialPurchaseOrders,
-  savePurchaseOrders,
-} from "./data/purchaseOrderData";
+import GRNStats from "@/components/dashboard/inventory/purchase/grn/GRNStats";
+import GRNTable from "@/components/dashboard/inventory/purchase/grn/GRNTable";
+import GRNViewDialog from "@/components/dashboard/inventory/purchase/grn/GRNViewDialog";
+import GRNInspectionDialog from "@/components/dashboard/inventory/purchase/grn/GRNInspectionDialog";
+import GRNStockEntryDialog from "@/components/dashboard/inventory/purchase/grn/GRNStockEntryDialog";
 
-import { addGRN } from "./data/grnData";
+import type {
+  GRN,
+  GRNStatus,
+} from "@/features/inventory/types/grn";
 
-import { PurchaseOrder } from "./types/purchaseOrder";
-import { GRN } from "./types/grn";
+const loadGRNs = (): GRN[] => [];
 
-export default function PurchaseOrderScreen() {
+const saveGRNs = (_grns: GRN[]) => {
+  // Persisted via local state within the screen until
+  // a dedicated inventory data layer is wired in.
+};
+
+export default function GRNScreen() {
+  const { user } = useAuth();
+
+  const [goodsReceivedNotes, setGoodsReceivedNotes] =
+    useState<GRN[]>([]);
+
+  const [selectedGRN, setSelectedGRN] =
+    useState<GRN | null>(null);
+
+  const [inspectionGRN, setInspectionGRN] =
+    useState<GRN | null>(null);
+
+  const [stockEntryGRN, setStockEntryGRN] =
+    useState<GRN | null>(null);
+
   /*
    * ============================================================
-   * STATE
+   * LOAD GRNs
    * ============================================================
    */
 
-  const [purchaseOrders, setPurchaseOrders] =
-    useState<PurchaseOrder[]>(initialPurchaseOrders);
+  useEffect(() => {
+    const grns = loadGRNs();
 
-  /*
-   * PO currently opened for receiving
-   */
-  const [selectedPurchaseOrder, setSelectedPurchaseOrder] =
-    useState<PurchaseOrder | null>(null);
-
-  /*
-   * PO currently opened in View dialog
-   */
-  const [viewPurchaseOrder, setViewPurchaseOrder] =
-    useState<PurchaseOrder | null>(null);
+    setGoodsReceivedNotes(grns);
+  }, []);
 
   /*
    * ============================================================
-   * VIEW PURCHASE ORDER
+   * VIEW GRN
    * ============================================================
    */
 
-  const handleView = (purchaseOrder: PurchaseOrder) => {
-    setViewPurchaseOrder(purchaseOrder);
+  const handleView = (grn: GRN) => {
+    setSelectedGRN(grn);
   };
 
   /*
    * ============================================================
-   * APPROVE PURCHASE ORDER
+   * STATUS UPDATE
    * ============================================================
    */
 
-  const handleApprove = (purchaseOrder: PurchaseOrder) => {
-    const updatedPurchaseOrder: PurchaseOrder = {
-      ...purchaseOrder,
-      status: "Approved",
-      approvedBy: "Inventory Manager",
-      approvedAt: new Date().toLocaleDateString("en-IN"),
-    };
-
-    const updatedOrders = purchaseOrders.map((po) =>
-      po.id === purchaseOrder.id
-        ? updatedPurchaseOrder
-        : po
-    );
-
-    setPurchaseOrders(updatedOrders);
-    savePurchaseOrders(updatedOrders);
-  };
-
-  /*
-   * ============================================================
-   * SEND TO SUPPLIER
-   * ============================================================
-   */
-
-  const handleSendToSupplier = (
-    purchaseOrder: PurchaseOrder
+  const handleStatusUpdate = (
+    grnId: string,
+    status: GRNStatus
   ) => {
-    const updatedPurchaseOrder: PurchaseOrder = {
-      ...purchaseOrder,
-      status: "Sent to Supplier",
-    };
+    setGoodsReceivedNotes((prev) => {
+      const updated = prev.map((item) =>
+        item.id === grnId
+          ? {
+              ...item,
+              status,
+            }
+          : item
+      );
 
-    const updatedOrders = purchaseOrders.map((po) =>
-      po.id === purchaseOrder.id
-        ? updatedPurchaseOrder
-        : po
-    );
+      saveGRNs(updated);
 
-    setPurchaseOrders(updatedOrders);
-    savePurchaseOrders(updatedOrders);
-  };
-
-  /*
-   * ============================================================
-   * OPEN GOODS RECEIVING FORM
-   * ============================================================
-   */
-
-  const handleCreateGRN = (
-    purchaseOrder: PurchaseOrder
-  ) => {
-    setSelectedPurchaseOrder(purchaseOrder);
-  };
-
-  /*
-   * ============================================================
-   * SUBMIT GRN
-   * ============================================================
-   */
-
-  const handleGRNSubmit = (grn: GRN) => {
-    /*
-     * ----------------------------------------------------------
-     * 1. SAVE GRN
-     * ----------------------------------------------------------
-     */
-
-    addGRN(grn);
-
-    /*
-     * ----------------------------------------------------------
-     * 2. UPDATE PURCHASE ORDER
-     * ----------------------------------------------------------
-     */
-
-    const updatedOrders = purchaseOrders.map((po) => {
-      /*
-       * This is not the PO for this GRN.
-       */
-      if (po.id !== grn.purchaseOrderId) {
-        return po;
-      }
-
-      /*
-       * Update received quantity item by item.
-       */
-
-      const updatedItems =
-        po.purchaseOrderItems.map((poItem) => {
-          const grnItem = grn.grnItems.find(
-            (item) =>
-              item.itemId === poItem.itemId
-          );
-
-          /*
-           * This PO item was not received
-           * in the current GRN.
-           */
-          if (!grnItem) {
-            return poItem;
-          }
-
-          return {
-            ...poItem,
-
-            receivedQuantity:
-              (poItem.receivedQuantity ?? 0) +
-              grnItem.receivedQuantity,
-          };
-        });
-
-      /*
-       * --------------------------------------------------------
-       * Calculate total received
-       * --------------------------------------------------------
-       */
-
-      const totalReceived =
-        updatedItems.reduce(
-          (sum, item) =>
-            sum +
-            (item.receivedQuantity ?? 0),
-          0
-        );
-
-      /*
-       * --------------------------------------------------------
-       * Calculate total ordered
-       * --------------------------------------------------------
-       */
-
-      const totalOrdered =
-        updatedItems.reduce(
-          (sum, item) =>
-            sum +
-            item.orderedQuantity,
-          0
-        );
-
-      /*
-       * --------------------------------------------------------
-       * Determine PO status
-       * --------------------------------------------------------
-       *
-       * Example:
-       *
-       * Ordered = 100
-       * Received = 40
-       * => Partially Received
-       *
-       * Ordered = 100
-       * Received = 100
-       * => Fully Received
-       */
-
-      let status: PurchaseOrder["status"];
-
-      if (totalReceived >= totalOrdered) {
-        status = "Fully Received";
-      } else {
-        status = "Partially Received";
-      }
-
-      return {
-        ...po,
-        purchaseOrderItems: updatedItems,
-        status,
-      };
+      return updated;
     });
 
     /*
-     * ----------------------------------------------------------
-     * 3. UPDATE SCREEN
-     * ----------------------------------------------------------
+     * Keep currently opened View dialog synchronized.
      */
 
-    setPurchaseOrders(updatedOrders);
-
-    /*
-     * ----------------------------------------------------------
-     * 4. SAVE UPDATED PURCHASE ORDERS
-     * ----------------------------------------------------------
-     */
-
-    savePurchaseOrders(updatedOrders);
-
-    /*
-     * ----------------------------------------------------------
-     * 5. CLOSE RECEIVING FORM
-     * ----------------------------------------------------------
-     */
-
-    setSelectedPurchaseOrder(null);
-
-    /*
-     * ----------------------------------------------------------
-     * 6. SUCCESS MESSAGE
-     * ----------------------------------------------------------
-     */
-
-    alert(
-      `GRN ${grn.grnNumber} created successfully.`
+    setSelectedGRN((prev) =>
+      prev && prev.id === grnId
+        ? {
+            ...prev,
+            status,
+          }
+        : prev
     );
+
+    /*
+     * If GRN becomes verified,
+     * prepare it for stock entry.
+     */
+
+    if (status === "verified") {
+      const verifiedGRN =
+        goodsReceivedNotes.find(
+          (item) => item.id === grnId
+        );
+
+      if (verifiedGRN) {
+        setStockEntryGRN({
+          ...verifiedGRN,
+          status: "verified",
+        });
+      }
+    }
   };
 
   /*
    * ============================================================
-   * CANCEL PURCHASE ORDER
+   * INSPECT GRN
    * ============================================================
    */
 
-  const handleCancel = (
-    purchaseOrder: PurchaseOrder
+  const handleInspect = (grn: GRN) => {
+    setInspectionGRN(grn);
+  };
+
+  /*
+   * ============================================================
+   * COMPLETE INSPECTION
+   * ============================================================
+   */
+
+  const handleCompleteInspection = (
+    updatedGRN: GRN
   ) => {
-    const updatedPurchaseOrder: PurchaseOrder = {
-      ...purchaseOrder,
-      status: "Cancelled",
-    };
+    setGoodsReceivedNotes((prev) => {
+      const updated = prev.map((item) =>
+        item.id === updatedGRN.id
+          ? updatedGRN
+          : item
+      );
 
-    const updatedOrders = purchaseOrders.map((po) =>
-      po.id === purchaseOrder.id
-        ? updatedPurchaseOrder
-        : po
+      saveGRNs(updated);
+
+      return updated;
+    });
+
+    /*
+     * Close inspection dialog.
+     */
+
+    setInspectionGRN(null);
+
+    /*
+     * Keep View dialog synchronized.
+     */
+
+    setSelectedGRN((prev) =>
+      prev && prev.id === updatedGRN.id
+        ? updatedGRN
+        : prev
     );
 
-    setPurchaseOrders(updatedOrders);
-    savePurchaseOrders(updatedOrders);
+    /*
+     * After successful verification,
+     * open Stock Entry.
+     */
+
+    if (updatedGRN.status === "verified") {
+      setStockEntryGRN(updatedGRN);
+    }
   };
 
   /*
    * ============================================================
-   * RENDER
+   * COMPLETE STOCK ENTRY
    * ============================================================
    */
+
+  const handleCompleteStockEntry = (
+    updatedGRN: GRN,
+    stockLocationId: string
+  ) => {
+    console.log(
+      "Stock entry completed:",
+      {
+        grn: updatedGRN,
+        stockLocationId,
+      }
+    );
+
+    /*
+     * Keep GRN state synchronized.
+     */
+
+    setGoodsReceivedNotes((prev) => {
+      const updated = prev.map((item) =>
+        item.id === updatedGRN.id
+          ? updatedGRN
+          : item
+      );
+
+      saveGRNs(updated);
+
+      return updated;
+    });
+
+    /*
+     * Close Stock Entry dialog.
+     */
+
+    setStockEntryGRN(null);
+
+    /*
+     * Update View dialog if it is open.
+     */
+
+    setSelectedGRN((prev) =>
+      prev && prev.id === updatedGRN.id
+        ? updatedGRN
+        : prev
+    );
+  };
 
   return (
     <div className="space-y-6">
 
       {/* ======================================================
           HEADER
-          ====================================================== */}
+      ====================================================== */}
 
       <div>
         <p className="text-sm font-medium text-primary">
@@ -303,88 +238,83 @@ export default function PurchaseOrderScreen() {
         </p>
 
         <h1 className="text-2xl font-bold text-foreground">
-          Purchase Orders
+          Goods Received Notes
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage purchase orders generated from
-          approved purchase requisitions.
+          View goods received against purchase orders
+          and track receiving status.
         </p>
       </div>
 
       {/* ======================================================
-          PURCHASE ORDER TABLE
-          ====================================================== */}
+          USER
+      ====================================================== */}
 
-      {!selectedPurchaseOrder && (
-        <section>
-          <div className="surface-card overflow-hidden p-5">
-
-            <PurchaseOrderTable
-              purchaseOrders={purchaseOrders}
-
-              onView={handleView}
-
-              onApprove={handleApprove}
-
-              onSendToSupplier={
-                handleSendToSupplier
-              }
-
-              onCreateGRN={
-                handleCreateGRN
-              }
-
-              onCancel={
-                handleCancel
-              }
-            />
-
-          </div>
-        </section>
-      )}
+      <div className="text-sm text-muted-foreground">
+        Logged in as{" "}
+        <span className="font-medium text-foreground">
+          {user?.name ?? "Inventory Manager"}
+        </span>
+      </div>
 
       {/* ======================================================
-          PURCHASE ORDER VIEW DIALOG
-          ====================================================== */}
+          STATS
+      ====================================================== */}
 
-      {viewPurchaseOrder && (
-        <PurchaseOrderViewDialog
-          open={true}
-          purchaseOrder={viewPurchaseOrder}
-          onClose={() =>
-            setViewPurchaseOrder(null)
-          }
-        />
-      )}
+      <GRNStats
+        grns={goodsReceivedNotes}
+      />
 
       {/* ======================================================
-          GOODS RECEIVING FORM
-          ====================================================== */}
+          TABLE
+      ====================================================== */}
 
-      {selectedPurchaseOrder && (
-        <section>
-          <div className="surface-card p-5">
+      <GRNTable
+        grns={goodsReceivedNotes}
+        onView={handleView}
+        onInspect={handleInspect}
+      />
 
-            <GoodsReceivingForm
-              purchaseOrder={
-                selectedPurchaseOrder
-              }
+      {/* ======================================================
+          VIEW GRN
+      ====================================================== */}
 
-              onCancel={() =>
-                setSelectedPurchaseOrder(null)
-              }
+      <GRNViewDialog
+        open={Boolean(selectedGRN)}
+        grn={selectedGRN}
+        onClose={() => {
+          setSelectedGRN(null);
+        }}
+        onStatusUpdate={handleStatusUpdate}
+      />
 
-              onSubmit={
-                handleGRNSubmit
-              }
-            />
+      {/* ======================================================
+          INSPECTION / VERIFICATION
+      ====================================================== */}
 
-          </div>
-        </section>
-      )}
+      <GRNInspectionDialog
+        open={Boolean(inspectionGRN)}
+        grn={inspectionGRN}
+        onClose={() => {
+          setInspectionGRN(null);
+        }}
+        onComplete={handleCompleteInspection}
+      />
+
+      {/* ======================================================
+          STOCK ENTRY
+      ====================================================== */}
+
+      <GRNStockEntryDialog
+        open={Boolean(stockEntryGRN)}
+        grn={stockEntryGRN}
+        onClose={() => {
+          setStockEntryGRN(null);
+        }}
+        onComplete={handleCompleteStockEntry}
+      />
 
     </div>
   );
 }
-

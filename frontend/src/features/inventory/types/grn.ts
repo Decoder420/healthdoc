@@ -1,25 +1,26 @@
+export type GRNStatus =
+  | "draft"
+  | "received"
+  | "verified"
+  | "cancelled";
 
 export interface GRNItem {
   id: string;
 
+  grnId: string;
+
   itemId: string;
   itemName: string;
 
-  orderedQuantity: number;
-  previouslyReceivedQuantity: number;
-  receivedQuantity: number;
+  batchNumber: string;
+  expiryDate: string;
 
-  // Quality inspection
-  acceptedQuantity: number;
-  rejectedQuantity: number;
+  quantity: number;
 
-  unitRate: number;
+  receivedQuantity?: number;
+
+  unitPrice: number;
   amount: number;
-
-  batchNumber?: string;
-  expiryDate?: string;
-
-  remarks?: string;
 }
 
 export interface GRN {
@@ -27,76 +28,28 @@ export interface GRN {
 
   grnNumber: string;
 
-  // Purchase Order
   purchaseOrderId: string;
   poNumber: string;
 
-  // Purchase Requisition
-  purchaseRequisitionId?: string;
   requisitionNumber?: string;
 
-  // Supplier
   supplierId: string;
   supplierName: string;
 
-  // Department
-  departmentId: string;
-  departmentName: string;
+  invoiceNumber?: string;
 
-  // Receiving
   receivedDate: string;
 
-  supplierInvoiceNumber?: string;
-  supplierInvoiceDate?: string;
-  deliveryChallanNumber?: string;
+  status: GRNStatus;
+
+  grnItems: GRNItem[];
+
+  totalItems: number;
+  totalQuantity: number;
+
+  createdAt: string;
 
   receivedBy: string;
 
-  // Status
-  status: GRNStatus;
-
-  // Summary
-  totalItems: number;
-  totalOrderedQuantity: number;
-  totalReceivedQuantity: number;
-
-  // Quality inspection summary
-  acceptedQuantity: number;
-  rejectedQuantity: number;
-
-  // Quality Inspection
-  inspectionRequired: boolean;
-
   remarks?: string;
-
-  // Items
-  grnItems: GRNItem[];
-
-  // Audit
-  createdAt: string;
 }
-
-/*
-|--------------------------------------------------------------------------
-| GRN STATUS
-|--------------------------------------------------------------------------
-|
-| Draft
-|   ↓
-| Pending Inspection
-|   ↓
-| QC Passed / QC Failed
-|   ↓
-| Partially Received / Completed
-|
-|--------------------------------------------------------------------------
-*/
-
-export type GRNStatus =
-  | "Draft"
-  | "Pending Inspection"
-  | "QC Passed"
-  | "QC Failed"
-  | "Partially Received"
-  | "Completed";
-

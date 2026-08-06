@@ -1,33 +1,38 @@
-
 "use client";
 
 import {
   ClipboardCheck,
   PackageCheck,
   Clock3,
-  AlertTriangle,
+  XCircle,
 } from "lucide-react";
 
-import { type GRN } from "@/features/inventory/types/grn";
+import type { GRN } from "@/features/inventory/types/grn";
 
 interface Props {
   grns: GRN[];
 }
 
-export default function GRNStats({ grns }: Props) {
+export default function GRNStats({
+  grns,
+}: Props) {
   const total = grns.length;
 
-  const pendingInspection = grns.filter(
-  (grn) => grn.status === "Pending Inspection"
-).length;
+  const drafts = grns.filter(
+    (grn) => grn.status === "draft"
+  ).length;
 
-const qcPassed = grns.filter(
-  (grn) => grn.status === "QC Passed"
-).length;
+  const received = grns.filter(
+    (grn) => grn.status === "received"
+  ).length;
 
-const qcFailed = grns.filter(
-  (grn) => grn.status === "QC Failed"
-).length;
+  const verified = grns.filter(
+    (grn) => grn.status === "verified"
+  ).length;
+
+  const cancelled = grns.filter(
+    (grn) => grn.status === "cancelled"
+  ).length;
 
   const stats = [
     {
@@ -37,31 +42,42 @@ const qcFailed = grns.filter(
       description:
         "Goods received against purchase orders",
     },
+
     {
-      label: "Pending Inspection",
-      value: pendingInspection,
+      label: "Draft",
+      value: drafts,
       icon: Clock3,
       description:
-        "Awaiting quality inspection",
+        "GRNs not yet finalized",
     },
+
     {
-      label: "QC Passed",
-      value: qcPassed,
+      label: "Received",
+      value: received,
       icon: PackageCheck,
       description:
-        "Goods cleared for stock entry",
+        "Goods received and recorded",
     },
+
     {
-      label: "QC Failed",
-      value: qcFailed,
-      icon: AlertTriangle,
+      label: "Verified",
+      value: verified,
+      icon: PackageCheck,
       description:
-        "Goods rejected during inspection",
+        "Goods verified for stock entry",
+    },
+
+    {
+      label: "Cancelled",
+      value: cancelled,
+      icon: XCircle,
+      description:
+        "Cancelled goods receipts",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {stats.map((stat) => {
         const Icon = stat.icon;
 

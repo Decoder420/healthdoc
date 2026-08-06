@@ -1,6 +1,8 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
   Button,
   Chip,
@@ -9,11 +11,14 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Typography,
 } from "@mui/material";
 
 import {
-  Building2,
   CalendarDays,
   FileText,
   Package,
@@ -21,42 +26,195 @@ import {
   User,
 } from "lucide-react";
 
-import { GRN } from "@/features/inventory/types/grn";
+import type {
+  GRN,
+  GRNStatus,
+} from "@/features/inventory/types/grn";
 
 interface Props {
   open: boolean;
   grn: GRN | null;
   onClose: () => void;
+
+  onStatusUpdate: (
+    grnId: string,
+    status: GRNStatus
+  ) => void;
 }
 
 export default function GRNViewDialog({
   open,
   grn,
   onClose,
+  onStatusUpdate,
 }: Props) {
+  const [selectedStatus, setSelectedStatus] =
+    useState<GRNStatus>("draft");
+
+  /*
+   * ============================================================
+   * SYNC STATUS WITH SELECTED GRN
+   * ============================================================
+   */
+
+  useEffect(() => {
+    if (grn) {
+      setSelectedStatus(grn.status);
+    }
+  }, [grn]);
+
   if (!grn) return null;
 
-  const getStatusColor = () => {
-    switch (grn.status as string) {
-      case "Draft":
+  /*
+   * ============================================================
+   * STATUS COLOR
+   * ============================================================
+   */
+
+  const getStatusColor = (status: GRNStatus) => {
+    switch (status) {
+      case "draft":
         return "default";
 
-      case "Pending Inspection":
+      case "received":
         return "warning";
 
-      case "Inspected":
-        return "info";
-
-      case "Completed":
+      case "verified":
         return "success";
 
-      case "Rejected":
+      case "cancelled":
         return "error";
 
       default:
         return "default";
     }
   };
+
+  /*
+   * ============================================================
+   * STATUS LABEL
+   * ============================================================
+   */
+
+  const getStatusLabel = (status: GRNStatus) => {
+    switch (status) {
+      case "draft":
+        return "Draft";
+
+      case "received":
+        return "Received";
+
+      case "verified":
+        return "Verified";
+
+      case "cancelled":
+        return "Cancelled";
+
+      default:
+        return status;
+    }
+  };
+
+  /*
+   * ============================================================
+   * STATUS DESCRIPTION
+   * ============================================================
+   */
+
+  const getStatusDescription = (status: GRNStatus) => {
+    switch (status) {
+      case "draft":
+        return "This GRN is still in draft state.";
+
+      case "received":
+        return "Goods have been received and recorded. The GRN should be inspected before verification.";
+
+      case "verified":
+        return "The received goods have been verified and can proceed to stock entry.";
+
+      case "cancelled":
+        return "This GRN has been cancelled and should not affect inventory stock.";
+
+      default:
+        return "";
+    }
+  };
+
+  /*
+   * ============================================================
+   * ITEMS
+   * ============================================================
+   */
+
+  const items = grn.grnItems ?? [];
+
+  /*
+   * ============================================================
+   * TOTAL QUANTITY
+   *
+   * Your GRNItem type currently uses `quantity`.
+   * Therefore quantity = received quantity.
+   * ============================================================
+   */
+
+  const calculatedTotalQuantity = items.reduce(
+    (sum, item) => {
+      return sum + Number(item.quantity ?? 0);
+    },
+    0
+  );
+
+  const totalQuantity =
+    Number(grn.totalQuantity ?? 0) ||
+    calculatedTotalQuantity;
+
+  /*
+   * ============================================================
+   * TOTAL AMOUNT
+   * ============================================================
+   */
+
+  const totalAmount = items.reduce(
+    (sum, item) => {
+      const quantity = Number(
+        item.quantity ?? 0
+      );
+
+      const unitPrice = Number(
+        item.unitPrice ?? 0
+      );
+
+      const amount =
+        Number(item.amount ?? 0) ||
+        quantity * unitPrice;
+
+      return sum + amount;
+    },
+    0
+  );
+
+  /*
+   * ============================================================
+   * UPDATE STATUS
+   * ============================================================
+   */
+
+  const handleStatusUpdate = () => {
+    if (selectedStatus === grn.status) {
+      return;
+    }
+
+    onStatusUpdate(
+      grn.id,
+      selectedStatus
+    );
+  };
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <Dialog
@@ -67,7 +225,7 @@ export default function GRNViewDialog({
     >
       {/* ======================================================
           HEADER
-          ====================================================== */}
+      ====================================================== */}
 
       <DialogTitle sx={{ pb: 2 }}>
         <div className="flex items-start justify-between gap-4">
@@ -93,16 +251,20 @@ export default function GRNViewDialog({
                 variant="body2"
                 color="text.secondary"
               >
-                {grn.grnNumber}
+                {grn.grnNumber || "GRN"}
               </Typography>
             </div>
 
           </div>
 
           <Chip
-            label={grn.status}
+            label={getStatusLabel(grn.status)}
             size="small"
-            color={getStatusColor() as any}
+            color={
+              getStatusColor(
+                grn.status
+              ) as any
+            }
           />
 
         </div>
@@ -112,27 +274,33 @@ export default function GRNViewDialog({
 
         {/* ====================================================
             GRN INFORMATION
-            ==================================================== */}
+        ==================================================== */}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
           <InfoCard
             icon={<Package size={16} />}
             label="GRN Number"
-            value={grn.grnNumber}
+            value={
+              grn.grnNumber ||
+              "Not specified"
+            }
           />
 
           <InfoCard
             icon={<FileText size={16} />}
             label="Purchase Order"
-            value={grn.poNumber}
+            value={
+              grn.poNumber ||
+              "Not specified"
+            }
           />
 
           <InfoCard
             icon={<FileText size={16} />}
             label="Purchase Requisition"
             value={
-              grn.requisitionNumber ??
+              grn.requisitionNumber ||
               "Not specified"
             }
           />
@@ -140,19 +308,28 @@ export default function GRNViewDialog({
           <InfoCard
             icon={<Truck size={16} />}
             label="Supplier"
-            value={grn.supplierName}
-          />
-
-          <InfoCard
-            icon={<Building2 size={16} />}
-            label="Department"
-            value={grn.departmentName}
+            value={
+              grn.supplierName ||
+              "Not specified"
+            }
           />
 
           <InfoCard
             icon={<CalendarDays size={16} />}
             label="Received Date"
-            value={grn.receivedDate}
+            value={
+              grn.receivedDate ||
+              "Not specified"
+            }
+          />
+
+          <InfoCard
+            icon={<User size={16} />}
+            label="Received By"
+            value={
+              grn.receivedBy ||
+              "Not specified"
+            }
           />
 
         </div>
@@ -161,7 +338,7 @@ export default function GRNViewDialog({
 
         {/* ====================================================
             DELIVERY INFORMATION
-            ==================================================== */}
+        ==================================================== */}
 
         <Typography
           variant="subtitle1"
@@ -170,32 +347,23 @@ export default function GRNViewDialog({
           Delivery Information
         </Typography>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
 
           <InfoCard
             icon={<FileText size={16} />}
             label="Supplier Invoice"
             value={
-              grn.supplierInvoiceNumber ??
+              grn.invoiceNumber ||
               "Not provided"
             }
           />
 
           <InfoCard
             icon={<CalendarDays size={16} />}
-            label="Invoice Date"
+            label="Created At"
             value={
-              grn.supplierInvoiceDate ??
-              "Not provided"
-            }
-          />
-
-          <InfoCard
-            icon={<Truck size={16} />}
-            label="Delivery Challan"
-            value={
-              grn.deliveryChallanNumber ??
-              "Not provided"
+              grn.createdAt ||
+              "Not specified"
             }
           />
 
@@ -205,7 +373,7 @@ export default function GRNViewDialog({
 
         {/* ====================================================
             RECEIVED ITEMS
-            ==================================================== */}
+        ==================================================== */}
 
         <Typography
           variant="subtitle1"
@@ -226,7 +394,7 @@ export default function GRNViewDialog({
 
           <div className="overflow-x-auto">
 
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1000px]">
 
               <thead className="border-b bg-muted/60">
 
@@ -237,31 +405,19 @@ export default function GRNViewDialog({
                   </th>
 
                   <th className="px-4 py-3 text-center text-xs font-semibold">
-                    Ordered
-                  </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-semibold">
-                    Previously Received
-                  </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-semibold">
-                    Received Now
-                  </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-semibold">
-                    Accepted
-                  </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-semibold">
-                    Rejected
+                    Received Quantity
                   </th>
 
                   <th className="px-4 py-3 text-left text-xs font-semibold">
-                    Batch
+                    Batch Number
                   </th>
 
                   <th className="px-4 py-3 text-left text-xs font-semibold">
-                    Expiry
+                    Expiry Date
+                  </th>
+
+                  <th className="px-4 py-3 text-right text-xs font-semibold">
+                    Unit Price
                   </th>
 
                   <th className="px-4 py-3 text-right text-xs font-semibold">
@@ -274,57 +430,123 @@ export default function GRNViewDialog({
 
               <tbody>
 
-                {grn.grnItems.map((item) => (
+                {items.length === 0 ? (
 
-                  <tr
-                    key={item.id}
-                    className="border-b border-border last:border-0"
-                  >
+                  <tr>
 
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-medium">
-                        {item.itemName}
-                      </p>
-                    </td>
-
-                    <td className="px-4 py-3 text-center text-sm">
-                      {item.orderedQuantity}
-                    </td>
-
-                    <td className="px-4 py-3 text-center text-sm">
-                      {item.previouslyReceivedQuantity}
-                    </td>
-
-                    <td className="px-4 py-3 text-center text-sm font-medium">
-                      {item.receivedQuantity}
-                    </td>
-
-                    <td className="px-4 py-3 text-center text-sm">
-                      {item.acceptedQuantity}
-                    </td>
-
-                    <td className="px-4 py-3 text-center text-sm">
-                      {item.rejectedQuantity}
-                    </td>
-
-                    <td className="px-4 py-3 text-sm">
-                      {item.batchNumber ?? "—"}
-                    </td>
-
-                    <td className="px-4 py-3 text-sm">
-                      {item.expiryDate ?? "—"}
-                    </td>
-
-                    <td className="px-4 py-3 text-right text-sm font-medium">
-                      ₹
-                      {item.amount.toLocaleString(
-                        "en-IN"
-                      )}
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-sm text-muted-foreground"
+                    >
+                      No items found in this GRN.
                     </td>
 
                   </tr>
 
-                ))}
+                ) : (
+
+                  items.map((item) => {
+
+                    /*
+                     * IMPORTANT:
+                     * GRNItem currently has `quantity`.
+                     * We use it as Received Quantity.
+                     */
+
+                    const receivedQuantity =
+                      Number(
+                        item.quantity ?? 0
+                      );
+
+                    const unitPrice =
+                      Number(
+                        item.unitPrice ?? 0
+                      );
+
+                    const amount =
+                      Number(
+                        item.amount ?? 0
+                      ) ||
+                      receivedQuantity *
+                        unitPrice;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-border last:border-0"
+                      >
+
+                        {/* ITEM */}
+
+                        <td className="px-4 py-4">
+
+                          <p className="text-sm font-medium">
+                            {item.itemName ||
+                              "Unnamed Item"}
+                          </p>
+
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.itemId ||
+                              "No item ID"}
+                          </p>
+
+                        </td>
+
+                        {/* RECEIVED QUANTITY */}
+
+                        <td className="px-4 py-4 text-center">
+
+                          <span className="text-sm font-semibold">
+
+                            {receivedQuantity.toLocaleString(
+                              "en-IN"
+                            )}
+
+                          </span>
+
+                        </td>
+
+                        {/* BATCH */}
+
+                        <td className="px-4 py-4 text-sm">
+                          {item.batchNumber ||
+                            "Not specified"}
+                        </td>
+
+                        {/* EXPIRY */}
+
+                        <td className="px-4 py-4 text-sm">
+                          {item.expiryDate ||
+                            "Not specified"}
+                        </td>
+
+                        {/* UNIT PRICE */}
+
+                        <td className="px-4 py-4 text-right text-sm">
+
+                          ₹
+                          {unitPrice.toLocaleString(
+                            "en-IN"
+                          )}
+
+                        </td>
+
+                        {/* AMOUNT */}
+
+                        <td className="px-4 py-4 text-right text-sm font-medium">
+
+                          ₹
+                          {amount.toLocaleString(
+                            "en-IN"
+                          )}
+
+                        </td>
+
+                      </tr>
+                    );
+                  })
+
+                )}
 
               </tbody>
 
@@ -336,33 +558,24 @@ export default function GRNViewDialog({
 
         {/* ====================================================
             SUMMARY
-            ==================================================== */}
+        ==================================================== */}
 
         <div className="mt-5 ml-auto max-w-sm rounded-lg bg-muted/40 p-4">
 
           <SummaryRow
             label="Total Items"
-            value={grn.totalItems}
+            value={items.length}
           />
 
           <SummaryRow
-            label="Total Ordered Quantity"
-            value={grn.totalOrderedQuantity}
+            label="Total Quantity"
+            value={totalQuantity}
           />
 
           <SummaryRow
-            label="Total Received Quantity"
-            value={grn.totalReceivedQuantity}
-          />
-
-          <SummaryRow
-            label="Accepted Quantity"
-            value={grn.acceptedQuantity}
-          />
-
-          <SummaryRow
-            label="Rejected Quantity"
-            value={grn.rejectedQuantity}
+            label="Total Amount"
+            value={totalAmount}
+            currency
           />
 
         </div>
@@ -370,40 +583,104 @@ export default function GRNViewDialog({
         <Divider sx={{ my: 3 }} />
 
         {/* ====================================================
-            RECEIVING INFORMATION
-            ==================================================== */}
+            STATUS UPDATE
+        ==================================================== */}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-border p-4">
 
-          <InfoCard
-            icon={<User size={16} />}
-            label="Received By"
-            value={grn.receivedBy}
-          />
+          <div className="flex items-center gap-2">
 
-          <InfoCard
-            icon={<Package size={16} />}
-            label="Inspection"
-            value={
-              grn.inspectionRequired
-                ? "Required"
-                : "Not Required"
-            }
-          />
+            <Package
+              size={17}
+              className="text-primary"
+            />
 
-          <InfoCard
-            icon={<CalendarDays size={16} />}
-            label="Created At"
-            value={grn.createdAt}
-          />
+            <p className="text-sm font-semibold">
+              Update GRN Status
+            </p>
+
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
+
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 220,
+              }}
+            >
+
+              <InputLabel>
+                Status
+              </InputLabel>
+
+              <Select
+                value={selectedStatus}
+                label="Status"
+                onChange={(event) => {
+                  setSelectedStatus(
+                    event.target.value as GRNStatus
+                  );
+                }}
+              >
+
+                {/* Draft */}
+
+                <MenuItem value="draft">
+                  Draft
+                </MenuItem>
+
+                {/* Received */}
+
+                <MenuItem value="received">
+                  Received
+                </MenuItem>
+
+                {/* Cancelled */}
+
+                <MenuItem value="cancelled">
+                  Cancelled
+                </MenuItem>
+
+              </Select>
+
+            </FormControl>
+
+            <Button
+              variant="contained"
+              onClick={handleStatusUpdate}
+              disabled={
+                selectedStatus ===
+                grn.status
+              }
+            >
+              Update Status
+            </Button>
+
+          </div>
+
+          <p className="mt-3 text-sm text-muted-foreground">
+            {getStatusDescription(
+              selectedStatus
+            )}
+          </p>
+
+          {grn.status === "received" && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              To mark this GRN as Verified, use
+              the Inspection / Verification
+              action.
+            </p>
+          )}
 
         </div>
 
         {/* ====================================================
             REMARKS
-            ==================================================== */}
+        ==================================================== */}
 
         {grn.remarks && (
+
           <div className="mt-5 rounded-lg border border-border p-4">
 
             <p className="text-xs text-muted-foreground">
@@ -415,15 +692,21 @@ export default function GRNViewDialog({
             </p>
 
           </div>
+
         )}
 
       </DialogContent>
 
       {/* ======================================================
           ACTIONS
-          ====================================================== */}
+      ====================================================== */}
 
-      <DialogActions sx={{ px: 3, py: 2 }}>
+      <DialogActions
+        sx={{
+          px: 3,
+          py: 2,
+        }}
+      >
 
         <Button onClick={onClose}>
           Close
@@ -435,11 +718,9 @@ export default function GRNViewDialog({
   );
 }
 
-/*
- * ============================================================
- * INFO CARD
- * ============================================================
- */
+/* ============================================================
+   INFO CARD
+============================================================ */
 
 function InfoCard({
   icon,
@@ -471,19 +752,21 @@ function InfoCard({
   );
 }
 
-/*
- * ============================================================
- * SUMMARY ROW
- * ============================================================
- */
+/* ============================================================
+   SUMMARY ROW
+============================================================ */
 
 function SummaryRow({
   label,
   value,
+  currency = false,
 }: {
   label: string;
   value: number;
+  currency?: boolean;
 }) {
+  const safeValue = Number(value ?? 0);
+
   return (
     <div className="flex justify-between py-1">
 
@@ -492,7 +775,15 @@ function SummaryRow({
       </span>
 
       <span className="text-sm font-medium">
-        {value}
+
+        {currency
+          ? `₹${safeValue.toLocaleString(
+              "en-IN"
+            )}`
+          : safeValue.toLocaleString(
+              "en-IN"
+            )}
+
       </span>
 
     </div>

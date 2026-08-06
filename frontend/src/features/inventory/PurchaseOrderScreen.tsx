@@ -1,40 +1,56 @@
-
 "use client";
 
-import { type ReactElement, useState } from "react";
+import { useState } from "react";
 
 import PurchaseOrderTable from "@/components/dashboard/inventory/purchase/order/PurchaseOrderTable";
+
 import PurchaseOrderViewDialog from "@/components/dashboard/inventory/purchase/order/PurchaseOrderViewDialog";
-import GoodsReceivingForm from "@/components/dashboard/inventory/purchase/grn/GoodsReceivingForm";
+
+import CreateGRNDialog, {
+  CreateGRNData,
+} from "@/components/dashboard/inventory/purchase/order/CreateGRNDialog";
 
 import {
   purchaseOrders as initialPurchaseOrders,
   savePurchaseOrders,
 } from "./data/purchaseOrderData";
 
-import { addGRN } from "./data/grnData";
+import {
+  createGRN,
+} from "./data/grnData";
 
-import { PurchaseOrder } from "./types/purchaseOrder";
-import { GRN } from "./types/grn";
+import type { PurchaseOrder } from "./types/purchaseOrder";
+
+import type { GRN } from "./types/grn";
 
 export default function PurchaseOrderScreen() {
+
   /*
    * ============================================================
-   * STATE
+   * PURCHASE ORDERS
    * ============================================================
    */
 
-  // All purchase orders
   const [purchaseOrders, setPurchaseOrders] =
-    useState<PurchaseOrder[]>(initialPurchaseOrders);
+    useState<PurchaseOrder[]>(
+      initialPurchaseOrders
+    );
 
-  // Purchase order selected for creating GRN
-  const [selectedPurchaseOrder, setSelectedPurchaseOrder] =
-    useState<PurchaseOrder | null>(null);
+  /*
+   * ============================================================
+   * CREATE GRN
+   * ============================================================
+   */
 
-  // Purchase order selected for viewing
-  const [viewPurchaseOrder, setViewPurchaseOrder] =
-    useState<PurchaseOrder | null>(null);
+  const [
+    selectedPurchaseOrder,
+    setSelectedPurchaseOrder,
+  ] = useState<PurchaseOrder | null>(null);
+
+  const [
+    createGRNOpen,
+    setCreateGRNOpen,
+  ] = useState(false);
 
   /*
    * ============================================================
@@ -42,19 +58,35 @@ export default function PurchaseOrderScreen() {
    * ============================================================
    */
 
-  const handleView = (purchaseOrder: PurchaseOrder) => {
-    setViewPurchaseOrder(purchaseOrder);
+  const [
+    viewPurchaseOrder,
+    setViewPurchaseOrder,
+  ] = useState<PurchaseOrder | null>(null);
+
+  /*
+   * ============================================================
+   * VIEW
+   * ============================================================
+   */
+
+  const handleView = (
+    purchaseOrder: PurchaseOrder
+  ) => {
+    setViewPurchaseOrder(
+      purchaseOrder
+    );
   };
 
   /*
    * ============================================================
-   * APPROVE PURCHASE ORDER
+   * APPROVE
    * ============================================================
    */
 
   const handleApprove = (
     purchaseOrder: PurchaseOrder
   ) => {
+
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
 
@@ -63,19 +95,23 @@ export default function PurchaseOrderScreen() {
       approvedBy: "Inventory Manager",
 
       approvedAt:
-        new Date().toLocaleDateString("en-IN"),
+        new Date().toISOString(),
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
+    const updatedOrders =
+      purchaseOrders.map((po) =>
         po.id === purchaseOrder.id
           ? updatedPurchaseOrder
           : po
+      );
+
+    setPurchaseOrders(
+      updatedOrders
     );
 
-    setPurchaseOrders(updatedOrders);
-
-    savePurchaseOrders(updatedOrders);
+    savePurchaseOrders(
+      updatedOrders
+    );
   };
 
   /*
@@ -87,180 +123,346 @@ export default function PurchaseOrderScreen() {
   const handleSendToSupplier = (
     purchaseOrder: PurchaseOrder
   ) => {
+
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
 
       status: "Sent to Supplier",
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
+    const updatedOrders =
+      purchaseOrders.map((po) =>
         po.id === purchaseOrder.id
           ? updatedPurchaseOrder
           : po
+      );
+
+    setPurchaseOrders(
+      updatedOrders
     );
 
-    setPurchaseOrders(updatedOrders);
-
-    savePurchaseOrders(updatedOrders);
+    savePurchaseOrders(
+      updatedOrders
+    );
   };
 
   /*
    * ============================================================
-   * OPEN GOODS RECEIVING FORM
+   * OPEN CREATE GRN
+   * ============================================================
+   */
+
+  const handleOpenCreateGRN = (
+    purchaseOrder: PurchaseOrder
+  ) => {
+
+    setSelectedPurchaseOrder(
+      purchaseOrder
+    );
+
+    setCreateGRNOpen(true);
+  };
+
+  /*
+   * ============================================================
+   * CREATE GRN
    * ============================================================
    */
 
   const handleCreateGRN = (
-    purchaseOrder: PurchaseOrder
+    data: CreateGRNData
   ) => {
-    setSelectedPurchaseOrder(purchaseOrder);
-  };
 
-  const GoodsReceivingFormComponent =
-    GoodsReceivingForm as unknown as (props: {
-      purchaseOrder: PurchaseOrder;
-      onCancel: () => void;
-      onSubmit: (grn: GRN) => void;
-    }) => ReactElement;
-
-  /*
-   * ============================================================
-   * SUBMIT GRN
-   * ============================================================
-   */
-
-  const handleGRNSubmit = (grn: GRN) => {
-    /*
-     * ----------------------------------------------------------
-     * 1. SAVE GRN
-     * ----------------------------------------------------------
-     */
-
-    addGRN(grn);
+    if (!selectedPurchaseOrder) {
+      return;
+    }
 
     /*
      * ----------------------------------------------------------
-     * 2. UPDATE PURCHASE ORDER
+     * GENERATE GRN IDENTIFIERS
      * ----------------------------------------------------------
      */
 
-    const updatedOrders = purchaseOrders.map((po) => {
-      // GRN belongs to another PO
-      if (po.id !== grn.purchaseOrderId) {
-        return po;
-      }
+    const timestamp =
+      Date.now();
+
+    const grnId =
+      `GRN-${timestamp}`;
+
+    const grnNumber =
+      `GRN-${new Date()
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, "")}-${timestamp
+        .toString()
+        .slice(-4)}`;
+
+    /*
+     * ----------------------------------------------------------
+     * CREATE GRN OBJECT
+     * ----------------------------------------------------------
+     */
+
+    const grn: GRN = {
+
+      id: grnId,
+
+      grnNumber,
+
+      purchaseOrderId:
+        selectedPurchaseOrder.id,
+
+      poNumber:
+        selectedPurchaseOrder.poNumber,
+
+      requisitionNumber:
+        selectedPurchaseOrder.requisitionNumber,
+
+      supplierId:
+        selectedPurchaseOrder.supplierId ?? "",
+
+      supplierName:
+        selectedPurchaseOrder.supplierName,
+
+      invoiceNumber:
+        data.supplierInvoiceNumber,
+
+      receivedDate:
+        data.receivedDate,
 
       /*
-       * Update received quantity for every
-       * item included in the GRN.
+       * According to your current frontend
+       * GRNStatus:
+       *
+       * draft
+       * received
+       * verified
+       * cancelled
        */
 
-      const updatedItems =
-        po.purchaseOrderItems.map((poItem) => {
-          const grnItem = grn.grnItems.find(
-            (item) =>
-              item.itemId === poItem.itemId
+      status: "received",
+
+      /*
+       * --------------------------------------------------------
+       * GRN ITEMS
+       * --------------------------------------------------------
+       */
+
+      grnItems:
+        data.items.map(
+          (item, index) => ({
+
+            id:
+              `${grnId}-ITEM-${index + 1}`,
+
+            grnId,
+
+            itemId:
+              item.itemId,
+
+            itemName:
+              item.itemName,
+
+            batchNumber:
+              item.batchNumber,
+
+            expiryDate:
+              item.expiryDate,
+
+            quantity:
+              item.quantity,
+
+            unitPrice:
+              item.unitPrice,
+
+            amount:
+              item.quantity *
+              item.unitPrice,
+
+          })
+        ),
+
+      /*
+       * --------------------------------------------------------
+       * TOTALS
+       * --------------------------------------------------------
+       */
+
+      totalItems:
+        data.items.length,
+
+      totalQuantity:
+        data.items.reduce(
+          (sum, item) =>
+            sum + item.quantity,
+          0
+        ),
+
+      createdAt:
+        new Date().toISOString(),
+
+      receivedBy:
+        "Inventory Manager",
+
+      remarks:
+        "Goods received against purchase order.",
+    };
+
+    /*
+     * ----------------------------------------------------------
+     * SAVE GRN
+     * ----------------------------------------------------------
+     */
+
+    createGRN(grn);
+
+    /*
+     * ----------------------------------------------------------
+     * UPDATE PURCHASE ORDER
+     * ----------------------------------------------------------
+     */
+
+    const updatedOrders =
+      purchaseOrders.map((po) => {
+
+        /*
+         * This is not the selected PO.
+         */
+
+        if (
+          po.id !==
+          selectedPurchaseOrder.id
+        ) {
+          return po;
+        }
+
+        /*
+         * Update every PO item.
+         */
+
+        const updatedItems =
+          po.purchaseOrderItems.map(
+            (poItem) => {
+
+              const grnItem =
+                data.items.find(
+                  (item) =>
+                    item.itemId ===
+                    poItem.itemId
+                );
+
+              /*
+               * Item was not received.
+               */
+
+              if (!grnItem) {
+                return poItem;
+              }
+
+              /*
+               * Add current GRN quantity
+               * to previously received quantity.
+               */
+
+              return {
+                ...poItem,
+
+                receivedQuantity:
+                  (poItem.receivedQuantity ?? 0) +
+                  grnItem.quantity,
+              };
+            }
           );
 
-          // Item was not received in this GRN
-          if (!grnItem) {
-            return poItem;
-          }
+        /*
+         * ------------------------------------------------------
+         * TOTAL ORDERED
+         * ------------------------------------------------------
+         */
 
-          return {
-            ...poItem,
+        const totalOrdered =
+          updatedItems.reduce(
+            (sum, item) =>
+              sum +
+              item.orderedQuantity,
+            0
+          );
 
-            receivedQuantity:
-              (poItem.receivedQuantity ?? 0) +
-              grnItem.receivedQuantity,
-          };
-        });
+        /*
+         * ------------------------------------------------------
+         * TOTAL RECEIVED
+         * ------------------------------------------------------
+         */
 
-      /*
-       * --------------------------------------------------------
-       * CALCULATE TOTAL RECEIVED
-       * --------------------------------------------------------
-       */
+        const totalReceived =
+          updatedItems.reduce(
+            (sum, item) =>
+              sum +
+              (item.receivedQuantity ?? 0),
+            0
+          );
 
-      const totalReceived =
-        updatedItems.reduce(
-          (sum, item) =>
-            sum +
-            (item.receivedQuantity ?? 0),
-          0
-        );
+        /*
+         * ------------------------------------------------------
+         * PO STATUS
+         * ------------------------------------------------------
+         */
 
-      /*
-       * --------------------------------------------------------
-       * CALCULATE TOTAL ORDERED
-       * --------------------------------------------------------
-       */
+        const status: PurchaseOrder["status"] =
+          totalReceived >= totalOrdered
+            ? "Fully Received"
+            : "Partially Received";
 
-      const totalOrdered =
-        updatedItems.reduce(
-          (sum, item) =>
-            sum + item.orderedQuantity,
-          0
-        );
+        return {
+          ...po,
 
-      /*
-       * --------------------------------------------------------
-       * DETERMINE PURCHASE ORDER STATUS
-       * --------------------------------------------------------
-       */
+          purchaseOrderItems:
+            updatedItems,
 
-      const status: PurchaseOrder["status"] =
-        totalReceived >= totalOrdered
-          ? "Fully Received"
-          : "Partially Received";
-
-      /*
-       * Return updated purchase order
-       */
-
-      return {
-        ...po,
-
-        purchaseOrderItems:
-          updatedItems,
-
-        status,
-      };
-    });
+          status,
+        };
+      });
 
     /*
      * ----------------------------------------------------------
-     * 3. UPDATE SCREEN
+     * UPDATE STATE
      * ----------------------------------------------------------
      */
 
-    setPurchaseOrders(updatedOrders);
+    setPurchaseOrders(
+      updatedOrders
+    );
 
     /*
      * ----------------------------------------------------------
-     * 4. SAVE PURCHASE ORDERS
+     * SAVE PO DATA
      * ----------------------------------------------------------
      */
 
-    savePurchaseOrders(updatedOrders);
+    savePurchaseOrders(
+      updatedOrders
+    );
 
     /*
      * ----------------------------------------------------------
-     * 5. CLOSE GOODS RECEIVING FORM
+     * CLOSE DIALOG
      * ----------------------------------------------------------
      */
 
-    setSelectedPurchaseOrder(null);
+    setCreateGRNOpen(false);
+
+    setSelectedPurchaseOrder(
+      null
+    );
 
     /*
      * ----------------------------------------------------------
-     * 6. SUCCESS MESSAGE
+     * SUCCESS
      * ----------------------------------------------------------
      */
 
     alert(
-      `GRN ${grn.grnNumber} created successfully.`
+      `${grn.grnNumber} created successfully.`
     );
   };
 
@@ -273,22 +475,27 @@ export default function PurchaseOrderScreen() {
   const handleCancel = (
     purchaseOrder: PurchaseOrder
   ) => {
+
     const updatedPurchaseOrder: PurchaseOrder = {
       ...purchaseOrder,
 
       status: "Cancelled",
     };
 
-    const updatedOrders = purchaseOrders.map(
-      (po) =>
+    const updatedOrders =
+      purchaseOrders.map((po) =>
         po.id === purchaseOrder.id
           ? updatedPurchaseOrder
           : po
+      );
+
+    setPurchaseOrders(
+      updatedOrders
     );
 
-    setPurchaseOrders(updatedOrders);
-
-    savePurchaseOrders(updatedOrders);
+    savePurchaseOrders(
+      updatedOrders
+    );
   };
 
   /*
@@ -305,6 +512,7 @@ export default function PurchaseOrderScreen() {
           ====================================================== */}
 
       <div>
+
         <p className="text-sm font-medium text-primary">
           Purchase Management
         </p>
@@ -317,93 +525,103 @@ export default function PurchaseOrderScreen() {
           Manage purchase orders generated from
           approved purchase requisitions.
         </p>
+
       </div>
 
       {/* ======================================================
           PURCHASE ORDER TABLE
           ====================================================== */}
 
-      {!selectedPurchaseOrder && (
-        <section>
-          <div className="surface-card overflow-hidden p-5">
+      <section>
 
-            <PurchaseOrderTable
-              purchaseOrders={
-                purchaseOrders
-              }
+        <div className="surface-card overflow-hidden p-5">
 
-              onView={
-                handleView
-              }
+          <PurchaseOrderTable
 
-              onApprove={
-                handleApprove
-              }
+            purchaseOrders={
+              purchaseOrders
+            }
 
-              onSendToSupplier={
-                handleSendToSupplier
-              }
+            onView={
+              handleView
+            }
 
-              onCreateGRN={
-                handleCreateGRN
-              }
+            onApprove={
+              handleApprove
+            }
 
-              onCancel={
-                handleCancel
-              }
-            />
+            onSendToSupplier={
+              handleSendToSupplier
+            }
 
-          </div>
-        </section>
-      )}
+            onCreateGRN={
+              handleOpenCreateGRN
+            }
+
+            onCancel={
+              handleCancel
+            }
+
+          />
+
+        </div>
+
+      </section>
 
       {/* ======================================================
-          VIEW PURCHASE ORDER DIALOG
+          CREATE GRN
+          ====================================================== */}
+
+      <CreateGRNDialog
+
+        open={
+          createGRNOpen
+        }
+
+        purchaseOrder={
+          selectedPurchaseOrder
+        }
+
+        onClose={() => {
+
+          setCreateGRNOpen(false);
+
+          setSelectedPurchaseOrder(
+            null
+          );
+
+        }}
+
+        onCreate={
+          handleCreateGRN
+        }
+
+      />
+
+      {/* ======================================================
+          VIEW PURCHASE ORDER
           ====================================================== */}
 
       {viewPurchaseOrder && (
+
         <PurchaseOrderViewDialog
+
           open={true}
+
           purchaseOrder={
             viewPurchaseOrder
           }
+
           onClose={() =>
             setViewPurchaseOrder(
               null
             )
           }
+
         />
-      )}
 
-      {/* ======================================================
-          GOODS RECEIVING FORM
-          ====================================================== */}
-
-      {selectedPurchaseOrder && (
-        <section>
-          <div className="surface-card p-5">
-
-            <GoodsReceivingFormComponent
-              purchaseOrder={
-                selectedPurchaseOrder
-              }
-
-              onCancel={() =>
-                setSelectedPurchaseOrder(
-                  null
-                )
-              }
-
-              onSubmit={
-                handleGRNSubmit
-              }
-            />
-
-          </div>
-        </section>
       )}
 
     </div>
   );
 }
-
