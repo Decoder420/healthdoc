@@ -470,6 +470,11 @@ mobile          varchar(20)                      -- contact only, NEVER identity
 address_line    text · village_town text · district text · state_code varchar(5) · pincode varchar(6)
 photo_file_id   UUID NULL                        -- MinIO ref via files (FK added 0019); photo mandatory per ADR 0001
 abha_number     varchar(17) UNIQUE NULL
+abha_linking_token_encrypted bytea NULL          -- AES-256-GCM, added by 0030. NEVER plaintext
+abha_linking_key_version smallint NULL           -- which key encrypted the token above
+abha_linked_at  timestamptz NULL                 -- when the ABHA was linked to a care context
+                                                 -- CHECK: token and key_version are both-or-neither —
+                                                 -- a blob with no key version cannot be decrypted.
 identity_path   varchar(50) NOT NULL             -- IdentityPath enum (ADR 0001)
 identity_status varchar(50) NOT NULL DEFAULT 'verified'  -- IdentityStatus enum
 status          varchar(50) NOT NULL DEFAULT 'active'    -- PatientStatus: active|merged|deceased
