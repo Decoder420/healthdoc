@@ -168,11 +168,19 @@ def check_file(path: pathlib.Path) -> list[Finding]:
             continue
 
         # --- race conditions on identifier allocation -------------------------
-        if (re.search(r"\bmax\s*\(", ln, re.I)
-                and re.search(r"\+\s*1|\bfunc\.max\b", ln, re.I)):
-            f.append(Finding(BLOCK, "SEQ-RACE", rel, i,
-                "MAX(col)+1 allocation races under concurrency (duplicate UHID/token/receipt).",
-                "conventions §2.2: use a counters row with SELECT … FOR UPDATE"))
+        # COUNT(*) is as unsafe as MAX() for allocating an identifier, and the
+        # two halves are usually on different lines:
+        #     count_today = (await db.execute(select(func.count())...)).scalar()
+        #     seq = str(count_today + 1).zfill(5)
+        # A single-line rule missed exactly that on #260's accession numbers.
+        # So: look ahead a few lines from the count/max for the "+ 1".
+        if re.search(r"\bmax\s*\(|\bcount\s*\(|\bfunc\.(max|count)\b", ln, re.I):
+            window = "\n".join(lines[i - 1:i + 4])
+            if re.search(r"\+\s*1\b", window):
+                f.append(Finding(BLOCK, "SEQ-RACE", rel, i,
+                    "MAX()/COUNT()+1 allocation races under concurrency "
+                    "(duplicate UHID/token/accession/receipt).",
+                    "conventions §2.2: use a counters row with UPDATE … RETURNING"))
 
         # --- timezone / business date ----------------------------------------
         if re.search(r"CURRENT_DATE|now\(\)::date|utcnow\(\)\.date\(\)|datetime\.now\(\)\.date\(\)", ln):
@@ -181,7 +189,11 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                 "schema §3: (now() AT TIME ZONE facilities.timezone)::date"))
 
         # --- money as float ---------------------------------------------------
-        if (i not in downgrade_lines
+        # '_pct'/'percent'/'ratio' fields are ratios, not money — float is fine
+        # there. Without this, `panic_rate_pct: float` was reported as money
+        # drift on #260 because "rate" is a money hint.
+        _is_ratio = re.search(r"_pct\b|percent|ratio|_rate_pct", ln, re.I)
+        if (i not in downgrade_lines and not _is_ratio
                 and re.search(r"\b(Float|REAL|DOUBLE|float)\b", ln)
                 and any(h in ln.lower() for h in MONEY_HINTS)):
             f.append(Finding(BLOCK, "MONEY-FLOAT", rel, i,
