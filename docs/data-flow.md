@@ -1,22 +1,31 @@
 # HealthDoc data-flow diagram (BA-W8-01)
 
-Rendered diagram: `../healthdoc/docs/architecture.html` (§1 context, §3 request lifecycle,
-§6 workflows). This file is the text description for the security/ISMS annex.
+Rendered diagram: [architecture.html](architecture.html) (context, request lifecycle, and
+workflows). This file is the text description for the security/ISMS annex.
 
 ## Trust boundaries
-1. **Public internet ↔ Nginx edge** — TLS 1.3 terminates here; only 443 exposed.
-2. **Nginx ↔ app tier** — FastAPI + Next.js + Keycloak on the internal Docker network.
-3. **App ↔ data tier** — Postgres/Mongo/Redis/MinIO/Orthanc, bound to 127.0.0.1, no public port.
-4. **Facility edge ↔ Cloud** — outbox sync over mTLS; asynchronous, conflict-tiered.
-5. **App ↔ ABDM Gateway** — outbound HTTPS to dev.abdm.gov.in (V3 only).
+
+1. **Public internet to Nginx edge** — the intended deployment terminates TLS 1.3 here and
+   exposes only 443.
+2. **Nginx to app tier** — FastAPI, Next.js, and Keycloak run on the internal Docker network.
+3. **App to data tier** — Postgres, Mongo, Redis, MinIO, and Orthanc should have no public port.
+4. **Facility edge to cloud** — outbox sync and mTLS are planned; #309 adds only the local
+   transactional outbox.
+5. **App to ABDM Gateway** — outbound HTTPS targets the ABDM V3 gateway.
 
 ## Sensitive data paths
-- Aadhaar/ABHA linking token: app-layer AES-256-GCM → `patient_identifiers` / `patients`
-  (encrypted bytea, key-versioned). Never crosses a boundary in plaintext.
-- Clinical reads: role + consent gate → `data_access_log` (every read, incl. break-glass).
-- Every mutation: business write + `audit_logs` (hash-chained, signed) in one transaction,
-  + `outbox_events` for cloud sync, same transaction.
+
+- Aadhaar/ABHA linking token: #303 encrypts values with AES-256-GCM before persistence and
+  derives an HMAC blind index. Key version is stored, but rotation is not complete until old
+  versions can be loaded on read.
+- Clinical reads: role and consent gating exist at different stages of delivery;
+  `data_access_log` coverage for every read, including break-glass, is planned in #266.
+- Mutations: the intended design is a business write, audit record, and outbox event in one
+  transaction. Audit sealing/signing and the outbox migration are still pending.
 
 ## Data at rest / in transit
-- At rest: Postgres volume + MinIO buckets encrypted; audit partitions archived w/ hashes.
-- In transit: TLS 1.3 edge; mTLS edge↔cloud; HTTPS to ABDM.
+
+- At rest: encrypted Postgres volumes and MinIO buckets are deployment goals, not verified
+  controls in the checked-in infrastructure configuration.
+- In transit: the intended edge uses TLS 1.3; mTLS for edge-to-cloud sync is planned; ABDM
+  traffic uses HTTPS.
