@@ -15,12 +15,39 @@ heads and break every environment. 0019 chains directly off 0017 (OT
 stubs, owned by B3). Neither 0017 nor anything before it is merged
 yet — coordinating merge order in the team channel, same as 0004.
 
-Notes for reviewers:
+--- Round-2 fixes, PR #279 review (solutionsiui) ---
+
+Applied:
+  - blocker 2: sensitivity / owner_module / action widened
+    varchar(30) -> varchar(50).
+  - blocker 2 (related): action's CHECK is now generated from
+    FileAction.sql_check("action") (imported from app.common.enums,
+    NOT edited) instead of a hardcoded IN-list, so this migration and
+    the model can't drift apart.
+  - should-fix: files.facility_id added, NOT NULL, FK ->
+    facilities.id ondelete RESTRICT, plus its index.
+  - should-fix: files.sha256 is now NOT NULL (was nullable).
+  - blocker 1: no change needed here — accessed_at was already
+    TIMESTAMP(timezone=True) at the DB level. The bug was model-side
+    only (bare `datetime` annotation inferring naive); fixed in
+    app/files/models.py, not this file.
+
+Blocked, NOT applied — out of B7 scope:
+  - blocker 3: scan_status still has no CHECK constraint. It requires
+    ScanStatus in app/common/enums.py, which does not exist in that
+    file as merged from origin/staging on this branch (verified by
+    grep — see PR #279 thread). common/enums.py is owned by another
+    dev per CODEOWNERS; not editing it here. Once ScanStatus lands,
+    add:
+        sa.CheckConstraint(ScanStatus.sql_check("scan_status"), name="ck_files_scan_status")
+    to the files table's constraints below, as its own follow-up
+    migration or an amendment to this one before it merges — whichever
+    Tech Lead prefers.
+
+Notes for reviewers (unchanged from round 1):
 1. file_access_log has no Timestamps mixin (no updated_at) since it's
    append-only and accessed_at already serves as its event timestamp —
-   same judgment call made for consent_withdrawals in 0004. Flagging
-   again in case this should become a written project rule instead of a
-   per-table decision.
+   same judgment call made for consent_withdrawals in 0004.
 2. The three ALTER TABLE statements at the end (wiring patients,
    consent_records, and order_external_results to files.id) only
    succeed if 0006, 0004, and 0008 have already run — which they will,
@@ -35,20 +62,24 @@ Notes for reviewers:
 4. files.scan_status added per §4A.4 (file upload validation contract):
    ClamAV scanning isn't wired up for MVP, so this column exists purely
    to make that gap visible on every row ('skipped') rather than
-   implying a scan happened. No CheckedEnum defined for it yet in
-   enums.py — the schema doc only fixes the default, not the full
-   vocabulary, so no CHECK constraint is added here; revisit once the
-   scanning pipeline lands and the value set is finalized.
+   implying a scan happened. See "Blocked" note above re: the CHECK.
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from app.common.enums import FileAction
 
 # revision identifiers, used by Alembic.
 revision = "0019"
 down_revision = "0017"
 branch_labels = None
 depends_on = None
+
+# Generated, not hardcoded — round-2 fix for blocker 2. Importing
+# FileAction here is read-only use of app/common/enums.py, not an edit
+# to it.
+_FILE_ACTION_CHECK = FileAction.sql_check("action")
 
 
 def upgrade() -> None:
@@ -64,20 +95,25 @@ def upgrade() -> None:
         sa.Column("original_name", sa.Text(), nullable=True),
         sa.Column("content_type", sa.String(100), nullable=True),
         sa.Column("size_bytes", sa.BigInteger(), nullable=True),
-        sa.Column("sha256", sa.CHAR(64), nullable=True),
-        sa.Column("owner_module", sa.String(30), nullable=True),
+        sa.Column("sha256", sa.CHAR(64), nullable=False),  # round-2: was nullable=True
+        sa.Column("owner_module", sa.String(50), nullable=True),  # round-2: was String(30)
+        sa.Column("facility_id", postgresql.UUID(as_uuid=True),
+                  sa.ForeignKey("facilities.id", ondelete="RESTRICT", name="fk_files_facility_id"),
+                  nullable=False),  # NEW — round-2 should-fix
         sa.Column("patient_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("patients.id", ondelete="RESTRICT", name="fk_files_patient_id"),
                   nullable=True),
         sa.Column("uploaded_by", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("users.id", ondelete="RESTRICT", name="fk_files_uploaded_by"),
                   nullable=False),
-        sa.Column("sensitivity", sa.String(30), nullable=False, server_default="normal"),
+        sa.Column("sensitivity", sa.String(50), nullable=False, server_default="normal"),  # round-2: was String(30)
         sa.Column("scan_status", sa.String(50), nullable=False, server_default="skipped"),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.UniqueConstraint("bucket", "object_key", name="uq_files_bucket_object_key"),
+        # scan_status CHECK deliberately absent — see blocked note above.
     )
+    op.create_index("ix_files_facility_id", "files", ["facility_id"])  # NEW
     op.create_index("ix_files_patient_id", "files", ["patient_id"])
     op.create_index("ix_files_uploaded_by", "files", ["uploaded_by"])
 
@@ -94,13 +130,10 @@ def upgrade() -> None:
         sa.Column("user_id", postgresql.UUID(as_uuid=True),
                   sa.ForeignKey("users.id", ondelete="RESTRICT", name="fk_file_access_log_user_id"),
                   nullable=False),
-        sa.Column("action", sa.String(30), nullable=False),
+        sa.Column("action", sa.String(50), nullable=False),  # round-2: was String(30)
         sa.Column("ip_address", postgresql.INET(), nullable=True),
         sa.Column("accessed_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.CheckConstraint(
-            "action IN ('view', 'download', 'upload', 'delete_attempt')",
-            name="ck_file_access_log_action",
-        ),
+        sa.CheckConstraint(_FILE_ACTION_CHECK, name="ck_file_access_log_action"),  # round-2: generated, not hardcoded
     )
     op.create_index("ix_file_access_log_file_id", "file_access_log", ["file_id"])
     op.create_index("ix_file_access_log_user_id", "file_access_log", ["user_id"])
@@ -125,7 +158,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # 3. Deferred FKs — now that files exists, wire up the three columns
     #    that were created as plain UUID (no FK) back in 0006, 0004, and
-    #    0008.
+    #    0008. Unchanged from round 1 — not flagged in this review pass.
     # ------------------------------------------------------------------
     op.create_foreign_key(
         "fk_patients_photo_file_id", "patients", "files",
@@ -155,4 +188,5 @@ def downgrade() -> None:
 
     op.drop_index("ix_files_uploaded_by", table_name="files")
     op.drop_index("ix_files_patient_id", table_name="files")
+    op.drop_index("ix_files_facility_id", table_name="files")  # NEW
     op.drop_table("files")
