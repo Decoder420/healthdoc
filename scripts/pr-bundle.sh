@@ -36,7 +36,10 @@ git show origin/staging:frontend/scripts/fe_check.mjs             > "$TOOLDIR/fe
 git show origin/staging:docs/database-schema.md                   > "$TOOLDIR/database-schema.md" 2>/dev/null || true
 
 ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-cleanup() { git checkout -q "$ORIGINAL_BRANCH" 2>/dev/null || true; }
+cleanup() {
+  git merge --abort 2>/dev/null || git reset -q --hard HEAD 2>/dev/null || true
+  git checkout -q "$ORIGINAL_BRANCH" 2>/dev/null || true
+}
 trap cleanup EXIT
 
 git fetch -q --no-tags origin staging 2>/dev/null
@@ -44,6 +47,26 @@ if ! gh pr checkout "$PR" -f 2>/tmp/ghco.err; then
   echo "✗ gh pr checkout $PR failed:"; sed 's/^/    /' /tmp/ghco.err; exit 2
 fi
 BASE=$(git merge-base HEAD origin/staging)
+
+# ---- Run the checkers against base-merged-with-head, which is what CI tests ----
+#
+# Checking out the PR head alone means every branch opened before a recent staging
+# change gets flagged for that change. After 0003a merged, ~12 open PRs would each
+# have reported "facilities.timezone missing" — a defect none of them caused and
+# none of them would see in CI. False alarms at that rate teach people to skip the
+# output, which costs more than the check is worth.
+#
+# HEAD still points at the PR head commit during a --no-commit merge, so the diff
+# below remains the PR's own changes; only the working tree the checkers read is
+# merged.
+MERGE_NOTE="merged with origin/staging (same as CI)"
+if ! git merge --no-commit --no-ff -q origin/staging >/dev/null 2>&1; then
+  CONFLICTED=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+  git merge --abort 2>/dev/null || true
+  MERGE_NOTE="⚠ CONFLICTS with staging — checks below ran on the PR head ALONE.
+        Conflicting: ${CONFLICTED:-unknown}
+        This PR cannot merge until the author rebases."
+fi
 
 echo "=========================================================="
 echo "PR #$PR BUNDLE"
@@ -63,6 +86,8 @@ git diff --stat "$BASE" HEAD
 
 echo
 echo "---------- AUTOMATED CHECKS ----------"
+echo "state:  $MERGE_NOTE"
+echo
 echo "\$ pr_check.py (from staging)"
 python3 "$TOOLDIR/pr_check.py" --all 2>&1 || true
 echo
