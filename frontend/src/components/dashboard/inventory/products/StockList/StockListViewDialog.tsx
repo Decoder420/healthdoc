@@ -54,10 +54,7 @@ export default function StockListViewDialog({
           <Detail label="Item Name" value={stock.itemName} />
           <Detail label="Category" value={stock.category} />
 
-          <Detail
-            label="Brand"
-            value={stock.brand || "-"}
-          />
+          <Detail label="Brand" value={stock.brand || "-"}/>
 
           <Detail
             label="Supplier"
