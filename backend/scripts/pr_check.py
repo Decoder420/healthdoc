@@ -189,8 +189,16 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                 "conventions §1.6: NUMERIC(12,2)"))
 
         # --- Aadhaar plaintext -------------------------------------------------
-        if re.search(r"aadhaar", ln, re.I) and re.search(r"print\(|logger|logging|f\"|'\)", ln) \
-           and not re.search(r"blind_index|encrypted|hash|#", ln, re.I):
+        # The sink must be a real one. The previous pattern included `')`, which
+        # matches the closing quote of any list literal — so
+        # `IN ('aadhaar', 'abha', ...)` in a CHECK constraint was reported as a
+        # plaintext leak. That fired 4 times on #299 against a migration doing
+        # exactly the right thing, and a false blocker on a PII rule is worse
+        # than most: it's the one people are most likely to be told off over.
+        _sink = re.search(r"\bprint\s*\(|\blogger\b|\blogging\b", ln)
+        _fstring_interp = re.search(r"f\"[^\"]*\{|f'[^']*\{", ln)
+        if (re.search(r"aadhaar", ln, re.I) and (_sink or _fstring_interp)
+                and not re.search(r"blind_index|encrypted|hash|#", ln, re.I)):
             f.append(Finding(BLOCK, "PII-AADHAAR", rel, i,
                 "Possible Aadhaar in a log/plaintext path.",
                 "conventions §1.7 / §8: encrypted + blind index only, never logged"))
