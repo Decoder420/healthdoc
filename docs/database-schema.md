@@ -296,6 +296,8 @@ since departments doesn't exist yet at 0002.)
 >    sealer is down, which is itself an integrity event.
 **Policy: no table may foreign-key to `audit_logs.id`** — its PK is `(id, created_at)`
 (partitioned) and partitions get archived; reference audit rows by value, never by FK.
+
+**audit_logs**
 ```
 facility_id     UUID NOT NULL → facilities       -- (was hospital_id in draft)
 user_id         UUID NULL → users
