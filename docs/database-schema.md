@@ -1018,17 +1018,28 @@ issued_to_patient_id UUID NULL → patients
 ```
 bucket varchar(63) NOT NULL · object_key text NOT NULL   -- MinIO location
 original_name text · content_type varchar(100) · size_bytes bigint
-sha256 char(64)
-owner_module varchar(30)                         -- 'patients', 'lab', ...
+sha256 char(64) NOT NULL                         -- without it the row can't prove the
+                                                 -- MinIO object still matches what was
+                                                 -- uploaded; compute at upload time
+owner_module varchar(50)                         -- 'patients', 'lab', ...
+facility_id UUID NOT NULL → facilities           -- patient photos and guardian ID proofs
+                                                 -- are among the most sensitive rows here
 patient_id UUID NULL → patients
 uploaded_by UUID NOT NULL → users
-sensitivity varchar(30) NOT NULL DEFAULT 'normal'
+sensitivity varchar(50) NOT NULL DEFAULT 'normal'
+scan_status varchar(50) NOT NULL DEFAULT 'skipped'  -- ScanStatus enum, §4A.4. 'skipped' is
+                                                 -- NOT 'clean' — no scanner is wired up yet
 UNIQUE (bucket, object_key)
+INDEX ix_files_facility_id (facility_id)
 ```
 Also in 0019: add the deferred FKs — `patients.photo_file_id`,
 `consent_records.guardian_id_proof_file_id` → `files.id`.
 
-**file_access_log** — append-only: `file_id → files · user_id → users · action varchar(30) (view|download|upload|delete_attempt) · ip_address inet · accessed_at timestamptz NOT NULL`
+**file_access_log** — append-only: `file_id → files · user_id → users · action varchar(50) (FileAction: view|download|upload|delete_attempt) · ip_address inet · accessed_at timestamptz NOT NULL`
+
+Not partitioned, unlike `audit_logs` and `data_access_log`: its volume is bounded by file
+operations rather than by every clinical read, so a plain table with the append-only
+trigger is enough. Revisit if a facility's row count makes the index unwieldy.
 
 ### 0020 — notification_history (B4)
 
