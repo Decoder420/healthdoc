@@ -183,7 +183,13 @@ def check_file(path: pathlib.Path) -> list[Finding]:
                     "conventions §2.2: use a counters row with UPDATE … RETURNING"))
 
         # --- timezone / business date ----------------------------------------
-        if re.search(r"CURRENT_DATE|now\(\)::date|utcnow\(\)\.date\(\)|datetime\.now\(\)\.date\(\)", ln):
+        # .year and .month matter as much as .date(): a UHID embeds the year, so
+        # a UTC read gives last year's identifier — permanently — between 00:00
+        # and 05:30 IST on 1 January. Missed on #299 because the rule only knew
+        # about .date().
+        if re.search(r"CURRENT_DATE|now\(\)::date|utcnow\(\)\.(date\(\)|year|month)"
+                     r"|datetime\.now\(\s*(timezone\.utc|tz=timezone\.utc)?\s*\)\.(date\(\)|year|month)",
+                     ln):
             f.append(Finding(BLOCK, "TZ-DATE", rel, i,
                 "Business date computed in UTC/naive — 00:00–05:30 IST resolves to YESTERDAY.",
                 "schema §3: (now() AT TIME ZONE facilities.timezone)::date"))
