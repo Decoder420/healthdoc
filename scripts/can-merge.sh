@@ -68,9 +68,17 @@ def read(path):
             return r.stdout, ref
     return None, None
 
-revs, downs, origin_of = {}, {}, {}
+# Which FILES staging already has — not which ref happened to answer the read.
+# Reading prefers the PR ref (its copy is what merges), so deriving "added by
+# this PR" from the read source made every file look new.
+staging_files = set(subprocess.run(
+    ["git", "ls-tree", "-r", "--name-only", "origin/staging",
+     "--", "backend/migrations/versions"],
+    capture_output=True, text=True).stdout.split())
+
+revs, downs, added = {}, {}, []
 for p in paths:
-    src, ref = read(p)
+    src, _ref = read(p)
     if src is None:
         continue
     m = re.search(r'^revision\s*=\s*["\']([^"\']+)', src, re.M)
@@ -80,10 +88,10 @@ for p in paths:
     rev = m.group(1)
     revs[rev] = p.rsplit("/", 1)[-1]
     downs[rev] = d.group(1) if d and d.group(1) else None
-    origin_of[rev] = ref
+    if p not in staging_files:
+        added.append(rev)
 
-on_staging = {r for r, ref in origin_of.items() if ref == "origin/staging"}
-added = sorted(set(revs) - on_staging)
+added = sorted(added)
 dangling = {r: d for r, d in downs.items() if d and d not in revs}
 
 print("=" * 66)
