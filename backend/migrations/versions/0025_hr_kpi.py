@@ -70,34 +70,26 @@ def upgrade() -> None:
         "kpi_snapshots",
         sa.Column("id", UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("uuid_generate_v4()")),
-        sa.Column("user_id", UUID(as_uuid=True),
-                  sa.ForeignKey("users.id", ondelete="CASCADE",
-                                name="fk_kpi_snapshots_user_id"),
-                  nullable=False),
         sa.Column("facility_id", UUID(as_uuid=True),
                   sa.ForeignKey("facilities.id", ondelete="CASCADE",
                                 name="fk_kpi_snapshots_facility_id"),
                   nullable=False),
+        sa.Column("kpi_code", sa.String(50), nullable=False),
         sa.Column("period_start", sa.Date(), nullable=False),
         sa.Column("period_end", sa.Date(), nullable=False),
-        sa.Column("metric_name", sa.String(100), nullable=False),
-        sa.Column("metric_value", sa.Numeric(12, 4), nullable=False),
-        sa.Column("target_value", sa.Numeric(12, 4), nullable=True),
-        sa.Column("unit", sa.String(50), nullable=True),
-        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("value", sa.Numeric(14, 4), nullable=False),
+        sa.Column("numerator", sa.Numeric(), nullable=True),
+        sa.Column("denominator", sa.Numeric(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.func.now()),
+        sa.UniqueConstraint("facility_id", "kpi_code", "period_start", "period_end",
+                            name="uq_kpi_snapshots_facility_code_period"),
     )
-    op.create_index("ix_kpi_snapshots_user_id", "kpi_snapshots", ["user_id"])
-    op.create_index("ix_kpi_snapshots_facility_id", "kpi_snapshots", ["facility_id"])
-    op.create_index("ix_kpi_snapshots_period",
-                     "kpi_snapshots", ["user_id", "period_start", "period_end"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_kpi_snapshots_period", table_name="kpi_snapshots")
-    op.drop_index("ix_kpi_snapshots_facility_id", table_name="kpi_snapshots")
-    op.drop_index("ix_kpi_snapshots_user_id", table_name="kpi_snapshots")
     op.drop_table("kpi_snapshots")
     op.drop_index("ix_staff_training_records_user_id", table_name="staff_training_records")
     op.drop_table("staff_training_records")
