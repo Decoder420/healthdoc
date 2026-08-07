@@ -32,17 +32,16 @@ Applied:
     only (bare `datetime` annotation inferring naive); fixed in
     app/files/models.py, not this file.
 
-Blocked, NOT applied — out of B7 scope:
-  - blocker 3: scan_status still has no CHECK constraint. It requires
-    ScanStatus in app/common/enums.py, which does not exist in that
-    file as merged from origin/staging on this branch (verified by
-    grep — see PR #279 thread). common/enums.py is owned by another
-    dev per CODEOWNERS; not editing it here. Once ScanStatus lands,
-    add:
-        sa.CheckConstraint(ScanStatus.sql_check("scan_status"), name="ck_files_scan_status")
-    to the files table's constraints below, as its own follow-up
-    migration or an amendment to this one before it merges — whichever
-    Tech Lead prefers.
+Resolved (was blocked, correctly, on someone else's file):
+  - blocker 3: scan_status now has its CHECK, generated from
+    ScanStatus.sql_check(). Vani was right to refuse this in round 2 —
+    ScanStatus genuinely was not in app/common/enums.py, and
+    common/enums.py belongs to another owner per CODEOWNERS. The review
+    that told her otherwise was wrong. ScanStatus landed in #326
+    (skipped|pending|clean|infected|failed) and the constraint was added
+    here by the reviewer rather than sent back for a third round.
+    'skipped' is not a synonym for 'clean': no scanner is wired up, so
+    the column says so on every row instead of implying one ran.
 
 Notes for reviewers (unchanged from round 1):
 1. file_access_log has no Timestamps mixin (no updated_at) since it's
@@ -68,7 +67,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from app.common.enums import FileAction
+from app.common.enums import FileAction, ScanStatus
 
 # revision identifiers, used by Alembic.
 revision = "0019"
@@ -111,7 +110,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.UniqueConstraint("bucket", "object_key", name="uq_files_bucket_object_key"),
-        # scan_status CHECK deliberately absent — see blocked note above.
+        # Generated from the enum for the same reason as action's CHECK: a
+        # hardcoded list here and a CheckedEnum in the model drift apart.
+        sa.CheckConstraint(ScanStatus.sql_check("scan_status"), name="ck_files_scan_status"),
     )
     op.create_index("ix_files_facility_id", "files", ["facility_id"])  # NEW
     op.create_index("ix_files_patient_id", "files", ["patient_id"])

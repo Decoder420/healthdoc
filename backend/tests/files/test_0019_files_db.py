@@ -22,7 +22,7 @@ from datetime import datetime
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .conftest import seed_file
@@ -42,12 +42,16 @@ async def test_file_access_log_blocks_update(engine: AsyncEngine, facility_id, u
             {"id": log_id, "file_id": file_id, "user_id": user_id},
         )
 
-    with pytest.raises(Exception):  # plpgsql RAISE EXCEPTION surfaces as a DBAPIError
+    # Assert on WHY it failed, not just that it did. `Exception` alone would
+    # pass if the trigger were dropped and the statement failed for any other
+    # reason — a typo, a missing table, a dead connection.
+    with pytest.raises(DBAPIError) as exc:
         async with engine.begin() as conn:
             await conn.execute(
                 sa.text("UPDATE file_access_log SET action = 'download' WHERE id = :id"),
                 {"id": log_id},
             )
+    assert "append-only" in str(exc.value)
 
 
 async def test_file_access_log_blocks_delete(engine: AsyncEngine, facility_id, user_id):
@@ -62,9 +66,10 @@ async def test_file_access_log_blocks_delete(engine: AsyncEngine, facility_id, u
             {"id": log_id, "file_id": file_id, "user_id": user_id},
         )
 
-    with pytest.raises(Exception):
+    with pytest.raises(DBAPIError) as exc:
         async with engine.begin() as conn:
             await conn.execute(sa.text("DELETE FROM file_access_log WHERE id = :id"), {"id": log_id})
+    assert "append-only" in str(exc.value)
 
 
 async def test_file_access_log_action_check_rejects_invalid(engine: AsyncEngine, facility_id, user_id):

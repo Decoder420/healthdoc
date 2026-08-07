@@ -40,23 +40,14 @@ Applied:
      so tampering/corruption would be silently undetectable. Must be
      computed at upload time in the service layer.
 
-Blocked — NOT applied, out of B7 scope:
-  3. scan_status still has no CHECK constraint. The review says
-     ScanStatus was added to app/common/enums.py, but as of this
-     branch's `git merge origin/staging`, that class does not exist
-     in enums.py (verified by grep — see PR #279 comment thread).
-     common/enums.py is owned by another dev per CODEOWNERS; I'm not
-     editing it myself. Once ScanStatus lands on staging, the only
-     change needed here is:
-         from app.common.enums import ScanStatus
-         ...
-         __table_args__ = (
-             CheckConstraint(ScanStatus.sql_check("scan_status"), name="ck_files_scan_status"),
-             ...
-         )
-     Flagged back on the PR rather than fixed — same "flag outside
-     your module, don't fix it yourself" discipline as the
-     facilities.timezone catch in billing.
+Resolved — was correctly blocked on another module's file:
+  3. scan_status now has its CHECK, generated from
+     ScanStatus.sql_check(). The round-2 review claimed ScanStatus was
+     already in app/common/enums.py; it wasn't, and the grep in this
+     PR's thread proved it. Refusing to edit a CODEOWNERS-assigned file
+     and flagging it back was the right call. ScanStatus landed
+     separately in #326 and the constraint was added here by the
+     reviewer rather than costing another round trip.
 
 Not touched (per review, tracked separately, not this PR):
   - file_access_log.file_id ondelete=RESTRICT vs DPDP erasure conflict.
@@ -72,7 +63,7 @@ from sqlalchemy.dialects.postgresql import CHAR, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.common.db import Base
-from app.common.enums import FileAction
+from app.common.enums import FileAction, ScanStatus
 from app.common.models import Timestamps, UUIDPk
 
 
@@ -120,15 +111,16 @@ class FileRecord(UUIDPk, Timestamps, Base):
     scan_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="skipped")
     # ^ §4A.4: no malware scanner wired up for MVP. This column exists so the gap
     # is visible on every row ('skipped') instead of implied by silence.
-    # CHECK constraint intentionally NOT added yet — blocked on ScanStatus
-    # landing in app/common/enums.py, which is outside this module. See
-    # the module docstring above and the PR #279 comment thread.
 
     __table_args__ = (
         Index("ix_files_facility_id", "facility_id"),
         Index("ix_files_patient_id", "patient_id"),
         Index("ix_files_uploaded_by", "uploaded_by"),
         UniqueConstraint("bucket", "object_key", name="uq_files_bucket_object_key"),
+        # Generated from the enum, same as action's CHECK below — without it
+        # the column accepts any string, so a future scanner integration could
+        # write 'clean' from a path that never actually scanned.
+        CheckConstraint(ScanStatus.sql_check("scan_status"), name="ck_files_scan_status"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover
