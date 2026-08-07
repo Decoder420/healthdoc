@@ -23,6 +23,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 
+
 import ActionButtons from "./ActionButtons";
 import FindingsCard from "./FindingsCard";
 import ImageViewer from "./ImageViewer";
@@ -32,410 +33,837 @@ import RecommendationCard from "./RecommendationCard";
 import SearchPatient from "./SearchPatient";
 import StudyDetailsCard from "./StudyDetailsCard";
 
+
 import {
   reportPatients,
   searchPatients,
 } from "./dummyReportData";
-import { saveReportDraft } from "./reportDraftStorage";
+
+
+import {
+  saveReportDraft,
+} from "./reportDraftStorage";
+
 
 import type {
+  PatientSearchOption,
   RadiologyReportPatient,
 } from "./types";
 
+
+
 export default function ReportEntryPage() {
+
+
   const router = useRouter();
 
   const searchParams =
     useSearchParams();
 
-  // Read accession number from URL
+
+
   const accessionNumber =
     searchParams.get(
       "accessionNumber"
     );
 
-  const [search, setSearch] =
+
+
+
+  const [search,setSearch] =
     useState("");
+
+
 
   const [
     selectedPatient,
-    setSelectedPatient,
-  ] = useState<RadiologyReportPatient | null>(
-    null
-  );
+    setSelectedPatient
+  ] =
+    useState<RadiologyReportPatient | null>(
+      null
+    );
 
-  const [findings, setFindings] =
+
+
+  const [findings,setFindings] =
     useState("");
 
-  const [
-    impression,
-    setImpression,
-  ] = useState("");
 
-  const [
-    recommendation,
-    setRecommendation,
-  ] = useState("");
 
-  const [
-    findingsError,
-    setFindingsError,
-  ] = useState("");
+  const [impression,setImpression] =
+    useState("");
 
-  const [
-    impressionError,
-    setImpressionError,
-  ] = useState("");
 
-  const [loading, setLoading] =
+
+  const [recommendation,setRecommendation] =
+    useState("");
+
+
+
+  const [findingsError,setFindingsError] =
+    useState("");
+
+
+
+  const [impressionError,setImpressionError] =
+    useState("");
+
+
+
+  const [loading,setLoading] =
     useState(false);
 
-  const patientOptions = useMemo(
-    () => searchPatients,
-    []
-  );
 
-  // =====================================
-  // Auto-load patient using Accession No.
-  // =====================================
-  useEffect(() => {
-    if (!accessionNumber) {
+
+
+
+  const patientOptions =
+    useMemo(
+      () => searchPatients,
+      []
+    );
+
+
+
+
+
+
+
+  // ================================
+  // Load patient from URL
+  // ================================
+
+  useEffect(()=>{
+
+
+    if(!accessionNumber)
       return;
-    }
+
+
 
     const patient =
       reportPatients.find(
-        (item) =>
-          item.accessionNumber ===
-          accessionNumber
-      ) ?? null;
+        (item)=>
+          item.accessionNumber === accessionNumber
+      );
 
-    setSelectedPatient(patient);
 
-    if (patient) {
+
+    if(patient){
+
+      loadPatient(patient);
+
+    }
+
+
+
+  },[accessionNumber]);
+
+
+
+
+
+
+
+
+
+  // ================================
+  // Common patient loader
+  // ================================
+
+  const loadPatient =
+    (
+      patient: RadiologyReportPatient
+    ) => {
+
+
+      setSelectedPatient(
+        patient
+      );
+
+
+
       setSearch(
         patient.accessionNumber
       );
 
+
+
       setFindings(
-        patient.report.findings
+        patient.report?.findings ?? ""
       );
+
+
 
       setImpression(
-        patient.report.impression
+        patient.report?.impression ?? ""
       );
+
+
 
       setRecommendation(
-        patient.report
-          .recommendation
-      );
-    }
-  }, [accessionNumber]);
-
-  // =====================================
-  // Manual Search
-  // =====================================
-  const handleSearch = () => {
-    if (!search.trim()) {
-      return;
-    }
-
-    const keyword =
-      search.toLowerCase();
-
-    const patient =
-      reportPatients.find(
-        (item) =>
-          item.patientName
-            .toLowerCase()
-            .includes(keyword) ||
-          item.uhid
-            .toLowerCase()
-            .includes(keyword) ||
-          item.patientId
-            .toLowerCase()
-            .includes(keyword) ||
-          item.visitId
-            .toLowerCase()
-            .includes(keyword) ||
-          item.orderId
-            .toLowerCase()
-            .includes(keyword) ||
-          item.accessionNumber
-            .toLowerCase()
-            .includes(keyword)
-      ) ?? null;
-
-    setSelectedPatient(patient);
-
-    if (patient) {
-      setFindings(
-        patient.report.findings
+        patient.report?.recommendation ?? ""
       );
 
-      setImpression(
-        patient.report.impression
+    };
+
+
+
+
+
+
+
+
+
+  // ================================
+  // Search Button
+  // ================================
+
+  const handleSearch =
+    (
+      patient: PatientSearchOption
+    ) => {
+
+
+      console.log(
+        "Search option:",
+        patient
       );
 
-      setRecommendation(
-        patient.report
-          .recommendation
+
+
+      const fullPatient =
+        reportPatients.find(
+          (item)=>
+
+            String(item.id) ===
+            String(patient.id)
+
+            ||
+
+            item.accessionNumber ===
+            patient.accessionNumber
+
+            ||
+
+            item.orderId ===
+            patient.orderId
+
+        );
+
+
+
+      console.log(
+        "Matched Patient:",
+        fullPatient
       );
-    }
-  };
 
-const persistDraft = (verified = false) => {
-  if (!selectedPatient) return;
 
-  saveReportDraft(selectedPatient.accessionNumber, {
-    findings,
-    impression,
-    recommendation,
-    verified,
-  });
-};
 
-const openCompletedReport = (verified = false) => {
-  if (!selectedPatient) return;
 
-  persistDraft(verified);
-  router.push(
-    `/radiology/reports/${selectedPatient.accessionNumber}`
-  );
-};
+      if(!fullPatient){
 
- // =====================================
-// Save Draft
-// =====================================
-const handleSaveDraft = async () => {
-  if (!selectedPatient) {
-    return;
-  }
+        console.error(
+          "Patient not found"
+        );
 
-  setLoading(true);
+        return;
 
-  await new Promise((resolve) =>
-    setTimeout(resolve, 1000)
-  );
+      }
 
-  persistDraft(false);
 
-  setLoading(false);
-};
 
-// =====================================
-// View completed report (after fields filled)
-// =====================================
-const handleViewReport = () => {
-  if (!findings.trim()) {
-    setFindingsError("Findings are required.");
-    return;
-  }
 
-  if (!impression.trim()) {
-    setImpressionError("Impression is required.");
-    return;
-  }
+      loadPatient(
+        fullPatient
+      );
 
-  openCompletedReport(false);
-};
 
-// =====================================
-// Verify Report
-// =====================================
-const handleVerify = async () => {
-  let valid = true;
+    };
 
-  if (!findings.trim()) {
-    setFindingsError("Findings are required.");
-    valid = false;
-  } else {
-    setFindingsError("");
-  }
 
-  if (!impression.trim()) {
-    setImpressionError("Impression is required.");
-    valid = false;
-  } else {
-    setImpressionError("");
-  }
 
-  if (!selectedPatient || !valid) {
-    return;
-  }
 
-  setLoading(true);
 
-  await new Promise((resolve) =>
-    setTimeout(resolve, 1200)
-  );
 
-  setLoading(false);
 
-  openCompletedReport(true);
-};
+
+
+  // ================================
+  // Save Draft
+  // ================================
+
+  const persistDraft =
+    (
+      verified=false
+    )=>{
+
+
+      if(!selectedPatient)
+        return;
+
+
+
+      saveReportDraft(
+
+        selectedPatient.accessionNumber,
+
+        {
+
+          findings,
+
+          impression,
+
+          recommendation,
+
+          verified,
+
+        }
+
+      );
+
+    };
+
+
+
+
+
+
+
+
+
+  const openReport =
+    (
+      verified=false
+    )=>{
+
+
+      if(!selectedPatient)
+        return;
+
+
+
+      persistDraft(
+        verified
+      );
+
+
+
+      router.push(
+
+        `/radiology/reports/${selectedPatient.accessionNumber}`
+
+      );
+
+
+    };
+
+
+
+
+
+
+
+
+
+
+
+  const handleSaveDraft =
+    async()=>{
+
+
+      if(!selectedPatient)
+        return;
+
+
+
+      setLoading(true);
+
+
+
+      await new Promise(
+        (resolve)=>
+          setTimeout(resolve,1000)
+      );
+
+
+
+      persistDraft(false);
+
+
+
+      setLoading(false);
+
+
+    };
+
+
+
+
+
+
+
+
+
+
+
+  const handleViewReport =
+    ()=>{
+
+
+      if(!findings.trim()){
+
+        setFindingsError(
+          "Findings are required"
+        );
+
+        return;
+
+      }
+
+
+
+
+      if(!impression.trim()){
+
+        setImpressionError(
+          "Impression is required"
+        );
+
+        return;
+
+      }
+
+
+
+
+      openReport(false);
+
+
+    };
+
+
+
+
+
+
+
+
+
+  const handleVerify =
+    async()=>{
+
+
+      let valid=true;
+
+
+
+
+      if(!findings.trim()){
+
+        setFindingsError(
+          "Findings are required"
+        );
+
+        valid=false;
+
+      }
+      else{
+
+        setFindingsError("");
+
+      }
+
+
+
+
+
+      if(!impression.trim()){
+
+        setImpressionError(
+          "Impression is required"
+        );
+
+        valid=false;
+
+      }
+      else{
+
+        setImpressionError("");
+
+      }
+
+
+
+
+
+
+      if(!valid || !selectedPatient)
+        return;
+
+
+
+
+
+      setLoading(true);
+
+
+
+      await new Promise(
+        (resolve)=>
+          setTimeout(resolve,1200)
+      );
+
+
+
+      setLoading(false);
+
+
+
+      openReport(true);
+
+
+    };
+
+
+
+
+
+
+
+
+
 
 
   const canVerify =
-    findings.trim().length > 0 &&
-    impression.trim().length > 0;
+    findings.trim().length>0 &&
+    impression.trim().length>0;
+
+
+
+
+
+
+
+
 
   return (
-    <Box sx={{ p: 3 }}>
+
+    <Box
+      sx={{
+        p:3
+      }}
+    >
+
+
       <Stack spacing={3}>
+
+
         <Stack
           direction="row"
           spacing={2}
           alignItems="center"
         >
+
+
           <IconButton
-            onClick={() => router.back()}
+            onClick={()=>
+              router.back()
+            }
           >
-            <ArrowBackRoundedIcon />
+
+            <ArrowBackRoundedIcon/>
+
           </IconButton>
+
+
 
           <Typography
             variant="h4"
             fontWeight={700}
           >
+
             Enter Radiology Report
+
           </Typography>
+
+
         </Stack>
 
-        <Divider />
+
+
+
+
+        <Divider/>
+
+
+
+
+
+
 
         <SearchPatient
-  search={search}
-  patients={patientOptions}
-  onSearchChange={setSearch}
-  onSearch={handleSearch}
-  disabled={true}
-/>
 
-        {selectedPatient && (
+          search={search}
+
+          patients={patientOptions}
+
+          onSearchChange={
+            setSearch
+          }
+
+          onSearch={
+            handleSearch
+          }
+
+        />
+
+
+
+
+
+
+
+
+
+        {
+          selectedPatient &&
+
           <>
+
             <Grid
               container
               spacing={3}
             >
-              <Grid
-                size={{
-                  xs: 12,
-                  md: 6,
-                }}
-              >
-                <PatientDetailsCard
-                  patient={{
-                    patientName:
-                      selectedPatient.patientName,
-                    uhid:
-                      selectedPatient.uhid,
-                    patientId:
-                      selectedPatient.patientId,
-                    visitId:
-                      selectedPatient.visitId,
-                    token:
-                      selectedPatient.token,
-                    age:
-                      selectedPatient.age,
-                    gender:
-                      selectedPatient.gender,
-                    priority:
-                      selectedPatient.priority,
-                  }}
-                />
-              </Grid>
+
 
               <Grid
                 size={{
-                  xs: 12,
-                  md: 6,
+                  xs:12,
+                  md:6
                 }}
               >
+
+                <PatientDetailsCard
+
+                  patient={{
+
+                    patientName:
+                      selectedPatient.patientName,
+
+                    uhid:
+                      selectedPatient.uhid,
+
+                    patientId:
+                      selectedPatient.patientId,
+
+                    visitId:
+                      selectedPatient.visitId,
+
+                    token:
+                      selectedPatient.token,
+
+                    age:
+                      selectedPatient.age,
+
+                    gender:
+                      selectedPatient.gender,
+
+                    priority:
+                      selectedPatient.priority,
+
+                  }}
+
+                />
+
+              </Grid>
+
+
+
+
+
+              <Grid
+                size={{
+                  xs:12,
+                  md:6
+                }}
+              >
+
                 <StudyDetailsCard
+
                   study={{
+
                     modality:
                       selectedPatient.modality,
+
                     procedure:
                       selectedPatient.procedure,
+
                     radiologist:
                       selectedPatient.radiologist,
+
                     referringDoctor:
                       selectedPatient.referringDoctor,
+
                     accessionNumber:
                       selectedPatient.accessionNumber,
+
                     orderId:
                       selectedPatient.orderId,
+
                     appointmentDate:
                       selectedPatient.appointmentDate,
+
                     appointmentTime:
                       selectedPatient.appointmentTime,
+
                     studyStatus:
                       selectedPatient.studyStatus,
+
                   }}
+
                 />
+
               </Grid>
+
+
             </Grid>
+
+
+
+
+
+
 
             <ImageViewer
               images={
                 selectedPatient.images
               }
             />
-                        <FindingsCard
+
+
+
+
+
+
+
+            <FindingsCard
+
               value={findings}
+
               error={findingsError}
-              onChange={(value) => {
+
+              onChange={(value)=>{
+
                 setFindings(value);
 
-                if (findingsError) {
-                  setFindingsError("");
-                }
+                setFindingsError("");
+
               }}
+
             />
+
+
+
+
+
+
 
             <ImpressionCard
+
               value={impression}
+
               error={impressionError}
-              onChange={(value) => {
+
+              onChange={(value)=>{
+
                 setImpression(value);
 
-                if (impressionError) {
-                  setImpressionError("");
-                }
+                setImpressionError("");
+
               }}
+
             />
+
+
+
+
+
+
 
             <RecommendationCard
+
               value={recommendation}
-              onChange={setRecommendation}
+
+              onChange={
+                setRecommendation
+              }
+
             />
+
+
+
+
+
+
 
             <ActionButtons
-              loading={loading}
-              canVerify={canVerify}
-              onSaveDraft={handleSaveDraft}
-              onVerify={handleVerify}
-              onViewReport={handleViewReport}
-            />
-          </>
-        )}
 
-        {!selectedPatient &&
-          accessionNumber && (
-            <Typography
-              textAlign="center"
-              color="error"
-              sx={{ py: 6 }}
-            >
-              No study found for
-              Accession Number:{" "}
-              <strong>
-                {accessionNumber}
-              </strong>
-            </Typography>
-          )}
+              loading={loading}
+
+              canVerify={canVerify}
+
+              onSaveDraft={
+                handleSaveDraft
+              }
+
+              onVerify={
+                handleVerify
+              }
+
+              onViewReport={
+                handleViewReport
+              }
+
+            />
+
+
+
+          </>
+
+
+        }
+
+
+
+
+
+
+
+        {
+          !selectedPatient &&
+          accessionNumber &&
+
+          <Typography
+            textAlign="center"
+            color="error"
+          >
+
+            No study found for accession number:
+            {" "}
+            {accessionNumber}
+
+          </Typography>
+
+        }
+
+
+
       </Stack>
+
+
     </Box>
+
   );
+
 }

@@ -202,7 +202,7 @@ export default function RadiologyTable({
             )
           }
         >
-          View Report
+          Complete Test
         </Button>
       )}
 

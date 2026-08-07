@@ -15,6 +15,7 @@ import { QuickActions } from "@/components/dashboard/receptionist/quick-actions"
 import LineChart from "@/components/dashboard/lab/Lab_LineCharts";
 import UrgencyPieChart from "@/components/dashboard/lab/Lab_Urgency_Pi_Chart";
 import CalendarComponent from "@/components/dashboard/lab/Lab_Calendar";
+import LabWorkflowOverview from "@/components/dashboard/lab-technician/labworkflow";
 import { patients } from "@/lib/mock/lab_data";
 import {
   getLabDashboardMetrics,
@@ -195,6 +196,8 @@ export function LabTechnicianDashboard({
 
       <QuickActions actions={labQuickActions} />
     </div>
+
+    <LabWorkflowOverview />
 
   {/* Charts */}
 {/* Charts */}

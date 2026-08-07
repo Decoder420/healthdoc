@@ -324,7 +324,7 @@ const defaultActions = (row: RadiologyCase) => {
             )
           }
         >
-          View Report
+          Complete Test
         </Button>
       );
 

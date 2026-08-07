@@ -4,44 +4,83 @@ import { QuickActions as QuickActionsGrid } from "@/components/dashboard/recepti
 
 import type { QuickAction } from "@/features/dashboard/types";
 
+
 export const radiologyQuickActions: QuickAction[] = [
+
   {
     label: "Imaging Queue",
-    description: "View scheduled and pending imaging studies",
+    description:
+      "View pending, processing and scheduled imaging studies",
     href: "/radiology/queue",
     color: "violet",
   },
 
   {
-    label: "Perform Scan",
-    description: "Perform CT, MRI, X-Ray, USG and other studies",
-    href: "/radiology/scan",
+    label: "MRI Studies",
+    description:
+      "Manage MRI scans and reporting workflow",
+    href: "/radiology/mri",
     color: "blue",
   },
 
   {
-    label: "Reporting",
-    description: "Prepare radiology reports for completed scans",
-    href: "/radiology/reporting",
+    label: "CT Studies",
+    description:
+      "Manage CT scan procedures and reports",
+    href: "/radiology/ct",
     color: "teal",
   },
 
   {
+    label: "X-Ray Studies",
+    description:
+      "View and process X-Ray imaging studies",
+    href: "/radiology/xray",
+    color: "blue",
+  },
+
+  {
+    label: "USG Studies",
+    description:
+      "Manage ultrasound imaging workflow",
+    href: "/radiology/usg",
+    color: "teal",
+  },
+
+  {
+    label: "Mammography",
+    description:
+      "Handle mammography scans and reports",
+    href: "/radiology/mammography",
+    color: "violet",
+  },
+
+  {
+    label: "Enter Results",
+    description:
+      "Create radiology reports for completed studies",
+    href: "/radiology/test_results",
+    color: "blue",
+  },
+
+  {
     label: "Verify Reports",
-    description: "Review, approve and verify reports",
+    description:
+      "Review, approve and verify radiology reports",
     href: "/radiology/verification",
     color: "amber",
   },
+
 ];
 
+
 export default function RadiologyQuickActions() {
+
   return (
     <div>
-      <h2 className="mb-3 text-sm font-semibold text-foreground">
-        Quick Actions
-      </h2>
-
-      <QuickActionsGrid actions={radiologyQuickActions} />
+      <QuickActionsGrid
+        actions={radiologyQuickActions}
+      />
     </div>
   );
 }

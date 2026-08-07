@@ -8,7 +8,6 @@ import QrCodeRoundedIcon from "@mui/icons-material/QrCodeRounded";
 import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import BiotechRoundedIcon from "@mui/icons-material/BiotechRounded";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
 import SpaceDashboardRoundedIcon from "@mui/icons-material/SpaceDashboardRounded";
@@ -19,6 +18,7 @@ import WbIridescentRoundedIcon from "@mui/icons-material/WbIridescentRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
 import MonitorHeartRoundedIcon from "@mui/icons-material/MonitorHeartRounded";
+
 
 import { getNavigationForRole } from "@/config/navigation";
 import { useUserRole } from "@/providers/auth-provider";
@@ -48,6 +48,7 @@ const ICON_BY_HREF: Record<string, React.ReactNode> = {
   "/radiology/mamography": <FavoriteRoundedIcon fontSize="small" />,
   "/radiology/usg": <GraphicEqRoundedIcon fontSize="small" />,
   "/radiology/ecg": <MonitorHeartRoundedIcon fontSize="small" />,
+  "/radiology/verification": <VerifiedRoundedIcon />,
 };
 
 function isNavActive(pathname: string, href: string) {
