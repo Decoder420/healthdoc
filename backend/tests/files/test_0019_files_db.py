@@ -160,12 +160,20 @@ async def test_dangling_fks_resolve_and_restrict_holds(engine: AsyncEngine, faci
             sa.text("INSERT INTO patients (id, photo_file_id) VALUES (:id, :file_id)"),
             {"id": patient_id, "file_id": file_id},
         )
+        # consent_records is the REAL 0004 table now, not a stub: patient_id,
+        # granted_by_type and channel are NOT NULL with no default, and the
+        # last two carry CHECK constraints
+        # (ck_consent_records_granted_by_type, ck_consent_records_channel), so
+        # the values below have to be members of those sets, not placeholders.
+        # patient_id has no FK until 0006, so a bare UUID is fine for now.
         consent_id = uuid.uuid4()
         await conn.execute(
             sa.text(
-                "INSERT INTO consent_records (id, guardian_id_proof_file_id) VALUES (:id, :file_id)"
+                "INSERT INTO consent_records "
+                "(id, patient_id, granted_by_type, channel, guardian_id_proof_file_id) "
+                "VALUES (:id, :patient_id, 'patient', 'written', :file_id)"
             ),
-            {"id": consent_id, "file_id": file_id},
+            {"id": consent_id, "patient_id": uuid.uuid4(), "file_id": file_id},
         )
         order_id = uuid.uuid4()
         await conn.execute(
