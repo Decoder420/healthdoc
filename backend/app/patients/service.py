@@ -483,6 +483,7 @@ AUDIT_TABLES_EXEMPT_FROM_REPOINTING: frozenset[str] = frozenset({"patient_merge_
 # enforces this — nothing can silently slip through.
 PENDING_REPOINT_OTHER_MODULES: frozenset[str] = frozenset({
     "allergies",  # allergies module — repointing owned by that module's dev
+    "visits",     # B3/0007 — repointing owned by the visits module's dev
 })
 
 
