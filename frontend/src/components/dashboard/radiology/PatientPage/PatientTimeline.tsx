@@ -12,45 +12,121 @@ import {
 } from "@mui/material";
 
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
-import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
+import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
+import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 
-import { formatDateTime } from "@/lib/format-datetime";
-
-interface Visit {
-  status: string;
-
-  visit: {
-    visitId: string;
-    visitType: string;
-  };
-
-  doctor: {
-    name: string;
-    department: string;
-  };
-
-  order: {
-    orderedAt: string;
-    priority: string;
-  };
-
-  requestedTests: string[];
-}
+import type {
+  RadiologyQueueItem,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
 interface Props {
-  visits: Visit[];
-  getStatusColor: (status: string) => any;
+  studies: RadiologyQueueItem[];
 }
 
 export default function PatientTimeline({
-  visits,
-  getStatusColor,
+  studies,
 }: Props) {
-  const sortedVisits = [...visits].sort(
+  /*
+   * ==========================================
+   * SORT STUDIES
+   * ==========================================
+   *
+   * Latest study appears first.
+   */
+
+  const sortedStudies = [...studies].sort(
     (a, b) =>
-      new Date(b.order.orderedAt).getTime() -
-      new Date(a.order.orderedAt).getTime()
+      new Date(
+        `${b.appointmentDate} ${b.appointmentTime}`
+      ).getTime() -
+      new Date(
+        `${a.appointmentDate} ${a.appointmentTime}`
+      ).getTime()
   );
+
+  /*
+   * ==========================================
+   * STATUS COLOR
+   * ==========================================
+   */
+
+  const getStatusColor = (
+    status: RadiologyQueueItem["status"]
+  ):
+    | "success"
+    | "warning"
+    | "info"
+    | "error"
+    | "default" => {
+    switch (status) {
+      case "Verified":
+        return "success";
+
+      case "Processing":
+        return "warning";
+
+      case "Queue":
+        return "info";
+
+      case "No Show":
+        return "error";
+
+      case "Removed":
+        return "default";
+
+      default:
+        return "default";
+    }
+  };
+
+  /*
+   * ==========================================
+   * PRIORITY COLOR
+   * ==========================================
+   */
+
+  const getPriorityColor = (
+    priority: RadiologyQueueItem["priority"]
+  ):
+    | "error"
+    | "warning"
+    | "default" => {
+    switch (priority) {
+      case "Emergency":
+        return "error";
+
+      case "Urgent":
+        return "warning";
+
+      case "Routine":
+      default:
+        return "default";
+    }
+  };
+
+  /*
+   * ==========================================
+   * REPORT COLOR
+   * ==========================================
+   */
+
+  const getReportColor = (
+    status: RadiologyQueueItem["reportStatus"]
+  ):
+    | "success"
+    | "warning"
+    | "default" => {
+    switch (status) {
+      case "Verified":
+        return "success";
+
+      case "Draft":
+        return "warning";
+
+      default:
+        return "default";
+    }
+  };
 
   return (
     <Card
@@ -64,13 +140,20 @@ export default function PatientTimeline({
     >
       <CardContent
         sx={{
-          p: { xs: 2, md: 2.5 },
+          p: {
+            xs: 2,
+            md: 2.5,
+          },
+
           "&:last-child": {
-            pb: { xs: 2, md: 2.5 },
+            pb: {
+              xs: 2,
+              md: 2.5,
+            },
           },
         }}
       >
-        {/* Header */}
+        {/* ================= HEADER ================= */}
 
         <Stack
           direction="row"
@@ -91,7 +174,7 @@ export default function PatientTimeline({
               flexShrink: 0,
             }}
           >
-            <CalendarMonthRoundedIcon
+            <LocalHospitalRoundedIcon
               sx={{ fontSize: 19 }}
             />
           </Box>
@@ -102,30 +185,30 @@ export default function PatientTimeline({
               fontWeight={700}
               lineHeight={1.2}
             >
-              Visit Timeline
+              Radiology Timeline
             </Typography>
 
             <Typography
               variant="caption"
               color="text.secondary"
             >
-              Patient visit history
+              Patient imaging history
             </Typography>
           </Box>
         </Stack>
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Timeline */}
+        {/* ================= TIMELINE ================= */}
 
         <Stack spacing={1.5}>
-          {sortedVisits.map((visit, index) => {
+          {sortedStudies.map((study, index) => {
             const isLast =
-              index === sortedVisits.length - 1;
+              index === sortedStudies.length - 1;
 
             return (
               <Stack
-                key={visit.visit.visitId}
+                key={study.orderId}
                 direction="row"
                 spacing={{
                   xs: 1.5,
@@ -133,7 +216,7 @@ export default function PatientTimeline({
                 }}
                 alignItems="stretch"
               >
-                {/* Timeline Indicator */}
+                {/* ================= TIMELINE MARKER ================= */}
 
                 <Stack
                   alignItems="center"
@@ -177,15 +260,15 @@ export default function PatientTimeline({
                   )}
                 </Stack>
 
-                {/* Visit Card */}
+                {/* ================= STUDY CARD ================= */}
 
                 <Card
                   variant="outlined"
                   sx={{
                     flex: 1,
+                    minWidth: 0,
                     borderRadius: 2.5,
                     borderColor: "divider",
-                    minWidth: 0,
                     transition:
                       "border-color 0.2s ease, box-shadow 0.2s ease",
 
@@ -221,7 +304,7 @@ export default function PatientTimeline({
                       }}
                       justifyContent="space-between"
                     >
-                      {/* Left Information */}
+                      {/* ================= MAIN INFORMATION ================= */}
 
                       <Box
                         sx={{
@@ -229,7 +312,7 @@ export default function PatientTimeline({
                           flex: 1,
                         }}
                       >
-                        {/* Visit Header */}
+                        {/* Study Header */}
 
                         <Stack
                           direction="row"
@@ -243,11 +326,11 @@ export default function PatientTimeline({
                             fontWeight={700}
                             fontSize="0.95rem"
                           >
-                            {visit.visit.visitId}
+                            {study.accessionNumber}
                           </Typography>
 
                           <Chip
-                            label={visit.visit.visitType}
+                            label={study.modality}
                             size="small"
                             variant="outlined"
                             sx={{
@@ -258,13 +341,11 @@ export default function PatientTimeline({
                           />
 
                           <Chip
-                            label={visit.status}
+                            label={study.status}
                             size="small"
-                            color={
-                              getStatusColor(
-                                visit.status
-                              )
-                            }
+                            color={getStatusColor(
+                              study.status
+                            )}
                             sx={{
                               height: 23,
                               fontSize: "0.7rem",
@@ -273,35 +354,34 @@ export default function PatientTimeline({
                           />
                         </Stack>
 
-                        {/* Doctor */}
+                        {/* Procedure */}
 
-                        <Stack
-                          direction="row"
-                          spacing={0.75}
-                          alignItems="center"
-                          mb={0.75}
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          sx={{
+                            mb: 0.75,
+                          }}
                         >
-                          <MedicalServicesRoundedIcon
-                            sx={{
-                              fontSize: 16,
-                              color: "text.secondary",
-                            }}
-                          />
+                          {study.procedure}
+                        </Typography>
 
-                          <Typography
-                            variant="body2"
-                            fontWeight={600}
-                          >
-                            {visit.doctor.name}
-                          </Typography>
+                        {/* Radiologist */}
 
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          Radiologist:{" "}
                           <Typography
+                            component="span"
                             variant="caption"
-                            color="text.secondary"
+                            fontWeight={600}
+                            color="text.primary"
                           >
-                            • {visit.doctor.department}
+                            {study.radiologist}
                           </Typography>
-                        </Stack>
+                        </Typography>
 
                         {/* Date */}
 
@@ -309,6 +389,7 @@ export default function PatientTimeline({
                           direction="row"
                           spacing={0.75}
                           alignItems="center"
+                          mt={0.75}
                         >
                           <CalendarMonthRoundedIcon
                             sx={{
@@ -321,14 +402,15 @@ export default function PatientTimeline({
                             variant="caption"
                             color="text.secondary"
                           >
-                            {formatDateTime(
-                              visit.order.orderedAt
+                            {formatRadiologyDate(
+                              study.appointmentDate,
+                              study.appointmentTime
                             )}
                           </Typography>
                         </Stack>
                       </Box>
 
-                      {/* Right Information */}
+                      {/* ================= RIGHT INFORMATION ================= */}
 
                       <Stack
                         spacing={1}
@@ -339,76 +421,79 @@ export default function PatientTimeline({
                         justifyContent="center"
                         sx={{
                           minWidth: {
-                            md: 220,
+                            md: 200,
                           },
                         }}
                       >
-                        {/* Tests */}
-
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          flexWrap="wrap"
-                          useFlexGap
-                          justifyContent={{
-                            xs: "flex-start",
-                            md: "flex-end",
-                          }}
-                        >
-                          {visit.requestedTests
-                            .slice(0, 4)
-                            .map((test) => (
-                              <Chip
-                                key={test}
-                                label={test}
-                                variant="outlined"
-                                size="small"
-                                sx={{
-                                  height: 23,
-                                  fontSize: "0.68rem",
-                                }}
-                              />
-                            ))}
-
-                          {visit.requestedTests.length >
-                            4 && (
-                            <Chip
-                              label={`+${
-                                visit.requestedTests
-                                  .length - 4
-                              } more`}
-                              size="small"
-                              sx={{
-                                height: 23,
-                                fontSize: "0.68rem",
-                                bgcolor:
-                                  "action.hover",
-                              }}
-                            />
-                          )}
-                        </Stack>
-
                         {/* Priority */}
 
+                        <Chip
+                          label={`${study.priority} Priority`}
+                          size="small"
+                          color={getPriorityColor(
+                            study.priority
+                          )}
+                          variant={
+                            study.priority ===
+                            "Routine"
+                              ? "outlined"
+                              : "filled"
+                          }
+                          sx={{
+                            height: 23,
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                          }}
+                        />
+
+                        {/* Report */}
+
                         <Stack
                           direction="row"
-                          spacing={0.5}
+                          spacing={0.75}
                           alignItems="center"
                         >
+                          <DescriptionRoundedIcon
+                            sx={{
+                              fontSize: 16,
+                              color: "text.secondary",
+                            }}
+                          />
+
                           <Typography
                             variant="caption"
                             color="text.secondary"
                           >
-                            Priority
+                            Report
                           </Typography>
 
+                          <Chip
+                            label={
+                              study.reportStatus
+                            }
+                            size="small"
+                            color={getReportColor(
+                              study.reportStatus
+                            )}
+                            variant="outlined"
+                            sx={{
+                              height: 22,
+                              fontSize: "0.68rem",
+                              fontWeight: 600,
+                            }}
+                          />
+                        </Stack>
+
+                        {/* Images */}
+
+                        {study.imageCount > 0 && (
                           <Typography
                             variant="caption"
-                            fontWeight={700}
+                            color="text.secondary"
                           >
-                            {visit.order.priority}
+                            {study.imageCount} images
                           </Typography>
-                        </Stack>
+                        )}
                       </Stack>
                     </Stack>
                   </CardContent>
@@ -418,9 +503,9 @@ export default function PatientTimeline({
           })}
         </Stack>
 
-        {/* Empty State */}
+        {/* ================= EMPTY STATE ================= */}
 
-        {sortedVisits.length === 0 && (
+        {sortedStudies.length === 0 && (
           <Box
             sx={{
               py: 5,
@@ -431,11 +516,36 @@ export default function PatientTimeline({
               variant="body2"
               color="text.secondary"
             >
-              No visit history available.
+              No radiology history available.
             </Typography>
           </Box>
         )}
       </CardContent>
     </Card>
   );
+}
+
+/* ==========================================
+   DATE FORMAT
+   ========================================== */
+
+function formatRadiologyDate(
+  date: string,
+  time: string
+) {
+  const value = new Date(
+    `${date} ${time}`
+  );
+
+  if (Number.isNaN(value.getTime())) {
+    return `${date} • ${time}`;
+  }
+
+  return value.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

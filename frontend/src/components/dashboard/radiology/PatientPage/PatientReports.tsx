@@ -21,9 +21,11 @@ import EventNoteRoundedIcon from "@mui/icons-material/EventNoteRounded";
 
 interface Report {
   reportId: string;
-  visitId: string;
-  testCount: number;
-  verifiedBy: string;
+  accessionNumber: string;
+  studyId: string;
+  modality: string;
+  procedure: string;
+  radiologist: string;
   verifiedDate: string;
   status: string;
 }
@@ -38,9 +40,9 @@ export default function PatientReports({
   const router = useRouter();
 
   /*
-   * ============================
+   * ==========================================
    * EMPTY STATE
-   * ============================
+   * ==========================================
    */
 
   if (!reports.length) {
@@ -61,8 +63,7 @@ export default function PatientReports({
         >
           <Stack
             alignItems="center"
-            justifyContent="center"
-            spacing={1.5}
+            spacing={1.25}
             textAlign="center"
           >
             <Box
@@ -77,7 +78,9 @@ export default function PatientReports({
                 color: "text.secondary",
               }}
             >
-              <DescriptionRoundedIcon />
+              <DescriptionRoundedIcon
+                sx={{ fontSize: 26 }}
+              />
             </Box>
 
             <Typography
@@ -91,19 +94,13 @@ export default function PatientReports({
               variant="body2"
               color="text.secondary"
             >
-              This patient has no verified laboratory reports.
+              This patient has no verified radiology reports.
             </Typography>
           </Stack>
         </CardContent>
       </Card>
     );
   }
-
-  /*
-   * ============================
-   * REPORTS
-   * ============================
-   */
 
   return (
     <Card
@@ -116,9 +113,16 @@ export default function PatientReports({
     >
       <CardContent
         sx={{
-          p: { xs: 2, md: 2.5 },
+          p: {
+            xs: 2,
+            md: 2.5,
+          },
+
           "&:last-child": {
-            pb: { xs: 2, md: 2.5 },
+            pb: {
+              xs: 2,
+              md: 2.5,
+            },
           },
         }}
       >
@@ -138,16 +142,12 @@ export default function PatientReports({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-
-              // Uses your theme primary color
               bgcolor: "primary.main",
               color: "primary.contrastText",
             }}
           >
             <DescriptionRoundedIcon
-              sx={{
-                fontSize: 19,
-              }}
+              sx={{ fontSize: 19 }}
             />
           </Box>
 
@@ -157,7 +157,7 @@ export default function PatientReports({
               fontWeight={700}
               lineHeight={1.2}
             >
-              Laboratory Reports
+              Radiology Reports
             </Typography>
 
             <Typography
@@ -171,7 +171,7 @@ export default function PatientReports({
 
         <Divider sx={{ mb: 1.5 }} />
 
-        {/* ================= REPORT LIST ================= */}
+        {/* ================= REPORTS ================= */}
 
         <Stack spacing={1.25}>
           {reports.map((report) => (
@@ -217,7 +217,7 @@ export default function PatientReports({
                     md: "center",
                   }}
                 >
-                  {/* ================= REPORT INFO ================= */}
+                  {/* ================= REPORT INFORMATION ================= */}
 
                   <Stack
                     spacing={1}
@@ -262,7 +262,7 @@ export default function PatientReports({
                       />
                     </Stack>
 
-                    {/* ================= META ================= */}
+                    {/* ================= METADATA ================= */}
 
                     <Stack
                       direction="row"
@@ -277,24 +277,40 @@ export default function PatientReports({
                         icon={
                           <EventNoteRoundedIcon />
                         }
-                        label="Visit"
-                        value={report.visitId}
+                        label="Study ID"
+                        value={report.studyId}
                       />
 
                       <MetaItem
                         icon={
                           <DescriptionRoundedIcon />
                         }
-                        label="Tests"
-                        value={`${report.testCount}`}
+                        label="Accession"
+                        value={report.accessionNumber}
+                      />
+
+                      <MetaItem
+                        icon={
+                          <DescriptionRoundedIcon />
+                        }
+                        label="Modality"
+                        value={report.modality}
+                      />
+
+                      <MetaItem
+                        icon={
+                          <DescriptionRoundedIcon />
+                        }
+                        label="Procedure"
+                        value={report.procedure}
                       />
 
                       <MetaItem
                         icon={
                           <VerifiedRoundedIcon />
                         }
-                        label="Verified By"
-                        value={report.verifiedBy}
+                        label="Radiologist"
+                        value={report.radiologist}
                       />
 
                       <MetaItem
@@ -309,7 +325,7 @@ export default function PatientReports({
                     </Stack>
                   </Stack>
 
-                  {/* ================= VIEW BUTTON ================= */}
+                  {/* ================= VIEW REPORT ================= */}
 
                   <Box
                     sx={{
@@ -329,7 +345,7 @@ export default function PatientReports({
                       }
                       onClick={() =>
                         router.push(
-                          `/lab/reports/${report.reportId}`
+                          `/radiology/reports/${report.accessionNumber}`
                         )
                       }
                       sx={{
@@ -357,11 +373,9 @@ export default function PatientReports({
   );
 }
 
-/*
- * ============================
- * META ITEM
- * ============================
- */
+/* ==========================================
+   META ITEM
+   ========================================== */
 
 function MetaItem({
   icon,
@@ -375,18 +389,21 @@ function MetaItem({
   return (
     <Stack
       direction="row"
-      spacing={0.6}
       alignItems="center"
+      spacing={0.5}
+      sx={{
+        minWidth: 0,
+
+        "& svg": {
+          fontSize: 16,
+        },
+      }}
     >
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
           color: "text.secondary",
-
-          "& svg": {
-            fontSize: 16,
-          },
         }}
       >
         {icon}
@@ -411,11 +428,9 @@ function MetaItem({
   );
 }
 
-/*
- * ============================
- * DATE FORMAT
- * ============================
- */
+/* ==========================================
+   DATE FORMAT
+   ========================================== */
 
 function formatDate(value: string) {
   if (!value) {

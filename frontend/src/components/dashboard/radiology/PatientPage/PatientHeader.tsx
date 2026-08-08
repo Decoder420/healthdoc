@@ -18,25 +18,30 @@ import {
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
-import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
-import LocalHospitalRoundedIcon from "@mui/icons-material/LocalHospitalRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
-import BloodtypeRoundedIcon from "@mui/icons-material/BloodtypeRounded";
 import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
+import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
+import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
+import MonitorHeartRoundedIcon from "@mui/icons-material/MonitorHeartRounded";
+import PriorityHighRoundedIcon from "@mui/icons-material/PriorityHighRounded";
+
+import type {
+  RadiologyQueueItem,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
 interface Props {
-  patient: any;
+  patient: RadiologyQueueItem;
 }
 
-export default function PatientHeader({
+export default function RadiologyPatientHeader({
   patient,
 }: Props) {
   const router = useRouter();
 
   const getStatusColor = (
-    status?: string
+    status?: RadiologyQueueItem["status"]
   ):
     | "success"
     | "warning"
@@ -46,22 +51,19 @@ export default function PatientHeader({
     | "error"
     | "default" => {
     switch (status) {
-      case "VERIFIED":
+      case "Verified":
         return "success";
 
-      case "PROCESSING":
+      case "Processing":
         return "warning";
 
-      case "READY":
-        return "primary";
-
-      case "COLLECTED":
-        return "secondary";
-
-      case "QUEUE":
+      case "Queue":
         return "info";
 
-      case "RECOLLECTION_REQUIRED":
+      case "No Show":
+        return "secondary";
+
+      case "Removed":
         return "error";
 
       default:
@@ -69,10 +71,54 @@ export default function PatientHeader({
     }
   };
 
+  const getPriorityColor = (
+    priority?: RadiologyQueueItem["priority"]
+  ):
+    | "success"
+    | "warning"
+    | "error"
+    | "default" => {
+    switch (priority) {
+      case "Emergency":
+        return "error";
+
+      case "Urgent":
+        return "warning";
+
+      case "Routine":
+        return "success";
+
+      default:
+        return "default";
+    }
+  };
+
+  const getReportStatusColor = (
+    status?: RadiologyQueueItem["reportStatus"]
+  ):
+    | "success"
+    | "warning"
+    | "info"
+    | "default" => {
+    switch (status) {
+      case "Verified":
+        return "success";
+
+      case "Draft":
+        return "warning";
+
+      case "Not Started":
+        return "info";
+
+      default:
+        return "default";
+    }
+  };
+
   const initials =
-    patient?.patient?.name
+    patient.patientName
       ?.split(" ")
-      .map((name: string) => name[0])
+      .map((name) => name[0])
       .join("")
       .slice(0, 2) ?? "P";
 
@@ -122,34 +168,52 @@ export default function PatientHeader({
                 letterSpacing: "-0.02em",
               }}
             >
-              Patient Profile
+              Radiology Patient Profile
             </Typography>
 
             <Typography
               variant="body2"
               color="text.secondary"
+              sx={{ mt: 0.5 }}
             >
-              Patient information and laboratory
-              details
+              Patient, study and imaging information
             </Typography>
           </Box>
         </Stack>
 
-        <Chip
-          label={patient?.status ?? "UNKNOWN"}
-          color={getStatusColor(
-            patient?.status
-          )}
-          sx={{
-            fontWeight: 700,
-            borderRadius: 2,
-            px: 0.5,
-          }}
-        />
+        <Stack
+          direction="row"
+          spacing={1}
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Chip
+            label={patient.status}
+            color={getStatusColor(
+              patient.status
+            )}
+            sx={{
+              fontWeight: 700,
+              borderRadius: 2,
+            }}
+          />
+
+          <Chip
+            label={patient.priority}
+            color={getPriorityColor(
+              patient.priority
+            )}
+            variant="outlined"
+            sx={{
+              fontWeight: 700,
+              borderRadius: 2,
+            }}
+          />
+        </Stack>
       </Stack>
 
       {/* =========================================
-          PATIENT SUMMARY CARD
+          PATIENT SUMMARY
           ========================================= */}
 
       <Card
@@ -211,8 +275,7 @@ export default function PatientHeader({
                     variant="h6"
                     fontWeight={750}
                   >
-                    {patient?.patient?.name ??
-                      "Unknown Patient"}
+                    {patient.patientName}
                   </Typography>
 
                   <Typography
@@ -220,17 +283,13 @@ export default function PatientHeader({
                     color="text.secondary"
                     sx={{ mt: 0.5 }}
                   >
-                    {patient?.patient
-                      ?.patientId ?? "-"}
+                    {patient.patientId}
                   </Typography>
                 </Box>
 
                 <Chip
                   size="small"
-                  label={
-                    patient?.patient?.gender ??
-                    "Unknown"
-                  }
+                  label={`${patient.gender} • ${patient.age} Years`}
                   variant="outlined"
                   sx={{
                     borderRadius: 2,
@@ -263,10 +322,7 @@ export default function PatientHeader({
                   <Info
                     icon={<BadgeRoundedIcon />}
                     title="UHID"
-                    value={
-                      patient?.patient?.uhid ??
-                      "-"
-                    }
+                    value={patient.uhid}
                   />
                 </Grid>
 
@@ -280,10 +336,7 @@ export default function PatientHeader({
                   <Info
                     icon={<PersonRoundedIcon />}
                     title="Patient ID"
-                    value={
-                      patient?.patient
-                        ?.patientId ?? "-"
-                    }
+                    value={patient.patientId}
                   />
                 </Grid>
 
@@ -295,12 +348,9 @@ export default function PatientHeader({
                   }}
                 >
                   <Info
-                    icon={<PhoneRoundedIcon />}
-                    title="Mobile"
-                    value={
-                      patient?.patient?.mobile ??
-                      "-"
-                    }
+                    icon={<AssignmentRoundedIcon />}
+                    title="Order ID"
+                    value={patient.orderId}
                   />
                 </Grid>
 
@@ -309,17 +359,40 @@ export default function PatientHeader({
                     xs: 12,
                     sm: 6,
                     lg: 3,
+                  }}
+                >
+                  <Info
+                    icon={<BadgeRoundedIcon />}
+                    title="Visit ID"
+                    value={patient.visitId}
+                  />
+                </Grid>
+
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6,
                   }}
                 >
                   <Info
                     icon={
-                      <BloodtypeRoundedIcon />
+                      <MonitorHeartRoundedIcon />
                     }
-                    title="Age / Gender"
-                    value={`${patient?.patient?.age ?? "-"} Years • ${
-                      patient?.patient?.gender ??
-                      "-"
-                    }`}
+                    title="Modality"
+                    value={patient.modality}
+                  />
+                </Grid>
+
+                <Grid
+                  size={{
+                    xs: 12,
+                    sm: 6,
+                  }}
+                >
+                  <Info
+                    icon={<ScienceRoundedIcon />}
+                    title="Procedure"
+                    value={patient.procedure}
                   />
                 </Grid>
 
@@ -333,29 +406,8 @@ export default function PatientHeader({
                     icon={
                       <MedicalServicesRoundedIcon />
                     }
-                    title="Consultant"
-                    value={
-                      patient?.doctor?.name ??
-                      "-"
-                    }
-                  />
-                </Grid>
-
-                <Grid
-                  size={{
-                    xs: 12,
-                    sm: 6,
-                  }}
-                >
-                  <Info
-                    icon={
-                      <LocalHospitalRoundedIcon />
-                    }
-                    title="Department"
-                    value={
-                      patient?.doctor
-                        ?.department ?? "-"
-                    }
+                    title="Radiologist"
+                    value={patient.radiologist}
                   />
                 </Grid>
 
@@ -367,27 +419,8 @@ export default function PatientHeader({
                 >
                   <Info
                     icon={<EventRoundedIcon />}
-                    title="Visit Type"
-                    value={
-                      patient?.visit
-                        ?.visitType ?? "-"
-                    }
-                  />
-                </Grid>
-
-                <Grid
-                  size={{
-                    xs: 12,
-                    sm: 6,
-                  }}
-                >
-                  <Info
-                    icon={<BadgeRoundedIcon />}
-                    title="Visit ID"
-                    value={
-                      patient?.visit
-                        ?.visitId ?? "-"
-                    }
+                    title="Appointment"
+                    value={`${patient.appointmentDate} • ${patient.appointmentTime}`}
                   />
                 </Grid>
               </Grid>
@@ -397,16 +430,16 @@ export default function PatientHeader({
           <Divider sx={{ my: 3.5 }} />
 
           {/* =====================================
-              REQUESTED TESTS
+              STUDY INFORMATION
               ===================================== */}
 
-          <Stack spacing={1.5}>
+          <Stack spacing={2}>
             <Stack
               direction="row"
               alignItems="center"
               spacing={1}
             >
-              <ScienceRoundedIcon
+              <ImageRoundedIcon
                 fontSize="small"
                 color="primary"
               />
@@ -415,47 +448,125 @@ export default function PatientHeader({
                 variant="subtitle1"
                 fontWeight={700}
               >
-                Requested Tests
+                Imaging Study
               </Typography>
             </Stack>
 
-            <Stack
-              direction="row"
-              spacing={1}
-              flexWrap="wrap"
-              useFlexGap
+            <Grid
+              container
+              spacing={2}
             >
-              {patient?.requestedTests
-                ?.length ? (
-                patient.requestedTests.map(
-                  (test: string) => (
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 3,
+                }}
+              >
+                <StudyInfo
+                  label="Accession Number"
+                  value={
+                    patient.accessionNumber
+                  }
+                />
+              </Grid>
+
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 3,
+                }}
+              >
+                <StudyInfo
+                  label="DICOM Study ID"
+                  value={patient.dicomStudyId}
+                />
+              </Grid>
+
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 3,
+                }}
+              >
+                <StudyInfo
+                  label="Images"
+                  value={`${patient.imageCount} Images`}
+                />
+              </Grid>
+
+              <Grid
+                size={{
+                  xs: 12,
+                  sm: 6,
+                  md: 3,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    bgcolor: "action.hover",
+                    minHeight: 70,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      minWidth: 40,
+                      borderRadius: 2,
+                      bgcolor:
+                        "background.paper",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "primary.main",
+                    }}
+                  >
+                    <AssignmentRoundedIcon />
+                  </Box>
+
+                  <Box>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      display="block"
+                    >
+                      Report Status
+                    </Typography>
+
                     <Chip
-                      key={test}
-                      label={test}
-                      color="primary"
-                      variant="outlined"
+                      size="small"
+                      label={
+                        patient.reportStatus
+                      }
+                      color={getReportStatusColor(
+                        patient.reportStatus
+                      )}
                       sx={{
-                        borderRadius: 2,
-                        fontWeight: 600,
+                        mt: 0.5,
+                        fontWeight: 700,
+                        borderRadius: 1.5,
                       }}
                     />
-                  )
-                )
-              ) : (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                >
-                  No tests requested
-                </Typography>
-              )}
-            </Stack>
+                  </Box>
+                </Stack>
+              </Grid>
+            </Grid>
           </Stack>
         </CardContent>
       </Card>
 
       {/* =========================================
-          VISIT / STATUS SUMMARY
+          SUMMARY CARDS
           ========================================= */}
 
       <Grid
@@ -466,15 +577,13 @@ export default function PatientHeader({
           size={{
             xs: 12,
             sm: 6,
-            md: 4,
+            md: 3,
           }}
         >
           <SummaryCard
-            icon={<AccessTimeRoundedIcon />}
-            label="Current Status"
-            value={
-              patient?.status ?? "-"
-            }
+            icon={<MonitorHeartRoundedIcon />}
+            label="Modality"
+            value={patient.modality}
           />
         </Grid>
 
@@ -482,32 +591,43 @@ export default function PatientHeader({
           size={{
             xs: 12,
             sm: 6,
-            md: 4,
+            md: 3,
           }}
         >
           <SummaryCard
-            icon={<EventRoundedIcon />}
-            label="Visit Type"
-            value={
-              patient?.visit?.visitType ??
-              "-"
-            }
+            icon={<ImageRoundedIcon />}
+            label="Images"
+            value={String(
+              patient.imageCount
+            )}
           />
         </Grid>
 
         <Grid
           size={{
             xs: 12,
-            md: 4,
+            sm: 6,
+            md: 3,
           }}
         >
           <SummaryCard
-            icon={<ScienceRoundedIcon />}
-            label="Total Tests"
-            value={String(
-              patient?.requestedTests
-                ?.length ?? 0
-            )}
+            icon={<AccessTimeRoundedIcon />}
+            label="Report Status"
+            value={patient.reportStatus}
+          />
+        </Grid>
+
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 3,
+          }}
+        >
+          <SummaryCard
+            icon={<PriorityHighRoundedIcon />}
+            label="Priority"
+            value={patient.priority}
           />
         </Grid>
       </Grid>
@@ -559,11 +679,7 @@ function Info({
         {icon}
       </Box>
 
-      <Box
-        sx={{
-          minWidth: 0,
-        }}
-      >
+      <Box sx={{ minWidth: 0 }}>
         <Typography
           variant="caption"
           color="text.secondary"
@@ -585,6 +701,47 @@ function Info({
         </Typography>
       </Box>
     </Stack>
+  );
+}
+
+/* =============================================
+   STUDY INFORMATION
+   ============================================= */
+
+function StudyInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        borderRadius: 2.5,
+        bgcolor: "action.hover",
+        minHeight: 70,
+      }}
+    >
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        display="block"
+        sx={{ mb: 0.5 }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        variant="body2"
+        fontWeight={700}
+        noWrap
+        title={value}
+      >
+        {value}
+      </Typography>
+    </Box>
   );
 }
 
@@ -631,7 +788,7 @@ function SummaryCard({
             {icon}
           </Box>
 
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
             <Typography
               variant="caption"
               color="text.secondary"
@@ -642,6 +799,7 @@ function SummaryCard({
             <Typography
               variant="body1"
               fontWeight={700}
+              noWrap
             >
               {value}
             </Typography>

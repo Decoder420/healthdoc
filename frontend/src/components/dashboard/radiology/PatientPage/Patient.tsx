@@ -9,33 +9,34 @@ import {
   Typography,
 } from "@mui/material";
 
-import { patients } from "@/lib/mock/lab_data";
-import { getStatusColor } from "@/lib/utils/statuscolor";
+import {
+  appointmentQueue,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
-import PatientHeader from "./PatientHeader";
-import PatientKPICards from "./PatientKPICards";
-import PatientOverview from "./PatientOverview";
-import PatientLabOrders from "./PatientLabOrders";
-import PatientReports from "./PatientReport";
-import PatientTimeline from "./PatientTimeline";
+import RadiologyPatientHeader from "./PatientHeader";
+import RadiologyPatientKPICards from "./PatientKpiCards";
+import RadiologyPatientOverview from "./PatientOverview";
+import RadiologyStudies from "./PatientLabOrders";
+import RadiologyReports from "./PatientReports";
+import RadiologyTimeline from "./PatientTimeline";
 
-interface PatientProfilePageProps {
+interface RadiologyPatientProfilePageProps {
   patientId: string;
 }
 
-export default function PatientProfilePage({
+export default function RadiologyPatientProfilePage({
   patientId,
-}: PatientProfilePageProps) {
+}: RadiologyPatientProfilePageProps) {
   const [tab, setTab] = useState(0);
 
   /*
-   * Get all laboratory records
-   * for this patient.
+   * Get all radiology studies belonging
+   * to this patient.
    */
-  const visits = useMemo(() => {
-    return patients.filter(
+  const studies = useMemo(() => {
+    return appointmentQueue.filter(
       (item) =>
-        item.patient.patientId.toLowerCase() ===
+        item.patientId.toLowerCase() ===
         patientId.toLowerCase()
     );
   }, [patientId]);
@@ -43,7 +44,7 @@ export default function PatientProfilePage({
   /*
    * Patient not found
    */
-  if (!visits.length) {
+  if (!studies.length) {
     return (
       <Box
         sx={{
@@ -63,7 +64,7 @@ export default function PatientProfilePage({
           color="text.secondary"
           sx={{ mt: 1 }}
         >
-          No laboratory records were found
+          No radiology studies were found
           for this patient.
         </Typography>
       </Box>
@@ -71,54 +72,44 @@ export default function PatientProfilePage({
   }
 
   /*
-   * Current/latest patient record
+   * Use the latest/current study
+   * for patient-level information.
    */
-  const patient = visits[0];
+  const patient = studies[0];
 
   /*
-   * Generate verified reports
+   * Verified radiology reports
    */
-  const reports = visits
-    .filter((visit) =>
-      ["VERIFIED", "COMPLETED"].includes(
-        visit.status
-      )
+  const reports = studies
+    .filter(
+      (study) =>
+        study.reportStatus === "Verified"
     )
-    .map((visit, index) => ({
-      reportId:
-        `RPT-${visit.order.orderId
-          .replace(/\D/g, "")
-          .padStart(
-            6,
-            "0"
-          ) || String(index + 1).padStart(6, "0")}`,
-
-      visitId: visit.visit.visitId,
-
-      testCount:
-        visit.requestedTests.length,
-
-      verifiedBy:
-        visit.doctor.name,
-
+    .map((study) => ({
+      reportId: study.reportId,
+      accessionNumber:
+        study.accessionNumber,
+      studyId: study.dicomStudyId,
+      modality: study.modality,
+      procedure: study.procedure,
+      radiologist: study.radiologist,
       verifiedDate:
-        visit.order.orderedAt,
-
-      status: "Verified",
+        study.appointmentDate,
+      status: study.reportStatus,
     }));
 
   return (
     <Box>
       {/* ================= PATIENT HEADER ================= */}
 
-      <PatientHeader
+      <RadiologyPatientHeader
         patient={patient}
       />
 
       {/* ================= KPI CARDS ================= */}
 
-      <PatientKPICards
-        visits={visits}
+      <RadiologyPatientKPICards
+        studies={studies}
       />
 
       {/* ================= TABS ================= */}
@@ -144,7 +135,7 @@ export default function PatientProfilePage({
       >
         <Tab label="Overview" />
 
-        <Tab label="Lab Orders" />
+        <Tab label="Studies" />
 
         <Tab label="Reports" />
 
@@ -154,23 +145,23 @@ export default function PatientProfilePage({
       {/* ================= OVERVIEW ================= */}
 
       {tab === 0 && (
-        <PatientOverview
+        <RadiologyPatientOverview
           patient={patient}
         />
       )}
 
-      {/* ================= LAB ORDERS ================= */}
+      {/* ================= STUDIES ================= */}
 
       {tab === 1 && (
-        <PatientLabOrders
-          visits={visits}
+        <RadiologyStudies
+          studies={studies}
         />
       )}
 
       {/* ================= REPORTS ================= */}
 
       {tab === 2 && (
-        <PatientReports
+        <RadiologyReports
           reports={reports}
         />
       )}
@@ -178,9 +169,8 @@ export default function PatientProfilePage({
       {/* ================= TIMELINE ================= */}
 
       {tab === 3 && (
-        <PatientTimeline
-          visits={visits}
-          getStatusColor={getStatusColor}
+        <RadiologyTimeline
+          studies={studies}
         />
       )}
     </Box>

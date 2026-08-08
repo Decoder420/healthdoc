@@ -24,72 +24,72 @@ import {
 
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
+import RadiologyIcon from "@mui/icons-material/LocalHospitalRounded";
+
+import type {
+  RadiologyQueueItem,
+  RadiologyQueueStatus,
+} from "@/components/dashboard/radiology/test_queue/DummyData";
 
 interface Props {
-  visits: any[];
+  studies: RadiologyQueueItem[];
 }
 
-export default function PatientLabOrders({
-  visits,
+export default function PatientRadiologyOrders({
+  studies,
 }: Props) {
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
+  const [status, setStatus] = useState<
+    "ALL" | RadiologyQueueStatus
+  >("ALL");
 
   const filteredOrders = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
-    return visits.filter((visit) => {
+    return studies.filter((study) => {
       const matchesSearch =
         !keyword ||
-        visit.order?.orderId
+        study.patientName?.toLowerCase().includes(keyword) ||
+        study.uhid?.toLowerCase().includes(keyword) ||
+        study.accessionNumber
           ?.toLowerCase()
           .includes(keyword) ||
-        visit.visit?.visitId
-          ?.toLowerCase()
-          .includes(keyword) ||
-        visit.doctor?.name
-          ?.toLowerCase()
-          .includes(keyword) ||
-        visit.patient?.name
-          ?.toLowerCase()
-          .includes(keyword) ||
-        visit.patient?.uhid
-          ?.toLowerCase()
-          .includes(keyword);
+        study.orderId?.toLowerCase().includes(keyword) ||
+        study.patientId?.toLowerCase().includes(keyword) ||
+        study.procedure?.toLowerCase().includes(keyword) ||
+        study.modality?.toLowerCase().includes(keyword) ||
+        study.radiologist?.toLowerCase().includes(keyword);
 
       const matchesStatus =
-        status === "ALL" ||
-        visit.status === status;
+        status === "ALL" || study.status === status;
 
       return matchesSearch && matchesStatus;
     });
-  }, [visits, search, status]);
+  }, [studies, search, status]);
 
   const getStatusColor = (
-    value: string
+    value: RadiologyQueueStatus
   ):
     | "success"
     | "warning"
     | "info"
-    | "primary"
-    | "secondary"
+    | "error"
     | "default" => {
     switch (value) {
-      case "VERIFIED":
+      case "Verified":
         return "success";
 
-      case "READY":
-        return "primary";
-
-      case "PROCESSING":
+      case "Processing":
         return "warning";
 
-      case "COLLECTED":
-        return "secondary";
-
-      case "QUEUE":
+      case "Queue":
         return "info";
+
+      case "No Show":
+        return "error";
+
+      case "Removed":
+        return "default";
 
       default:
         return "default";
@@ -97,15 +97,16 @@ export default function PatientLabOrders({
   };
 
   const getPriorityColor = (
-    priority: string
+    priority: RadiologyQueueItem["priority"]
   ): "error" | "warning" | "default" => {
-    switch (priority?.toLowerCase()) {
-      case "emergency":
+    switch (priority) {
+      case "Emergency":
         return "error";
 
-      case "urgent":
+      case "Urgent":
         return "warning";
 
+      case "Routine":
       default:
         return "default";
     }
@@ -166,9 +167,7 @@ export default function PatientLabOrders({
                 color: "primary.contrastText",
               }}
             >
-              <ScienceRoundedIcon
-                sx={{ fontSize: 19 }}
-              />
+              <RadiologyIcon sx={{ fontSize: 19 }} />
             </Box>
 
             <Box>
@@ -177,14 +176,14 @@ export default function PatientLabOrders({
                 fontWeight={700}
                 lineHeight={1.2}
               >
-                Laboratory Orders
+                Radiology Studies
               </Typography>
 
               <Typography
                 variant="caption"
                 color="text.secondary"
               >
-                Patient laboratory investigations
+                Patient imaging investigations
               </Typography>
             </Box>
           </Stack>
@@ -196,8 +195,8 @@ export default function PatientLabOrders({
           >
             {filteredOrders.length}{" "}
             {filteredOrders.length === 1
-              ? "order"
-              : "orders"}
+              ? "study"
+              : "studies"}
           </Typography>
         </Stack>
 
@@ -229,14 +228,12 @@ export default function PatientLabOrders({
             <TextField
               size="small"
               fullWidth
-              placeholder="Search patient, UHID, order, visit or doctor..."
+              placeholder="Search patient, UHID, accession, study..."
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e) => setSearch(e.target.value)}
               sx={{
                 maxWidth: {
-                  md: 460,
+                  md: 500,
                 },
                 "& .MuiOutlinedInput-root": {
                   bgcolor: "background.paper",
@@ -254,7 +251,7 @@ export default function PatientLabOrders({
               }}
             />
 
-            {/* Status + Reset */}
+            {/* Status */}
 
             <Stack
               direction="row"
@@ -269,7 +266,11 @@ export default function PatientLabOrders({
                 size="small"
                 value={status}
                 onChange={(e) =>
-                  setStatus(e.target.value)
+                  setStatus(
+                    e.target.value as
+                      | "ALL"
+                      | RadiologyQueueStatus
+                  )
                 }
                 sx={{
                   minWidth: 160,
@@ -282,24 +283,24 @@ export default function PatientLabOrders({
                   All Status
                 </MenuItem>
 
-                <MenuItem value="QUEUE">
+                <MenuItem value="Queue">
                   Queue
                 </MenuItem>
 
-                <MenuItem value="COLLECTED">
-                  Collected
-                </MenuItem>
-
-                <MenuItem value="PROCESSING">
+                <MenuItem value="Processing">
                   Processing
                 </MenuItem>
 
-                <MenuItem value="READY">
-                  Ready
+                <MenuItem value="Verified">
+                  Verified
                 </MenuItem>
 
-                <MenuItem value="VERIFIED">
-                  Verified
+                <MenuItem value="No Show">
+                  No Show
+                </MenuItem>
+
+                <MenuItem value="Removed">
+                  Removed
                 </MenuItem>
               </TextField>
 
@@ -318,9 +319,7 @@ export default function PatientLabOrders({
                     },
                   }}
                 >
-                  <RefreshRoundedIcon
-                    fontSize="small"
-                  />
+                  <RefreshRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </Stack>
@@ -340,10 +339,12 @@ export default function PatientLabOrders({
           <Table
             size="small"
             sx={{
-              minWidth: 850,
+              minWidth: 950,
 
               "& .MuiTableCell-root": {
                 borderColor: "divider",
+                textAlign: "center",
+                verticalAlign: "middle",
               },
             }}
           >
@@ -356,46 +357,37 @@ export default function PatientLabOrders({
 
                   "& .MuiTableCell-root": {
                     py: 1.25,
+                    px: 1.5,
                     fontSize: 12,
                     fontWeight: 700,
                     color: "text.secondary",
                     whiteSpace: "nowrap",
+                    textAlign: "center",
+                    verticalAlign: "middle",
                   },
                 }}
               >
-                <TableCell>
-                  ORDER
-                </TableCell>
+                <TableCell>ACCESSION</TableCell>
 
-                <TableCell>
-                  DOCTOR
-                </TableCell>
+                <TableCell>PATIENT</TableCell>
 
-                <TableCell>
-                  TESTS
-                </TableCell>
+                <TableCell>STUDY</TableCell>
 
-                <TableCell>
-                  BARCODE
-                </TableCell>
+                <TableCell>RADIOLOGIST</TableCell>
 
-                <TableCell>
-                  PRIORITY
-                </TableCell>
+                <TableCell>PRIORITY</TableCell>
 
-                <TableCell>
-                  STATUS
-                </TableCell>
+                <TableCell>STATUS</TableCell>
               </TableRow>
             </TableHead>
 
             {/* Table Body */}
 
             <TableBody>
-              {filteredOrders.map((visit) => (
+              {filteredOrders.map((study) => (
                 <TableRow
                   hover
-                  key={visit.order.orderId}
+                  key={study.id}
                   sx={{
                     "&:last-child td": {
                       borderBottom: 0,
@@ -403,92 +395,127 @@ export default function PatientLabOrders({
 
                     "& .MuiTableCell-root": {
                       py: 1.4,
+                      px: 1.5,
+                      textAlign: "center",
+                      verticalAlign: "middle",
                     },
                   }}
                 >
-                  {/* Order */}
+                  {/* Accession */}
 
                   <TableCell>
-                    <Stack spacing={0.25}>
+                    <Stack
+                      spacing={0.25}
+                      alignItems="center"
+                    >
                       <Typography
                         variant="body2"
                         fontWeight={700}
                         color="primary.main"
                       >
-                        {visit.order.orderId}
+                        {study.accessionNumber}
                       </Typography>
 
                       <Typography
                         variant="caption"
                         color="text.secondary"
+                        fontFamily="monospace"
                       >
-                        {visit.visit.visitId}
+                        {study.orderId}
                       </Typography>
                     </Stack>
                   </TableCell>
 
-                  {/* Doctor */}
+                  {/* Patient */}
 
                   <TableCell>
-                    <Stack spacing={0.25}>
+                    <Stack
+                      spacing={0.25}
+                      alignItems="center"
+                    >
                       <Typography
                         variant="body2"
                         fontWeight={600}
                       >
-                        {visit.doctor.name}
+                        {study.patientName}
                       </Typography>
 
                       <Typography
                         variant="caption"
                         color="text.secondary"
                       >
-                        {visit.doctor.department}
+                        {study.uhid}
                       </Typography>
                     </Stack>
                   </TableCell>
 
-                  {/* Tests */}
+                  {/* Study */}
 
                   <TableCell>
                     <Stack
-                      direction="row"
-                      spacing={0.5}
-                      useFlexGap
-                      flexWrap="wrap"
+                      spacing={0.4}
+                      alignItems="center"
+                      minWidth={0}
                       sx={{
-                        maxWidth: 280,
+                        minWidth: 220,
                       }}
                     >
-                      {visit.requestedTests.map(
-                        (test: string) => (
-                          <Chip
-                            key={test}
-                            label={test}
-                            size="small"
-                            variant="outlined"
-                            sx={{
-                              height: 24,
-                              borderRadius: 1.25,
-                              fontSize: 11,
-                              fontWeight: 500,
-                            }}
-                          />
-                        )
-                      )}
+                      <Typography
+                        variant="body2"
+                        fontWeight={700}
+                        noWrap
+                        title={study.procedure}
+                        sx={{
+                          maxWidth: 240,
+                        }}
+                      >
+                        {study.procedure}
+                      </Typography>
+
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        justifyContent="center"
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={600}
+                        >
+                          {study.modality}
+                        </Typography>
+
+                        <Typography
+                          variant="caption"
+                          color="text.disabled"
+                        >
+                          •
+                        </Typography>
+
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          {study.imageCount ?? 0}{" "}
+                          {study.imageCount === 1
+                            ? "image"
+                            : "images"}
+                        </Typography>
+                      </Stack>
                     </Stack>
                   </TableCell>
 
-                  {/* Barcode */}
+                  {/* Radiologist */}
 
                   <TableCell>
                     <Typography
                       variant="body2"
-                      fontFamily="monospace"
                       fontWeight={600}
-                      color="text.secondary"
                     >
-                      {visit.sample?.barcode ||
-                        "--"}
+                      {study.radiologist}
                     </Typography>
                   </TableCell>
 
@@ -497,16 +524,12 @@ export default function PatientLabOrders({
                   <TableCell>
                     <Chip
                       size="small"
-                      label={
-                        visit.order.priority
-                      }
+                      label={study.priority}
                       color={getPriorityColor(
-                        visit.order.priority
+                        study.priority
                       )}
                       variant={
-                        visit.order.priority
-                          ?.toLowerCase() ===
-                        "routine"
+                        study.priority === "Routine"
                           ? "outlined"
                           : "filled"
                       }
@@ -523,9 +546,9 @@ export default function PatientLabOrders({
                   <TableCell>
                     <Chip
                       size="small"
-                      label={visit.status}
+                      label={study.status}
                       color={getStatusColor(
-                        visit.status
+                        study.status
                       )}
                       variant="outlined"
                       sx={{
@@ -572,7 +595,7 @@ export default function PatientLabOrders({
                         variant="body2"
                         fontWeight={600}
                       >
-                        No laboratory orders found
+                        No radiology studies found
                       </Typography>
 
                       <Typography

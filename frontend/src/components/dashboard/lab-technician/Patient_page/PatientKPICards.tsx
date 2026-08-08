@@ -21,44 +21,124 @@ export default function PatientKPICards({
   const totalVisits = visits.length;
 
   const totalTests = visits.reduce(
-    (sum, visit) => sum + visit.requestedTests.length,
+    (sum, visit) =>
+      sum + (visit.requestedTests?.length ?? 0),
     0
   );
 
   const totalReports = visits.filter(
-    (visit) => visit.status === "VERIFIED"
+    (visit) =>
+      visit.status === "VERIFIED"
   ).length;
 
-  const currentStatus = visits[0]?.status ?? "QUEUE";
+  const currentStatus =
+    visits[0]?.status ?? "QUEUE";
+
+  const getStatusLabel = (
+    status: string
+  ) => {
+    switch (status) {
+      case "VERIFIED":
+        return "Verified";
+
+      case "PROCESSING":
+        return "Processing";
+
+      case "READY":
+        return "Ready";
+
+      case "COLLECTED":
+        return "Collected";
+
+      case "QUEUE":
+        return "In Queue";
+
+      case "RECOLLECTION_REQUIRED":
+        return "Recollection";
+
+      default:
+        return status
+          .toLowerCase()
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (char: string) =>
+            char.toUpperCase()
+          );
+    }
+  };
 
   const kpiData = [
     {
       title: "Total Visits",
       text: totalVisits.toString(),
-      icon: <CalendarDays size={22} strokeWidth={2} />,
+      subtitle:
+        totalVisits === 1
+          ? "1 laboratory visit"
+          : `${totalVisits} laboratory visits`,
+      icon: (
+        <CalendarDays
+          size={22}
+          strokeWidth={2}
+        />
+      ),
     },
+
     {
       title: "Lab Tests",
       text: totalTests.toString(),
-      icon: <FlaskConical size={22} strokeWidth={2} />,
+      subtitle:
+        totalTests === 1
+          ? "1 test ordered"
+          : `${totalTests} tests ordered`,
+      icon: (
+        <FlaskConical
+          size={22}
+          strokeWidth={2}
+        />
+      ),
     },
+
     {
-      title: "Reports",
+      title: "Verified Reports",
       text: totalReports.toString(),
-      icon: <FileCheck2 size={22} strokeWidth={2} />,
+      subtitle:
+        totalReports === 1
+          ? "1 report verified"
+          : `${totalReports} reports verified`,
+      icon: (
+        <FileCheck2
+          size={22}
+          strokeWidth={2}
+        />
+      ),
     },
+
     {
       title: "Current Status",
-      text: currentStatus,
-      icon: <Activity size={22} strokeWidth={2} />,
+      text: getStatusLabel(
+        currentStatus
+      ),
+      subtitle:
+        "Latest laboratory status",
+      icon: (
+        <Activity
+          size={22}
+          strokeWidth={2}
+        />
+      ),
     },
   ];
 
   return (
     <Grid
       container
-      spacing={3}
-      sx={{ mb: 4 }}
+      spacing={{
+        xs: 2,
+        md: 2.5,
+      }}
+      sx={{
+        mt:4,
+        mb: 4,
+      }}
     >
       {kpiData.map((card) => (
         <Grid
@@ -73,6 +153,7 @@ export default function PatientKPICards({
             title={card.title}
             text={card.text}
             icon={card.icon}
+            subtitle={card.subtitle}
           />
         </Grid>
       ))}
