@@ -1,15 +1,14 @@
 "use client";
 
 import * as React from "react";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 
+import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { SearchAutocomplete } from "@/components/ui/SearchAutocomplete";
 import { searchMedicines } from "../api";
+import { doctorButtonSx } from "../panelSx";
 import type { Medicine } from "../types";
-
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
 
 export interface MedicineSearchModalProps {
   open: boolean;
@@ -48,10 +47,10 @@ export function MedicineSearchModal({ open, onClose, onPick }: MedicineSearchMod
       title="Add medicine"
       actions={
         <>
-          <Button sx={btnSx} onClick={close}>
+          <Button sx={doctorButtonSx} onClick={close}>
             Cancel
           </Button>
-          <Button variant="contained" sx={btnSx} onClick={add} disabled={!value}>
+          <Button variant="contained" sx={doctorButtonSx} onClick={add} disabled={!value}>
             Add medicine
           </Button>
         </>

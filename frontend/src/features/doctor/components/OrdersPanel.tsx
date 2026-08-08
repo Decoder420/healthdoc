@@ -2,26 +2,18 @@
 
 import * as React from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import { Button } from "@/components/ui/Button";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { meridian } from "@/styles/theme";
 import { ORDER_TYPE_OPTIONS } from "../constants";
 import { useOrders } from "../hooks/useOrders";
+import { doctorPanelSx, doctorButtonSx } from "../panelSx";
 import type { ActiveEncounter, OrderPriority } from "../types";
 import { OrderFormModal } from "./OrderFormModal";
-
-const cardSx = {
-  borderRadius: "16px",
-  border: `1px solid ${meridian.border}`,
-  background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
-  boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
-  p: 3,
-};
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
 
 const PRIORITY_BADGE: Record<OrderPriority, BadgeVariant> = {
   routine: "secondary",
@@ -40,7 +32,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
   const [open, setOpen] = React.useState(false);
 
   return (
-    <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Orders</Typography>
@@ -48,7 +40,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
             Lab, radiology and procedure orders for this encounter
           </Typography>
         </Box>
-        <Button variant="outlined" size="small" sx={btnSx} onClick={() => setOpen(true)}>
+        <Button variant="outlined" size="small" sx={doctorButtonSx} onClick={() => setOpen(true)}>
           + Add order
         </Button>
       </Stack>

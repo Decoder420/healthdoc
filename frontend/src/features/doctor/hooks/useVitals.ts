@@ -63,7 +63,7 @@ export function useVitals(encounter: ActiveEncounter) {
     // bmi/whr omitted — server computes them on write (never client-supplied).
     const input: VitalsInput = {
       patient_id: encounter.patient_id,
-      encounter_id: encounter.encounter_id,
+      encounter_id: encounter.id,
       measured_at: new Date().toISOString(),
       temp_c: num(form.temp_c),
       pulse_bpm: num(form.pulse_bpm),

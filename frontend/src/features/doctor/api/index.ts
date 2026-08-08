@@ -8,3 +8,10 @@ export {
 } from "./consultation";
 export { searchCatalog, createOrder } from "./orders";
 export { searchMedicines, checkSafety, createPrescription } from "./prescriptions";
+export {
+  listResultsWorklist,
+  getLabResults,
+  getRadiologyReports,
+  getAcknowledgements,
+  acknowledgeResult,
+} from "./results";

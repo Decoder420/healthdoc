@@ -79,7 +79,7 @@ export function useDiagnoses(encounter: ActiveEncounter) {
     }
     setSaving(true);
     const payload: CreateDiagnosisInput[] = rows.map((r) => ({
-      encounter_id: encounter.encounter_id,
+      encounter_id: encounter.id,
       icd_code: r.icd_code,
       icd_version: r.icd_version,
       icd_uri: r.icd_uri,
@@ -96,7 +96,7 @@ export function useDiagnoses(encounter: ActiveEncounter) {
     } finally {
       setSaving(false);
     }
-  }, [encounter.encounter_id, rows]);
+  }, [encounter.id, rows]);
 
   return { rows, options, search, addConcept, updateRow, setPrimary, removeRow, saving, save };
 }

@@ -15,7 +15,7 @@ export function useOrders(encounter: ActiveEncounter) {
       setAdding(true);
       try {
         await createOrder({
-          encounter_id: encounter.encounter_id,
+          encounter_id: encounter.id,
           patient_id: encounter.patient_id,
           order_type: draft.order_type,
           catalog_item_id: draft.item.id,

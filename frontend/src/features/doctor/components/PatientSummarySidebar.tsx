@@ -2,24 +2,17 @@
 
 import * as React from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { meridian } from "@/styles/theme";
 import { formatAgeSex } from "../lib/formatters";
+import { doctorPanelSx } from "../panelSx";
 import type { QueuePatient, QueueTokenStatus } from "../types";
-
-const cardSx = {
-  borderRadius: "16px",
-  border: `1px solid ${meridian.border}`,
-  background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
-  boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
-  p: 3,
-};
 
 const CONSULTABLE: QueueTokenStatus[] = ["waiting", "called", "in_service", "recalled"];
 
@@ -49,7 +42,7 @@ export interface PatientSummarySidebarProps {
 export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
   if (!patient) {
     return (
-      <Box sx={cardSx}>
+      <Box sx={doctorPanelSx}>
         <Typography sx={{ color: meridian.textSecondary, fontSize: "0.875rem", textAlign: "center", py: 2 }}>
           Select a patient from the queue to see their summary.
         </Typography>
@@ -60,7 +53,7 @@ export function PatientSummarySidebar({ patient }: PatientSummarySidebarProps) {
   const canConsult = CONSULTABLE.includes(patient.status);
 
   return (
-    <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
       <Box>
         <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>{patient.full_name}</Typography>
         <Box sx={{ mt: 0.75 }}>

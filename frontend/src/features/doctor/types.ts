@@ -8,6 +8,9 @@
 // Queue (queue_tokens + joined patient columns)
 // ---------------------------------------------------------------------------
 
+/** patients.sex — mirrors backend Sex (enums.py); `unknown` covers THID/emergency. */
+export type Sex = "male" | "female" | "other" | "unknown";
+
 /** queue_tokens.status — mirrors backend QueueTokenStatus (enums.py). */
 export type QueueTokenStatus =
   | "waiting"
@@ -19,9 +22,6 @@ export type QueueTokenStatus =
   | "transferred"
   | "completed"
   | "cancelled";
-
-/** @deprecated Prefer QueueTokenStatus — alias kept for any external imports. */
-export type VisitStatus = QueueTokenStatus;
 
 /** queue_tokens.priority — mirrors backend QueuePriority (enums.py). */
 export type QueuePriority =
@@ -41,7 +41,7 @@ export interface QueuePatient {
   full_name: string;
   uhid: string;
   age_years: number;
-  sex: "male" | "female" | "other";
+  sex: Sex;
   status: QueueTokenStatus;
   priority: QueuePriority;
   /** UI-derived from queue_tokens.created_at, not stored. */
@@ -75,7 +75,8 @@ export interface EncounterContext {
 }
 
 export interface ActiveEncounter {
-  encounter_id: string;
+  /** encounters.id — §1 rule 1: every PK is `id`. */
+  id: string;
   visit_id: string;
   patient_id: string;
   provider_user_id: string;
@@ -284,3 +285,122 @@ export type SafetyWarning = AllergyWarning | InteractionWarning;
 export interface SafetyCheckResult {
   warnings: SafetyWarning[];
 }
+
+// ---------------------------------------------------------------------------
+// Results (lab_order_items + lab_results, radiology_order_items + radiology_reports)
+// ---------------------------------------------------------------------------
+
+/** lab_results.status / radiology_reports.status — backend ResultStatus. */
+export type ResultStatus = "pending" | "preliminary" | "final" | "corrected";
+
+/** radiology_order_items.modality — backend Modality. */
+export type Modality = "xray" | "ct" | "mri" | "usg" | "mammo";
+
+/**
+ * PROVISIONAL — `lab_results.result_data` is declared only as `jsonb NOT NULL`
+ * in schema v3.13 §3 0010; no inner shape is specified anywhere. This is our
+ * proposed contract, pending B5 confirmation. Keep every assumption about the
+ * payload in this file so a correction is a small diff.
+ *
+ * `flag` is supplied by the lab, never derived in the browser — reference
+ * ranges vary by test, method, age and sex, and a wrong critical badge is a
+ * patient-safety defect.
+ */
+export type AnalyteFlag = "normal" | "low" | "high" | "critical_low" | "critical_high";
+
+export interface ResultAnalyte {
+  /** LOINC where available, else the local test code. */
+  code: string;
+  name: string;
+  /** String, not number — preserves significant digits and carries qualitative
+   *  results ("Negative", "Trace") in the same field. */
+  value: string;
+  unit?: string;
+  ref_low?: number;
+  ref_high?: number;
+  /** Non-numeric reference, e.g. "Negative" — used when ref_low/high are absent. */
+  ref_text?: string;
+  flag: AnalyteFlag;
+}
+
+export interface LabResultData {
+  analytes: ResultAnalyte[];
+}
+
+/** One row of lab_results (append-only, versioned). */
+export interface LabResult {
+  id: string;
+  lab_order_item_id: string;
+  version: number;
+  is_current: boolean;
+  status: ResultStatus;
+  result_data: LabResultData;
+  remarks?: string;
+  created_by: string;
+  /** Joined display name for created_by — not a column. */
+  created_by_name?: string;
+  created_at: string;
+}
+
+/** One row of radiology_reports (append-only, versioned). */
+export interface RadiologyReport {
+  id: string;
+  radiology_order_item_id: string;
+  version: number;
+  is_current: boolean;
+  status: ResultStatus;
+  findings: string;
+  impression: string;
+  pacs_study_uid?: string;
+  created_by: string;
+  created_by_name?: string;
+  created_at: string;
+}
+
+/**
+ * PROVISIONAL — there is no table for doctor sign-off in schema v3.13. Columns
+ * cannot simply be added to lab_results/radiology_reports because both are
+ * append-only and versioned: a review would spawn a false result version.
+ * Shape assumes a dedicated result_acknowledgements table (raised with B5/TL).
+ */
+export interface ResultAcknowledgement {
+  id: string;
+  lab_result_id?: string;
+  radiology_report_id?: string;
+  reviewed_by: string;
+  reviewed_by_name?: string;
+  reviewed_at: string;
+  note?: string;
+}
+
+/**
+ * A row in the doctor's results worklist — the order item joined with its
+ * current result/report and patient context. Read shape, not a table.
+ */
+export interface ResultWorklistItem {
+  /** lab_order_items.id or radiology_order_items.id. */
+  id: string;
+  order_id: string;
+  order_number: string;
+  order_type: "lab" | "radiology";
+  accession_number: string;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  /** lab_order_items.test_name or radiology_order_items.scan_type. */
+  test_name: string;
+  /** radiology only. */
+  modality?: Modality;
+  priority: OrderPriority;
+  /** The order item's own status (OrderStatus). */
+  status: OrderStatus;
+  /** Status of the current result/report, absent until one exists. */
+  result_status?: ResultStatus;
+  /** True when any analyte on the current result carries a critical flag. */
+  has_critical: boolean;
+  /** created_at of the current result/report. */
+  reported_at?: string;
+  acknowledged_at?: string;
+}
+
+export type OrderStatus = "placed" | "accepted" | "in_progress" | "completed" | "cancelled";

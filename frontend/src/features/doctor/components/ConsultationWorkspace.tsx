@@ -1,21 +1,20 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import { Button } from "@/components/ui/Button";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { meridian } from "@/styles/theme";
 import { useConsultation } from "../hooks/useConsultation";
+import { doctorButtonSx } from "../panelSx";
 import type { EncounterContext } from "../types";
 import { ChiefComplaintPanel } from "./ChiefComplaintPanel";
 import { DiagnosesPanel } from "./DiagnosesPanel";
 import { EncounterHeaderPanel } from "./EncounterHeaderPanel";
 import { OrdersPanel } from "./OrdersPanel";
 import { VitalsPanel } from "./VitalsPanel";
-
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
 
 export interface ConsultationWorkspaceProps {
   context: EncounterContext;
@@ -79,10 +78,10 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
             )}
           </Stack>
           <Stack direction="row" spacing={1.5}>
-            <Button variant="contained" sx={btnSx} disabled={saving || ended} onClick={saveEncounter}>
+            <Button variant="contained" sx={doctorButtonSx} disabled={saving || ended} onClick={saveEncounter}>
               {saving ? "Saving…" : "Save encounter"}
             </Button>
-            <Button variant="outlined" sx={btnSx} disabled={!canComplete || completing || ended} onClick={complete}>
+            <Button variant="outlined" sx={doctorButtonSx} disabled={!canComplete || completing || ended} onClick={complete}>
               {completing ? "Completing…" : "Complete consultation"}
             </Button>
           </Stack>

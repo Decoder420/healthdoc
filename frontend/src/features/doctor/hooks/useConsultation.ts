@@ -15,7 +15,7 @@ export type ConsultationStatus = "draft" | "saved" | "completed";
  */
 export function useConsultation(context: EncounterContext) {
   const [encounter] = useState<ActiveEncounter>(() => ({
-    encounter_id: crypto.randomUUID(),
+    id: crypto.randomUUID(),
     visit_id: context.visit_id,
     patient_id: context.patient_id,
     provider_user_id: context.provider_user_id,
@@ -46,7 +46,7 @@ export function useConsultation(context: EncounterContext) {
           started_at: encounter.started_at,
         },
         encounter.patient_id,
-        encounter.encounter_id,
+        encounter.id,
       );
       setStatus("saved");
       toast.success("Encounter saved");

@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
+import { doctorPageHeaderSx } from "../panelSx";
 import { useDoctorQueue } from "../hooks/useDoctorQueue";
 import { DoctorQueuePanel } from "./DoctorQueuePanel";
 import { PatientSummarySidebar } from "./PatientSummarySidebar";
@@ -31,18 +32,7 @@ export function DoctorDashboard() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-      <Box
-        sx={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "16px",
-          border: `1px solid ${meridian.border}`,
-          background: `linear-gradient(110deg, ${meridian.muted} 0%, ${meridian.surface} 45%, #eef4fb 100%)`,
-          boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 8px 24px rgb(0 31 84 / 0.05)",
-          px: { xs: 2.5, md: 3 },
-          py: { xs: 2, md: 2.25 },
-        }}
-      >
+      <Box sx={doctorPageHeaderSx}>
         <Typography
           sx={{
             m: 0,

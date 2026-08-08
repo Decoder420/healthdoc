@@ -1,18 +1,17 @@
 "use client";
 
 import * as React from "react";
-import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 
+import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { SearchAutocomplete } from "@/components/ui/SearchAutocomplete";
 import { searchCatalog } from "../api";
 import { ORDER_PRIORITY_OPTIONS, ORDER_TYPE_OPTIONS } from "../constants";
+import { doctorButtonSx } from "../panelSx";
 import type { CatalogItem, OrderPriority, OrderType } from "../types";
-
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
 
 export interface OrderFormModalProps {
   open: boolean;
@@ -65,10 +64,10 @@ export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalPro
       loading={busy}
       actions={
         <>
-          <Button sx={btnSx} onClick={close}>
+          <Button sx={doctorButtonSx} onClick={close}>
             Cancel
           </Button>
-          <Button variant="contained" sx={btnSx} onClick={handleAdd} disabled={!item}>
+          <Button variant="contained" sx={doctorButtonSx} onClick={handleAdd} disabled={!item}>
             Add order
           </Button>
         </>

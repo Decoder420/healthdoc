@@ -13,16 +13,16 @@ function delay<T>(value: T, ms = 250): Promise<T> {
 
 /**
  * POST /api/v1/encounters — body carries only real encounters columns.
- * `patient_id` is context (resolved from the visit); `encounter_id` is the
- * provisional client id so vitals/diagnoses/orders stay linked after save.
+ * `patient_id` is context (resolved from the visit); `id` is the provisional
+ * client id so vitals/diagnoses/orders stay linked after save.
  */
 export async function createEncounter(
   body: CreateEncounterInput,
   patient_id: string,
-  encounter_id: string,
+  id: string,
 ): Promise<ActiveEncounter> {
   const created: ActiveEncounter = {
-    encounter_id,
+    id,
     visit_id: body.visit_id,
     patient_id,
     provider_user_id: body.provider_user_id,

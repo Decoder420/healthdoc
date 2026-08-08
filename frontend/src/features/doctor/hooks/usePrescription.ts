@@ -99,7 +99,7 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
     setSaving(true);
     try {
       await createPrescription({
-        encounter_id: encounter.encounter_id,
+        encounter_id: encounter.id,
         patient_id: encounter.patient_id,
         notes: notes.trim() || undefined,
         items: items.map((i) => ({

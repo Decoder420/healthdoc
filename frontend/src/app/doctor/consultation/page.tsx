@@ -8,6 +8,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 
 import { ConsultationWorkspace } from "@/features/doctor";
 import { getQueueToken } from "@/features/doctor/api";
+import { doctorPageSx } from "@/features/doctor/panelSx";
 import { encounterContextFor, mockEncounterContext } from "@/lib/mock";
 import type { EncounterContext } from "@/features/doctor/types";
 
@@ -60,7 +61,7 @@ function ConsultationPageInner() {
 
 export default function Page() {
   return (
-    <Box sx={{ mx: "auto", maxWidth: 1280, px: { xs: 2, md: 3 }, py: 3 }}>
+    <Box sx={doctorPageSx}>
       <Suspense
         fallback={
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>

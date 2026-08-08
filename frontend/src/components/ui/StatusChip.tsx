@@ -12,7 +12,9 @@ type StatusTone = {
 /**
  * Shared status tones. Queue tokens use QueueTokenStatus
  * (waiting|called|in_service|skipped|no_show|recalled|transferred|completed|cancelled).
- * Billing / audit / consent keys are also mapped for cross-module reuse.
+ * Orders (OrderStatus), results (ResultStatus), billing, audit and consent keys
+ * are also mapped for cross-module reuse — one vocabulary, one set of colours.
+ * Keys are the backend enum values verbatim (app/common/enums.py), lowercase.
  */
 const STATUS_TONE_MAP: Record<string, StatusTone> = {
   waiting: {
@@ -94,6 +96,48 @@ const STATUS_TONE_MAP: Record<string, StatusTone> = {
     bg: meridian.muted,
     fg: meridian.textSecondary,
     border: meridian.border,
+  },
+  // Orders — OrderStatus (orders, lab_order_items, radiology_order_items).
+  // `completed` and `cancelled` above are shared with this enum.
+  placed: {
+    bg: meridian.muted,
+    fg: meridian.textSecondary,
+    border: meridian.border,
+    label: "Placed",
+  },
+  accepted: {
+    bg: "#e8eef5",
+    fg: meridian.info,
+    border: "rgb(0 31 84 / 0.14)",
+    label: "Accepted",
+  },
+  in_progress: {
+    bg: "#e8eef5",
+    fg: meridian.brandPrimary,
+    border: "rgb(0 31 84 / 0.18)",
+    label: "In Progress",
+  },
+  // Results — ResultStatus (lab_results, radiology_reports). `pending` below is
+  // shared with this enum. `corrected` is deliberately the loudest of the three:
+  // it supersedes a result the clinician may already have acted on, so it must
+  // never read like a routine state.
+  preliminary: {
+    bg: "#fef3c7",
+    fg: meridian.warning,
+    border: "rgb(180 83 9 / 0.2)",
+    label: "Preliminary",
+  },
+  final: {
+    bg: "#dcfce7",
+    fg: meridian.success,
+    border: "rgb(22 101 52 / 0.18)",
+    label: "Final",
+  },
+  corrected: {
+    bg: "#fee2e2",
+    fg: meridian.danger,
+    border: "rgb(185 28 28 / 0.18)",
+    label: "Corrected",
   },
   // Audit / consent / verification (B7 viewers)
   verified: {

@@ -1,25 +1,17 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
+import { Button } from "@/components/ui/Button";
 import { meridian } from "@/styles/theme";
 import { useVitals, type VitalsForm } from "../hooks/useVitals";
+import { doctorPanelSx, doctorButtonSx } from "../panelSx";
 import type { ActiveEncounter } from "../types";
 
-const cardSx = {
-  borderRadius: "16px",
-  border: `1px solid ${meridian.border}`,
-  background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
-  boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
-  p: 3,
-};
-
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
 const gridSx = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 2 } as const;
 
 export interface VitalsPanelProps {
@@ -43,7 +35,7 @@ export function VitalsPanel({ encounter }: VitalsPanelProps) {
   );
 
   return (
-    <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Vitals</Typography>
@@ -51,7 +43,7 @@ export function VitalsPanel({ encounter }: VitalsPanelProps) {
             NABH structured capture — recorded as a measurement set
           </Typography>
         </Box>
-        <Button variant="outlined" size="small" sx={btnSx} disabled={!anyEntered || saving} onClick={record}>
+        <Button variant="outlined" size="small" sx={doctorButtonSx} disabled={!anyEntered || saving} onClick={record}>
           {saving ? "Recording…" : "Record vitals"}
         </Button>
       </Stack>

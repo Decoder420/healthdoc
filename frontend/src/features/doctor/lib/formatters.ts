@@ -16,6 +16,22 @@ export function formatTime(iso: string): string {
   });
 }
 
+/**
+ * Timestamps arrive as ISO-8601 UTC with Z and are displayed in IST
+ * (schema §4.2). Pinned explicitly so a workstation with a wrong locale
+ * cannot mis-stamp a clinical result.
+ */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 const FREQUENCY_LABELS = Object.fromEntries(
   FREQUENCY_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<Frequency, string>;

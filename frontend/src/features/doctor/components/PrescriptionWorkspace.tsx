@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
+import { Button } from "@/components/ui/Button";
 import { meridian } from "@/styles/theme";
 import { usePrescription } from "../hooks/usePrescription";
 import { formatAgeSex } from "../lib/formatters";
+import { doctorPanelSx, doctorButtonSx } from "../panelSx";
 import type { ActiveEncounter, EncounterContext } from "../types";
 import { MedicineSearchModal } from "./MedicineSearchModal";
 import { PrescriptionItemRow } from "./PrescriptionItemRow";
@@ -18,29 +19,14 @@ import { SafetyBanner } from "./SafetyBanner";
 
 import "../prescription-print.css";
 
-const cardSx = {
-  borderRadius: "16px",
-  border: `1px solid ${meridian.border}`,
-  background: `linear-gradient(180deg, ${meridian.surface} 0%, #fbfcfe 100%)`,
-  boxShadow: "0 1px 2px rgb(0 31 84 / 0.04), 0 12px 32px rgb(0 31 84 / 0.06)",
-  p: 3,
-};
-const btnSx = { textTransform: "none", fontWeight: 600, borderRadius: "10px" } as const;
-
 export interface PrescriptionWorkspaceProps {
   context: EncounterContext;
+  /** The encounter this prescription belongs to — prescriptions.encounter_id. */
+  encounter: ActiveEncounter;
 }
 
 /** Week 4 — e-Prescription: search, dosage/frequency/route, SOS, safety banners, print. */
-export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
-  const [encounter] = React.useState<ActiveEncounter>(() => ({
-    encounter_id: crypto.randomUUID(),
-    visit_id: context.visit_id,
-    patient_id: context.patient_id,
-    provider_user_id: context.provider_user_id,
-    started_at: new Date().toISOString(),
-  }));
-
+export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorkspaceProps) {
   const {
     items,
     notes,
@@ -59,7 +45,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <Box sx={{ ...cardSx, display: "flex", flexDirection: "column", gap: 2 }}>
+      <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
         <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
           <Box>
             <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Prescription</Typography>
@@ -68,7 +54,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
               {context.token_display}
             </Typography>
           </Box>
-          <Button variant="outlined" size="small" sx={btnSx} onClick={() => setPickOpen(true)}>
+          <Button variant="outlined" size="small" sx={doctorButtonSx} onClick={() => setPickOpen(true)}>
             + Add medicine
           </Button>
         </Stack>
@@ -120,7 +106,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
           <Stack direction="row" spacing={1.5}>
             <Button
               variant="outlined"
-              sx={btnSx}
+              sx={doctorButtonSx}
               disabled={items.length === 0}
               onClick={() => window.print()}
             >
@@ -128,7 +114,7 @@ export function PrescriptionWorkspace({ context }: PrescriptionWorkspaceProps) {
             </Button>
             <Button
               variant="contained"
-              sx={btnSx}
+              sx={doctorButtonSx}
               disabled={items.length === 0 || saving || hasCritical}
               onClick={save}
             >

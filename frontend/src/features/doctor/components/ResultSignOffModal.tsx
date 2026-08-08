@@ -1,0 +1,82 @@
+"use client";
+
+import * as React from "react";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { meridian } from "@/styles/theme";
+import { doctorButtonSx } from "../panelSx";
+
+export interface ResultSignOffModalProps {
+  open: boolean;
+  busy: boolean;
+  /** What is being signed, e.g. "CBC · LAB-20260731-00042". */
+  subject: string;
+  onClose: () => void;
+  onConfirm: (note?: string) => void;
+}
+
+/**
+ * Doctor sign-off confirmation. The note is optional and free-text — there is
+ * no coded review-outcome vocabulary in the schema.
+ */
+export function ResultSignOffModal({
+  open,
+  busy,
+  subject,
+  onClose,
+  onConfirm,
+}: ResultSignOffModalProps) {
+  const [note, setNote] = React.useState("");
+
+  React.useEffect(() => {
+    if (open) setNote("");
+  }, [open]);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Sign off result"
+      size="sm"
+      disableClose={busy}
+      actions={
+        <>
+          <Button variant="outlined" sx={doctorButtonSx} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            sx={doctorButtonSx}
+            loading={busy}
+            onClick={() => onConfirm(note.trim() || undefined)}
+          >
+            Confirm sign-off
+          </Button>
+        </>
+      }
+    >
+      <Stack spacing={2}>
+        <Typography sx={{ fontSize: "0.875rem" }}>
+          You are recording that you have reviewed <strong>{subject}</strong>.
+        </Typography>
+        <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
+          Sign-off is recorded against the current version only. If the lab issues a correction, the
+          new version will need signing again.
+        </Typography>
+        <TextField
+          label="Review note (optional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          multiline
+          minRows={3}
+          fullWidth
+          placeholder="e.g. Potassium critical — patient recalled, ECG ordered."
+        />
+      </Stack>
+    </Modal>
+  );
+}
