@@ -19,10 +19,13 @@ def upgrade() -> None:
         sa.Column("payload", JSONB(), nullable=False),
         sa.Column("department_id", UUID(as_uuid=True),
                   sa.ForeignKey("departments.id"), nullable=True),
+        sa.Column("facility_id", UUID(as_uuid=True),
+                  sa.ForeignKey("facilities.id"), nullable=True),          
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
 
     op.create_index("ix_notification_history_department_id", "notification_history", ["department_id"])
+    op.create_index("ix_notification_history_facility_id", "notification_history", ["facility_id"])
     op.create_index(
         "ix_notification_history_payload", "notification_history", ["payload"],
         postgresql_using="gin", postgresql_ops={"payload": "jsonb_path_ops"},
@@ -47,5 +50,6 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_notification_history_block_update ON notification_history;")
     op.execute("DROP FUNCTION IF EXISTS trg_notification_history_block_update();")
     op.drop_index("ix_notification_history_payload", table_name="notification_history")
+    op.drop_index("ix_notification_history_facility_id", table_name="notification_history")
     op.drop_index("ix_notification_history_department_id", table_name="notification_history")
     op.drop_table("notification_history")
