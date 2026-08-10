@@ -8,14 +8,35 @@ import RecentStockEntryTable from "@/components/dashboard/inventory/warehouse/Re
 import WarehouseViewDialog from "@/components/dashboard/inventory/warehouse/WarehouseViewDialog";
 import StockEntryDialog from "@/components/dashboard/inventory/warehouse/StockEntryDialog";
 
-import type { WarehouseReceipt } from "@/features/inventory/types/warehouse";
-import type { WarehouseStock } from "@/features/inventory/types/warehouseStock";
+import type {
+  WarehouseReceipt,
+} from "@/features/inventory/types/warehouse";
 
-import { warehouseStockData } from "@/features/inventory/data/warehouseStockData";
-import { warehouseReceipts } from "@/features/inventory/data/warehouseData";
+import type {
+  WarehouseStock,
+} from "@/features/inventory/types/warehouseStock";
 
-const WAREHOUSE_STOCK_KEY = "warehouse_stock";
-const WAREHOUSE_RECEIPTS_KEY = "warehouse_receipts";
+import {
+  warehouseStockData,
+} from "@/features/inventory/data/warehouseStockData";
+
+import {
+  warehouseReceipts,
+} from "@/features/inventory/data/warehouseData";
+
+import {
+  getStoredGRNs,
+} from "@/features/inventory/data/grnData";
+
+import type {
+  GRN,
+} from "@/features/inventory/types/grn";
+
+const WAREHOUSE_STOCK_KEY =
+  "warehouse_stock";
+
+const WAREHOUSE_RECEIPTS_KEY =
+  "warehouse_receipts";
 
 export default function WarehouseScreen() {
   const [receipts, setReceipts] =
@@ -35,14 +56,179 @@ export default function WarehouseScreen() {
 
   /*
    * ============================================================
+   * CONVERT VERIFIED GRN → WAREHOUSE RECEIPT
+   * ============================================================
+   */
+
+  const createWarehouseReceiptFromGRN = (
+    grn: GRN
+  ): WarehouseReceipt => {
+    return {
+      id: `WR-${grn.id}`,
+
+      grnId: grn.id,
+
+      grnNumber:
+        grn.grnNumber,
+
+      purchaseOrderId:
+        grn.purchaseOrderId,
+
+      purchaseOrderNumber:
+        grn.poNumber,
+
+      supplierId:
+        grn.supplierId,
+
+      supplierName:
+        grn.supplierName,
+
+      warehouseId:
+        "WH-001",
+
+      warehouseName:
+        "Main Hospital Store",
+
+      receivedDate:
+        grn.receivedDate,
+
+      status:
+        "Pending",
+
+      items:
+        grn.grnItems?.length ?? 0,
+
+      totalReceivedQuantity:
+        Number(grn.totalQuantity ?? 0),
+
+      totalAcceptedQuantity:
+        0,
+
+      totalRejectedQuantity:
+        0,
+
+      warehouseItems:
+        (grn.grnItems ?? []).map(
+          (item, index) => ({
+            id:
+              `WRI-${grn.id}-${index + 1}`,
+
+            itemId:
+              item.itemId,
+
+            itemName:
+              item.itemName,
+
+            orderedQuantity:
+              Number(item.quantity ?? 0),
+
+            receivedQuantity:
+              Number(
+                item.receivedQuantity ??
+                  item.quantity ??
+                  0
+              ),
+
+            acceptedQuantity:
+              0,
+
+            rejectedQuantity:
+              0,
+
+            batchNumber:
+              item.batchNumber,
+
+            expiryDate:
+              item.expiryDate,
+
+            unit:
+              "Unit",
+          })
+        ),
+    };
+  };
+
+  /*
+   * ============================================================
+   * SYNC VERIFIED GRNs → WAREHOUSE RECEIPTS
+   * ============================================================
+   */
+
+  const syncVerifiedGRNsToWarehouse = (
+    existingReceipts: WarehouseReceipt[]
+  ): WarehouseReceipt[] => {
+    const grns =
+      getStoredGRNs();
+
+    const verifiedGRNs =
+      grns.filter(
+        (grn) =>
+          grn.status === "verified"
+      );
+
+    /*
+     * Start with existing warehouse receipts.
+     */
+
+    const updatedReceipts = [
+      ...existingReceipts,
+    ];
+
+    /*
+     * Add every verified GRN which
+     * does not already have a warehouse receipt.
+     */
+
+    verifiedGRNs.forEach((grn) => {
+      const alreadyExists =
+        updatedReceipts.some(
+          (receipt) =>
+            receipt.grnId === grn.id
+        );
+
+      if (alreadyExists) {
+        return;
+      }
+
+      const warehouseReceipt =
+        createWarehouseReceiptFromGRN(
+          grn
+        );
+
+      updatedReceipts.unshift(
+        warehouseReceipt
+      );
+    });
+
+    /*
+     * Persist synchronized receipts.
+     */
+
+    localStorage.setItem(
+      WAREHOUSE_RECEIPTS_KEY,
+      JSON.stringify(
+        updatedReceipts
+      )
+    );
+
+    return updatedReceipts;
+  };
+
+  /*
+   * ============================================================
    * LOAD WAREHOUSE DATA
    * ============================================================
    */
 
   useEffect(() => {
     /*
-     * Load warehouse receipts
+     * ----------------------------------------------------------
+     * LOAD EXISTING WAREHOUSE RECEIPTS
+     * ----------------------------------------------------------
      */
+
+    let loadedReceipts:
+      WarehouseReceipt[] = [];
 
     try {
       const storedReceipts =
@@ -52,20 +238,24 @@ export default function WarehouseScreen() {
 
       if (storedReceipts) {
         const parsedReceipts =
-          JSON.parse(storedReceipts);
+          JSON.parse(
+            storedReceipts
+          );
 
-        if (Array.isArray(parsedReceipts)) {
-          setReceipts(parsedReceipts);
+        if (
+          Array.isArray(
+            parsedReceipts
+          )
+        ) {
+          loadedReceipts =
+            parsedReceipts;
         } else {
-          setReceipts(warehouseReceipts);
+          loadedReceipts =
+            [...warehouseReceipts];
         }
       } else {
-        setReceipts(warehouseReceipts);
-
-        localStorage.setItem(
-          WAREHOUSE_RECEIPTS_KEY,
-          JSON.stringify(warehouseReceipts)
-        );
+        loadedReceipts =
+          [...warehouseReceipts];
       }
     } catch (error) {
       console.error(
@@ -73,11 +263,32 @@ export default function WarehouseScreen() {
         error
       );
 
-      setReceipts(warehouseReceipts);
+      loadedReceipts =
+        [...warehouseReceipts];
     }
 
     /*
-     * Load warehouse stock
+     * ----------------------------------------------------------
+     * IMPORTANT:
+     *
+     * Pull verified GRNs and convert
+     * missing ones into warehouse receipts.
+     * ----------------------------------------------------------
+     */
+
+    const synchronizedReceipts =
+      syncVerifiedGRNsToWarehouse(
+        loadedReceipts
+      );
+
+    setReceipts(
+      synchronizedReceipts
+    );
+
+    /*
+     * ----------------------------------------------------------
+     * LOAD WAREHOUSE STOCK
+     * ----------------------------------------------------------
      */
 
     try {
@@ -88,19 +299,33 @@ export default function WarehouseScreen() {
 
       if (storedStock) {
         const parsedStock =
-          JSON.parse(storedStock);
+          JSON.parse(
+            storedStock
+          );
 
-        if (Array.isArray(parsedStock)) {
-          setStocks(parsedStock);
+        if (
+          Array.isArray(
+            parsedStock
+          )
+        ) {
+          setStocks(
+            parsedStock
+          );
         } else {
-          setStocks(warehouseStockData);
+          setStocks(
+            warehouseStockData
+          );
         }
       } else {
-        setStocks(warehouseStockData);
+        setStocks(
+          warehouseStockData
+        );
 
         localStorage.setItem(
           WAREHOUSE_STOCK_KEY,
-          JSON.stringify(warehouseStockData)
+          JSON.stringify(
+            warehouseStockData
+          )
         );
       }
     } catch (error) {
@@ -109,23 +334,28 @@ export default function WarehouseScreen() {
         error
       );
 
-      setStocks(warehouseStockData);
+      setStocks(
+        warehouseStockData
+      );
     }
   }, []);
 
   /*
    * ============================================================
-   * PENDING RECEIPTS
+   * PENDING WAREHOUSE RECEIPTS
    * ============================================================
    */
 
-  const pendingReceipts = useMemo(() => {
-    return receipts.filter(
-      (receipt) =>
-        receipt.status === "Pending" ||
-        receipt.status === "Partially Received"
-    );
-  }, [receipts]);
+  const pendingReceipts =
+    useMemo(() => {
+      return receipts.filter(
+        (receipt) =>
+          receipt.status ===
+            "Pending" ||
+          receipt.status ===
+            "Partially Received"
+      );
+    }, [receipts]);
 
   /*
    * ============================================================
@@ -136,7 +366,10 @@ export default function WarehouseScreen() {
   const handleView = (
     receipt: WarehouseReceipt
   ) => {
-    setSelectedReceipt(receipt);
+    setSelectedReceipt(
+      receipt
+    );
+
     setViewOpen(true);
   };
 
@@ -149,7 +382,10 @@ export default function WarehouseScreen() {
   const handleReceive = (
     receipt: WarehouseReceipt
   ) => {
-    setSelectedReceipt(receipt);
+    setSelectedReceipt(
+      receipt
+    );
+
     setReceiveOpen(true);
   };
 
@@ -163,9 +399,11 @@ export default function WarehouseScreen() {
     receiptId: string,
     items: any[]
   ) => {
-    const receipt = receipts.find(
-      (item) => item.id === receiptId
-    );
+    const receipt =
+      receipts.find(
+        (item) =>
+          item.id === receiptId
+      );
 
     if (!receipt) {
       console.error(
@@ -177,17 +415,22 @@ export default function WarehouseScreen() {
     }
 
     /*
-     * Only accepted quantities become
-     * warehouse stock.
+     * ----------------------------------------------------------
+     * ACCEPTED ITEMS
+     * ----------------------------------------------------------
      */
 
     const acceptedItems =
       items.filter(
         (item) =>
-          Number(item.acceptedQuantity) > 0
+          Number(
+            item.acceptedQuantity
+          ) > 0
       );
 
-    if (acceptedItems.length === 0) {
+    if (
+      acceptedItems.length === 0
+    ) {
       alert(
         "Please accept at least one item."
       );
@@ -196,12 +439,16 @@ export default function WarehouseScreen() {
     }
 
     /*
-     * Create warehouse stock records.
+     * ----------------------------------------------------------
+     * CREATE WAREHOUSE STOCK
+     * ----------------------------------------------------------
      */
 
-    const now = new Date();
+    const now =
+      new Date();
 
-    const newStock: WarehouseStock[] =
+    const newStock:
+      WarehouseStock[] =
       acceptedItems.map(
         (item, index) => ({
           id:
@@ -271,27 +518,33 @@ export default function WarehouseScreen() {
       );
 
     /*
-     * Add new stock to existing stock.
+     * ----------------------------------------------------------
+     * SAVE STOCK
+     * ----------------------------------------------------------
      */
 
-    setStocks((currentStocks) => {
-      const updatedStocks = [
-        ...currentStocks,
-        ...newStock,
-      ];
+    setStocks(
+      (currentStocks) => {
+        const updatedStocks = [
+          ...currentStocks,
+          ...newStock,
+        ];
 
-      localStorage.setItem(
-        WAREHOUSE_STOCK_KEY,
-        JSON.stringify(
-          updatedStocks
-        )
-      );
+        localStorage.setItem(
+          WAREHOUSE_STOCK_KEY,
+          JSON.stringify(
+            updatedStocks
+          )
+        );
 
-      return updatedStocks;
-    });
+        return updatedStocks;
+      }
+    );
 
     /*
-     * Calculate totals.
+     * ----------------------------------------------------------
+     * TOTALS
+     * ----------------------------------------------------------
      */
 
     const totalAcceptedQuantity =
@@ -299,7 +552,8 @@ export default function WarehouseScreen() {
         (total, item) =>
           total +
           Number(
-            item.acceptedQuantity || 0
+            item.acceptedQuantity ||
+              0
           ),
         0
       );
@@ -309,13 +563,16 @@ export default function WarehouseScreen() {
         (total, item) =>
           total +
           Number(
-            item.rejectedQuantity || 0
+            item.rejectedQuantity ||
+              0
           ),
         0
       );
 
     /*
-     * Update warehouse receipt.
+     * ----------------------------------------------------------
+     * UPDATE RECEIPT
+     * ----------------------------------------------------------
      */
 
     setReceipts(
@@ -333,21 +590,18 @@ export default function WarehouseScreen() {
               return {
                 ...currentReceipt,
 
-                // Ensure status matches WarehouseReceipt status type
-                status: "Stock Entered" as WarehouseReceipt["status"],
+                status:
+                  "Stock Entered" as WarehouseReceipt["status"],
 
                 totalAcceptedQuantity,
 
                 totalRejectedQuantity,
 
-                warehouseItems: items,
+                warehouseItems:
+                  items,
               };
             }
           );
-
-        /*
-         * Persist receipts.
-         */
 
         localStorage.setItem(
           WAREHOUSE_RECEIPTS_KEY,
@@ -361,12 +615,21 @@ export default function WarehouseScreen() {
     );
 
     /*
-     * Close dialog.
+     * ----------------------------------------------------------
+     * CLOSE DIALOG
+     * ----------------------------------------------------------
      */
 
     setReceiveOpen(false);
+
     setSelectedReceipt(null);
   };
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <div className="space-y-6">
@@ -387,7 +650,7 @@ export default function WarehouseScreen() {
           </h1>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Receive approved GRNs, enter stock
+            Receive verified GRNs, enter stock
             into the warehouse, and manage
             inventory storage.
           </p>
@@ -417,8 +680,8 @@ export default function WarehouseScreen() {
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Stock becomes available only after
-            warehouse entry.
+            Verified GRNs are received into the
+            warehouse before becoming available stock.
           </p>
         </div>
 

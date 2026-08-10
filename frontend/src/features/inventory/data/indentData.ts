@@ -1,6 +1,8 @@
-import { IndentRequest } from "../types/indent";
+import type { IndentRequest } from "../types/indent";
 
-export const indentRequests: IndentRequest[] = [
+const STORAGE_KEY = "hospital_indent_requests";
+
+export const defaultIndentRequests: IndentRequest[] = [
   {
     id: "IND-001",
     requestNumber: "IND-20260729-001",
@@ -40,6 +42,122 @@ export const indentRequests: IndentRequest[] = [
   },
 ];
 
+/*
+ * GET ALL INDENTS
+ */
+export const getIndentRequests = (): IndentRequest[] => {
+  if (typeof window === "undefined") {
+    return defaultIndentRequests;
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+
+    if (!stored) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(defaultIndentRequests)
+      );
+
+      return defaultIndentRequests;
+    }
+
+    return JSON.parse(stored);
+  } catch (error) {
+    console.error(
+      "Failed to load indent requests:",
+      error
+    );
+
+    return defaultIndentRequests;
+  }
+};
+
+/*
+ * SAVE ALL INDENTS
+ */
+export const saveIndentRequests = (
+  indents: IndentRequest[]
+) => {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(indents)
+  );
+};
+
+/*
+ * ADD NEW INDENT
+ */
+export const addIndentRequest = (
+  indent: IndentRequest
+) => {
+  const existing = getIndentRequests();
+
+  const updated = [
+    indent,
+    ...existing,
+  ];
+
+  saveIndentRequests(updated);
+
+  return indent;
+};
+
+/*
+ * UPDATE INDENT
+ */
+
+
+export const updateIndentRequest = (
+  indentId: string,
+  updates: Partial<IndentRequest>
+) => {
+  if (typeof window === "undefined") return;
+
+  const current = getIndentRequests();
+
+  const updated = current.map((indent) =>
+    indent.id === indentId
+      ? {
+          ...indent,
+          ...updates,
+        }
+      : indent
+  );
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(updated)
+  );
+};
+/*
+ * GET APPROVED INDENTS
+ */
+export const getApprovedIndentRequests =
+  (): IndentRequest[] => {
+    return getIndentRequests().filter(
+      (indent) =>
+        indent.status === "Approved"
+    );
+  };
+
+/*
+ * GET INDENT BY ID
+ */
+export const getIndentRequestById = (
+  indentId: string
+): IndentRequest | undefined => {
+  return getIndentRequests().find(
+    (indent) =>
+      indent.id === indentId
+  );
+};
+
+/*
+ * INVENTORY ITEMS
+ */
 export const inventoryItems = [
   {
     id: "ITEM001",

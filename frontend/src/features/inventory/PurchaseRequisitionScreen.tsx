@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 
 import PurchaseRequisitionStats from "@/components/dashboard/inventory/purchase/requisition/PurchaseRequisitionStats";
@@ -9,16 +9,22 @@ import PurchaseRequisitionCreateDialog from "@/components/dashboard/inventory/pu
 import PurchaseRequisitionViewDialog from "@/components/dashboard/inventory/purchase/requisition/PurchaseRequisitionViewDialog";
 import PurchaseRequisitionApprovalDialog from "@/components/dashboard/inventory/purchase/requisition/PurchaseRequisitionApprovalDialog";
 
+import {
+  getPurchaseRequisitions,
+  savePurchaseRequisitions,
+} from "./data/purchaseRequisitionData";
 
-import { purchaseRequisitions } from "./data/purchaseRequisitionData";
-import { PurchaseRequisition } from "./types/purchaseRequisition";
+import type { PurchaseRequisition } from "./types/purchaseRequisition";
+import type { PurchaseOrder } from "./types/purchaseOrder";
 
-import { indentRequests } from "@/features/inventory/data/indentData";
-import { PurchaseOrder } from "./types/purchaseOrder";
 import {
   addPurchaseOrder,
 } from "./data/purchaseOrderData";
 
+import {
+  getApprovedIndentRequests,
+    updateIndentRequest,
+} from "@/features/inventory/data/indentData";
 
 type Filter =
   | "All"
@@ -31,19 +37,17 @@ type Filter =
 export default function PurchaseRequisitionScreen() {
   const { user } = useAuth();
 
+  /*
+   * ==========================================
+   * STATE
+   * ==========================================
+   */
+
   const [requisitions, setRequisitions] =
-    useState<PurchaseRequisition[]>(
-      purchaseRequisitions
-    );
-
-  
-
-  /* CREATE */
+    useState<PurchaseRequisition[]>([]);
 
   const [createOpen, setCreateOpen] =
     useState(false);
-
-  /* VIEW */
 
   const [viewOpen, setViewOpen] =
     useState(false);
@@ -51,15 +55,11 @@ export default function PurchaseRequisitionScreen() {
   const [selectedRequisition, setSelectedRequisition] =
     useState<PurchaseRequisition | null>(null);
 
-  /* APPROVAL */
-
   const [approvalOpen, setApprovalOpen] =
     useState(false);
 
   const [approvalRequisition, setApprovalRequisition] =
     useState<PurchaseRequisition | null>(null);
-
-  /* EDIT */
 
   const [editOpen, setEditOpen] =
     useState(false);
@@ -67,333 +67,499 @@ export default function PurchaseRequisitionScreen() {
   const [editRequisition, setEditRequisition] =
     useState<PurchaseRequisition | null>(null);
 
-  /* PURCHASE ORDER */
-
- 
-
-  /* FILTER */
-
   const [filter, setFilter] =
     useState<Filter>("All");
 
-  /* -----------------------------------------
-     VIEW
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * LOAD PRs
+   * ==========================================
+   */
+
+  const loadRequisitions = () => {
+    setRequisitions(
+      getPurchaseRequisitions()
+    );
+  };
+
+  useEffect(() => {
+    loadRequisitions();
+  }, []);
+
+  /*
+   * ==========================================
+   * AVAILABLE INDENTS
+   *
+   * Only:
+   *
+   * 1. Approved
+   * 2. Not already linked to PR
+   *
+   * During edit, current indent remains
+   * available.
+   * ==========================================
+   */
+const availableIndents = (() => {
+  const indents = getApprovedIndentRequests().filter(
+    (indent) => !indent.purchaseRequisitionId
+  );
+
+  if (
+    editRequisition &&
+    !indents.some(
+      (indent) =>
+        indent.id === editRequisition.indentId
+    )
+  ) {
+    const currentIndent =
+      getApprovedIndentRequests().find(
+        (indent) =>
+          indent.id === editRequisition.indentId
+      );
+
+    if (currentIndent) {
+      return [
+        currentIndent,
+        ...indents,
+      ];
+    }
+  }
+
+  return indents;
+})();
+ 
+
+  /*
+   * ==========================================
+   * VIEW
+   * ==========================================
+   */
 
   const handleView = (
     requisition: PurchaseRequisition
   ) => {
-    setSelectedRequisition(requisition);
+    setSelectedRequisition(
+      requisition
+    );
+
     setViewOpen(true);
   };
 
-  /* -----------------------------------------
-     APPROVAL
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * APPROVAL
+   * ==========================================
+   */
 
   const handleApproval = (
     requisition: PurchaseRequisition
   ) => {
-    setApprovalRequisition(requisition);
+    setApprovalRequisition(
+      requisition
+    );
+
     setApprovalOpen(true);
   };
 
-  /* -----------------------------------------
-     EDIT
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * EDIT
+   * ==========================================
+   */
 
   const handleEdit = (
     requisition: PurchaseRequisition
   ) => {
-    setEditRequisition(requisition);
+    setEditRequisition(
+      requisition
+    );
+
     setEditOpen(true);
   };
 
-  /* -----------------------------------------
-     CREATE PO
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * INDENT → PR LINK
+   * ==========================================
+   */
 
+ const handleIndentLinked = (
+  indentId: string,
+  requisitionId: string,
+  requisitionNumber: string
+) => {
+  updateIndentRequest(indentId, {
+    purchaseRequisitionId: requisitionId,
+    purchaseRequisitionNumber: requisitionNumber,
+  });
 
-  
-  
-  /* -----------------------------------------
-     LINK INDENT
-  ----------------------------------------- */
-
-  const handleIndentLinked = (
-    indentId: string,
-    requisitionId: string,
-    requisitionNumber: string
-  ) => {
-    const indent = indentRequests.find(
-      (item) => item.id === indentId
-    );
-
-    if (!indent) return;
-
-    indent.purchaseRequisitionId =
-      requisitionId;
-
-    indent.purchaseRequisitionNumber =
-      requisitionNumber;
-  };
-
-  /* -----------------------------------------
-     APPROVE
-  ----------------------------------------- */
+  console.log(
+    "Indent linked to Purchase Requisition",
+    {
+      indentId,
+      requisitionId,
+      requisitionNumber,
+    }
+  );
+};
+  /*
+   * ==========================================
+   * APPROVE
+   * ==========================================
+   */
 
   const handleApprove = (
     requisition: PurchaseRequisition,
     comment: string
   ) => {
-    setRequisitions((prev) =>
-      prev.map((item) =>
-        item.id === requisition.id
-          ? {
-              ...item,
-              status: "Approved",
-              approvalStatus: "Approved",
-              approvalComment: comment,
-              approvedBy:
-                user?.name ??
-                "Inventory Manager",
-              approvedAt:
-                new Date().toLocaleDateString(),
-            }
-          : item
-      )
+
+    const updated =
+      requisitions.map(
+        (item) =>
+          item.id === requisition.id
+            ? {
+                ...item,
+
+                status:
+                  "Approved" as const,
+
+                approvalStatus:
+                  "Approved" as const,
+
+                approvalComment:
+                  comment,
+
+                approvedBy:
+                  user?.name ??
+                  "Inventory Manager",
+
+                approvedAt:
+                  new Date()
+                    .toLocaleDateString(),
+              }
+            : item
+      );
+
+    setRequisitions(updated);
+
+    savePurchaseRequisitions(
+      updated
     );
 
     setApprovalOpen(false);
+
     setApprovalRequisition(null);
   };
 
-  /* -----------------------------------------
-     REJECT
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * REJECT
+   * ==========================================
+   */
 
   const handleReject = (
     requisition: PurchaseRequisition,
     reason: string
   ) => {
-    setRequisitions((prev) =>
-      prev.map((item) =>
-        item.id === requisition.id
-          ? {
-              ...item,
-              status: "Rejected",
-              approvalStatus: "Rejected",
-              rejectionReason: reason,
-              approvalComment: reason,
-            }
-          : item
-      )
+
+    const updated =
+      requisitions.map(
+        (item) =>
+          item.id === requisition.id
+            ? {
+                ...item,
+
+                status:
+                  "Rejected" as const,
+
+                approvalStatus:
+                  "Rejected" as const,
+
+                rejectionReason:
+                  reason,
+
+                approvalComment:
+                  reason,
+              }
+            : item
+      );
+
+    setRequisitions(updated);
+
+    savePurchaseRequisitions(
+      updated
     );
 
     setApprovalOpen(false);
+
     setApprovalRequisition(null);
   };
 
-  /* -----------------------------------------
-     SEND BACK
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * SEND BACK
+   * ==========================================
+   */
 
   const handleSendBack = (
     requisition: PurchaseRequisition,
     reason: string
   ) => {
-    setRequisitions((prev) =>
-      prev.map((item) =>
-        item.id === requisition.id
-          ? {
-              ...item,
-              status: "Sent Back",
-              approvalStatus: "Sent Back",
-              sentBackReason: reason,
-              approvalComment: reason,
-            }
-          : item
-      )
+
+    const updated =
+      requisitions.map(
+        (item) =>
+          item.id === requisition.id
+            ? {
+                ...item,
+
+                status:
+                  "Sent Back" as const,
+
+                approvalStatus:
+                  "Sent Back" as const,
+
+                sentBackReason:
+                  reason,
+
+                approvalComment:
+                  reason,
+              }
+            : item
+      );
+
+    setRequisitions(updated);
+
+    savePurchaseRequisitions(
+      updated
     );
 
     setApprovalOpen(false);
+
     setApprovalRequisition(null);
   };
 
-  /* -----------------------------------------
-     SAVE REQUISITION
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * SAVE PR
+   * ==========================================
+   */
 
   const handleSaveRequisition = (
     requisition: PurchaseRequisition
   ) => {
-    setRequisitions((prev) => {
-      const exists = prev.some(
-        (item) => item.id === requisition.id
+
+    const exists =
+      requisitions.some(
+        (item) =>
+          item.id === requisition.id
       );
 
-      if (exists) {
-        return prev.map((item) =>
-          item.id === requisition.id
-            ? requisition
-            : item
-        );
-      }
+    const updated = exists
+      ? requisitions.map(
+          (item) =>
+            item.id === requisition.id
+              ? requisition
+              : item
+        )
+      : [
+          requisition,
+          ...requisitions,
+        ];
 
-      return [
-        requisition,
-        ...prev,
-      ];
-    });
+    setRequisitions(updated);
+
+    savePurchaseRequisitions(
+      updated
+    );
+
+    setCreateOpen(false);
 
     setEditOpen(false);
+
     setEditRequisition(null);
-    setCreateOpen(false);
+
+    loadRequisitions();
   };
 
-  /* -----------------------------------------
-     CREATE PO
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * CREATE PO
+   * ==========================================
+   */
 
   const handleCreatePO = (
-  requisition: PurchaseRequisition
-) => {
-  if (requisition.status !== "Approved") {
-    return;
-  }
+    requisition: PurchaseRequisition
+  ) => {
 
-  const orderItems =
-    requisition.requisitionItems.map((item) => {
-      const unitRate =
-        item.estimatedRate ?? 0;
+    if (
+      requisition.status !==
+      "Approved"
+    ) {
+      return;
+    }
 
-      const amount =
-        item.quantity * unitRate;
+    const orderItems =
+      requisition.requisitionItems.map(
+        (item) => {
 
-      return {
-        id: crypto.randomUUID(),
+          const unitRate =
+            item.estimatedRate ?? 0;
 
-        itemId: item.itemId,
+          const amount =
+            item.quantity *
+            unitRate;
 
-        itemName: item.itemName,
+          return {
+            id:
+              crypto.randomUUID(),
 
-        orderedQuantity: item.quantity,
+            itemId:
+              item.itemId,
 
-        unitRate,
+            itemName:
+              item.itemName,
 
-        taxPercent: 0,
+            orderedQuantity:
+              item.quantity,
 
-        discount: 0,
+            unitRate,
 
-        amount,
+            taxPercent: 0,
 
-        receivedQuantity: 0,
-      };
-    });
+            discount: 0,
 
-  const subtotal =
-    orderItems.reduce(
-      (sum, item) => sum + item.amount,
-      0
+            amount,
+
+            receivedQuantity: 0,
+          };
+        }
+      );
+
+    const subtotal =
+      orderItems.reduce(
+        (sum, item) =>
+          sum + item.amount,
+        0
+      );
+
+    const totalQuantity =
+      orderItems.reduce(
+        (sum, item) =>
+          sum +
+          item.orderedQuantity,
+        0
+      );
+
+    const purchaseOrder:
+      PurchaseOrder = {
+
+      id:
+        crypto.randomUUID(),
+
+      poNumber:
+        `PO-${Date.now()}`,
+
+      purchaseRequisitionId:
+        requisition.id,
+
+      requisitionNumber:
+        requisition.requisitionNumber,
+
+      supplierId:
+        requisition.supplierId,
+
+      supplierName:
+        requisition.supplierName ??
+        "Not Assigned",
+
+      departmentId:
+        requisition.departmentId,
+
+      departmentName:
+        requisition.departmentName,
+
+      orderDate:
+        new Date()
+          .toLocaleDateString(),
+
+      status:
+        "Pending Approval",
+
+      items:
+        orderItems.length,
+
+      totalQuantity,
+
+      subtotal,
+
+      taxAmount: 0,
+
+      discountAmount: 0,
+
+      grandTotal:
+        subtotal,
+
+      paymentTerms:
+        "30 Days",
+
+      deliveryTerms:
+        "Delivery at Hospital Store",
+
+      remarks:
+        requisition.remarks,
+
+      createdBy:
+        user?.name ??
+        "Inventory Manager",
+
+      createdAt:
+        new Date()
+          .toLocaleDateString(),
+
+      approvedBy:
+        user?.name ??
+        "Inventory Manager",
+
+      approvedAt:
+        new Date()
+          .toLocaleDateString(),
+
+      purchaseOrderItems:
+        orderItems,
+    };
+
+    addPurchaseOrder(
+      purchaseOrder
     );
 
-  const totalQuantity =
-    orderItems.reduce(
-      (sum, item) =>
-        sum + item.orderedQuantity,
-      0
+    const updated =
+      requisitions.map(
+        (item) =>
+          item.id === requisition.id
+            ? {
+                ...item,
+                status:
+                  "Converted to PO" as const,
+              }
+            : item
+      );
+
+    setRequisitions(updated);
+
+    savePurchaseRequisitions(
+      updated
     );
 
-  const purchaseOrder: PurchaseOrder = {
-    id: crypto.randomUUID(),
-
-    poNumber: `PO-${Date.now()}`,
-
-    purchaseRequisitionId:
-      requisition.id,
-
-    requisitionNumber:
-      requisition.requisitionNumber,
-
-    supplierId:
-      requisition.supplierId,
-
-    supplierName:
-      requisition.supplierName ??
-      "Not Assigned",
-
-    departmentId:
-      requisition.departmentId,
-
-    departmentName:
-      requisition.departmentName,
-
-    orderDate:
-      new Date().toLocaleDateString(),
-
-    status: "Approved",
-
-    items: orderItems.length,
-
-    totalQuantity,
-
-    subtotal,
-
-    taxAmount: 0,
-
-    discountAmount: 0,
-
-    grandTotal: subtotal,
-
-    paymentTerms: "30 Days",
-
-    deliveryTerms:
-      "Delivery at Hospital Store",
-
-    remarks:
-      requisition.remarks,
-
-    createdBy:
-      user?.name ??
-      "Inventory Manager",
-
-    createdAt:
-      new Date().toLocaleDateString(),
-
-    approvedBy:
-      user?.name ??
-      "Inventory Manager",
-
-    approvedAt:
-      new Date().toLocaleDateString(),
-
-    purchaseOrderItems:
-      orderItems,
+    window.location.href =
+      "/inventory/purchase/PurchaseOrders";
   };
 
-  // Save PO
-  addPurchaseOrder(purchaseOrder);
-
-  // Mark PR as converted
-  setRequisitions((prev) =>
-    prev.map((item) =>
-      item.id === requisition.id
-        ? {
-            ...item,
-            status: "Converted to PO",
-          }
-        : item
-    )
-  );
-
-  // Open Purchase Order page
-  window.location.href =
-    "/inventory/purchase/PurchaseOrder";
-};
-
-  /* -----------------------------------------
-     COUNTS
-  ----------------------------------------- */
+  /*
+   * ==========================================
+   * COUNTS
+   * ==========================================
+   */
 
   const pendingApproval =
     requisitions.filter(
@@ -405,27 +571,22 @@ export default function PurchaseRequisitionScreen() {
   const approved =
     requisitions.filter(
       (item) =>
-        item.status === "Approved"
-    );
-
-  const rejected =
-    requisitions.filter(
-      (item) =>
-        item.status === "Rejected"
+        item.status ===
+        "Approved"
     );
 
   const sentBack =
     requisitions.filter(
       (item) =>
-        item.status === "Sent Back"
+        item.status ===
+        "Sent Back"
     );
 
-  const converted =
-    requisitions.filter(
-      (item) =>
-        item.status ===
-        "Converted to PO"
-    );
+  /*
+   * ==========================================
+   * FILTER
+   * ==========================================
+   */
 
   const filteredRequisitions =
     filter === "All"
@@ -435,16 +596,21 @@ export default function PurchaseRequisitionScreen() {
             item.status === filter
         );
 
+  /*
+   * ==========================================
+   * UI
+   * ==========================================
+   */
+
   return (
     <div className="space-y-6">
 
-      {/* =========================================
-          HEADER
-      ========================================= */}
+      {/* HEADER */}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
         <div>
+
           <p className="text-sm font-medium text-primary">
             Purchase Management
           </p>
@@ -457,6 +623,7 @@ export default function PurchaseRequisitionScreen() {
             Manage department requirements,
             approvals and purchase order creation.
           </p>
+
         </div>
 
         <button
@@ -470,84 +637,87 @@ export default function PurchaseRequisitionScreen() {
 
       </div>
 
-      
-{/* =========================================
-    PROCUREMENT PIPELINE
-========================================= */}
+      {/* PIPELINE */}
 
-<section className="surface-card p-5">
-  <div className="mb-5">
-    <h2 className="text-base font-semibold text-foreground">
-      Procurement Pipeline
-    </h2>
+      <section className="surface-card p-5">
 
-    <p className="mt-1 text-sm text-muted-foreground">
-      Track the progress of department requirements through procurement.
-    </p>
-  </div>
+        <div className="mb-5">
 
-  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-    <div className="flex flex-1 items-center gap-2">
-      <div className="flex-1 rounded-lg border border-border bg-muted/30 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Department Need
-        </p>
-        <p className="mt-1 text-sm font-semibold text-foreground">
-          Indent Request
-        </p>
-      </div>
+          <h2 className="text-base font-semibold text-foreground">
+            Procurement Pipeline
+          </h2>
 
-      <span className="text-muted-foreground">→</span>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Track the progress of department
+            requirements through procurement.
+          </p>
 
-      <div className="flex-1 rounded-lg border border-primary/20 bg-primary/5 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Current Stage
-        </p>
-        <p className="mt-1 text-sm font-semibold text-primary">
-          Purchase Requisition
-        </p>
-      </div>
+        </div>
 
-      <span className="text-muted-foreground">→</span>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
 
-      <div className="flex-1 rounded-lg border border-border bg-muted/30 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Next
-        </p>
-        <p className="mt-1 text-sm font-semibold text-foreground">
-          Approval
-        </p>
-      </div>
+          {[
+            "Indent Request",
+            "Purchase Requisition",
+            "Approval",
+            "Purchase Order",
+            "GRN",
+          ].map(
+            (stage, index) => (
 
-      <span className="text-muted-foreground">→</span>
+              <div
+                key={stage}
+                className="flex flex-1 items-center gap-2"
+              >
 
-      <div className="flex-1 rounded-lg border border-border bg-muted/30 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Next
-        </p>
-        <p className="mt-1 text-sm font-semibold text-foreground">
-          Purchase Order
-        </p>
-      </div>
+                <div
+                  className={`w-full rounded-lg border p-3 text-center ${
+                    stage ===
+                    "Purchase Requisition"
+                      ? "border-primary/20 bg-primary/5"
+                      : "border-border bg-muted/30"
+                  }`}
+                >
 
-      <span className="text-muted-foreground">→</span>
+                  <p className="text-xs text-muted-foreground">
+                    {index === 0
+                      ? "Department Need"
+                      : index === 1
+                      ? "Current Stage"
+                      : index === 4
+                      ? "Final"
+                      : "Next"}
+                  </p>
 
-      <div className="flex-1 rounded-lg border border-border bg-muted/30 p-3 text-center">
-        <p className="text-xs text-muted-foreground">
-          Final
-        </p>
-        <p className="mt-1 text-sm font-semibold text-foreground">
-          GRN
-        </p>
-      </div>
-    </div>
-  </div>
-</section>
-     
+                  <p
+                    className={`mt-1 text-sm font-semibold ${
+                      stage ===
+                      "Purchase Requisition"
+                        ? "text-primary"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {stage}
+                  </p>
 
-      {/* =========================================
-          NEEDS ATTENTION
-      ========================================= */}
+                </div>
+
+                {index < 4 && (
+                  <span className="hidden text-muted-foreground md:block">
+                    →
+                  </span>
+                )}
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      </section>
+
+      {/* NEEDS ATTENTION */}
 
       {(pendingApproval.length > 0 ||
         approved.length > 0 ||
@@ -556,138 +726,191 @@ export default function PurchaseRequisitionScreen() {
         <section className="surface-card p-5">
 
           <div className="mb-4">
+
             <h2 className="text-base font-semibold">
               Needs Attention
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Requisitions waiting for the next procurement action.
+              Requisitions waiting for the next
+              procurement action.
             </p>
+
           </div>
 
           <div className="space-y-3">
 
             {pendingApproval
               .slice(0, 3)
-              .map((requisition) => (
-                <div
-                  key={requisition.id}
-                  className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">
-                        {requisition.requisitionNumber}
-                      </span>
+              .map(
+                (requisition) => (
 
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-                        Pending Approval
-                      </span>
+                  <div
+                    key={requisition.id}
+                    className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
+                  >
+
+                    <div>
+
+                      <div className="flex items-center gap-3">
+
+                        <span className="font-semibold">
+                          {
+                            requisition.requisitionNumber
+                          }
+                        </span>
+
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                          Pending Approval
+                        </span>
+
+                      </div>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {
+                          requisition.departmentName
+                        }
+                        {" • "}
+                        {
+                          requisition.items
+                        }{" "}
+                        items
+                      </p>
+
                     </div>
 
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {requisition.departmentName}
-                      {" • "}
-                      {requisition.items} items
-                    </p>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() =>
+                        handleApproval(
+                          requisition
+                        )
+                      }
+                    >
+                      Review Request
+                    </button>
+
                   </div>
 
-                  <button
-                    className="btn btn-primary"
-                    onClick={() =>
-                      handleApproval(requisition)
-                    }
-                  >
-                    Review Request
-                  </button>
-                </div>
-              ))}
+                )
+              )}
 
             {approved
               .slice(0, 3)
-              .map((requisition) => (
-                <div
-                  key={requisition.id}
-                  className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">
-                        {requisition.requisitionNumber}
-                      </span>
+              .map(
+                (requisition) => (
 
-                      <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                        Ready for PO
-                      </span>
+                  <div
+                    key={requisition.id}
+                    className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
+                  >
+
+                    <div>
+
+                      <div className="flex items-center gap-3">
+
+                        <span className="font-semibold">
+                          {
+                            requisition.requisitionNumber
+                          }
+                        </span>
+
+                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                          Ready for PO
+                        </span>
+
+                      </div>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {
+                          requisition.departmentName
+                        }
+                        {" • "}
+                        {
+                          requisition.items
+                        }{" "}
+                        items
+                      </p>
+
                     </div>
 
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {requisition.departmentName}
-                      {" • "}
-                      {requisition.items} items
-                    </p>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() =>
+                        handleCreatePO(
+                          requisition
+                        )
+                      }
+                    >
+                      Create Purchase Order
+                    </button>
+
                   </div>
 
-                  <button
-                    className="btn btn-primary"
-                    onClick={() =>
-                      handleCreatePO(requisition)
-                    }
-                  >
-                    Create Purchase Order
-                  </button>
-                </div>
-              ))}
+                )
+              )}
 
             {sentBack
               .slice(0, 3)
-              .map((requisition) => (
-                <div
-                  key={requisition.id}
-                  className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">
-                        {requisition.requisitionNumber}
-                      </span>
+              .map(
+                (requisition) => (
 
-                      <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
-                        Sent Back
-                      </span>
+                  <div
+                    key={requisition.id}
+                    className="flex flex-col gap-4 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
+                  >
+
+                    <div>
+
+                      <div className="flex items-center gap-3">
+
+                        <span className="font-semibold">
+                          {
+                            requisition.requisitionNumber
+                          }
+                        </span>
+
+                        <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700">
+                          Sent Back
+                        </span>
+
+                      </div>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Requires correction before approval.
+                      </p>
+
                     </div>
 
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Requires correction before approval.
-                    </p>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() =>
+                        handleEdit(
+                          requisition
+                        )
+                      }
+                    >
+                      Update Request
+                    </button>
+
                   </div>
 
-                  <button
-                    className="btn btn-primary"
-                    onClick={() =>
-                      handleEdit(requisition)
-                    }
-                  >
-                    Update Request
-                  </button>
-                </div>
-              ))}
+                )
+              )}
 
           </div>
+
         </section>
+
       )}
 
-      {/* =========================================
-          EXISTING STATS
-      ========================================= */}
+      {/* STATS */}
 
       <PurchaseRequisitionStats
         requisitions={requisitions}
       />
 
-      {/* =========================================
-          FILTERS
-      ========================================= */}
+      {/* FILTERS */}
 
       <section className="surface-card p-4">
 
@@ -702,32 +925,34 @@ export default function PurchaseRequisitionScreen() {
               "Sent Back",
               "Converted to PO",
             ] as Filter[]
-          ).map((item) => (
+          ).map(
+            (item) => (
 
-            <button
-              key={item}
-              onClick={() =>
-                setFilter(item)
-              }
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                filter === item
-                  ? "bg-primary text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/70"
-              }`}
-            >
-              {item}
-            </button>
+              <button
+                key={item}
+                onClick={() =>
+                  setFilter(item)
+                }
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                  filter === item
+                    ? "bg-primary text-white"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {item}
+              </button>
 
-          ))}
+            )
+          )}
 
         </div>
+
       </section>
 
-      {/* =========================================
-          TABLE
-      ========================================= */}
+      {/* TABLE */}
 
       <section>
+
         <div className="surface-card overflow-hidden p-5">
 
           <PurchaseRequisitionTable
@@ -735,55 +960,76 @@ export default function PurchaseRequisitionScreen() {
               filteredRequisitions
             }
             onView={handleView}
-            onApproval={handleApproval}
-            onEdit={handleEdit}
-            onCreatePO={handleCreatePO}
+            onApproval={
+              handleApproval
+            }
+            onEdit={
+              handleEdit
+            }
+            onCreatePO={
+              handleCreatePO
+            }
           />
 
         </div>
+
       </section>
 
-      {/* =========================================
-          CREATE REQUISITION DIALOG
-      ========================================= */}
+      {/* ==========================================
+          CREATE PR DIALOG
+          THIS WAS MISSING
+      ========================================== */}
 
       <PurchaseRequisitionCreateDialog
         open={createOpen}
-        onClose={() =>
-          setCreateOpen(false)
-        }
+
+        onClose={() => {
+          setCreateOpen(false);
+        }}
+
         onSave={
           handleSaveRequisition
         }
+
         onIndentLinked={
           handleIndentLinked
         }
+
+        availableIndents={
+          availableIndents
+        }
       />
 
-      {/* =========================================
-          EDIT REQUISITION DIALOG
-      ========================================= */}
+      {/* ==========================================
+          EDIT PR DIALOG
+      ========================================== */}
 
       <PurchaseRequisitionCreateDialog
         open={editOpen}
+
         onClose={() => {
           setEditOpen(false);
           setEditRequisition(null);
         }}
+
         onSave={
           handleSaveRequisition
         }
+
         onIndentLinked={
           handleIndentLinked
         }
+
         editRequisition={
           editRequisition
         }
+
+        availableIndents={
+          availableIndents
+        }
       />
 
-      {/* =========================================
-          VIEW DIALOG
-      ========================================= */}
+      {/* VIEW */}
 
       <PurchaseRequisitionViewDialog
         open={viewOpen}
@@ -796,9 +1042,7 @@ export default function PurchaseRequisitionScreen() {
         }}
       />
 
-      {/* =========================================
-          APPROVAL DIALOG
-      ========================================= */}
+      {/* APPROVAL */}
 
       <PurchaseRequisitionApprovalDialog
         open={approvalOpen}
@@ -819,9 +1063,6 @@ export default function PurchaseRequisitionScreen() {
           handleSendBack
         }
       />
-
-    
-      
 
     </div>
   );

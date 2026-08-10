@@ -222,21 +222,19 @@ export default function PurchaseOrderTable({
 
                         {/* CREATE GRN */}
 
-                        {canCreateGRN && (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10"
-                            onClick={() =>
-                              onCreateGRN(
-                                purchaseOrder
-                              )
-                            }
-                            title="Create GRN"
-                          >
-                            <ClipboardPlus size={14} />
-                            Create GRN
-                          </button>
-                        )}
+                       {canCreateGRN && (
+                       <button
+                      type="button"
+                       className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10"
+                        onClick={() =>
+                         onCreateGRN(purchaseOrder)
+                         }
+                       title="Create GRN"
+                       >
+    <ClipboardPlus size={14} />
+    Create GRN
+  </button>
+)}
 
                         {/* CANCEL */}
 

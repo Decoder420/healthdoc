@@ -1,6 +1,10 @@
 import type {
   WarehouseReceipt,
-} from "../types/warehouse";
+  WarehouseReceiptItem,
+} from "../types/warehouse";''
+
+const WAREHOUSE_RECEIPTS_KEY =
+  "warehouse_receipts";
 
 export const warehouseReceipts: WarehouseReceipt[] = [
   {
@@ -66,50 +70,172 @@ export const warehouseReceipts: WarehouseReceipt[] = [
       },
     ],
   },
-
-  {
-    id: "WR-002",
-
-    grnId: "GRN-002",
-    grnNumber: "GRN-2026-002",
-
-    purchaseOrderId: "PO-002",
-    purchaseOrderNumber: "PO-2026-002",
-
-    supplierId: "SUP-002",
-    supplierName: "Medico Healthcare",
-
-    warehouseId: "WH-001",
-    warehouseName: "Main Hospital Store",
-
-    receivedDate: "04/08/2026",
-
-    status: "Received",
-
-    items: 1,
-
-    totalReceivedQuantity: 500,
-    totalAcceptedQuantity: 490,
-    totalRejectedQuantity: 10,
-
-    warehouseItems: [
-      {
-        id: "WRI-003",
-
-        itemId: "ITEM-003",
-        itemName: "Paracetamol 500mg",
-
-        orderedQuantity: 500,
-        receivedQuantity: 500,
-
-        acceptedQuantity: 490,
-        rejectedQuantity: 10,
-
-        batchNumber: "PCM-2026-C01",
-        expiryDate: "12/2028",
-
-        unit: "Strip",
-      },
-    ],
-  },
 ];
+
+export const getStoredWarehouseReceipts =
+  (): WarehouseReceipt[] => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+
+    try {
+      const stored =
+        localStorage.getItem(
+          WAREHOUSE_RECEIPTS_KEY
+        );
+
+      if (!stored) {
+        return warehouseReceipts;
+      }
+
+      const parsed = JSON.parse(stored);
+
+      return Array.isArray(parsed)
+        ? parsed
+        : warehouseReceipts;
+    } catch (error) {
+      console.error(
+        "Failed to load warehouse receipts:",
+        error
+      );
+
+      return warehouseReceipts;
+    }
+  };
+
+export const saveWarehouseReceipts = (
+  receipts: WarehouseReceipt[]
+) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(
+    WAREHOUSE_RECEIPTS_KEY,
+    JSON.stringify(receipts)
+  );
+};
+
+/**
+ * Create a warehouse receipt from
+ * a verified GRN.
+ */
+export const createWarehouseReceiptFromGRN = (
+  grn: any
+): WarehouseReceipt => {
+  const existingReceipts =
+    getStoredWarehouseReceipts();
+
+  /*
+   * Prevent duplicate warehouse receipts
+   * for the same GRN.
+   */
+  const existing =
+    existingReceipts.find(
+      (receipt) =>
+        receipt.grnId === grn.id
+    );
+
+  if (existing) {
+    return existing;
+  }
+
+  const warehouseItems:
+    WarehouseReceiptItem[] =
+    grn.grnItems.map(
+      (item: any, index: number) => ({
+        id:
+          `${grn.id}-WRI-${index + 1}`,
+
+        itemId:
+          item.itemId,
+
+        itemName:
+          item.itemName,
+
+        orderedQuantity:
+          item.quantity,
+
+        receivedQuantity:
+          item.receivedQuantity ??
+          item.quantity,
+
+        acceptedQuantity: 0,
+
+        rejectedQuantity: 0,
+
+        batchNumber:
+          item.batchNumber === "PENDING"
+            ? ""
+            : item.batchNumber,
+
+        expiryDate:
+          item.expiryDate === "PENDING"
+            ? ""
+            : item.expiryDate,
+
+        unit:
+          item.unit ?? "Unit",
+      })
+    );
+
+  const warehouseReceipt:
+    WarehouseReceipt = {
+      id:
+        `WR-${Date.now()}`,
+
+      grnId:
+        grn.id,
+
+      grnNumber:
+        grn.grnNumber,
+
+      purchaseOrderId:
+        grn.purchaseOrderId,
+
+      purchaseOrderNumber:
+        grn.poNumber,
+
+      supplierId:
+        grn.supplierId,
+
+      supplierName:
+        grn.supplierName,
+
+      warehouseId:
+        "WH-001",
+
+      warehouseName:
+        "Main Hospital Store",
+
+      receivedDate:
+        grn.receivedDate,
+
+      status:
+        "Pending",
+
+      items:
+        warehouseItems.length,
+
+      totalReceivedQuantity:
+        warehouseItems.reduce(
+          (sum, item) =>
+            sum +
+            item.receivedQuantity,
+          0
+        ),
+
+      totalAcceptedQuantity: 0,
+
+      totalRejectedQuantity: 0,
+
+      warehouseItems,
+    };
+
+  saveWarehouseReceipts([
+    ...existingReceipts,
+    warehouseReceipt,
+  ]);
+
+  return warehouseReceipt;
+};

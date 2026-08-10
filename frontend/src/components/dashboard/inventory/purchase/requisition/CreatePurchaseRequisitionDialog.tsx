@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -14,8 +13,8 @@ import {
   Divider,
 } from "@mui/material";
 
-import { indentRequests } from "@/features/inventory/data/indentData";
 import { PurchaseRequisition } from "@/features/inventory/types/purchaseRequisition";
+import type { IndentRequest } from "@/features/inventory/types/indent";
 
 interface Props {
   open: boolean;
@@ -30,6 +29,8 @@ interface Props {
   ) => void;
 
   editRequisition?: PurchaseRequisition | null;
+
+  availableIndents: IndentRequest[];
 }
 
 export default function CreatePurchaseRequisitionDialog({
@@ -38,32 +39,46 @@ export default function CreatePurchaseRequisitionDialog({
   onSave,
   onIndentLinked,
   editRequisition,
+  availableIndents,
 }: Props) {
   const isEditMode = Boolean(editRequisition);
 
-  const [selectedIndentId, setSelectedIndentId] = useState("");
-  const [supplierName, setSupplierName] = useState("");
-  const [remarks, setRemarks] = useState("");
+  const [selectedIndentId, setSelectedIndentId] =
+    useState("");
+
+  const [supplierName, setSupplierName] =
+    useState("");
+
+  const [remarks, setRemarks] =
+    useState("");
 
   /*
-   * Find selected indent
+   * Find selected indent from available indents
    */
   const selectedIndent = useMemo(() => {
-    return indentRequests.find(
+    return availableIndents.find(
       (indent) => indent.id === selectedIndentId
     );
-  }, [selectedIndentId]);
+  }, [availableIndents, selectedIndentId]);
 
   /*
-   * Load create/edit data
+   * Load form
    */
   useEffect(() => {
     if (!open) return;
 
     if (editRequisition) {
-      setSelectedIndentId(editRequisition.indentId);
-      setSupplierName(editRequisition.supplierName ?? "");
-      setRemarks(editRequisition.remarks ?? "");
+      setSelectedIndentId(
+        editRequisition.indentId
+      );
+
+      setSupplierName(
+        editRequisition.supplierName ?? ""
+      );
+
+      setRemarks(
+        editRequisition.remarks ?? ""
+      );
     } else {
       setSelectedIndentId("");
       setSupplierName("");
@@ -74,7 +89,9 @@ export default function CreatePurchaseRequisitionDialog({
   /*
    * Indent selection
    */
-  const handleIndentChange = (indentId: string) => {
+  const handleIndentChange = (
+    indentId: string
+  ) => {
     setSelectedIndentId(indentId);
 
     if (!isEditMode) {
@@ -83,7 +100,7 @@ export default function CreatePurchaseRequisitionDialog({
   };
 
   /*
-   * Reset form
+   * Reset
    */
   const resetForm = () => {
     setSelectedIndentId("");
@@ -92,62 +109,76 @@ export default function CreatePurchaseRequisitionDialog({
   };
 
   /*
-   * Save PR
+   * Save
    */
   const handleSubmit = () => {
     if (!selectedIndent) return;
 
     /*
-     * EDIT EXISTING PR
+     * EDIT
      */
     if (editRequisition) {
       const updatedRequisition: PurchaseRequisition = {
         ...editRequisition,
 
         indentId: selectedIndent.id,
-        indentNumber: selectedIndent.requestNumber,
 
-        departmentId: selectedIndent.departmentId,
-        departmentName: selectedIndent.departmentName,
+        indentNumber:
+          selectedIndent.requestNumber,
 
-        requestedBy: selectedIndent.requestedBy,
-        priority: selectedIndent.priority,
+        departmentId:
+          selectedIndent.departmentId,
+
+        departmentName:
+          selectedIndent.departmentName,
+
+        requestedBy:
+          selectedIndent.requestedBy,
+
+        priority:
+          selectedIndent.priority,
 
         supplierName:
           supplierName.trim() || undefined,
 
-        items: selectedIndent.indentItems.length,
+        items:
+          selectedIndent.indentItems.length,
 
-        totalQuantity: selectedIndent.indentItems.reduce(
-          (sum, item) => sum + item.quantity,
-          0
-        ),
+        totalQuantity:
+          selectedIndent.indentItems.reduce(
+            (sum, item) =>
+              sum + item.quantity,
+            0
+          ),
 
         estimatedTotal:
           editRequisition.estimatedTotal ?? 0,
 
         remarks:
-          remarks.trim() || selectedIndent.remarks,
+          remarks.trim() ||
+          selectedIndent.remarks,
 
-        /*
-         * Copy actual products from indent
-         */
         requisitionItems:
           selectedIndent.indentItems.map(
             (item, index) => {
               const existingItem =
-                editRequisition.requisitionItems[index];
+                editRequisition.requisitionItems[
+                  index
+                ];
 
               return {
                 id:
                   existingItem?.id ??
                   crypto.randomUUID(),
 
-                itemId: item.itemId,
+                itemId:
+                  item.itemId,
 
-                itemName: item.itemName,
+                itemName:
+                  item.itemName,
 
-                quantity: item.quantity,
+                quantity:
+                  item.quantity,
 
                 estimatedRate:
                   existingItem?.estimatedRate,
@@ -162,14 +193,23 @@ export default function CreatePurchaseRequisitionDialog({
          * Editing requires approval again
          */
         status: "Pending Approval",
+
         approvalStatus: "Pending",
 
-        approvalComment: undefined,
-        approvedBy: undefined,
-        approvedAt: undefined,
+        approvalComment:
+          undefined,
 
-        rejectionReason: undefined,
-        sentBackReason: undefined,
+        approvedBy:
+          undefined,
+
+        approvedAt:
+          undefined,
+
+        rejectionReason:
+          undefined,
+
+        sentBackReason:
+          undefined,
       };
 
       onSave(updatedRequisition);
@@ -192,39 +232,46 @@ export default function CreatePurchaseRequisitionDialog({
     const requisition: PurchaseRequisition = {
       id: crypto.randomUUID(),
 
-      requisitionNumber: `PR-${Date.now()}`,
+      requisitionNumber:
+        `PR-${Date.now()}`,
 
-      indentId: selectedIndent.id,
+      indentId:
+        selectedIndent.id,
 
-      indentNumber: selectedIndent.requestNumber,
+      indentNumber:
+        selectedIndent.requestNumber,
 
-      departmentId: selectedIndent.departmentId,
+      departmentId:
+        selectedIndent.departmentId,
 
-      departmentName: selectedIndent.departmentName,
+      departmentName:
+        selectedIndent.departmentName,
 
-      requestedBy: selectedIndent.requestedBy,
+      requestedBy:
+        selectedIndent.requestedBy,
 
-      priority: selectedIndent.priority,
+      priority:
+        selectedIndent.priority,
 
-      status: "Pending Approval",
+      status:
+        "Pending Approval",
 
-      approvalStatus: "Pending",
+      approvalStatus:
+        "Pending",
 
       supplierName:
-        supplierName.trim() || undefined,
+        supplierName.trim() ||
+        undefined,
 
-      /*
-       * Number of products
-       */
-      items: selectedIndent.indentItems.length,
+      items:
+        selectedIndent.indentItems.length,
 
-      /*
-       * Total requested quantity
-       */
-      totalQuantity: selectedIndent.indentItems.reduce(
-        (sum, item) => sum + item.quantity,
-        0
-      ),
+      totalQuantity:
+        selectedIndent.indentItems.reduce(
+          (sum, item) =>
+            sum + item.quantity,
+          0
+        ),
 
       estimatedTotal: 0,
 
@@ -232,33 +279,29 @@ export default function CreatePurchaseRequisitionDialog({
         new Date().toLocaleDateString(),
 
       remarks:
-        remarks.trim() || selectedIndent.remarks,
+        remarks.trim() ||
+        selectedIndent.remarks,
 
-      /*
-       * Copy all products from indent
-       */
       requisitionItems:
         selectedIndent.indentItems.map(
           (item) => ({
-            id: crypto.randomUUID(),
+            id:
+              crypto.randomUUID(),
 
-            itemId: item.itemId,
+            itemId:
+              item.itemId,
 
-            itemName: item.itemName,
+            itemName:
+              item.itemName,
 
-            quantity: item.quantity,
+            quantity:
+              item.quantity,
           })
         ),
     };
 
-    /*
-     * Save PR
-     */
     onSave(requisition);
 
-    /*
-     * Link INDENT → PR
-     */
     onIndentLinked?.(
       selectedIndent.id,
       requisition.id,
@@ -290,7 +333,7 @@ export default function CreatePurchaseRequisitionDialog({
 
       <DialogContent dividers>
 
-        {/* ================= SOURCE INDENT ================= */}
+        {/* SOURCE INDENT */}
 
         <div className="mt-2">
           <TextField
@@ -299,41 +342,36 @@ export default function CreatePurchaseRequisitionDialog({
             label="Source Indent"
             value={selectedIndentId}
             onChange={(e) =>
-              handleIndentChange(e.target.value)
+              handleIndentChange(
+                e.target.value
+              )
             }
           >
-            {indentRequests
-              .filter(
-                (indent) =>
-                  /*
-                   * New PR:
-                   * approved + not already linked
-                   *
-                   * Edit:
-                   * current indent remains available
-                   */
-                  (indent.status === "Approved" &&
-                    !indent.purchaseRequisitionId) ||
-                  indent.id ===
-                    editRequisition?.indentId
+            {availableIndents.length === 0 ? (
+              <MenuItem disabled value="">
+                No approved indent requests available
+              </MenuItem>
+            ) : (
+              availableIndents.map(
+                (indent) => (
+                  <MenuItem
+                    key={indent.id}
+                    value={indent.id}
+                  >
+                    {indent.requestNumber} —{" "}
+                    {indent.departmentName}
+                  </MenuItem>
+                )
               )
-              .map((indent) => (
-                <MenuItem
-                  key={indent.id}
-                  value={indent.id}
-                >
-                  {indent.requestNumber} —{" "}
-                  {indent.departmentName}
-                </MenuItem>
-              ))}
+            )}
           </TextField>
         </div>
 
-        {/* ================= SELECTED INDENT ================= */}
+        {/* SELECTED INDENT */}
 
         {selectedIndent && (
           <>
-            {/* Basic information */}
+            {/* BASIC INFO */}
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
 
@@ -377,9 +415,10 @@ export default function CreatePurchaseRequisitionDialog({
 
             <Divider className="my-6" />
 
-            {/* ================= INDENT ITEMS ================= */}
+            {/* ITEMS */}
 
             <div>
+
               <Typography
                 variant="subtitle1"
                 fontWeight={600}
@@ -392,15 +431,18 @@ export default function CreatePurchaseRequisitionDialog({
                 color="text.secondary"
                 className="mt-1"
               >
-                These items will be added to the purchase
-                requisition.
+                These items will be added to
+                the purchase requisition.
               </Typography>
 
               <div className="mt-3 overflow-hidden rounded-lg border">
+
                 <table className="w-full text-sm">
 
                   <thead className="border-b bg-gray-50">
+
                     <tr>
+
                       <th className="px-4 py-3 text-left font-medium">
                         Item
                       </th>
@@ -416,16 +458,21 @@ export default function CreatePurchaseRequisitionDialog({
                       <th className="px-4 py-3 text-center font-medium">
                         Requested Qty
                       </th>
+
                     </tr>
+
                   </thead>
 
                   <tbody>
+
                     {selectedIndent.indentItems.map(
                       (item) => (
+
                         <tr
                           key={item.id}
                           className="border-b last:border-0"
                         >
+
                           <td className="px-4 py-3 font-medium">
                             {item.itemName}
                           </td>
@@ -441,20 +488,26 @@ export default function CreatePurchaseRequisitionDialog({
                           <td className="px-4 py-3 text-center font-medium">
                             {item.quantity}
                           </td>
+
                         </tr>
+
                       )
                     )}
+
                   </tbody>
 
                 </table>
+
               </div>
+
             </div>
 
             <Divider className="my-6" />
 
-            {/* ================= INDENT SUMMARY ================= */}
+            {/* SUMMARY */}
 
             <div>
+
               <Typography
                 variant="subtitle1"
                 fontWeight={600}
@@ -465,41 +518,54 @@ export default function CreatePurchaseRequisitionDialog({
               <div className="mt-3 rounded-lg border p-4">
 
                 <div className="flex justify-between">
+
                   <span className="text-sm text-muted-foreground">
                     Indent Number
                   </span>
 
                   <span className="font-medium">
-                    {selectedIndent.requestNumber}
+                    {
+                      selectedIndent.requestNumber
+                    }
                   </span>
+
                 </div>
 
                 <div className="mt-3 flex justify-between">
+
                   <span className="text-sm text-muted-foreground">
                     Number of Items
                   </span>
 
                   <span className="font-medium">
-                    {selectedIndent.items}
+                    {
+                      selectedIndent.items
+                    }
                   </span>
+
                 </div>
 
                 <div className="mt-3 flex justify-between">
+
                   <span className="text-sm text-muted-foreground">
                     Total Quantity
                   </span>
 
                   <span className="font-medium">
-                    {selectedIndent.totalQuantity}
+                    {
+                      selectedIndent.totalQuantity
+                    }
                   </span>
+
                 </div>
 
               </div>
+
             </div>
 
             <Divider className="my-6" />
 
-            {/* ================= SUPPLIER ================= */}
+            {/* SUPPLIER */}
 
             <TextField
               fullWidth
@@ -507,13 +573,16 @@ export default function CreatePurchaseRequisitionDialog({
               placeholder="Enter supplier name"
               value={supplierName}
               onChange={(e) =>
-                setSupplierName(e.target.value)
+                setSupplierName(
+                  e.target.value
+                )
               }
             />
 
-            {/* ================= REMARKS ================= */}
+            {/* REMARKS */}
 
             <div className="mt-4">
+
               <TextField
                 fullWidth
                 multiline
@@ -521,18 +590,26 @@ export default function CreatePurchaseRequisitionDialog({
                 label="Remarks"
                 value={remarks}
                 onChange={(e) =>
-                  setRemarks(e.target.value)
+                  setRemarks(
+                    e.target.value
+                  )
                 }
               />
+
             </div>
+
           </>
         )}
 
         {!selectedIndent && (
           <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
+
             <Typography color="text.secondary">
-              Select an approved indent to continue.
+              {availableIndents.length > 0
+                ? "Select an approved indent to continue."
+                : "No approved indent requests available."}
             </Typography>
+
           </div>
         )}
 
@@ -544,6 +621,7 @@ export default function CreatePurchaseRequisitionDialog({
           py: 2,
         }}
       >
+
         <Button onClick={onClose}>
           Cancel
         </Button>
@@ -557,8 +635,9 @@ export default function CreatePurchaseRequisitionDialog({
             ? "Save Changes"
             : "Create Requisition"}
         </Button>
+
       </DialogActions>
+
     </Dialog>
   );
 }
-

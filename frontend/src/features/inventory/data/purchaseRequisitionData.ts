@@ -1,6 +1,11 @@
-import { PurchaseRequisition } from "../types/purchaseRequisition";
+import type { PurchaseRequisition } from "../types/purchaseRequisition";
+import {
+  getApprovedIndentRequests,
+} from "./indentData";
 
-export const purchaseRequisitions: PurchaseRequisition[] = [
+const STORAGE_KEY = "hospital_purchase_requisitions";
+
+const initialPurchaseRequisitions: PurchaseRequisition[] = [
   {
     id: "PR-001",
 
@@ -15,6 +20,7 @@ export const purchaseRequisitions: PurchaseRequisition[] = [
     requestedBy: "Dr. Amit Sharma",
 
     priority: "Normal",
+
     status: "Pending Approval",
     approvalStatus: "Pending",
 
@@ -27,7 +33,8 @@ export const purchaseRequisitions: PurchaseRequisition[] = [
 
     createdAt: "30 July 2026",
 
-    remarks: "Required for regular radiology procedures.",
+    remarks:
+      "Required for regular radiology procedures.",
 
     requisitionItems: [
       {
@@ -48,100 +55,68 @@ export const purchaseRequisitions: PurchaseRequisition[] = [
       },
     ],
   },
-
-  {
-    id: "PR-002",
-
-    requisitionNumber: "PR-20260730-002",
-
-    indentId: "IND-002",
-    indentNumber: "IND-20260728-002",
-
-    departmentId: "DEPT-OT-001",
-    departmentName: "Operation Theatre",
-
-    requestedBy: "Nurse Manager",
-
-    priority: "Urgent",
-    status: "Approved",
-    approvalStatus: "Approved",
-
-    supplierId: "SUP-002",
-    supplierName: "Surgical Care Pvt Ltd",
-
-    items: 2,
-    totalQuantity: 80,
-    estimatedTotal: 12400,
-
-    createdAt: "30 July 2026",
-
-    remarks: "Urgent surgical consumables required.",
-
-    requisitionItems: [
-      {
-        id: "PRI-ITEM-003",
-        itemId: "ITEM005",
-        itemName: "Surgical Gloves",
-        quantity: 50,
-        estimatedRate: 200,
-        estimatedAmount: 10000,
-      },
-      {
-        id: "PRI-ITEM-004",
-        itemId: "ITEM006",
-        itemName: "Syringes",
-        quantity: 30,
-        estimatedRate: 80,
-        estimatedAmount: 2400,
-      },
-    ],
-  },
-
-  {
-    id: "PR-003",
-
-    requisitionNumber: "PR-20260730-003",
-
-    indentId: "IND-003",
-    indentNumber: "IND-20260727-003",
-
-    departmentId: "DEPT-LAB-001",
-    departmentName: "Laboratory",
-
-    requestedBy: "Lab Technician",
-
-    priority: "Normal",
-    status: "Converted to PO",
-    approvalStatus: "Approved",
-
-    supplierId: "SUP-003",
-    supplierName: "Lab Diagnostics",
-
-    items: 2,
-    totalQuantity: 90,
-    estimatedTotal: 7000,
-
-    createdAt: "30 July 2026",
-
-    remarks: "Laboratory consumables required.",
-
-    requisitionItems: [
-      {
-        id: "PRI-ITEM-005",
-        itemId: "ITEM003",
-        itemName: "Blood Collection Tube",
-        quantity: 50,
-        estimatedRate: 100,
-        estimatedAmount: 5000,
-      },
-      {
-        id: "PRI-ITEM-006",
-        itemId: "ITEM004",
-        itemName: "Microscope Slides",
-        quantity: 40,
-        estimatedRate: 50,
-        estimatedAmount: 2000,
-      },
-    ],
-  },
 ];
+
+export const getPurchaseRequisitions =
+  (): PurchaseRequisition[] => {
+    if (typeof window === "undefined") {
+      return initialPurchaseRequisitions;
+    }
+
+    const stored =
+      localStorage.getItem(STORAGE_KEY);
+
+    if (!stored) {
+      return initialPurchaseRequisitions;
+    }
+
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return initialPurchaseRequisitions;
+    }
+  };
+
+export const savePurchaseRequisitions = (
+  requisitions: PurchaseRequisition[]
+) => {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(requisitions)
+  );
+};
+
+export const getPurchaseRequisitionById = (
+  id: string
+) => {
+  return getPurchaseRequisitions().find(
+    (pr) => pr.id === id
+  );
+};
+
+
+/*
+ * =========================================
+ * INDENTS AVAILABLE FOR PR
+ * =========================================
+ */
+
+export const getIndentsAvailableForPR = () => {
+  const approvedIndents =
+    getApprovedIndentRequests();
+
+  const existingPRs =
+    getPurchaseRequisitions();
+
+  const usedIndentIds =
+    existingPRs.map(
+      (pr) => pr.indentId
+    );
+
+  return approvedIndents.filter(
+    (indent) =>
+      !usedIndentIds.includes(indent.id)
+  );
+};
