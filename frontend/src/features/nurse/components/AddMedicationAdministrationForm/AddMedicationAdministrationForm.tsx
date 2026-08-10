@@ -5,12 +5,12 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import FormSection from "../form/FormSection";
-import TextField from "../form/TextField";
-import SelectField from "../form/SelectField";
-import DateTimeField from "../form/DateTimeField";
-import TextAreaField from "../form/TextAreaField";
-import FormActions from "../form/FormActions";
+import FormSection from "../../../../components/forms/FormSection";
+import TextField from "../../../../components/forms/TextField";
+import SelectField from "../../../../components/forms/SelectField";
+import DateTimeField from "../../../../components/forms/DateTimeField";
+import TextAreaField from "../../../../components/forms/TextAreaField";
+import FormActions from "../../../../components/forms/FormActions";
 
 import {
   AddMedicationAdministrationFormProps,

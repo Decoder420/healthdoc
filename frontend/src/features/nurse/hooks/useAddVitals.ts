@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { addVitals } from "../services/nurse.service";
-import type { AddVitalsSchema } from "../validation";
+import type { AddVitalsSchema } from "@/src/features/nurse/components/AddVitalsForm/validation";
 
 export function useAddVitals() {
   const [isSubmitting, setIsSubmitting] = useState(false);

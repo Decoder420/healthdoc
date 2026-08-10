@@ -5,11 +5,11 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import FormSection from "../form/FormSection";
-import SelectField from "../form/SelectField";
-import TextField from "../form/TextField";
-import TextAreaField from "../form/TextAreaField";
-import FormActions from "../form/FormActions";
+import FormSection from "../../../../components/forms/FormSection";
+import SelectField from "../../../../components/forms/SelectField";
+import TextField from "../../../../components/forms/TextField";
+import TextAreaField from "../../../../components/forms/TextAreaField";
+import FormActions from "../../../../components/forms/FormActions";
 
 import { AddHandoverFormProps } from "./AddHandoverForm.types";
 

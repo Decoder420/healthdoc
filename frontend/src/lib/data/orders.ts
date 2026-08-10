@@ -1,8 +1,4 @@
 import { Order } from "@/features/nurse/components/TaskQueue";
-
-// Mock data for TaskQueue — shaped per `orders` table (schema doc, migration 0009).
-// `patient_name` is included here only because a real bed/order-list endpoint would
-// need to join it in; it is NOT a column on `orders` itself (see TaskQueue.types.ts).
 export const orders: Order[] = [
   {
     id: "1",
@@ -12,7 +8,7 @@ export const orders: Order[] = [
     patient_name: "Rahul Kumar",
     order_type: "lab",
     priority: "stat",
-    status: "pending",
+    status: "placed",
     ordered_at: "2026-07-24T08:15:00Z",
   },
   {
@@ -23,7 +19,7 @@ export const orders: Order[] = [
     patient_name: "Rahul Kumar",
     order_type: "pharmacy",
     priority: "urgent",
-    status: "pending",
+    status: "placed",
     ordered_at: "2026-07-24T09:00:00Z",
   },
   {
@@ -34,7 +30,7 @@ export const orders: Order[] = [
     patient_name: "Amit Singh",
     order_type: "radiology",
     priority: "routine",
-    status: "pending",
+    status: "placed",
     ordered_at: "2026-07-24T09:30:00Z",
   },
   {
@@ -45,7 +41,7 @@ export const orders: Order[] = [
     patient_name: "Sneha Patel",
     order_type: "blood",
     priority: "stat",
-    status: "pending",
+    status: "placed",
     ordered_at: "2026-07-24T10:05:00Z",
   },
   {

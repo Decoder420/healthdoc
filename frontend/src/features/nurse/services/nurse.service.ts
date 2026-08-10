@@ -1,24 +1,10 @@
-// Single service file for all nurse-module writes. Do not create a parallel
-// class-based service for any of these — one pattern only, to avoid two
-// different call-sites for the same feature.
-//
-// Endpoint status per Schema v3.5 §4 (documented API field contract):
-//   /vitals            -> CONFIRMED (documented, no /nurse prefix)
-//   everything else    -> NOT in the documented endpoint list. URLs below are
-//                         best-guess based on table names (0023: nursing_handover_notes,
-//                         intake_output_records, patient_movement_log). CONFIRM every
-//                         one of these with backend before relying on them.
-//
-// REMOVED (per TL feedback — no backing table exists):
-//   addMedicationAdministration, addProcedureAssistance — deleted along with
-//   their forms/components. Do not re-add until backend confirms a table/endpoint.
-
 import { api } from "../../../../lib/api";
 
-import type { AddVitalsSchema, AddNursingNoteSchema } from "../validation";
-import type { AddPatientMovementSchema } from "@/features/nurse/components/AddPatientMovementForm/validation";
+import type { AddVitalsSchema } from "@/features/nurse/components/AddVitalsForm/validation";
+import type { AddPatientMovementSchema } from "@/components/AddPatientMovementForm/validation";
 import type { AddHandoverSchema } from "@/features/nurse/components/AddHandoverForm/validation";
 import type { AddIntakeOutputSchema } from "@/features/nurse/components/AddIntakeOutputForm/validation";
+import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
 
 export interface Vitals {
   id: string;
@@ -78,8 +64,24 @@ export interface PatientMovementLog {
   moved_by: string;
 }
 
-/* ---------------- Vitals ---------------- */
-// CONFIRMED endpoint per schema §4.
+export interface ProcedureRecord {
+  id: string;
+  order_id: string | null;
+  encounter_id: string;
+  patient_id: string;
+  procedure_name: string;
+  procedure_code: string | null;
+  code_system: string | null;
+  setting: "opd_minor" | "bedside" | "emergency" | "ot";
+  ot_schedule_id: string | null;
+  performed_by: string;
+  assisted_by: string | null;
+  started_at: string;
+  ended_at: string | null;
+  outcome: string | null;
+  complications: string | null;
+}
+
 export async function addVitals(data: AddVitalsSchema) {
   return api<Vitals>("/vitals", {
     method: "POST",
@@ -87,8 +89,6 @@ export async function addVitals(data: AddVitalsSchema) {
   });
 }
 
-/* ---------------- Nursing Handover Notes ---------------- */
-// Table confirmed (nursing_handover_notes, 0023). URL not documented — confirm.
 export async function addHandover(data: AddHandoverSchema) {
   return api<NursingHandoverNote>("/nursing/handover-notes", {
     method: "POST",
@@ -96,9 +96,7 @@ export async function addHandover(data: AddHandoverSchema) {
   });
 }
 
-/* ---------------- Intake / Output ---------------- */
-// Table confirmed (intake_output_records, 0023). URL not documented — confirm.
-// One call = one row (single entry_type + volume_ml), per TL feedback.
+
 export async function addIntakeOutput(data: AddIntakeOutputSchema) {
   return api<IntakeOutputRecord>("/nursing/intake-output", {
     method: "POST",
@@ -106,8 +104,6 @@ export async function addIntakeOutput(data: AddIntakeOutputSchema) {
   });
 }
 
-/* ---------------- Patient Movement (transfer) ---------------- */
-// Table confirmed (patient_movement_log, 0023), append-only. URL not documented — confirm.
 export async function addPatientMovement(data: AddPatientMovementSchema) {
   return api<PatientMovementLog>("/nursing/movement", {
     method: "POST",
@@ -115,13 +111,8 @@ export async function addPatientMovement(data: AddPatientMovementSchema) {
   });
 }
 
-/* ---------------- Nursing Notes (generic) ---------------- */
-// ⚠️ No separate "generic nursing note" table exists in the schema — only
-// nursing_handover_notes. Confirm with backend whether this is actually the
-// same table as addHandover() above (in which case, delete this function and
-// use addHandover everywhere) or a genuinely different feature.
-export async function addNursingNote(data: AddNursingNoteSchema) {
-  return api<unknown>("/nursing/notes", {
+export async function addProcedureAssistance(data: AddProcedureAssistanceSchema) {
+  return api<ProcedureRecord>("/procedures", {
     method: "POST",
     body: JSON.stringify(data),
   });

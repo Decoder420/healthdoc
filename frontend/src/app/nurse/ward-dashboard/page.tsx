@@ -8,14 +8,12 @@ import WardSelector, {
 
 import BedGrid from "@/components/BedGrid";
 import VitalsTimeline from "@/components/VitalsTimeline";
-import VitalsChart from "@/components/VitalsTimeline/vitalsChart";
+import VitalsChart from "@/components/VitalsTimeline/VitalsChart";
 
 import EMARTable from "@/components/tables/EMARTable";
 
 import WardStats from "@/features/nurse/components/WardStats";
 import PatientDetails from "@/features/nurse/components/PatientDetails";
-import AlertsPanel from "@/features/nurse/components/AlertsPanel";
-import NursingNotes from "@/features/nurse/components/NursingNotes";
 
 import IntakeOutput from "@/features/nurse/components/IntakeOutput";
 import HandoverNotes from "@/features/nurse/components/HandoverNotes";
@@ -34,9 +32,16 @@ import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
 import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
 import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
 
-import AddPatientMovementForm from "@/features/nurse/components/AddPatientMovementForm";
-import { useAddPatientMovement } from "@/features/nurse/hooks/useAddPatientMovement";
-import type { AddPatientMovementSchema } from "@/features/nurse/components/AddPatientMovementForm/validation";
+import AddPatientMovementForm from "@/components/AddPatientMovementForm";
+import { useAddPatientMovement } from "@/components/AddPatientMovementForm/useAddPatientMovement";
+import type { AddPatientMovementSchema } from "@/components/AddPatientMovementForm/validation";
+
+import ProcedureAssistance from "@/features/nurse/components/ProcedureAssistance";
+import AddProcedureAssistanceForm from "@/features/nurse/components/AddProcedureAssistanceForm";
+import { useAddProcedureAssistance } from "@/features/nurse/hooks/useAddProcedureAssistance";
+import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
+import { procedureContextByBedId } from "@/lib/data/procedureContextByBed";
+import { PROCEDURE_RECORDS } from "@/lib/data/procedureAssistance";
 
 import TaskQueue from "@/features/nurse/components/TaskQueue";
 import { orders as initialOrders } from "@/lib/data/orders";
@@ -48,7 +53,6 @@ import { beds } from "@/lib/data/beds";
 import { vitals } from "@/lib/data/vitals";
 import { medications } from "@/lib/data/medications";
 
-import { NURSING_NOTES } from "@/lib/data/nursingNotes";
 import { INTAKE_OUTPUT } from "@/lib/data/intakeOutput";
 import { HANDOVER_NOTES } from "@/lib/data/handover";
 import { PATIENT_MOVEMENTS } from "@/lib/data/patientMovements";
@@ -66,37 +70,31 @@ export default function Page() {
     null
   );
 
+  // procedure_records is keyed by encounter_id + patient_id, not admission_id —
+  // a separate mock lookup from admissionsByBedId.
+  const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(
+    null
+  );
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
+    null
+  );
+
   const [orders, setOrders] = useState(initialOrders);
 
-  // Handover and Intake/Output are now local state (not just imported consts)
-  // so a new submission can be appended and show up immediately.
   const [handoverNotes, setHandoverNotes] = useState(HANDOVER_NOTES);
   const [intakeOutputRecords, setIntakeOutputRecords] = useState(INTAKE_OUTPUT);
-
-  // Now admission_id-based, matching patient_movement_log exactly — same
-  // rewrite pattern as HandoverNotes/IntakeOutput.
   const [patientMovements, setPatientMovements] = useState(PATIENT_MOVEMENTS);
+  const [procedureRecords, setProcedureRecords] = useState(PROCEDURE_RECORDS);
 
-  // TODO: replace with the logged-in nurse's real user id once auth/session
-  // context exists. moved_by is a required field on patient_movement_log
-  // (no [Blame] audit mixin here), so this cannot stay hardcoded in production.
   const CURRENT_NURSE_ID = "b3f1a2c4-1111-4a5b-9c1d-000000000001";
 
-  // Quick Actions now drives which form shows below it, instead of every form
-  // being permanently inline on the page.
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
-  // Actions with no confirmed backend table/endpoint yet — shown as an honest
-  // message instead of a form, so the UI doesn't pretend these work.
   const BLOCKED_ACTION_MESSAGES: Record<string, string> = {
     medication:
       "Medication administration isn't available yet — no per-dose eMAR table exists in the backend schema (only prescription_items.status, which is per-prescription, not per-dose). Flagged for backend confirmation.",
     doctor:
       "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
-    history:
-      "Patient Timeline was removed (per TL feedback — no timeline table exists). It may be rebuilt later as a UI-only aggregate of vitals/orders/handovers, not as its own data entity.",
-    note:
-      "Nursing Note's fields (category, priority) aren't confirmed against the schema doc — only nursing_handover_notes exists, and it doesn't have these fields. Flagged for TL/backend confirmation before wiring this up for real.",
   };
 
   const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
@@ -109,6 +107,10 @@ export default function Page() {
 
     const admissionId = admissionsByBedId[bed.id] ?? null;
     setSelectedAdmissionId(admissionId);
+
+    const procedureContext = procedureContextByBedId[bed.id] ?? null;
+    setSelectedEncounterId(procedureContext?.encounterId ?? null);
+    setSelectedPatientId(procedureContext?.patientId ?? null);
   };
 
   const handleCheckOff = (orderId: string) => {
@@ -120,12 +122,6 @@ export default function Page() {
       )
     );
   };
-
-  const patientNotes = selectedPatient
-    ? NURSING_NOTES.filter(
-        (note) => note.patientUhid === selectedPatient.uhid
-      )
-    : [];
 
   const admissionIntakeOutput = selectedAdmissionId
     ? intakeOutputRecords.filter(
@@ -143,28 +139,28 @@ export default function Page() {
       )
     : [];
 
-  const patientAdmissionStatus = selectedPatient
+  // Filtered by patient_id — procedure_records does not have admission_id.
+  const patientProcedureRecords = selectedPatientId
+    ? procedureRecords.filter(
+        (record) => record.patient_id === selectedPatientId
+      )
+    : [];
+
+  const admissionStatusRecords = selectedAdmissionId
     ? ADMISSION_STATUS.filter(
-        (record) => record.patientUhid === selectedPatient.uhid
+        (record) => record.admission_id === selectedAdmissionId
       )
     : [];
 
   const { submitVitals, isSubmitting } = useAddVitals();
-
-  const { submitHandover, isSubmitting: isSubmittingHandover } =
-    useAddHandover();
-
+  const { submitHandover, isSubmitting: isSubmittingHandover } = useAddHandover();
   const { submitIntakeOutput, isSubmitting: isSubmittingIntakeOutput } =
     useAddIntakeOutput();
+  const { submitPatientMovement, isSubmitting: isSubmittingPatientMovement } =
+    useAddPatientMovement();
+  const { submitProcedureAssistance, isSubmitting: isSubmittingProcedure } =
+    useAddProcedureAssistance();
 
-  const {
-    submitPatientMovement,
-    isSubmitting: isSubmittingPatientMovement,
-  } = useAddPatientMovement();
-
-  // TODO: replace with a real refetch once backend confirms the handover
-  // endpoint contract. For now, optimistically append a local record so the
-  // nurse sees the new entry immediately (same pattern as Task Queue check-off).
   const handleAddHandover = async (
     data: Parameters<typeof submitHandover>[0]
   ) => {
@@ -176,16 +172,10 @@ export default function Page() {
 
     setHandoverNotes((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...data,
-        created_at: new Date().toISOString(),
-      },
+      { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() },
     ]);
   };
 
-  // TODO: replace with a real refetch once backend confirms the intake/output
-  // endpoint contract. Optimistic local append in the meantime.
   const handleAddIntakeOutput = async (
     data: Parameters<typeof submitIntakeOutput>[0]
   ) => {
@@ -204,14 +194,36 @@ export default function Page() {
     return ok;
   };
 
-  // TODO: replace with a real refetch once backend confirms the patient
-  // movement endpoint contract. Optimistic local append in the meantime.
   const handleAddPatientMovement = async (data: AddPatientMovementSchema) => {
     const ok = await submitPatientMovement(data);
 
     setPatientMovements((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), ...data },
+      { id: crypto.randomUUID(), ...data, reason: data.reason ?? null },
+    ]);
+
+    return ok;
+  };
+
+  const handleAddProcedureAssistance = async (
+    data: AddProcedureAssistanceSchema
+  ) => {
+    const ok = await submitProcedureAssistance(data);
+
+    setProcedureRecords((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        ...data,
+        order_id: null,
+        procedure_code: data.procedure_code ?? null,
+        code_system: data.code_system ?? null,
+        ot_schedule_id: data.ot_schedule_id ?? null,
+        assisted_by: data.assisted_by ?? null,
+        ended_at: data.ended_at ?? null,
+        outcome: data.outcome ?? null,
+        complications: data.complications ?? null,
+      },
     ]);
 
     return ok;
@@ -222,10 +234,7 @@ export default function Page() {
       {/* Header */}
       <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-primary">
-            Nurse Dashboard
-          </h1>
-
+          <h1 className="text-3xl font-bold text-primary">Nurse Dashboard</h1>
           <p className="mt-2 text-muted-foreground">
             Manage ward beds, patient vitals and medication administration.
           </p>
@@ -247,9 +256,7 @@ export default function Page() {
       {/* Ward Statistics */}
       <WardStats />
 
-      {/* Task Queue (W4) — ward/shift-level, not tied to the selected patient,
-          so it sits with ward-level info rather than between Bed Grid and
-          patient-specific sections. */}
+      {/* Task Queue (W4) — ward/shift-level, not tied to the selected patient */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Task Queue</h2>
@@ -293,18 +300,6 @@ export default function Page() {
         <VitalsChart records={vitals} />
       </section>
 
-      {/* Nursing Notes */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Nursing Notes</h2>
-          <p className="text-sm text-muted-foreground">
-            Nursing observations for the selected patient.
-          </p>
-        </div>
-
-        <NursingNotes patient={selectedPatient} notes={patientNotes} />
-      </section>
-
       {/* Intake Output */}
       <section className="space-y-4">
         <div>
@@ -319,7 +314,6 @@ export default function Page() {
           records={admissionIntakeOutput}
         />
 
-        {/* Add form only shows once a bed with a real admission is selected */}
         {selectedAdmissionId && (
           <AddIntakeOutputForm
             admissionId={selectedAdmissionId}
@@ -370,6 +364,25 @@ export default function Page() {
         {/* Use "Transfer" in Quick Actions below to record a new movement. */}
       </section>
 
+      {/* Procedure Assistance — keyed by encounter_id + patient_id, not
+          admission_id (see procedure_records schema). */}
+      <section className="space-y-4">
+        <ProcedureAssistance
+          patientId={selectedPatientId}
+          records={patientProcedureRecords}
+        />
+
+        {selectedEncounterId && selectedPatientId && (
+          <AddProcedureAssistanceForm
+            encounterId={selectedEncounterId}
+            patientId={selectedPatientId}
+            assistedBy={CURRENT_NURSE_ID}
+            isSubmitting={isSubmittingProcedure}
+            onSubmit={handleAddProcedureAssistance}
+          />
+        )}
+      </section>
+
       {/* Admission Status */}
       <section className="space-y-4">
         <div>
@@ -380,8 +393,8 @@ export default function Page() {
         </div>
 
         <AdmissionStatus
-          patient={selectedPatient}
-          records={patientAdmissionStatus}
+          admissionId={selectedAdmissionId}
+          records={admissionStatusRecords}
         />
       </section>
 
@@ -444,18 +457,6 @@ export default function Page() {
             onSubmit={handleAddPatientMovement}
           />
         )}
-      </section>
-
-      {/* Alerts */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Alerts</h2>
-          <p className="text-sm text-muted-foreground">
-            Critical alerts and notifications.
-          </p>
-        </div>
-
-        <AlertsPanel />
       </section>
     </main>
   );

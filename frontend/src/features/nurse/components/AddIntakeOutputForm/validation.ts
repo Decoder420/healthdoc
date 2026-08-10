@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-// Per HealthDoc_Database_Schema_v3_5.docx — `intake_output_records` (migration 0023).
-// admission_id required, recorded_at is a timestamp, entry_type is exactly one of
-// the five listed values, volume_ml must be > 0, notes is optional.
 export const addIntakeOutputSchema = z.object({
   admission_id: z.string().min(1),
 

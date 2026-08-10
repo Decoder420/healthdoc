@@ -1,7 +1,6 @@
 import { PatientMovementRecord } from "@/features/nurse/components/PatientMovement/PatientMovement.types";
 
-// admission_id values match lib/data/admissionsByBed.ts ("adm-1", "adm-2") so
-// selecting bed "1" or "3" on the dashboard shows this data.
+
 export const PATIENT_MOVEMENTS: PatientMovementRecord[] = [
   {
     id: "1",

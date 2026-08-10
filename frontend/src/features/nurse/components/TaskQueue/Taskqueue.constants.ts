@@ -1,8 +1,5 @@
 import { OrderPriority } from "./Taskqueue.types";
 
-// Priority sort order — stat (most urgent) first, then urgent, then routine.
-// This mirrors the priority-tier sorting pattern used for queue_tokens
-// elsewhere in the schema doc.
 export const PRIORITY_SORT_ORDER: Record<OrderPriority, number> = {
   stat: 0,
   urgent: 1,

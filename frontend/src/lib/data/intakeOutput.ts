@@ -1,8 +1,5 @@
 import { IntakeOutputRecord } from "@/features/nurse/components/IntakeOutput/IntakeOutput.types";
 
-// admission_id values match lib/data/admissionsByBed.ts ("adm-1", "adm-2").
-// Each record is a single intake OR output entry — one row per submit, per
-// the schema doc and TL feedback (no more combined intake+output rows).
 export const INTAKE_OUTPUT: IntakeOutputRecord[] = [
   {
     id: "1",

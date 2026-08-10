@@ -1,10 +1,28 @@
 import { AdmissionStatusProps } from "./AdmissionStatus.types";
 
+const STATUS_LABELS: Record<string, string> = {
+  admitted: "Admitted",
+  transferred: "Transferred",
+  discharged: "Discharged",
+  dama: "DAMA",
+  deceased: "Deceased",
+  absconded: "Absconded",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  admitted: "bg-info-muted text-info",
+  transferred: "bg-warning-muted text-warning",
+  discharged: "bg-success-muted text-success",
+  dama: "bg-danger-muted text-danger",
+  deceased: "bg-danger-muted text-danger",
+  absconded: "bg-danger-muted text-danger",
+};
+
 export default function AdmissionStatus({
-  patient,
+  admissionId,
   records,
 }: AdmissionStatusProps) {
-  if (!patient) {
+  if (!admissionId) {
     return (
       <div className="surface-card p-6">
         <p className="text-sm text-muted-foreground">
@@ -18,7 +36,7 @@ export default function AdmissionStatus({
     return (
       <div className="surface-card p-6">
         <p className="text-sm text-muted-foreground">
-          No admission status available.
+          No admission status records available.
         </p>
       </div>
     );
@@ -26,53 +44,28 @@ export default function AdmissionStatus({
 
   return (
     <section className="surface-card p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold">
-          Admission Status
-        </h2>
+      <h2 className="text-xl font-semibold">Admission Status</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Current admission workflow status.
+      </p>
 
-        <p className="text-sm text-muted-foreground">
-          Current admission workflow and latest status.
-        </p>
-      </div>
-
-      <div className="space-y-5">
+      <div className="mt-4 space-y-3">
         {records.map((record) => (
           <div
             key={record.id}
-            className="rounded-xl border border-border p-5"
+            className="flex items-center justify-between rounded-lg border border-border p-4"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">
-                {record.status}
-              </h3>
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_STYLES[record.status]}`}
+            >
+              {STATUS_LABELS[record.status]}
+            </span>
 
-              <span className="text-xs text-muted-foreground">
-                {record.updatedAt}
+            {record.updated_at && (
+              <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+                {new Date(record.updated_at).toLocaleString()}
               </span>
-            </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Updated By
-                </p>
-
-                <p className="font-medium">
-                  {record.updatedBy}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Remarks
-                </p>
-
-                <p className="font-medium">
-                  {record.remarks}
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>

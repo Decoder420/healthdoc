@@ -1,11 +1,9 @@
-import type { AddVitalsSchema } from "@/features/nurse/validation/vitals.schema";
+import type { AddVitalsSchema } from "./validation";
 
 export interface AddVitalsFormProps {
   patientId: string;
 
   isSubmitting?: boolean;
 
-  onSubmit: (
-    data: AddVitalsSchema
-  ) => Promise<boolean> | boolean;
+  onSubmit: (data: AddVitalsSchema) => Promise<boolean> | boolean;
 }

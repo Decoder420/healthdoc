@@ -8,10 +8,7 @@ export interface HandoverNote {
   background: string;
   assessment: string;
   recommendation: string;
-  handed_over_to: string; // users.id (UUID) of the nurse taking over
-
-  // Captured automatically by the backend, not sent by the form. Included here
-  // only for display (e.g. "handed over by <created_by> at <created_at>").
+  handed_over_to: string; 
   created_by?: string;
   created_at?: string;
 }

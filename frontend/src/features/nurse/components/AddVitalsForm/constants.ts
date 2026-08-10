@@ -1,29 +1,17 @@
-import { VitalSigns } from "../../types/vitals.types";
-
-export const DEFAULT_VALUES: VitalSigns = {
-  patientId: "",
-
-  temperature: 0,
-
-  pulse: 0,
-
-  respiratoryRate: 0,
-
-  systolicBloodPressure: 0,
-
-  diastolicBloodPressure: 0,
-
-  oxygenSaturation: 0,
-
-  weight: 0,
-
-  height: 0,
-
-  painScore: 0,
-
-  remarks: "",
+export const DEFAULT_VALUES = {
+  patient_id: "",
+  measured_at: "",
+  height_cm: undefined,
+  weight_kg: undefined,
+  waist_cm: undefined,
+  hip_cm: undefined,
+  temp_c: undefined,
+  pulse_bpm: undefined,
+  resp_rate: undefined,
+  bp_systolic: undefined,
+  bp_diastolic: undefined,
+  spo2_pct: undefined,
+  pain_score: undefined,
 };
 
-export const PAIN_SCORE_OPTIONS = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-];
+export const PAIN_SCORE_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];

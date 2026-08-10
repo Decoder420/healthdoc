@@ -1,8 +1,5 @@
 import { HandoverNote } from "@/features/nurse/components/HandoverNotes/HandoverNotes.types";
 
-// admission_id values here match the mock bed->admission lookup in
-// lib/data/admissionsByBed.ts ("adm-1", "adm-2") so the dashboard demo actually
-// shows data when a bed is selected.
 export const HANDOVER_NOTES: HandoverNote[] = [
   {
     id: "1",
