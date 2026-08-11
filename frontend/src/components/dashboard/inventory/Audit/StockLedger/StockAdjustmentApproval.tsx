@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { getAuthUser } from "@/lib/auth";
 import { ROLES } from "@/config/roles";
-
 
 import {
   Alert,
@@ -57,148 +57,377 @@ export default function StockAdjustmentApproval({
   const [rejectionReason, setRejectionReason] =
     useState("");
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
+
+  /*
+   * ============================================================
+   * LOAD ADJUSTMENTS
+   * ============================================================
+   */
 
   const loadAdjustments = () => {
-    setAdjustments(getStockAdjustments());
+    const data = getStockAdjustments();
+
+    console.log(
+      "APPROVAL DIALOG LOADED:",
+      data
+    );
+
+    setAdjustments(data);
   };
 
+  /*
+   * ============================================================
+   * REFRESH EVENT
+   * ============================================================
+   */
+
   useEffect(() => {
-    if (open) {
-      loadAdjustments();
-      setError("");
+    if (!open) {
+      return;
     }
+
+    loadAdjustments();
+    setError("");
+
+    const handleAdjustmentUpdated = () => {
+      console.log(
+        "STOCK ADJUSTMENT UPDATED EVENT RECEIVED"
+      );
+
+      loadAdjustments();
+    };
+
+    window.addEventListener(
+      "stock-adjustment-updated",
+      handleAdjustmentUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "stock-adjustment-updated",
+        handleAdjustmentUpdated
+      );
+    };
   }, [open]);
+
+  /*
+   * ============================================================
+   * PENDING APPROVALS
+   *
+   * Pending Approval
+   *        ↓
+   * First Approved
+   *
+   * Both stages are visible.
+   * ============================================================
+   */
 
   const pendingAdjustments =
     adjustments.filter(
       (adjustment) =>
-        adjustment.status === "Pending Approval" ||
-        adjustment.status === "First Approved"
+        adjustment.status ===
+          "Pending Approval" ||
+        adjustment.status ===
+          "First Approved"
     );
+
+  /*
+   * ============================================================
+   * APPROVE
+   * ============================================================
+   */
 
   const handleApprove = (
-  adjustment: StockAdjustment
-) => {
-  setError("");
-
-  try {
-    const currentUser = getAuthUser();
-
-    if (!currentUser) {
-      setError(
-        "You must be logged in to approve a stock adjustment."
-      );
-      return;
-    }
-
-    if (
-      currentUser.role !== ROLES.ADMIN &&
-      currentUser.role !== ROLES.INVENTORY_MANAGER
-    ) {
-      setError(
-        "You are not authorized to approve stock adjustments."
-      );
-      return;
-    }
-
-    approveStockAdjustment(
-      adjustment.id,
-      currentUser.id
-    );
-
-    loadAdjustments();
-    onUpdated();
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to approve adjustment."
-    );
-  }
-};
-
- const handleReject = () => {
-  if (!selectedAdjustment) {
-    return;
-  }
-
-  if (!rejectionReason.trim()) {
-    setError("Rejection reason is required.");
-    return;
-  }
-
-  try {
-    const currentUser = getAuthUser();
-
-    if (!currentUser) {
-      setError(
-        "You must be logged in to reject a stock adjustment."
-      );
-      return;
-    }
-
-    if (
-      currentUser.role !== ROLES.ADMIN &&
-      currentUser.role !== ROLES.INVENTORY_MANAGER
-    ) {
-      setError(
-        "You are not authorized to reject stock adjustments."
-      );
-      return;
-    }
-
-    rejectStockAdjustment(
-      selectedAdjustment.id,
-      currentUser.id,
-      rejectionReason.trim()
-    );
-
-    setSelectedAdjustment(null);
-    setRejectionReason("");
+    adjustment: StockAdjustment
+  ) => {
     setError("");
 
-    loadAdjustments();
-    onUpdated();
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Unable to reject adjustment."
-    );
-  }
-};
+    try {
+      const currentUser =
+        getAuthUser();
 
-  const canApproveStockAdjustment = () => {
-  const currentUser = getAuthUser();
+      if (!currentUser) {
+        throw new Error(
+          "You must be logged in to approve a stock adjustment."
+        );
+      }
 
-  if (!currentUser) {
-    return false;
-  }
+      /*
+       * ----------------------------------------------------------
+       * ROLE CHECK
+       * ----------------------------------------------------------
+       */
 
-  return (
-    currentUser.role === ROLES.ADMIN ||
-    currentUser.role === ROLES.INVENTORY_MANAGER
-  );
-};
+      const authorized =
+        currentUser.role ===
+          ROLES.ADMIN ||
+        currentUser.role ===
+          ROLES.INVENTORY_MANAGER;
+
+      if (!authorized) {
+        throw new Error(
+          "You are not authorized to approve stock adjustments."
+        );
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * SECOND SIGN-OFF
+       * ----------------------------------------------------------
+       *
+       * The same user cannot perform both approvals.
+       */
+
+      if (
+        adjustment.status ===
+          "First Approved" &&
+        adjustment.first_approved_by ===
+          currentUser.id
+      ) {
+        throw new Error(
+          "Final approval must be completed by a different authorized user."
+        );
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * APPROVE
+       * ----------------------------------------------------------
+       *
+       * The data layer handles:
+       *
+       * Pending Approval
+       *        ↓
+       * First Approved
+       *
+       * First Approved
+       *        ↓
+       * Approved
+       *        ↓
+       * Stock Transaction
+       *        ↓
+       * Stock Ledger
+       */
+
+      console.log(
+        "APPROVING ADJUSTMENT:",
+        adjustment.id,
+        "BY:",
+        currentUser.id
+      );
+
+      approveStockAdjustment(
+        adjustment.id,
+        currentUser.id
+      );
+
+      /*
+       * ----------------------------------------------------------
+       * READ FRESH DATA
+       * ----------------------------------------------------------
+       */
+
+      const updated =
+        getStockAdjustments();
+
+      console.log(
+        "ADJUSTMENTS AFTER APPROVAL:",
+        updated
+      );
+
+      setAdjustments(updated);
+
+      /*
+       * ----------------------------------------------------------
+       * NOTIFY OTHER COMPONENTS
+       * ----------------------------------------------------------
+       */
+
+      window.dispatchEvent(
+        new Event(
+          "stock-adjustment-updated"
+        )
+      );
+
+      /*
+       * Notify parent screen.
+       */
+
+      onUpdated();
+
+    } catch (error) {
+      console.error(
+        "APPROVAL ERROR:",
+        error
+      );
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to approve adjustment."
+      );
+    }
+  };
+
+  /*
+   * ============================================================
+   * REJECT
+   * ============================================================
+   */
+
+  const handleReject = () => {
+    if (!selectedAdjustment) {
+      return;
+    }
+
+    setError("");
+
+    if (!rejectionReason.trim()) {
+      setError(
+        "Rejection reason is required."
+      );
+      return;
+    }
+
+    try {
+      const currentUser =
+        getAuthUser();
+
+      if (!currentUser) {
+        throw new Error(
+          "You must be logged in to reject a stock adjustment."
+        );
+      }
+
+      const authorized =
+        currentUser.role ===
+          ROLES.ADMIN ||
+        currentUser.role ===
+          ROLES.INVENTORY_MANAGER;
+
+      if (!authorized) {
+        throw new Error(
+          "You are not authorized to reject stock adjustments."
+        );
+      }
+
+      console.log(
+        "REJECTING ADJUSTMENT:",
+        selectedAdjustment.id,
+        "BY:",
+        currentUser.id
+      );
+
+      rejectStockAdjustment(
+        selectedAdjustment.id,
+        currentUser.id,
+        rejectionReason.trim()
+      );
+
+      /*
+       * Read fresh data.
+       */
+
+      const updated =
+        getStockAdjustments();
+
+      console.log(
+        "ADJUSTMENTS AFTER REJECTION:",
+        updated
+      );
+
+      setAdjustments(updated);
+
+      /*
+       * Close rejection dialog.
+       */
+
+      setSelectedAdjustment(null);
+      setRejectionReason("");
+      setError("");
+
+      /*
+       * Notify other components.
+       */
+
+      window.dispatchEvent(
+        new Event(
+          "stock-adjustment-updated"
+        )
+      );
+
+      onUpdated();
+
+    } catch (error) {
+      console.error(
+        "REJECTION ERROR:",
+        error
+      );
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to reject adjustment."
+      );
+    }
+  };
+
+  /*
+   * ============================================================
+   * AUTHORIZATION
+   * ============================================================
+   */
+
+  const canApproveStockAdjustment =
+    () => {
+      const currentUser =
+        getAuthUser();
+
+      if (!currentUser) {
+        return false;
+      }
+
+      return (
+        currentUser.role ===
+          ROLES.ADMIN ||
+        currentUser.role ===
+          ROLES.INVENTORY_MANAGER
+      );
+    };
+
+  /*
+   * ============================================================
+   * STAGE
+   * ============================================================
+   */
 
   const getStage = (
     adjustment: StockAdjustment
   ) => {
     if (
-      adjustment.status === "Pending Approval"
+      adjustment.status ===
+      "Pending Approval"
     ) {
       return "First Sign-off";
     }
 
     if (
-      adjustment.status === "First Approved"
+      adjustment.status ===
+      "First Approved"
     ) {
-      return "Second Sign-off";
+      return "Final Sign-off";
     }
 
     return "Completed";
   };
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <>
@@ -222,8 +451,8 @@ export default function StockAdjustmentApproval({
               color="text.secondary"
               mt={0.5}
             >
-              Dual sign-off is required for stock
-              adjustments.
+              Dual sign-off is required for
+              stock adjustments.
             </Typography>
           </Box>
         </DialogTitle>
@@ -238,10 +467,11 @@ export default function StockAdjustmentApproval({
             </Alert>
           )}
 
-          {pendingAdjustments.length === 0 ? (
+          {pendingAdjustments.length ===
+          0 ? (
             <Alert severity="info">
-              No stock adjustments are waiting
-              for approval.
+              No stock adjustments are
+              waiting for approval.
             </Alert>
           ) : (
             <Box
@@ -250,223 +480,257 @@ export default function StockAdjustmentApproval({
               gap={2}
             >
               {pendingAdjustments.map(
-                (adjustment) => (
-                  <Paper
-                    key={adjustment.id}
-                    variant="outlined"
-                    sx={{ p: 2 }}
-                  >
-                    <Box
-                      display="flex"
-                      justifyContent="space-between"
-                      alignItems="flex-start"
-                      gap={2}
+                (adjustment) => {
+                  const currentUser =
+                    getAuthUser();
+
+                  const isSecondStage =
+                    adjustment.status ===
+                    "First Approved";
+
+                  const sameUser =
+                    isSecondStage &&
+                    adjustment.first_approved_by ===
+                      currentUser?.id;
+
+                  return (
+                    <Paper
+                      key={adjustment.id}
+                      variant="outlined"
+                      sx={{ p: 2 }}
                     >
-                      <Box>
-                        <Typography
-                          fontWeight={700}
-                        >
-                          {adjustment.id}
-                        </Typography>
+                      <Box
+                        display="flex"
+                        justifyContent="space-between"
+                        alignItems="flex-start"
+                        gap={2}
+                      >
+                        <Box>
+                          <Typography
+                            fontWeight={700}
+                          >
+                            {adjustment.id}
+                          </Typography>
 
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                        >
-                          Item ID:{" "}
-                          {adjustment.item_id}
-                        </Typography>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                          >
+                            Item ID:{" "}
+                            {
+                              adjustment.item_id
+                            }
+                          </Typography>
 
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                        >
-                          Batch:{" "}
-                          {adjustment.batch_id ??
-                            "—"}
-                        </Typography>
-                      </Box>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                          >
+                            Batch:{" "}
+                            {adjustment.batch_id ??
+                              "—"}
+                          </Typography>
+                        </Box>
 
-                      <Chip
-                        size="small"
-                        icon={
-                          <Clock3 size={14} />
-                        }
-                        label={getStage(
-                          adjustment
-                        )}
-                        color={
-                          adjustment.status ===
-                          "First Approved"
-                            ? "info"
-                            : "warning"
-                        }
-                      />
-                    </Box>
-
-                    <Divider sx={{ my: 2 }} />
-
-                    <Box
-                      display="grid"
-                      gridTemplateColumns={{
-                        xs: "1fr 1fr",
-                        md: "repeat(4, 1fr)",
-                      }}
-                      gap={2}
-                    >
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                        >
-                          System
-                        </Typography>
-
-                        <Typography fontWeight={700}>
-                          {
-                            adjustment.system_quantity
+                        <Chip
+                          size="small"
+                          icon={
+                            <Clock3
+                              size={14}
+                            />
                           }
-                        </Typography>
-                      </Box>
-
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                        >
-                          Physical
-                        </Typography>
-
-                        <Typography fontWeight={700}>
-                          {
-                            adjustment.physical_quantity
-                          }
-                        </Typography>
-                      </Box>
-
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                        >
-                          Adjustment
-                        </Typography>
-
-                        <Typography
-                          fontWeight={700}
+                          label={getStage(
+                            adjustment
+                          )}
                           color={
-                            adjustment.adjustment_quantity <
-                            0
-                              ? "error.main"
-                              : "success.main"
+                            isSecondStage
+                              ? "info"
+                              : "warning"
                           }
-                        >
-                          {adjustment.adjustment_quantity >
-                          0
-                            ? "+"
-                            : ""}
-                          {
-                            adjustment.adjustment_quantity
-                          }
-                        </Typography>
+                        />
                       </Box>
 
-                      <Box>
+                      <Divider
+                        sx={{ my: 2 }}
+                      />
+
+                      <Box
+                        display="grid"
+                        gridTemplateColumns={{
+                          xs: "1fr 1fr",
+                          md: "repeat(4, 1fr)",
+                        }}
+                        gap={2}
+                      >
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            System
+                          </Typography>
+
+                          <Typography fontWeight={700}>
+                            {
+                              adjustment.system_quantity
+                            }
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            Physical
+                          </Typography>
+
+                          <Typography fontWeight={700}>
+                            {
+                              adjustment.physical_quantity
+                            }
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            Adjustment
+                          </Typography>
+
+                          <Typography
+                            fontWeight={700}
+                            color={
+                              adjustment.adjustment_quantity <
+                              0
+                                ? "error.main"
+                                : "success.main"
+                            }
+                          >
+                            {adjustment.adjustment_quantity >
+                            0
+                              ? "+"
+                              : ""}
+                            {
+                              adjustment.adjustment_quantity
+                            }
+                          </Typography>
+                        </Box>
+
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                          >
+                            Requested By
+                          </Typography>
+
+                          <Typography fontWeight={700}>
+                            {
+                              adjustment.requested_by
+                            }
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Box mt={2}>
                         <Typography
-                          variant="caption"
+                          variant="body2"
                           color="text.secondary"
                         >
-                          Requested By
+                          Reason
                         </Typography>
 
-                        <Typography fontWeight={700}>
+                        <Typography>
                           {
-                            adjustment.requested_by
+                            adjustment.reason
                           }
                         </Typography>
                       </Box>
-                    </Box>
 
-                    <Box mt={2}>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
+                      {isSecondStage && (
+                        <Alert
+                          severity="info"
+                          sx={{ mt: 2 }}
+                        >
+                          First sign-off completed
+                          by{" "}
+                          <strong>
+                            {
+                              adjustment.first_approved_by
+                            }
+                          </strong>
+                          . A different authorized
+                          user must complete the
+                          final sign-off.
+                        </Alert>
+                      )}
+
+                      <Box
+                        mt={2}
+                        display="flex"
+                        gap={1}
+                        justifyContent="flex-end"
                       >
-                        Reason
-                      </Typography>
+                        <Button
+                          color="error"
+                          variant="outlined"
+                          startIcon={
+                            <XCircle
+                              size={17}
+                            />
+                          }
+                          onClick={() => {
+                            setSelectedAdjustment(
+                              adjustment
+                            );
+                            setRejectionReason(
+                              ""
+                            );
+                            setError("");
+                          }}
+                        >
+                          Reject
+                        </Button>
 
-                      <Typography>
-                        {adjustment.reason}
-                      </Typography>
-                    </Box>
-
-                    {adjustment.status ===
-                      "First Approved" && (
-                      <Alert
-                        severity="info"
-                        sx={{ mt: 2 }}
-                      >
-                        First sign-off completed by{" "}
-                        {
-                          adjustment.first_approved_by
-                        }
-                        . A different authorized
-                        user must complete the final
-                        sign-off.
-                      </Alert>
-                    )}
-
-                    <Box
-                      mt={2}
-                      display="flex"
-                      gap={1}
-                      justifyContent="flex-end"
-                    >
-                      <Button
-                        color="error"
-                        variant="outlined"
-                        startIcon={
-                          <XCircle size={17} />
-                        }
-                        onClick={() => {
-                          setSelectedAdjustment(
-                            adjustment
-                          );
-                          setRejectionReason("");
-                          setError("");
-                        }}
-                      >
-                        Reject
-                      </Button>
-
-                      <Button
-                        variant="contained"
-                        startIcon={
-                          <CheckCircle2
-                            size={17}
-                          />
-                        }
-                        onClick={() =>
-                          handleApprove(
-                            adjustment
-                          )
-                        }
-                      >
-                        {adjustment.status ===
-                        "Pending Approval"
-                          ? "First Approve"
-                          : "Final Approve"}
-                      </Button>
-                    </Box>
-                  </Paper>
-                )
+                        <Button
+                          variant="contained"
+                          disabled={
+                            !canApproveStockAdjustment() ||
+                            sameUser
+                          }
+                          startIcon={
+                            <CheckCircle2
+                              size={17}
+                            />
+                          }
+                          onClick={() =>
+                            handleApprove(
+                              adjustment
+                            )
+                          }
+                        >
+                          {adjustment.status ===
+                          "Pending Approval"
+                            ? "First Approve"
+                            : "Final Approve"}
+                        </Button>
+                      </Box>
+                    </Paper>
+                  );
+                }
               )}
             </Box>
           )}
         </DialogContent>
 
         <DialogActions
-          sx={{ px: 3, pb: 2 }}
+          sx={{
+            px: 3,
+            pb: 2,
+          }}
         >
           <Button onClick={onClose}>
             Close
@@ -474,8 +738,14 @@ export default function StockAdjustmentApproval({
         </DialogActions>
       </Dialog>
 
+      {/* ======================================================
+          REJECTION DIALOG
+      ====================================================== */}
+
       <Dialog
-        open={Boolean(selectedAdjustment)}
+        open={Boolean(
+          selectedAdjustment
+        )}
         onClose={() =>
           setSelectedAdjustment(null)
         }
@@ -492,8 +762,8 @@ export default function StockAdjustmentApproval({
             color="text.secondary"
             mb={2}
           >
-            Please provide a reason for rejecting
-            this stock adjustment.
+            Please provide a reason for
+            rejecting this stock adjustment.
           </Typography>
 
           <TextField
@@ -525,6 +795,9 @@ export default function StockAdjustmentApproval({
           <Button
             color="error"
             variant="contained"
+            disabled={
+              !rejectionReason.trim()
+            }
             onClick={handleReject}
           >
             Reject Adjustment
@@ -534,3 +807,4 @@ export default function StockAdjustmentApproval({
     </>
   );
 }
+

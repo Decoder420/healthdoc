@@ -3,22 +3,34 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { Box, Button, Typography } from "@mui/material";
-import { Plus } from "lucide-react";
+import {
+  Box,
+  Typography,
+} from "@mui/material";
 
 import StockLedgerStats from "@/components/dashboard/inventory/Audit/StockLedger/StockLedgerStats";
+
 import StockLedgerFilters, {
   type StockLedgerFilterValues,
 } from "@/components/dashboard/inventory/Audit/StockLedger/StockLedgerFilters";
+
 import StockLedgerTable from "@/components/dashboard/inventory/Audit/StockLedger/StockLedgerTable";
-import StockAdjustmentDialog from "@/components/dashboard/inventory/Audit/StockLedger/StockAdjustmentDialog";
 
-import { getStockLedger } from "@/features/inventory/data/stockLedgerData";
-import type { StockLedgerEntry } from "@/features/inventory/types/stockLedger";
+import {
+  getStockLedger,
+} from "@/features/inventory/data/stockLedgerData";
 
-import { getExpiryTracker } from "@/features/inventory/data/expiryTrackerData";
+import type {
+  StockLedgerEntry,
+} from "@/features/inventory/types/stockLedger";
 
-import type { ExpiryStockItem } from "@/features/inventory/types/expiryTracker";
+import {
+  getExpiryTracker,
+} from "@/features/inventory/data/expiryTrackerData";
+
+import type {
+  ExpiryStockItem,
+} from "@/features/inventory/types/expiryTracker";
 
 import ExpiryTracker from "@/components/dashboard/inventory/Audit/StockLedger/ExpiryTracker";
 
@@ -29,47 +41,82 @@ const initialFilters: StockLedgerFilterValues = {
   date: "",
 };
 
-
-
 export default function StockLedgerScreen() {
-  const [entries, setEntries] = useState<StockLedgerEntry[]>([]);
-  const [filters, setFilters] =
-    useState<StockLedgerFilterValues>(initialFilters);
+  const [entries, setEntries] =
+    useState<StockLedgerEntry[]>([]);
 
-  // Stock adjustment dialog state MUST be inside the component
-  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const [filters, setFilters] =
+    useState<StockLedgerFilterValues>(
+      initialFilters
+    );
 
   const [expiryItems, setExpiryItems] =
-  useState<ExpiryStockItem[]>([]);
+    useState<ExpiryStockItem[]>([]);
 
+  /*
+   * ============================================================
+   * LOAD LEDGER
+   * ============================================================
+   *
+   * Stock Ledger is read-only.
+   *
+   * Data flow:
+   *
+   * Stock Transaction
+   *        ↓
+   * Stock Ledger
+   *
+   * There is no direct stock adjustment creation here.
+   */
   useEffect(() => {
     setEntries(getStockLedger());
     setExpiryItems(getExpiryTracker());
   }, []);
 
+  /*
+   * ============================================================
+   * FILTER LEDGER
+   * ============================================================
+   */
+
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
-      const search = filters.search.toLowerCase().trim();
+      const search =
+        filters.search
+          .toLowerCase()
+          .trim();
 
       const matchesSearch =
         !search ||
-        entry.item_id.toLowerCase().includes(search) ||
-        entry.batch_id?.toLowerCase().includes(search) ||
-        entry.reference_id?.toLowerCase().includes(search);
+        entry.item_id
+          .toLowerCase()
+          .includes(search) ||
+        entry.batch_id
+          ?.toLowerCase()
+          .includes(search) ||
+        entry.reference_id
+          ?.toLowerCase()
+          .includes(search);
 
       const matchesTransaction =
         !filters.transactionType ||
-        entry.transaction_type === filters.transactionType;
+        entry.transaction_type ===
+          filters.transactionType;
 
       const matchesReference =
         !filters.referenceType ||
         entry.reference_type
           ?.toLowerCase()
-          .includes(filters.referenceType.toLowerCase());
+          .includes(
+            filters.referenceType
+              .toLowerCase()
+          );
 
       const matchesDate =
         !filters.date ||
-        entry.created_at.startsWith(filters.date);
+        entry.created_at.startsWith(
+          filters.date
+        );
 
       return (
         matchesSearch &&
@@ -80,88 +127,167 @@ export default function StockLedgerScreen() {
     });
   }, [entries, filters]);
 
+  /*
+   * ============================================================
+   * STATISTICS
+   * ============================================================
+   */
+
   const stats = useMemo(() => {
     const totalIn = entries
-      .filter((entry) => entry.quantity > 0)
-      .reduce((sum, entry) => sum + entry.quantity, 0);
+      .filter(
+        (entry) =>
+          entry.quantity > 0
+      )
+      .reduce(
+        (sum, entry) =>
+          sum + entry.quantity,
+        0
+      );
 
     const totalOut = Math.abs(
       entries
-        .filter((entry) => entry.quantity < 0)
-        .reduce((sum, entry) => sum + entry.quantity, 0)
+        .filter(
+          (entry) =>
+            entry.quantity < 0
+        )
+        .reduce(
+          (sum, entry) =>
+            sum + entry.quantity,
+          0
+        )
     );
 
-    const adjustments = entries.filter(
-      (entry) => entry.transaction_type === "adjustment"
-    ).length;
+    const adjustments =
+      entries.filter(
+        (entry) =>
+          entry.transaction_type ===
+          "adjustment"
+      ).length;
 
     return {
-      totalTransactions: entries.length,
+      totalTransactions:
+        entries.length,
+
       totalIn,
+
       totalOut,
+
       adjustments,
     };
   }, [entries]);
+
+  /*
+   * ============================================================
+   * RESET FILTERS
+   * ============================================================
+   */
 
   const handleReset = () => {
     setFilters(initialFilters);
   };
 
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
+
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          mb: 3,
-        }}
-      >
-        <Box>
-          <Typography variant="h5" fontWeight={700}>
-            Stock Ledger
-          </Typography>
 
-          <Typography variant="body2" color="text.secondary">
-            Append-only record of all inventory stock movements.
-          </Typography>
-        </Box>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
-        <Button
-          variant="contained"
-          startIcon={<Plus size={18} />}
-          onClick={() => setAdjustmentOpen(true)}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          variant="h5"
+          fontWeight={700}
         >
-          Stock Adjustment
-        </Button>
+          Stock Ledger
+        </Typography>
+
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          mt={0.5}
+        >
+          Append-only record of all
+          inventory stock movements.
+        </Typography>
       </Box>
 
-      {/* Statistics */}
-      <StockLedgerStats {...stats} />
+      {/* ======================================================
+          FLOW INFORMATION
+      ====================================================== */}
 
-      {/* Filters */}
+      <Box
+        sx={{
+          mb: 3,
+          p: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2,
+          backgroundColor:
+            "background.paper",
+        }}
+      >
+        <Typography
+          variant="body2"
+          fontWeight={600}
+        >
+          Inventory Audit Flow
+        </Typography>
+
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 0.5 }}
+        >
+          Warehouse → Stock List →
+          Physical Verification →
+          Stock Adjustment →
+          Dual Sign-off →
+          Stock Transaction →
+          Transaction History →
+          Stock Ledger
+        </Typography>
+      </Box>
+
+      {/* ======================================================
+          STATISTICS
+      ====================================================== */}
+
+      <StockLedgerStats
+        {...stats}
+      />
+
+      {/* ======================================================
+          FILTERS
+      ====================================================== */}
+
       <StockLedgerFilters
         filters={filters}
         onChange={setFilters}
         onReset={handleReset}
       />
 
-      {/* Ledger Table */}
-      <StockLedgerTable entries={filteredEntries} />
+      {/* ======================================================
+          LEDGER TABLE
+      ====================================================== */}
 
-      {/* Stock Adjustment Dialog */}
-      <StockAdjustmentDialog
-        open={adjustmentOpen}
-        onClose={() => {
-          setAdjustmentOpen(false);
-        }}
-        onCreated={() => {
-          setEntries(getStockLedger());
-        }}
+      <StockLedgerTable
+        entries={filteredEntries}
       />
 
-<ExpiryTracker items={expiryItems} />
+      {/* ======================================================
+          EXPIRY TRACKER
+      ====================================================== */}
+
+      <ExpiryTracker
+        items={expiryItems}
+      />
 
     </Box>
   );

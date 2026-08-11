@@ -1,14 +1,32 @@
+
 import type { StockAdjustment } from "../types/stockAdjustment";
 
 import {
   createStockTransaction,
-  generateTransactionId,
   getStockTransactions,
 } from "./stockTransactionData";
 
+import type { StockTransaction } from "../types/stockTransaction";
+
+import {
+  appendStockLedgerEntry,
+  generateStockLedgerId,
+} from "./stockLedgerData";
+
+import type { StockLedgerEntry } from "../types/stockLedger";
+
 const STORAGE_KEY = "hospital_stock_adjustments";
 
-export const getStockAdjustments = (): StockAdjustment[] => {
+const STOCK_ADJUSTMENT_UPDATED_EVENT =
+  "stock-adjustment-updated";
+
+/*
+ * ============================================================
+ * GET STOCK ADJUSTMENTS
+ * ============================================================
+ */
+
+export function getStockAdjustments(): StockAdjustment[] {
   if (typeof window === "undefined") {
     return [];
   }
@@ -24,11 +42,17 @@ export const getStockAdjustments = (): StockAdjustment[] => {
   } catch {
     return [];
   }
-};
+}
 
-export const saveStockAdjustments = (
+/*
+ * ============================================================
+ * SAVE STOCK ADJUSTMENTS
+ * ============================================================
+ */
+
+export function saveStockAdjustments(
   adjustments: StockAdjustment[]
-) => {
+) {
   if (typeof window === "undefined") {
     return;
   }
@@ -37,109 +61,266 @@ export const saveStockAdjustments = (
     STORAGE_KEY,
     JSON.stringify(adjustments)
   );
-};
 
-export const generateAdjustmentId = () => {
+  /*
+   * Notify all open UI components that
+   * stock adjustment data changed.
+   */
+  window.dispatchEvent(
+    new CustomEvent(
+      STOCK_ADJUSTMENT_UPDATED_EVENT
+    )
+  );
+}
+
+/*
+ * ============================================================
+ * GENERATE ADJUSTMENT ID
+ * ============================================================
+ */
+
+export function generateAdjustmentId(): string {
   return `ADJ-${Date.now()}`;
-};
+}
 
-export const createStockAdjustment = (
+/*
+ * ============================================================
+ * CREATE STOCK ADJUSTMENT
+ *
+ * Physical Verification
+ *        ↓
+ * Stock Adjustment
+ *        ↓
+ * Pending Approval
+ * ============================================================
+ */
+
+export function createStockAdjustment(
   adjustment: StockAdjustment
-): StockAdjustment => {
+): StockAdjustment {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "Stock adjustment can only be created in the browser."
+    );
+  }
+
+  if (
+    adjustment.status !== "Pending Approval"
+  ) {
+    throw new Error(
+      "New stock adjustments must start with Pending Approval status."
+    );
+  }
+
   const existing = getStockAdjustments();
 
-  saveStockAdjustments([
-    ...existing,
-    adjustment,
-  ]);
-
-  return adjustment;
-};
-
-export const approveStockAdjustment = (
-  adjustmentId: string,
-  userId: string
-) => {
-  const adjustments = getStockAdjustments();
-
-  const index = adjustments.findIndex(
-    (adjustment) =>
-      adjustment.id === adjustmentId
+  /*
+   * Prevent accidental duplicate adjustment IDs.
+   */
+  const duplicate = existing.some(
+    (item) => item.id === adjustment.id
   );
 
-  if (index === -1) {
+  if (duplicate) {
+    throw new Error(
+      `Stock adjustment "${adjustment.id}" already exists.`
+    );
+  }
+
+  const updated = [
+    ...existing,
+    adjustment,
+  ];
+
+  saveStockAdjustments(updated);
+
+  console.log(
+    "STOCK ADJUSTMENT CREATED:",
+    adjustment
+  );
+
+  console.log(
+    "ALL STOCK ADJUSTMENTS:",
+    getStockAdjustments()
+  );
+
+  return adjustment;
+}
+
+/*
+ * ============================================================
+ * APPROVE STOCK ADJUSTMENT
+ *
+ * Pending Approval
+ *        ↓
+ * First Approved
+ *        ↓
+ * Approved
+ *
+ * ONLY FINAL APPROVAL creates:
+ *
+ * Stock Transaction
+ *        ↓
+ * Transaction History
+ *        ↓
+ * Stock Ledger
+ * ============================================================
+ */
+
+export function approveStockAdjustment(
+  adjustmentId: string,
+  userId: string
+) {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "Stock adjustment approval can only be performed in the browser."
+    );
+  }
+
+  if (!userId) {
+    throw new Error(
+      "Approving user is required."
+    );
+  }
+
+  const adjustments = getStockAdjustments();
+
+  const adjustment = adjustments.find(
+    (item) => item.id === adjustmentId
+  );
+
+  if (!adjustment) {
     throw new Error(
       "Stock adjustment not found."
     );
   }
 
-  const adjustment = adjustments[index];
-
   /*
+   * ========================================================
    * FIRST APPROVAL
    *
    * Pending Approval
-   *       ↓
+   *        ↓
    * First Approved
+   * ========================================================
    */
-  if (adjustment.status === "Pending Approval") {
-    adjustments[index] = {
-      ...adjustment,
 
-      status: "First Approved",
+  if (
+    adjustment.status ===
+    "Pending Approval"
+  ) {
+    const firstApprovedAt =
+      new Date().toISOString();
 
-      first_approved_by: userId,
+    const updated = adjustments.map(
+      (item) =>
+        item.id === adjustmentId
+          ? {
+              ...item,
 
-      first_approved_at:
-        new Date().toISOString(),
-    };
+              status:
+                "First Approved" as const,
 
-    saveStockAdjustments(adjustments);
+              first_approved_by:
+                userId,
 
-    return adjustments[index];
+              first_approved_at:
+                firstApprovedAt,
+
+              /*
+               * Make sure second approval
+               * fields remain empty.
+               */
+              second_approved_by:
+                null,
+
+              second_approved_at:
+                null,
+
+              rejection_reason:
+                null,
+            }
+          : item
+    );
+
+    saveStockAdjustments(updated);
+
+    console.log(
+      "FIRST SIGN-OFF COMPLETED:",
+      adjustmentId
+    );
+
+    return;
   }
 
   /*
+   * ========================================================
    * FINAL APPROVAL
    *
    * First Approved
-   *       ↓
-   * Different User
-   *       ↓
+   *        ↓
    * Approved
+   * ========================================================
    */
-  if (adjustment.status === "First Approved") {
+
+  if (
+    adjustment.status ===
+    "First Approved"
+  ) {
+    /*
+     * Second sign-off MUST be another user.
+     */
     if (
+      adjustment.first_approved_by &&
       adjustment.first_approved_by === userId
     ) {
       throw new Error(
-        "A different authorized user must complete the final approval."
+        "Final approval must be performed by a different authorized user."
       );
     }
 
     const approvedAt =
       new Date().toISOString();
 
-    adjustments[index] = {
-      ...adjustment,
+    /*
+     * --------------------------------------------------------
+     * UPDATE ADJUSTMENT
+     * --------------------------------------------------------
+     */
 
-      status: "Approved",
+    const updated = adjustments.map(
+      (item) =>
+        item.id === adjustmentId
+          ? {
+              ...item,
 
-      second_approved_by: userId,
+              status:
+                "Approved" as const,
 
-      second_approved_at: approvedAt,
-    };
+              second_approved_by:
+                userId,
 
-    saveStockAdjustments(adjustments);
+              second_approved_at:
+                approvedAt,
+
+              rejection_reason:
+                null,
+            }
+          : item
+    );
+
+    saveStockAdjustments(updated);
 
     /*
-     * Create the inventory transaction
-     * ONLY after final approval.
+     * --------------------------------------------------------
+     * FINAL APPROVAL → STOCK TRANSACTION
+     * --------------------------------------------------------
      */
+
     const existingTransactions =
       getStockTransactions();
 
-    const alreadyRecorded =
+    const transactionAlreadyExists =
       existingTransactions.some(
         (transaction) =>
           transaction.reference_type ===
@@ -148,19 +329,13 @@ export const approveStockAdjustment = (
             adjustment.id
       );
 
-    if (!alreadyRecorded) {
-      createStockTransaction({
-        id: generateTransactionId(),
+    if (!transactionAlreadyExists) {
+      const transaction: StockTransaction = {
+        id: `TXN-${Date.now()}`,
 
         item_id:
           adjustment.item_id,
 
-        /*
-         * StockAdjustment currently doesn't
-         * contain item_name.
-         * We will connect this to Item Master
-         * later.
-         */
         item_name:
           adjustment.item_id,
 
@@ -187,53 +362,149 @@ export const approveStockAdjustment = (
 
         created_at:
           approvedAt,
-      });
+      };
+
+      createStockTransaction(
+        transaction
+      );
     }
 
-    return adjustments[index];
+    /*
+     * --------------------------------------------------------
+     * FINAL APPROVAL → STOCK LEDGER
+     * --------------------------------------------------------
+     */
+
+    const existingLedger =
+      getStockLedgerSafely();
+
+    const ledgerAlreadyExists =
+      existingLedger.some(
+        (entry) =>
+          entry.reference_type ===
+            "stock_adjustment" &&
+          entry.reference_id ===
+            adjustment.id
+      );
+
+    if (!ledgerAlreadyExists) {
+      const ledgerEntry: StockLedgerEntry = {
+        id: generateStockLedgerId(),
+
+        item_id:
+          adjustment.item_id,
+
+        batch_id:
+          adjustment.batch_id ?? null,
+
+        transaction_type:
+          "adjustment",
+
+        quantity:
+          adjustment.adjustment_quantity,
+
+        reference_type:
+          "stock_adjustment",
+
+        reference_id:
+          adjustment.id,
+
+        performed_by:
+          userId,
+
+        reason:
+          adjustment.reason,
+
+        created_at:
+          approvedAt,
+      };
+
+      appendStockLedgerEntry(
+        ledgerEntry
+      );
+    }
+
+    console.log(
+      "FINAL APPROVAL COMPLETED:",
+      adjustmentId
+    );
+
+    console.log(
+      "STOCK TRANSACTION + LEDGER UPDATED"
+    );
+
+    return;
   }
 
   /*
-   * Approved / Rejected adjustments cannot
-   * be approved again.
+   * ========================================================
+   * INVALID STATUS
+   * ========================================================
    */
+
   throw new Error(
     `Adjustment cannot be approved from status "${adjustment.status}".`
   );
-};
+}
 
-export const rejectStockAdjustment = (
+/*
+ * ============================================================
+ * SAFE LEDGER READER
+ * ============================================================
+ */
+
+function getStockLedgerSafely(): StockLedgerEntry[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const stored =
+      localStorage.getItem(
+        "hospital_stock_ledger"
+      );
+
+    if (!stored) {
+      return [];
+    }
+
+    return JSON.parse(
+      stored
+    ) as StockLedgerEntry[];
+  } catch {
+    return [];
+  }
+}
+
+/*
+ * ============================================================
+ * REJECT STOCK ADJUSTMENT
+ * ============================================================
+ *
+ * Pending Approval → Rejected
+ *
+ * First Approved → Rejected
+ *
+ * Rejection does NOT create:
+ * - transaction
+ * - ledger entry
+ * ============================================================
+ */
+
+export function rejectStockAdjustment(
   adjustmentId: string,
   userId: string,
   rejectionReason: string
-) => {
-  const adjustments = getStockAdjustments();
-
-  const index = adjustments.findIndex(
-    (adjustment) =>
-      adjustment.id === adjustmentId
-  );
-
-  if (index === -1) {
+) {
+  if (typeof window === "undefined") {
     throw new Error(
-      "Stock adjustment not found."
+      "Stock adjustment rejection can only be performed in the browser."
     );
   }
 
-  const adjustment = adjustments[index];
-
-  /*
-   * Rejection is allowed only while
-   * approval is still pending.
-   */
-  if (
-    adjustment.status !==
-      "Pending Approval" &&
-    adjustment.status !==
-      "First Approved"
-  ) {
+  if (!userId) {
     throw new Error(
-      "This adjustment cannot be rejected."
+      "Rejecting user is required."
     );
   }
 
@@ -243,16 +514,48 @@ export const rejectStockAdjustment = (
     );
   }
 
-  adjustments[index] = {
-    ...adjustment,
+  const adjustments = getStockAdjustments();
 
-    status: "Rejected",
+  const adjustment = adjustments.find(
+    (item) => item.id === adjustmentId
+  );
 
-    rejection_reason:
-      rejectionReason.trim(),
-  };
+  if (!adjustment) {
+    throw new Error(
+      "Stock adjustment not found."
+    );
+  }
 
-  saveStockAdjustments(adjustments);
+  if (
+    adjustment.status !==
+      "Pending Approval" &&
+    adjustment.status !==
+      "First Approved"
+  ) {
+    throw new Error(
+      `Adjustment cannot be rejected from status "${adjustment.status}".`
+    );
+  }
 
-  return adjustments[index];
-};
+  const updated =
+    adjustments.map((item) =>
+      item.id === adjustmentId
+        ? {
+            ...item,
+
+            status:
+              "Rejected" as const,
+
+            rejection_reason:
+              `${rejectionReason.trim()} (Rejected by ${userId})`,
+          }
+        : item
+    );
+
+  saveStockAdjustments(updated);
+
+  console.log(
+    "STOCK ADJUSTMENT REJECTED:",
+    adjustmentId
+  );
+}

@@ -1,9 +1,23 @@
+
 import type {
   StockTransaction,
-  StockTransactionType,
 } from "../types/stockTransaction";
 
-const STORAGE_KEY = "hospital_stock_transactions";
+import type {
+  StockAdjustment,
+} from "../types/stockAdjustment";
+
+type StockTransactionType =
+  StockTransaction["transaction_type"];
+
+const STORAGE_KEY =
+  "hospital_stock_transactions";
+
+/*
+ * ============================================================
+ * DEMO TRANSACTION DATA
+ * ============================================================
+ */
 
 export const stockTransactionData: StockTransaction[] = [
   {
@@ -19,6 +33,7 @@ export const stockTransactionData: StockTransaction[] = [
     reason: "Stock received from supplier",
     created_at: "2026-08-07T09:30:00.000Z",
   },
+
   {
     id: "TXN-002",
     item_id: "ITEM-001",
@@ -32,6 +47,7 @@ export const stockTransactionData: StockTransaction[] = [
     reason: "Issued to Pharmacy",
     created_at: "2026-08-07T10:15:00.000Z",
   },
+
   {
     id: "TXN-003",
     item_id: "ITEM-002",
@@ -45,6 +61,7 @@ export const stockTransactionData: StockTransaction[] = [
     reason: "Transferred to Ward A",
     created_at: "2026-08-07T10:45:00.000Z",
   },
+
   {
     id: "TXN-004",
     item_id: "ITEM-003",
@@ -58,6 +75,7 @@ export const stockTransactionData: StockTransaction[] = [
     reason: "Physical verification variance",
     created_at: "2026-08-07T11:20:00.000Z",
   },
+
   {
     id: "TXN-005",
     item_id: "ITEM-004",
@@ -71,6 +89,7 @@ export const stockTransactionData: StockTransaction[] = [
     reason: "Unused stock returned from department",
     created_at: "2026-08-07T11:50:00.000Z",
   },
+
   {
     id: "TXN-006",
     item_id: "ITEM-005",
@@ -86,12 +105,19 @@ export const stockTransactionData: StockTransaction[] = [
   },
 ];
 
-export const getStockTransactions = (): StockTransaction[] => {
+/*
+ * ============================================================
+ * GET TRANSACTIONS
+ * ============================================================
+ */
+
+export function getStockTransactions(): StockTransaction[] {
   if (typeof window === "undefined") {
     return stockTransactionData;
   }
 
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored =
+    localStorage.getItem(STORAGE_KEY);
 
   if (!stored) {
     localStorage.setItem(
@@ -103,15 +129,28 @@ export const getStockTransactions = (): StockTransaction[] => {
   }
 
   try {
-    return JSON.parse(stored) as StockTransaction[];
+    return JSON.parse(
+      stored
+    ) as StockTransaction[];
   } catch {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(stockTransactionData)
+    );
+
     return stockTransactionData;
   }
-};
+}
 
-export const saveStockTransactions = (
+/*
+ * ============================================================
+ * SAVE TRANSACTIONS
+ * ============================================================
+ */
+
+export function saveStockTransactions(
   transactions: StockTransaction[]
-) => {
+) {
   if (typeof window === "undefined") {
     return;
   }
@@ -120,31 +159,154 @@ export const saveStockTransactions = (
     STORAGE_KEY,
     JSON.stringify(transactions)
   );
-};
+}
 
-export const generateTransactionId = () => {
+/*
+ * ============================================================
+ * GENERATE TRANSACTION ID
+ * ============================================================
+ */
+
+export function generateTransactionId() {
   return `TXN-${Date.now()}`;
-};
+}
 
-export const createStockTransaction = (
+/*
+ * ============================================================
+ * CREATE TRANSACTION
+ * ============================================================
+ *
+ * This is the ONLY function that writes a transaction.
+ *
+ * Duplicate reference IDs are prevented.
+ * ============================================================
+ */
+
+export function createStockTransaction(
   transaction: StockTransaction
-): StockTransaction => {
-  const existing = getStockTransactions();
+): StockTransaction {
+  const existing =
+    getStockTransactions();
 
-  saveStockTransactions([
+  const existingTransaction =
+    existing.find(
+      (item) =>
+        item.reference_id ===
+          transaction.reference_id &&
+        item.reference_type ===
+          transaction.reference_type
+    );
+
+  if (existingTransaction) {
+    return existingTransaction;
+  }
+
+  const updated = [
     ...existing,
     transaction,
-  ]);
+  ];
+
+  saveStockTransactions(updated);
+
+  /*
+   * Notify transaction history / ledger screens.
+   */
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new Event("stock-transaction-updated")
+    );
+  }
 
   return transaction;
-};
+}
 
-export const getTransactionsByType = (
+/*
+ * ============================================================
+ * CREATE TRANSACTION FROM FINAL APPROVED ADJUSTMENT
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * This function must ONLY be called after:
+ *
+ * Pending Approval
+ *       ↓
+ * First Approved
+ *       ↓
+ * Approved
+ *
+ * It must NEVER be called during first approval.
+ * ============================================================
+ */
+
+export function createAdjustmentTransaction(
+  adjustment: StockAdjustment
+): StockTransaction {
+  if (
+    adjustment.status !== "Approved"
+  ) {
+    throw new Error(
+      "Stock transaction can only be created after final approval."
+    );
+  }
+
+  const transaction: StockTransaction = {
+    id: generateTransactionId(),
+
+    item_id:
+      adjustment.item_id,
+
+    item_name:
+      adjustment.item_id,
+
+    batch_id:
+      adjustment.batch_id ?? null,
+
+    transaction_type:
+      "adjustment",
+
+    quantity:
+      adjustment.adjustment_quantity,
+
+    reference_type:
+      "STOCK_ADJUSTMENT",
+
+    reference_id:
+      adjustment.id,
+
+    /*
+     * FINAL approver is the person
+     * who actually performed the adjustment.
+     */
+    performed_by:
+      adjustment.second_approved_by!,
+
+    reason:
+      adjustment.reason,
+
+    created_at:
+      adjustment.second_approved_at ??
+      new Date().toISOString(),
+  };
+
+  return createStockTransaction(
+    transaction
+  );
+}
+
+/*
+ * ============================================================
+ * GET TRANSACTIONS BY TYPE
+ * ============================================================
+ */
+
+export function getTransactionsByType(
   transactionType: StockTransactionType
-) => {
+) {
   return getStockTransactions().filter(
     (transaction) =>
       transaction.transaction_type ===
       transactionType
   );
-};
+}
+

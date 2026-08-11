@@ -15,11 +15,6 @@ export interface StockLedgerEntry {
 
   transaction_type: StockTransactionType;
 
-  /**
-   * Signed quantity:
-   * +ve = stock in
-   * -ve = stock out
-   */
   quantity: number;
 
   reference_type?: string | null;

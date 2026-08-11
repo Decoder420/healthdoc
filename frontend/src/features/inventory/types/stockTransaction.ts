@@ -1,28 +1,27 @@
-export type StockTransactionType =
-  | "purchase"
-  | "issue"
-  | "return"
-  | "transfer"
-  | "consumption"
-  | "adjustment"
-  | "write_off";
-
 export interface StockTransaction {
   id: string;
+
   item_id: string;
   item_name: string;
-  batch_id: string | null;
 
-  transaction_type: StockTransactionType;
+  batch_id?: string | null;
+
+  transaction_type:
+    | "purchase"
+    | "issue"
+    | "transfer"
+    | "adjustment"
+    | "return"
+    | "consumption";
 
   quantity: number;
 
-  reference_type: string | null;
-  reference_id: string | null;
+  reference_type: string;
+  reference_id: string;
 
   performed_by: string;
 
-  reason: string | null;
+  reason?: string;
 
   created_at: string;
 }

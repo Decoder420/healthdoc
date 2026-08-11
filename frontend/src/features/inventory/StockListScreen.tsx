@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import StockListStats from "@/components/dashboard/inventory/products/StockList/StockListStats";
 import StockListTable from "@/components/dashboard/inventory/products/StockList/StockListTable";
@@ -17,76 +17,149 @@ export default function StockListScreen() {
   const [stocks, setStocks] = useState<WarehouseStock[]>([]);
 
   const [search, setSearch] = useState("");
-
-  const [category, setCategory] =
-    useState("All");
-
-  const [status, setStatus] =
-    useState("All");
+  const [category, setCategory] = useState("All");
+  const [status, setStatus] = useState("All");
 
   const [selectedStock, setSelectedStock] =
     useState<WarehouseStock | null>(null);
 
-  const [viewOpen, setViewOpen] =
-    useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
 
   /*
-   * Load stock from localStorage
+   * ============================================================
+   * LOAD STOCK
+   * ============================================================
+   *
+   * IMPORTANT:
+   *
+   * Warehouse Stock Entry saves data into:
+   *
+   * warehouse_stock
+   *
+   * Stock List reads from the SAME key.
    */
-  useEffect(() => {
-    const storedStock =
-      localStorage.getItem(
+  const loadStock = useCallback(() => {
+    try {
+      const storedStock = localStorage.getItem(
         WAREHOUSE_STOCK_KEY
       );
 
-    if (!storedStock) {
+      /*
+       * If warehouse_stock already exists,
+       * ALWAYS use it.
+       */
+      if (storedStock) {
+        const parsedStock = JSON.parse(
+          storedStock
+        );
+
+        if (Array.isArray(parsedStock)) {
+          setStocks(parsedStock);
+          return;
+        }
+      }
+
+      /*
+       * Only create initial demo stock if
+       * warehouse_stock does not exist.
+       */
       localStorage.setItem(
         WAREHOUSE_STOCK_KEY,
         JSON.stringify(warehouseStockData)
       );
 
       setStocks(warehouseStockData);
-
-      return;
-    }
-
-    try {
-      const parsedStock: WarehouseStock[] =
-        JSON.parse(storedStock);
-
-      setStocks(parsedStock);
     } catch (error) {
       console.error(
         "Failed to load warehouse stock:",
         error
       );
 
-      setStocks(warehouseStockData);
+      /*
+       * Do not overwrite existing localStorage
+       * data with demo data on parsing errors.
+       */
+      setStocks([]);
     }
   }, []);
 
   /*
-   * Categories
+   * ============================================================
+   * INITIAL LOAD
+   * ============================================================
+   */
+  useEffect(() => {
+    loadStock();
+  }, [loadStock]);
+
+  /*
+   * ============================================================
+   * REFRESH WHEN USER RETURNS TO STOCK LIST
+   * ============================================================
+   *
+   * This is important because Warehouse updates
+   * localStorage before the user opens Stock List.
+   */
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadStock();
+      }
+    };
+
+    const handleFocus = () => {
+      loadStock();
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    window.addEventListener(
+      "focus",
+      handleFocus
+    );
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      );
+    };
+  }, [loadStock]);
+
+  /*
+   * ============================================================
+   * CATEGORIES
+   * ============================================================
    */
   const categories = useMemo(() => {
-    return [
-      "All",
-      ...Array.from(
-        new Set(
-          stocks.map(
-            (stock) => stock.category
-          )
-        )
-      ),
-    ];
+    const uniqueCategories = Array.from(
+      new Set(
+        stocks
+          .map((stock) => stock.category)
+          .filter(Boolean)
+      )
+    );
+
+    return ["All", ...uniqueCategories];
   }, [stocks]);
 
   /*
-   * Filtered stock
+   * ============================================================
+   * FILTERED STOCK
+   * ============================================================
    */
   const filteredStocks = useMemo(() => {
-    const query =
-      search.trim().toLowerCase();
+    const query = search
+      .trim()
+      .toLowerCase();
 
     return stocks.filter((stock) => {
       const matchesSearch =
@@ -97,11 +170,11 @@ export default function StockListScreen() {
         stock.itemId
           .toLowerCase()
           .includes(query) ||
-        stock.batchNumber
+        (stock.batchNumber ?? "")
           .toLowerCase()
           .includes(query) ||
-        stock.grnNumber
-          ?.toLowerCase()
+        (stock.grnNumber ?? "")
+          .toLowerCase()
           .includes(query);
 
       const matchesCategory =
@@ -126,33 +199,33 @@ export default function StockListScreen() {
   ]);
 
   /*
-   * Stats
+   * ============================================================
+   * STATS
+   * ============================================================
    */
   const stats = useMemo(() => {
     const totalItems = stocks.length;
 
-    const totalQuantity =
-      stocks.reduce(
-        (total, stock) =>
-          total +
-          stock.availableQuantity,
-        0
-      );
+    const totalQuantity = stocks.reduce(
+      (total, stock) =>
+        total +
+        Number(
+          stock.availableQuantity ?? 0
+        ),
+      0
+    );
 
-    const lowStock =
-      stocks.filter(
-        (stock) =>
-          stock.status === "Low Stock" ||
-          stock.status === "Out of Stock"
-      ).length;
+    const lowStock = stocks.filter(
+      (stock) =>
+        stock.status === "Low Stock" ||
+        stock.status === "Out of Stock"
+    ).length;
 
-    const warehouses =
-      new Set(
-        stocks.map(
-          (stock) =>
-            stock.warehouseId
-        )
-      ).size;
+    const warehouses = new Set(
+      stocks.map(
+        (stock) => stock.warehouseId
+      )
+    ).size;
 
     return {
       totalItems,
@@ -163,7 +236,9 @@ export default function StockListScreen() {
   }, [stocks]);
 
   /*
-   * View stock
+   * ============================================================
+   * VIEW STOCK
+   * ============================================================
    */
   const handleView = (
     stock: WarehouseStock
@@ -173,7 +248,9 @@ export default function StockListScreen() {
   };
 
   /*
-   * Close dialog
+   * ============================================================
+   * CLOSE VIEW
+   * ============================================================
    */
   const handleClose = () => {
     setViewOpen(false);
@@ -181,7 +258,9 @@ export default function StockListScreen() {
   };
 
   /*
-   * Reset filters
+   * ============================================================
+   * RESET FILTERS
+   * ============================================================
    */
   const handleReset = () => {
     setSearch("");
@@ -192,7 +271,9 @@ export default function StockListScreen() {
   return (
     <div className="space-y-6">
 
-      {/* HEADER */}
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <div>
         <p className="text-sm font-medium text-primary">
@@ -209,24 +290,20 @@ export default function StockListScreen() {
         </p>
       </div>
 
-      {/* STATS */}
+      {/* ======================================================
+          STATS
+      ====================================================== */}
 
       <StockListStats
-        totalItems={
-          stats.totalItems
-        }
-        totalQuantity={
-          stats.totalQuantity
-        }
-        lowStock={
-          stats.lowStock
-        }
-        warehouses={
-          stats.warehouses
-        }
+        totalItems={stats.totalItems}
+        totalQuantity={stats.totalQuantity}
+        lowStock={stats.lowStock}
+        warehouses={stats.warehouses}
       />
 
-      {/* FILTERS */}
+      {/* ======================================================
+          FILTERS
+      ====================================================== */}
 
       <div className="surface-card p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
@@ -330,7 +407,9 @@ export default function StockListScreen() {
         </div>
       </div>
 
-      {/* RESULT COUNT */}
+      {/* ======================================================
+          RESULT COUNT
+      ====================================================== */}
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
@@ -346,14 +425,18 @@ export default function StockListScreen() {
         </p>
       </div>
 
-      {/* TABLE */}
+      {/* ======================================================
+          TABLE
+      ====================================================== */}
 
       <StockListTable
         stocks={filteredStocks}
         onView={handleView}
       />
 
-      {/* VIEW DIALOG */}
+      {/* ======================================================
+          VIEW DIALOG
+      ====================================================== */}
 
       <StockListViewDialog
         open={viewOpen}
@@ -363,4 +446,3 @@ export default function StockListScreen() {
     </div>
   );
 }
-

@@ -244,18 +244,18 @@ export default function CreateAdjustmentDialog({
         </Button>
 
         <Button
-          variant="contained"
-          color="warning"
-          disabled={!reason.trim()}
-          onClick={() =>
-            onSubmit(
-              verification,
-              reason.trim()
-            )
-          }
-        >
-          Submit for Approval
-        </Button>
+  variant="contained"
+  color="warning"
+  disabled={!reason.trim() || variance === 0}
+  onClick={() =>
+    onSubmit(
+      verification,
+      reason.trim()
+    )
+  }
+>
+  Submit for Approval
+</Button>
       </DialogActions>
     </Dialog>
   );

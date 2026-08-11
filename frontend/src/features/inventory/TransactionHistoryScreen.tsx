@@ -39,9 +39,29 @@ export default function TransactionHistoryScreen() {
       initialFilters
     );
 
-  useEffect(() => {
+    useEffect(() => {
+  const loadTransactions = () => {
     setTransactions(getStockTransactions());
-  }, []);
+  };
+
+  loadTransactions();
+
+  const handleStorageChange = () => {
+    loadTransactions();
+  };
+
+  window.addEventListener(
+    "storage",
+    handleStorageChange
+  );
+
+  return () => {
+    window.removeEventListener(
+      "storage",
+      handleStorageChange
+    );
+  };
+}, []);
 
   const filteredTransactions = useMemo(() => {
     const search =
