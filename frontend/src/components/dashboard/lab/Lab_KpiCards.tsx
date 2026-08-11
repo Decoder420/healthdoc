@@ -26,48 +26,44 @@ export default function DynamicCard({
   const content = (
     <>
       {/* Left Content */}
-
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-muted-foreground">
           {title}
         </p>
 
-        <h2 className="mt-3 text-xl font-bold tracking-tight text-foreground">
+        <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
           {text}
         </h2>
 
         {/* Optional Subtitle */}
-
         {subtitle && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {subtitle}
           </p>
         )}
 
         {/* Optional Link */}
-
         {linkHref && linkText && (
           <Link
             href={linkHref}
             onClick={(event) => {
               event.stopPropagation();
             }}
-            className="link-primary mt-4 inline-flex items-center gap-2 text-sm"
+            className="link-primary mt-1.5 inline-flex items-center gap-1 text-xs"
           >
             {linkText}
-            <ArrowRight size={16} />
+            <ArrowRight size={13} />
           </Link>
         )}
       </div>
 
       {/* Icon */}
-
       {icon && (
         <div
           className="
-            flex h-11 w-11 shrink-0
+            flex h-7 w-7 shrink-0
             items-center justify-center
-            rounded-xl
+            rounded-md
             bg-primary/10
             !text-primary
             transition-all
@@ -76,7 +72,9 @@ export default function DynamicCard({
             group-hover:!text-primary-foreground
           "
         >
-          {icon}
+          <span className="[&>svg]:h-[18px] [&>svg]:w-[18px]">
+            {icon}
+          </span>
         </div>
       )}
     </>
@@ -94,16 +92,16 @@ export default function DynamicCard({
         className="
           group
           flex
-          min-h-[140px]
+          min-h-[90px]
           w-full
           items-start
           justify-between
-          gap-4
-          rounded-2xl
+          gap-3
+          rounded-xl
           border
           border-border
           bg-card
-          p-5
+          p-3
           text-left
           shadow-sm
           transition-all
@@ -129,16 +127,16 @@ export default function DynamicCard({
       className="
         group
         flex
-        min-h-[140px]
+        min-h-[90px]
         w-full
         items-start
         justify-between
-        gap-4
-        rounded-2xl
+        gap-3
+        rounded-xl
         border
         border-border
         bg-card
-        p-5
+        p-3
         shadow-sm
         transition-all
         duration-200

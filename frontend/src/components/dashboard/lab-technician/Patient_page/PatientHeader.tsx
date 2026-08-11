@@ -101,9 +101,7 @@ export default function PatientHeader({
         >
           <Button
             variant="outlined"
-            startIcon={
-              <ArrowBackRoundedIcon />
-            }
+            startIcon={<ArrowBackRoundedIcon />}
             onClick={() => router.back()}
             sx={{
               borderRadius: 2,
@@ -137,9 +135,7 @@ export default function PatientHeader({
 
         <Chip
           label={patient?.status ?? "UNKNOWN"}
-          color={getStatusColor(
-            patient?.status
-          )}
+          color={getStatusColor(patient?.status)}
           sx={{
             fontWeight: 700,
             borderRadius: 2,
@@ -154,12 +150,7 @@ export default function PatientHeader({
 
       <Card
         elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-        }}
+        className="surface-card"
       >
         <CardContent
           sx={{
@@ -220,8 +211,8 @@ export default function PatientHeader({
                     color="text.secondary"
                     sx={{ mt: 0.5 }}
                   >
-                    {patient?.patient
-                      ?.patientId ?? "-"}
+                    {patient?.patient?.patientId ??
+                      "-"}
                   </Typography>
                 </Box>
 
@@ -264,8 +255,7 @@ export default function PatientHeader({
                     icon={<BadgeRoundedIcon />}
                     title="UHID"
                     value={
-                      patient?.patient?.uhid ??
-                      "-"
+                      patient?.patient?.uhid ?? "-"
                     }
                   />
                 </Grid>
@@ -281,8 +271,8 @@ export default function PatientHeader({
                     icon={<PersonRoundedIcon />}
                     title="Patient ID"
                     value={
-                      patient?.patient
-                        ?.patientId ?? "-"
+                      patient?.patient?.patientId ??
+                      "-"
                     }
                   />
                 </Grid>
@@ -298,8 +288,7 @@ export default function PatientHeader({
                     icon={<PhoneRoundedIcon />}
                     title="Mobile"
                     value={
-                      patient?.patient?.mobile ??
-                      "-"
+                      patient?.patient?.mobile ?? "-"
                     }
                   />
                 </Grid>
@@ -312,13 +301,10 @@ export default function PatientHeader({
                   }}
                 >
                   <Info
-                    icon={
-                      <BloodtypeRoundedIcon />
-                    }
+                    icon={<BloodtypeRoundedIcon />}
                     title="Age / Gender"
                     value={`${patient?.patient?.age ?? "-"} Years • ${
-                      patient?.patient?.gender ??
-                      "-"
+                      patient?.patient?.gender ?? "-"
                     }`}
                   />
                 </Grid>
@@ -335,8 +321,7 @@ export default function PatientHeader({
                     }
                     title="Consultant"
                     value={
-                      patient?.doctor?.name ??
-                      "-"
+                      patient?.doctor?.name ?? "-"
                     }
                   />
                 </Grid>
@@ -353,8 +338,8 @@ export default function PatientHeader({
                     }
                     title="Department"
                     value={
-                      patient?.doctor
-                        ?.department ?? "-"
+                      patient?.doctor?.department ??
+                      "-"
                     }
                   />
                 </Grid>
@@ -369,8 +354,8 @@ export default function PatientHeader({
                     icon={<EventRoundedIcon />}
                     title="Visit Type"
                     value={
-                      patient?.visit
-                        ?.visitType ?? "-"
+                      patient?.visit?.visitType ??
+                      "-"
                     }
                   />
                 </Grid>
@@ -385,8 +370,7 @@ export default function PatientHeader({
                     icon={<BadgeRoundedIcon />}
                     title="Visit ID"
                     value={
-                      patient?.visit
-                        ?.visitId ?? "-"
+                      patient?.visit?.visitId ?? "-"
                     }
                   />
                 </Grid>
@@ -425,8 +409,7 @@ export default function PatientHeader({
               flexWrap="wrap"
               useFlexGap
             >
-              {patient?.requestedTests
-                ?.length ? (
+              {patient?.requestedTests?.length ? (
                 patient.requestedTests.map(
                   (test: string) => (
                     <Chip
@@ -472,9 +455,7 @@ export default function PatientHeader({
           <SummaryCard
             icon={<AccessTimeRoundedIcon />}
             label="Current Status"
-            value={
-              patient?.status ?? "-"
-            }
+            value={patient?.status ?? "-"}
           />
         </Grid>
 
@@ -489,8 +470,7 @@ export default function PatientHeader({
             icon={<EventRoundedIcon />}
             label="Visit Type"
             value={
-              patient?.visit?.visitType ??
-              "-"
+              patient?.visit?.visitType ?? "-"
             }
           />
         </Grid>
@@ -505,8 +485,7 @@ export default function PatientHeader({
             icon={<ScienceRoundedIcon />}
             label="Total Tests"
             value={String(
-              patient?.requestedTests
-                ?.length ?? 0
+              patient?.requestedTests?.length ?? 0
             )}
           />
         </Grid>
@@ -604,11 +583,7 @@ function SummaryCard({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
+      className="surface-card"
     >
       <CardContent sx={{ p: 2 }}>
         <Stack

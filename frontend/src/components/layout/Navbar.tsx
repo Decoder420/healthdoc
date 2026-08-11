@@ -118,98 +118,90 @@ export function Navbar({
   }, [user, pathname]);
 
   return (
-    <header className="flex h-16 items-center border-b border-border bg-background px-4">
-      {/* =====================================
-          LEFT
-          ===================================== */}
+  <header className="flex h-16 w-full items-center border-b border-border bg-background px-4">
+    {/* =====================================
+        LEFT - PAGE TITLE
+        ===================================== */}
 
-      <div className="flex flex-1 items-center">
-        <h1 className="text-lg font-semibold text-foreground">
-          {pageTitle}
-        </h1>
-      </div>
+    <div className="flex min-w-0 flex-1 items-center">
+      <h1 className="text-lg font-semibold text-foreground">
+        {pageTitle}
+      </h1>
+    </div>
 
-      {/* =====================================
-          CENTER - PATIENT SEARCH
-          ===================================== */}
+    {/* =====================================
+        CENTER - PATIENT SEARCH
+        ===================================== */}
 
-      <div className="flex flex-1 justify-center">
-        {moduleType && (
-          <div className="relative w-full max-w-md">
-            <SearchRoundedIcon
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              fontSize="small"
+    <div className="flex flex-1 justify-center px-4">
+      {moduleType && (
+        <div className="relative w-full max-w-md">
+          <SearchRoundedIcon
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            fontSize="small"
+          />
+
+          <input
+            type="text"
+            value={searchValue}
+            onChange={(event) =>
+              setSearchValue(event.target.value)
+            }
+            placeholder={
+              moduleType === "radiology"
+                ? "Search radiology patient, UHID, accession..."
+                : "Search lab patient, UHID, order..."
+            }
+            className="w-full rounded-xl border border-border bg-background py-2 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+
+          <SearchPatients
+            search={searchValue}
+            module={moduleType}
+            onPatientSelect={() =>
+              setSearchValue("")
+            }
+          />
+        </div>
+      )}
+    </div>
+
+    {/* =====================================
+        RIGHT - THEME + PROFILE
+        ===================================== */}
+
+    <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+      <ThemeToggle />
+
+      <Link
+        href="/profile"
+        className="flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
+      >
+        <div className="hidden flex-col text-right sm:flex">
+          <p className="m-0 text-sm font-medium leading-none text-foreground">
+            {user?.name ?? "Staff"}
+          </p>
+
+          <p className="m-0 text-xs leading-none text-muted-foreground">
+            {formatRole(user?.role)}
+          </p>
+        </div>
+
+        <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+          {photo ? (
+            <img
+              src={photo}
+              alt={user?.name ?? "Profile"}
+              className="h-full w-full object-cover"
             />
-
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(event) =>
-                setSearchValue(
-                  event.target.value
-                )
-              }
-              placeholder={
-                moduleType === "radiology"
-                  ? "Search radiology patient, UHID, accession..."
-                  : "Search lab patient, UHID, order..."
-              }
-              className="w-full rounded-xl border border-border bg-background py-2 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-
-            <SearchPatients
-              search={searchValue}
-              module={moduleType}
-              onPatientSelect={() =>
-                setSearchValue("")
-              }
-            />
-          </div>
-        )}
-      </div>
-
-      {/* =====================================
-          RIGHT
-          ===================================== */}
-
-      <div className="flex flex-1 items-center justify-end gap-3">
-        <ThemeToggle />
-
-        <Link
-          href="/profile"
-          className="flex items-center gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
-        >
-          {/* Staff information */}
-
-          <div className="hidden sm:flex flex-col text-right">
-            <p className="m-0 text-sm font-medium leading-none text-foreground">
-              {user?.name ?? "Staff"}
-            </p>
-
-            <p className="m-0 text-xs leading-none text-muted-foreground">
-              {formatRole(user?.role)}
-            </p>
-          </div>
-
-          {/* Profile image */}
-
-          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-            {photo ? (
-              <img
-                src={photo}
-                alt={
-                  user?.name ?? "Profile"
-                }
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              user?.name?.charAt(0) ?? "S"
-            )}
-          </div>
-        </Link>
-      </div>
-    </header>
-  );
+          ) : (
+            user?.name?.charAt(0) ?? "S"
+          )}
+        </div>
+      </Link>
+    </div>
+  </header>
+);
 }
 
 export default Navbar;

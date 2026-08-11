@@ -299,10 +299,8 @@ function CompactCard({
   return (
     <Card
       elevation={0}
+      className="surface-card"
       sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
         height: "100%",
       }}
     >

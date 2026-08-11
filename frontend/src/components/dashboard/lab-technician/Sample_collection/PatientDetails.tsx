@@ -17,23 +17,31 @@ interface DetailItemProps {
   value?: string | number | null;
 }
 
-const DetailItem = ({
-  label,
-  value,
-}: DetailItemProps) => (
-  <Box>
+const DetailItem = ({ label, value }: DetailItemProps) => (
+  <Box sx={{ minWidth: 0 }}>
     <Typography
       variant="caption"
       color="text.secondary"
       sx={{
         display: "block",
-        mb: 0.5,
+        mb: 0.25,
+        fontSize: "0.7rem",
+        lineHeight: 1.2,
       }}
     >
       {label}
     </Typography>
 
-    <Typography fontWeight={600}>
+    <Typography
+      variant="body2"
+      fontWeight={600}
+      noWrap
+      sx={{
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+      title={String(value || "-")}
+    >
       {value || "-"}
     </Typography>
   </Box>
@@ -45,14 +53,18 @@ export default function PatientDetails({
   if (!patient) {
     return (
       <Paper
-        variant="outlined"
+        elevation={0}
+        className="surface-card"
         sx={{
-          p: 3,
-          borderRadius: 3,
+          px: 2.5,
+          py: 2.5,
           textAlign: "center",
         }}
       >
-        <Typography color="text.secondary">
+        <Typography
+          variant="body2"
+          color="text.secondary"
+        >
           Search and select a patient to view details.
         </Typography>
       </Paper>
@@ -61,35 +73,58 @@ export default function PatientDetails({
 
   return (
     <Paper
-      variant="outlined"
+      elevation={0}
+      className="surface-card"
       sx={{
-        p: 3,
-        borderRadius: 3,
+        overflow: "hidden",
       }}
     >
-      <Typography
-        variant="h6"
-        fontWeight={600}
-        mb={3}
-      >
-        Patient Information
-      </Typography>
-
+      {/* Header */}
       <Box
         sx={{
+          px: 2.5,
+          py: 1.75,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Typography
+          variant="subtitle1"
+          fontWeight={700}
+          sx={{
+            lineHeight: 1.3,
+          }}
+        >
+          Patient Information
+        </Typography>
+
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{
+            display: "block",
+            mt: 0.3,
+          }}
+        >
+          Patient and order details
+        </Typography>
+      </Box>
+
+      {/* Details */}
+      <Box
+        sx={{
+          px: 2.5,
+          py: 2,
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            md: "repeat(2, 1fr)",
+            sm: "repeat(2, minmax(0, 1fr))",
+            md: "repeat(4, minmax(0, 1fr))",
           },
-          gap: 3,
+          columnGap: 4,
+          rowGap: 2,
         }}
       >
-        <DetailItem
-          label="Order ID"
-          value={patient.id}
-        />
-
         <DetailItem
           label="Patient Name"
           value={patient.patientName}
@@ -98,6 +133,11 @@ export default function PatientDetails({
         <DetailItem
           label="UHID"
           value={patient.uhid}
+        />
+
+        <DetailItem
+          label="Order ID"
+          value={patient.id}
         />
 
         <DetailItem

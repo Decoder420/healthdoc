@@ -55,12 +55,7 @@ export default function PatientTimeline({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
+      className="surface-card"
     >
       <CardContent
         sx={{
@@ -70,7 +65,7 @@ export default function PatientTimeline({
           },
         }}
       >
-        {/* Header */}
+        {/* ================= HEADER ================= */}
 
         <Stack
           direction="row"
@@ -116,7 +111,7 @@ export default function PatientTimeline({
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* Timeline */}
+        {/* ================= TIMELINE ================= */}
 
         <Stack spacing={1.5}>
           {sortedVisits.map((visit, index) => {
@@ -131,9 +126,10 @@ export default function PatientTimeline({
                   xs: 1.5,
                   md: 2,
                 }}
+                
                 alignItems="stretch"
               >
-                {/* Timeline Indicator */}
+                {/* ================= TIMELINE INDICATOR ================= */}
 
                 <Stack
                   alignItems="center"
@@ -177,15 +173,16 @@ export default function PatientTimeline({
                   )}
                 </Stack>
 
-                {/* Visit Card */}
+                {/* ================= VISIT CARD ================= */}
 
                 <Card
                   variant="outlined"
+                  elevation={0}
                   sx={{
                     flex: 1,
-                    borderRadius: 2.5,
-                    borderColor: "divider",
                     minWidth: 0,
+                    borderColor: "divider",
+                    backgroundColor: "background.paper",
                     transition:
                       "border-color 0.2s ease, box-shadow 0.2s ease",
 
@@ -194,6 +191,7 @@ export default function PatientTimeline({
                       boxShadow: 1,
                     },
                   }}
+                  className="surface-card"
                 >
                   <CardContent
                     sx={{
@@ -221,7 +219,7 @@ export default function PatientTimeline({
                       }}
                       justifyContent="space-between"
                     >
-                      {/* Left Information */}
+                      {/* ================= LEFT INFORMATION ================= */}
 
                       <Box
                         sx={{
@@ -260,11 +258,9 @@ export default function PatientTimeline({
                           <Chip
                             label={visit.status}
                             size="small"
-                            color={
-                              getStatusColor(
-                                visit.status
-                              )
-                            }
+                            color={getStatusColor(
+                              visit.status
+                            )}
                             sx={{
                               height: 23,
                               fontSize: "0.7rem",
@@ -328,7 +324,7 @@ export default function PatientTimeline({
                         </Stack>
                       </Box>
 
-                      {/* Right Information */}
+                      {/* ================= RIGHT INFORMATION ================= */}
 
                       <Stack
                         spacing={1}
@@ -381,8 +377,7 @@ export default function PatientTimeline({
                               sx={{
                                 height: 23,
                                 fontSize: "0.68rem",
-                                bgcolor:
-                                  "action.hover",
+                                bgcolor: "action.hover",
                               }}
                             />
                           )}
@@ -418,7 +413,7 @@ export default function PatientTimeline({
           })}
         </Stack>
 
-        {/* Empty State */}
+        {/* ================= EMPTY STATE ================= */}
 
         {sortedVisits.length === 0 && (
           <Box

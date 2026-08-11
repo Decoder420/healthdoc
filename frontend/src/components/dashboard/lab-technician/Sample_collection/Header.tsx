@@ -6,6 +6,8 @@ import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import {
   Box,
   Button,
+  Card,
+  CardContent,
   Stack,
   Typography,
 } from "@mui/material";
@@ -18,72 +20,103 @@ export default function SampleCollectionHeader({
   onCollectSample,
 }: SampleCollectionHeaderProps) {
   return (
-    <Box
+    <Card
+      elevation={0}
+      className="surface-card"
       sx={{
         mb: 3,
-        p: 3,
-        borderRadius: 3,
-        bgcolor: "background.paper",
-        border: "1px solid",
-        borderColor: "divider",
+        overflow: "hidden",
       }}
     >
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        spacing={2}
-        alignItems={{ xs: "flex-start", md: "center" }}
-        justifyContent="space-between"
+      <CardContent
+        sx={{
+          p: 2.5,
+          "&:last-child": {
+            pb: 2.5,
+          },
+        }}
       >
-        {/* Left Section */}
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Box
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems={{
+            xs: "flex-start",
+            md: "center",
+          }}
+          justifyContent="space-between"
+        >
+          {/* Left Section */}
+          <Stack
+            direction="row"
+            spacing={1.75}
+            alignItems="center"
+            minWidth={0}
+          >
+            {/* Icon */}
+            <Box
+              sx={{
+                width: 46,
+                height: 46,
+                flexShrink: 0,
+                borderRadius: 1.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+              }}
+            >
+              <ScienceRoundedIcon fontSize="small" />
+            </Box>
+
+            {/* Title */}
+            <Box minWidth={0}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={700}
+                sx={{
+                  lineHeight: 1.3,
+                }}
+              >
+                Sample Collection
+              </Typography>
+
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  display: "block",
+                  mt: 0.35,
+                  lineHeight: 1.4,
+                }}
+              >
+                Collect laboratory samples, generate barcodes,
+                and manage collected specimens.
+              </Typography>
+            </Box>
+          </Stack>
+
+          {/* Right Section */}
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddRoundedIcon fontSize="small" />}
+            onClick={onCollectSample}
             sx={{
-              width: 52,
-              height: 52,
-              borderRadius: 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              bgcolor: "primary.main",
-              color: "primary.contrastText",
+              flexShrink: 0,
+              height: 36,
+              px: 2,
+              borderRadius: 1.5,
+              textTransform: "none",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+              boxShadow: "none",
             }}
           >
-            <ScienceRoundedIcon />
-          </Box>
-
-          <Box>
-            <Typography variant="h5" fontWeight={700}>
-              Sample Collection
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Collect laboratory samples, generate barcodes, and
-              manage collected specimens.
-            </Typography>
-          </Box>
+            Collect Sample
+          </Button>
         </Stack>
-
-        {/* Right Section */}
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<AddRoundedIcon />}
-          onClick={onCollectSample}
-          sx={{
-            borderRadius: 2,
-            px: 3,
-            py: 1.2,
-            textTransform: "none",
-            fontWeight: 600,
-            minWidth: 190,
-          }}
-        >
-          Collect Sample
-        </Button>
-      </Stack>
-    </Box>
+      </CardContent>
+    </Card>
   );
 }

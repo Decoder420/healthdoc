@@ -47,11 +47,7 @@ export default function PatientReports({
     return (
       <Card
         elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-        }}
+        className="surface-card"
       >
         <CardContent
           sx={{
@@ -108,17 +104,19 @@ export default function PatientReports({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
+      className="surface-card"
     >
       <CardContent
         sx={{
-          p: { xs: 2, md: 2.5 },
+          p: {
+            xs: 2,
+            md: 2.5,
+          },
           "&:last-child": {
-            pb: { xs: 2, md: 2.5 },
+            pb: {
+              xs: 2,
+              md: 2.5,
+            },
           },
         }}
       >
@@ -138,8 +136,6 @@ export default function PatientReports({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-
-              // Uses your theme primary color
               bgcolor: "primary.main",
               color: "primary.contrastText",
             }}
@@ -178,9 +174,10 @@ export default function PatientReports({
             <Card
               key={report.reportId}
               variant="outlined"
+              elevation={0}
               sx={{
-                borderRadius: 2.5,
                 borderColor: "divider",
+                backgroundColor: "background.paper",
                 transition:
                   "border-color 0.2s ease, box-shadow 0.2s ease",
 
@@ -189,6 +186,7 @@ export default function PatientReports({
                   boxShadow: 1,
                 },
               }}
+              className="surface-card"
             >
               <CardContent
                 sx={{

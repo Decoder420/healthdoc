@@ -5,9 +5,9 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import {
   Box,
   Button,
-  ChipProps,
+  Card,
   MenuItem,
-  Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -20,10 +20,7 @@ import {
 
 import { LabPatientOrder } from "@/lib/mock/lab_data";
 
-
-type LabResult =
-  LabPatientOrder["results"][number];
-
+type LabResult = LabPatientOrder["results"][number];
 
 interface Props {
   tests: LabResult[];
@@ -37,525 +34,502 @@ interface Props {
   onAddRow: () => void;
 }
 
-
+/* -------------------------------------------------------------------------- */
+/* Result Flag                                                               */
+/* -------------------------------------------------------------------------- */
 
 function getFlag(
   result: string,
   referenceRange: string
-): {
-  label: string;
-  color: ChipProps["color"];
-} {
-
+): string {
   const value = Number(result);
 
-
-  if (isNaN(value)) {
-    return {
-      label: "-",
-      color: "default",
-    };
+  if (!result.trim() || Number.isNaN(value)) {
+    return "-";
   }
 
-
-  const range =
-    referenceRange.trim();
-
-
+  const range = referenceRange.trim();
 
   // Example: 3.5-5.5
   if (range.includes("-")) {
+    const [min, max] = range
+      .split("-")
+      .map((v) => Number(v.trim()));
 
-    const [min, max] =
-      range
-        .split("-")
-        .map((v) =>
-          Number(v.trim())
-        );
-
-
-    if (
-      !isNaN(min) &&
-      !isNaN(max)
-    ) {
-
+    if (!Number.isNaN(min) && !Number.isNaN(max)) {
       if (value < min) {
-
-        return {
-          label: "Low",
-          color: "warning",
-        };
-
+        return "Low";
       }
-
 
       if (value > max) {
-
-        return {
-          label: "High",
-          color: "error",
-        };
-
+        return "High";
       }
 
-
-      return {
-        label: "Normal",
-        color: "success",
-      };
-
+      return "Medium";
     }
-
   }
-
-
 
   // Example: <5
-
   if (range.startsWith("<")) {
+    const max = Number(
+      range.replace("<", "").trim()
+    );
 
-    const max =
-      Number(
-        range.replace("<", "")
-      );
-
-
-    if (!isNaN(max)) {
-
+    if (!Number.isNaN(max)) {
       return value < max
-        ? {
-            label: "Normal",
-            color: "success",
-          }
-        : {
-            label: "High",
-            color: "error",
-          };
-
+        ? "Medium"
+        : "High";
     }
-
   }
-
-
 
   // Example: >10
-
   if (range.startsWith(">")) {
+    const min = Number(
+      range.replace(">", "").trim()
+    );
 
-    const min =
-      Number(
-        range.replace(">", "")
-      );
-
-
-    if (!isNaN(min)) {
-
+    if (!Number.isNaN(min)) {
       return value > min
-        ? {
-            label: "Normal",
-            color: "success",
-          }
-        : {
-            label: "Low",
-            color: "warning",
-          };
-
+        ? "Medium"
+        : "Low";
     }
-
   }
 
-
-
-  return {
-    label: "-",
-    color: "default",
-  };
-
+  return "-";
 }
 
-
-
+/* -------------------------------------------------------------------------- */
+/* Component                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export default function TestResultsTable({
   tests,
   onChange,
   onAddRow,
 }: Props) {
+  const fieldSx = {
+    width: "100%",
 
+    "& .MuiOutlinedInput-root": {
+      height: 34,
+      borderRadius: 1.5,
+      fontSize: "0.82rem",
+      backgroundColor: "background.paper",
+    },
+
+    "& .MuiInputBase-input": {
+      px: 1.25,
+      py: 0.5,
+      textAlign: "center",
+    },
+
+    "& .MuiSelect-select": {
+      minHeight: "unset !important",
+      px: 1,
+      py: 0.5,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      textAlign: "center",
+    },
+  };
 
   return (
-
-    <TableContainer
-
-      component={Paper}
-
+    <Card
+      elevation={0}
+      className="surface-card"
       sx={{
-        mt: 3,
-        pb: 2,
-        borderRadius: 3,
-        overflowX: "auto",
+        mt: 2,
+        overflow: "hidden",
       }}
-
     >
-
-
+      {/* Header */}
       <Box
-
         sx={{
-          px: 2,
-          py: 2,
+          px: 2.5,
+          py: 1.5,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: 2,
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
-
       >
+        <Box>
+          <Typography
+            variant="subtitle1"
+            fontWeight={700}
+            sx={{
+              lineHeight: 1.3,
+            }}
+          >
+            Test Results
+          </Typography>
 
-        <Typography
-          variant="h6"
-          fontWeight={700}
-        >
-          Test Results
-        </Typography>
-
-
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{
+              display: "block",
+              mt: 0.25,
+            }}
+          >
+            Enter and review laboratory test results
+          </Typography>
+        </Box>
 
         <Button
-
           variant="contained"
-
           size="small"
-
           startIcon={
-            <AddRoundedIcon />
+            <AddRoundedIcon fontSize="small" />
           }
-
           onClick={onAddRow}
-
           sx={{
-            borderRadius: 2,
+            height: 34,
+            px: 1.75,
+            borderRadius: 1.5,
             textTransform: "none",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            boxShadow: "none",
           }}
-
         >
           Add Row
-
         </Button>
-
-
       </Box>
 
-
-
-
-      <Table
-        stickyHeader
-        size="small"
+      {/* Table */}
+      <TableContainer
+        sx={{
+          overflowX: "auto",
+        }}
       >
+        <Table
+          stickyHeader
+          size="small"
+          sx={{
+            minWidth: 950,
 
+            "& .MuiTableCell-root": {
+              textAlign: "center",
+              verticalAlign: "middle",
+              borderColor: "divider",
+            },
+          }}
+        >
+          {/* Header */}
+          <TableHead>
+            <TableRow>
+              {[
+                "Test",
+                "Result",
+                "Unit",
+                "Reference Range",
+                "Flag",
+                "Remarks",
+              ].map((heading) => (
+                <TableCell
+                  key={heading}
+                  align="center"
+                  sx={{
+                    py: 1.25,
+                    px: 1.25,
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    color: "text.primary",
+                    whiteSpace: "nowrap",
+                    backgroundColor: "action.hover",
+                  }}
+                >
+                  {heading}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
 
-        <TableHead>
-
-          <TableRow>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Test
-            </TableCell>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Result
-            </TableCell>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Unit
-            </TableCell>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Reference Range
-            </TableCell>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Flag
-            </TableCell>
-
-
-            <TableCell
-              sx={{
-                fontWeight: 600,
-              }}
-            >
-              Remarks
-            </TableCell>
-
-
-          </TableRow>
-
-
-        </TableHead>
-
-
-
-
-        <TableBody>
-
-
-          {tests.map((test, index) => {
-
-
-            const flag =
-              getFlag(
+          {/* Body */}
+          <TableBody>
+            {tests.map((test, index) => {
+              const calculatedFlag = getFlag(
                 test.result,
                 test.referenceRange
               );
 
+              /*
+               * Use manually selected flag if available.
+               * Otherwise use calculated flag.
+               */
+              const currentFlag =
+                test.flag && test.flag !== "-"
+                  ? test.flag
+                  : calculatedFlag;
 
-            const abnormal =
-              flag.label === "High" ||
-              flag.label === "Low";
+              const abnormal =
+                currentFlag === "Low" ||
+                currentFlag === "High";
 
+              return (
+                <TableRow
+                  key={test.id}
+                  hover
+                  sx={{
+                    "&:last-child td": {
+                      borderBottom: 0,
+                    },
 
-
-            return (
-
-              <TableRow
-
-                hover
-
-                key={test.id}
-
-              >
-
-
-                <TableCell>
-
-                  <TextField
-
-                    fullWidth
-
-                    size="small"
-
-                    value={
-                      test.testName
-                    }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "testName",
-                        e.target.value
-                      )
-                    }
-
-                  />
-
-                </TableCell>
-
-
-
-
-                <TableCell>
-
-                  <TextField
-
-                    fullWidth
-
-                    size="small"
-
-                    value={
-                      test.result
-                    }
-
-                    error={
-                      abnormal
-                    }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "result",
-                        e.target.value
-                      )
-                    }
-
-                  />
-
-                </TableCell>
-
-
-
-
-                <TableCell>
-
-                  <TextField
-
-                    fullWidth
-
-                    size="small"
-
-                    value={
-                      test.unit
-                    }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "unit",
-                        e.target.value
-                      )
-                    }
-
-                  />
-
-                </TableCell>
-
-
-
-
-                <TableCell>
-
-                  <TextField
-
-                    fullWidth
-
-                    size="small"
-
-                    value={
-                      test.referenceRange
-                    }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "referenceRange",
-                        e.target.value
-                      )
-                    }
-
-                  />
-
-                </TableCell>
-
-
-
-
-                <TableCell>
-
-                  <TextField
-
-                    select
-
-                    fullWidth
-
-                    size="small"
-
-                    value={
-                      test.flag
-                    }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "flag",
-                        e.target.value
-                      )
-                    }
-
+                    "& td": {
+                      py: 1,
+                      px: 1,
+                    },
+                  }}
+                >
+                  {/* Test */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 170,
+                    }}
                   >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={test.testName}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "testName",
+                          e.target.value
+                        )
+                      }
+                      sx={fieldSx}
+                    />
+                  </TableCell>
 
-                    <MenuItem value="-">
-                      -
-                    </MenuItem>
+                  {/* Result */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 120,
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={test.result}
+                      error={abnormal}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "result",
+                          e.target.value
+                        )
+                      }
+                      sx={{
+                        ...fieldSx,
 
+                        ...(abnormal && {
+                          "& .MuiOutlinedInput-root": {
+                            height: 34,
+                            borderRadius: 1.5,
+                            fontSize: "0.82rem",
+                            backgroundColor:
+                              currentFlag === "High"
+                                ? "error.50"
+                                : "warning.50",
+                          },
+                        }),
+                      }}
+                    />
+                  </TableCell>
 
-                    <MenuItem value="Normal">
-                      Normal
-                    </MenuItem>
+                  {/* Unit */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 100,
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={test.unit}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "unit",
+                          e.target.value
+                        )
+                      }
+                      sx={fieldSx}
+                    />
+                  </TableCell>
 
+                  {/* Reference Range */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 150,
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={test.referenceRange}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "referenceRange",
+                          e.target.value
+                        )
+                      }
+                      sx={fieldSx}
+                    />
+                  </TableCell>
 
-                    <MenuItem value="High">
-                      High
-                    </MenuItem>
+                  {/* Flag */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 120,
+                    }}
+                  >
+                    <Select
+                      fullWidth
+                      size="small"
+                      value={currentFlag}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "flag",
+                          e.target.value
+                        )
+                      }
+                      displayEmpty
+                      sx={{
+                        height: 34,
+                        borderRadius: 1.5,
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
 
+                        backgroundColor:
+                          currentFlag === "High"
+                            ? "error.50"
+                            : currentFlag === "Medium"
+                              ? "warning.50"
+                              : currentFlag === "Low"
+                                ? "info.50"
+                                : "background.paper",
 
-                    <MenuItem value="Low">
-                      Low
-                    </MenuItem>
+                        "& .MuiSelect-select": {
+                          minHeight:
+                            "unset !important",
+                          py: 0.5,
+                          px: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent:
+                            "center",
+                          textAlign: "center",
+                        },
 
+                        "& .MuiOutlinedInput-notchedOutline":
+                          {
+                            borderColor:
+                              "divider",
+                          },
 
-                  </TextField>
+                        "&:hover .MuiOutlinedInput-notchedOutline":
+                          {
+                            borderColor:
+                              "text.secondary",
+                          },
+                      }}
+                    >
+                      <MenuItem value="-">
+                        -
+                      </MenuItem>
 
+                      <MenuItem value="Low">
+                        Low
+                      </MenuItem>
 
-                </TableCell>
+                      <MenuItem value="Medium">
+                        Medium
+                      </MenuItem>
 
+                      <MenuItem value="High">
+                        High
+                      </MenuItem>
+                    </Select>
+                  </TableCell>
 
+                  {/* Remarks */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      minWidth: 180,
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      value={test.remarks}
+                      onChange={(e) =>
+                        onChange(
+                          index,
+                          "remarks",
+                          e.target.value
+                        )
+                      }
+                      sx={fieldSx}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
 
+            {/* Empty State */}
+            {tests.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  align="center"
+                  sx={{
+                    py: 5,
+                    borderBottom: 0,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    No test results added yet.
+                  </Typography>
 
-                <TableCell>
-
-                  <TextField
-
-                    fullWidth
-
+                  <Button
+                    variant="outlined"
                     size="small"
-
-                    value={
-                      test.remarks
+                    startIcon={
+                      <AddRoundedIcon />
                     }
-
-                    onChange={(e) =>
-                      onChange(
-                        index,
-                        "remarks",
-                        e.target.value
-                      )
-                    }
-
-                  />
-
+                    onClick={onAddRow}
+                    sx={{
+                      mt: 1.5,
+                      height: 34,
+                      borderRadius: 1.5,
+                      textTransform: "none",
+                    }}
+                  >
+                    Add Test
+                  </Button>
                 </TableCell>
-
-
-
               </TableRow>
-
-            );
-
-          })}
-
-
-        </TableBody>
-
-
-      </Table>
-
-
-    </TableContainer>
-
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
   );
-
 }

@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Paper,
   Step,
   StepLabel,
   Stepper,
-  Typography,
 } from "@mui/material";
 
 import { patients } from "@/lib/mock/lab_data";
@@ -34,8 +32,7 @@ function getActiveStep() {
   if (hasVerified) return 5;
 
   const hasProcessing = patients.some(
-    (p) =>
-      p.status === "PROCESSING" 
+    (p) => p.status === "PROCESSING"
   );
 
   if (hasProcessing) return 4;
@@ -54,22 +51,10 @@ export default function LabWorkflowOverview() {
   const activeStep = getActiveStep();
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
-      <Typography
-        variant="h6"
-        fontWeight={700}
-        mb={3}
-      >
+    <div className="surface-card p-6">
+      <h2 className="mb-3 text-foreground">
         Laboratory Workflow
-      </Typography>
+      </h2>
 
       <Stepper
         activeStep={activeStep}
@@ -84,6 +69,6 @@ export default function LabWorkflowOverview() {
           </Step>
         ))}
       </Stepper>
-    </Paper>
+    </div>
   );
 }

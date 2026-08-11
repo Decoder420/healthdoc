@@ -148,16 +148,15 @@ const filteredPatients = useMemo(() => {
 ]);
 
   return (
-    <TableContainer
-      component={Paper}
-      elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
-    >
+
+<TableContainer
+  component={Paper}
+  elevation={0}
+  className="surface-card"
+  sx={{
+    overflow: "hidden",
+  }}
+>
       {/* Toolbar */}
       <Box
         sx={{

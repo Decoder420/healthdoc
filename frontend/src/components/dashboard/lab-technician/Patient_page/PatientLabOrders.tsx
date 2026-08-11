@@ -67,7 +67,7 @@ export default function PatientLabOrders({
   }, [visits, search, status]);
 
   const getStatusColor = (
-    value: string
+    value?: string
   ):
     | "success"
     | "warning"
@@ -97,7 +97,7 @@ export default function PatientLabOrders({
   };
 
   const getPriorityColor = (
-    priority: string
+    priority?: string
   ): "error" | "warning" | "default" => {
     switch (priority?.toLowerCase()) {
       case "emergency":
@@ -119,16 +119,12 @@ export default function PatientLabOrders({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
+      className="surface-card"
     >
       <CardContent
         sx={{
           p: 2.5,
+
           "&:last-child": {
             pb: 2.5,
           },
@@ -167,7 +163,9 @@ export default function PatientLabOrders({
               }}
             >
               <ScienceRoundedIcon
-                sx={{ fontSize: 19 }}
+                sx={{
+                  fontSize: 19,
+                }}
               />
             </Box>
 
@@ -209,8 +207,6 @@ export default function PatientLabOrders({
             mb: 2,
             borderRadius: 2,
             bgcolor: "action.hover",
-            border: "1px solid",
-            borderColor: "divider",
           }}
         >
           <Stack
@@ -224,29 +220,48 @@ export default function PatientLabOrders({
               md: "center",
             }}
           >
-            {/* Search */}
+            {/* SEARCH */}
 
             <TextField
               size="small"
               fullWidth
               placeholder="Search patient, UHID, order, visit or doctor..."
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
+              onChange={(event) =>
+                setSearch(event.target.value)
               }
               sx={{
                 maxWidth: {
                   md: 460,
                 },
+
                 "& .MuiOutlinedInput-root": {
+                  height: 36,
                   bgcolor: "background.paper",
+                  borderRadius: 1.5,
+                },
+
+                "& .MuiInputBase-input": {
+                  py: 0.75,
+                  fontSize: 13,
+                },
+
+                "& .MuiInputBase-input::placeholder": {
+                  fontSize: 13,
+                  opacity: 0.7,
+                },
+
+                "& .MuiInputAdornment-root": {
+                  mr: 0.5,
                 },
               }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchRoundedIcon
-                      fontSize="small"
+                      sx={{
+                        fontSize: 18,
+                      }}
                       color="action"
                     />
                   </InputAdornment>
@@ -254,7 +269,7 @@ export default function PatientLabOrders({
               }}
             />
 
-            {/* Status + Reset */}
+            {/* STATUS + RESET */}
 
             <Stack
               direction="row"
@@ -268,13 +283,21 @@ export default function PatientLabOrders({
                 select
                 size="small"
                 value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value)
+                onChange={(event) =>
+                  setStatus(event.target.value)
                 }
                 sx={{
-                  minWidth: 160,
+                  minWidth: 150,
+
                   "& .MuiOutlinedInput-root": {
+                    height: 36,
                     bgcolor: "background.paper",
+                    borderRadius: 1.5,
+                  },
+
+                  "& .MuiSelect-select": {
+                    py: 0.75,
+                    fontSize: 13,
                   },
                 }}
               >
@@ -308,18 +331,22 @@ export default function PatientLabOrders({
                   onClick={resetFilters}
                   size="small"
                   sx={{
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     border: "1px solid",
                     borderColor: "divider",
                     bgcolor: "background.paper",
+                    borderRadius: 1.5,
+
                     "&:hover": {
                       bgcolor: "action.selected",
                     },
                   }}
                 >
                   <RefreshRoundedIcon
-                    fontSize="small"
+                    sx={{
+                      fontSize: 18,
+                    }}
                   />
                 </IconButton>
               </Tooltip>
@@ -347,7 +374,7 @@ export default function PatientLabOrders({
               },
             }}
           >
-            {/* Table Header */}
+            {/* ================= TABLE HEADER ================= */}
 
             <TableHead>
               <TableRow
@@ -389,13 +416,16 @@ export default function PatientLabOrders({
               </TableRow>
             </TableHead>
 
-            {/* Table Body */}
+            {/* ================= TABLE BODY ================= */}
 
             <TableBody>
               {filteredOrders.map((visit) => (
                 <TableRow
                   hover
-                  key={visit.order.orderId}
+                  key={
+                    visit.order?.orderId ??
+                    visit.visit?.visitId
+                  }
                   sx={{
                     "&:last-child td": {
                       borderBottom: 0,
@@ -406,7 +436,7 @@ export default function PatientLabOrders({
                     },
                   }}
                 >
-                  {/* Order */}
+                  {/* ORDER */}
 
                   <TableCell>
                     <Stack spacing={0.25}>
@@ -415,19 +445,21 @@ export default function PatientLabOrders({
                         fontWeight={700}
                         color="primary.main"
                       >
-                        {visit.order.orderId}
+                        {visit.order?.orderId ??
+                          "--"}
                       </Typography>
 
                       <Typography
                         variant="caption"
                         color="text.secondary"
                       >
-                        {visit.visit.visitId}
+                        {visit.visit?.visitId ??
+                          "--"}
                       </Typography>
                     </Stack>
                   </TableCell>
 
-                  {/* Doctor */}
+                  {/* DOCTOR */}
 
                   <TableCell>
                     <Stack spacing={0.25}>
@@ -435,19 +467,21 @@ export default function PatientLabOrders({
                         variant="body2"
                         fontWeight={600}
                       >
-                        {visit.doctor.name}
+                        {visit.doctor?.name ??
+                          "--"}
                       </Typography>
 
                       <Typography
                         variant="caption"
                         color="text.secondary"
                       >
-                        {visit.doctor.department}
+                        {visit.doctor
+                          ?.department ?? "--"}
                       </Typography>
                     </Stack>
                   </TableCell>
 
-                  {/* Tests */}
+                  {/* TESTS */}
 
                   <TableCell>
                     <Stack
@@ -459,26 +493,36 @@ export default function PatientLabOrders({
                         maxWidth: 280,
                       }}
                     >
-                      {visit.requestedTests.map(
-                        (test: string) => (
-                          <Chip
-                            key={test}
-                            label={test}
-                            size="small"
-                            variant="outlined"
-                            sx={{
-                              height: 24,
-                              borderRadius: 1.25,
-                              fontSize: 11,
-                              fontWeight: 500,
-                            }}
-                          />
+                      {visit.requestedTests
+                        ?.length ? (
+                        visit.requestedTests.map(
+                          (test: string) => (
+                            <Chip
+                              key={test}
+                              label={test}
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                height: 24,
+                                borderRadius: 1.25,
+                                fontSize: 11,
+                                fontWeight: 500,
+                              }}
+                            />
+                          )
                         )
+                      ) : (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                        >
+                          No tests
+                        </Typography>
                       )}
                     </Stack>
                   </TableCell>
 
-                  {/* Barcode */}
+                  {/* BARCODE */}
 
                   <TableCell>
                     <Typography
@@ -492,19 +536,20 @@ export default function PatientLabOrders({
                     </Typography>
                   </TableCell>
 
-                  {/* Priority */}
+                  {/* PRIORITY */}
 
                   <TableCell>
                     <Chip
                       size="small"
                       label={
-                        visit.order.priority
+                        visit.order?.priority ??
+                        "--"
                       }
                       color={getPriorityColor(
-                        visit.order.priority
+                        visit.order?.priority
                       )}
                       variant={
-                        visit.order.priority
+                        visit.order?.priority
                           ?.toLowerCase() ===
                         "routine"
                           ? "outlined"
@@ -518,12 +563,14 @@ export default function PatientLabOrders({
                     />
                   </TableCell>
 
-                  {/* Status */}
+                  {/* STATUS */}
 
                   <TableCell>
                     <Chip
                       size="small"
-                      label={visit.status}
+                      label={
+                        visit.status ?? "--"
+                      }
                       color={getStatusColor(
                         visit.status
                       )}
@@ -538,7 +585,7 @@ export default function PatientLabOrders({
                 </TableRow>
               ))}
 
-              {/* Empty State */}
+              {/* ================= EMPTY STATE ================= */}
 
               {filteredOrders.length === 0 && (
                 <TableRow>

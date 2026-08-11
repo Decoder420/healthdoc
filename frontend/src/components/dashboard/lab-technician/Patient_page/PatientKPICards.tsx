@@ -148,6 +148,7 @@ export default function PatientKPICards({
             sm: 6,
             lg: 3,
           }}
+          
         >
           <DynamicCard
             title={card.title}

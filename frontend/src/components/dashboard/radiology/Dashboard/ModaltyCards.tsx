@@ -18,12 +18,12 @@ export default function ModalityCards() {
       <Typography
         variant="h6"
         fontWeight={600}
-        mb={3}
+        mb={2}
       >
         Modality Performance
       </Typography>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {modalityCards.map((item) => {
           const progress =
             item.total === 0
@@ -46,157 +46,147 @@ export default function ModalityCards() {
                 elevation={0}
                 sx={{
                   height: "100%",
-                  borderRadius: 4,
+                  borderRadius: 3,
                   border: "1px solid",
                   borderColor: "divider",
-
-                  transition: "0.25s",
+                  transition:
+                    "transform 0.2s ease, box-shadow 0.2s ease",
 
                   "&:hover": {
-                    transform:
-                      "translateY(-4px)",
+                    transform: "translateY(-3px)",
                     boxShadow:
-                      "0 12px 24px rgba(0,0,0,.08)",
+                      "0 8px 20px rgba(0, 0, 0, 0.07)",
                   },
                 }}
               >
-
                 <CardContent
                   sx={{
-                    p: 3,
+                    p: 2,
+                    "&:last-child": {
+                      pb: 2,
+                    },
                   }}
                 >
-
                   {/* Header */}
                   <Stack
                     direction="row"
                     justifyContent="space-between"
                     alignItems="center"
-                    mb={2}
+                    mb={1.5}
                   >
-
                     <Typography
                       fontWeight={700}
-                      fontSize={18}
+                      fontSize={16}
                     >
                       {item.modality}
                     </Typography>
 
-
                     {item.icon && (
                       <Box
                         sx={{
-                          width:48,
-                          height:48,
-                          borderRadius:2,
-                          bgcolor:"#F4F7FC",
-                          display:"flex",
-                          alignItems:"center",
-                          justifyContent:"center",
+                          width: 38,
+                          height: 38,
+                          borderRadius: 2,
+                          bgcolor: "#F4F7FC",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
 
-                          "& svg":{
-                            fontSize:26,
-                            color:"#001F54",
+                          "& svg": {
+                            fontSize: 22,
+                            color: "#001F54",
                           },
                         }}
                       >
                         {item.icon}
                       </Box>
                     )}
-
                   </Stack>
-
-
 
                   {/* Total */}
-                  <Typography
-                    variant="h4"
-                    fontWeight={700}
-                    color="primary"
-                  >
-                    {item.total}
-                  </Typography>
-
-
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    mb={3}
-                  >
-                    Total Studies
-                  </Typography>
-
-
-
-                  {/* Completed */}
                   <Stack
                     direction="row"
-                    justifyContent="space-between"
+                    alignItems="baseline"
+                    spacing={1}
                     mb={1}
                   >
+                    <Typography
+                      variant="h5"
+                      fontWeight={700}
+                      color="primary"
+                      lineHeight={1}
+                    >
+                      {item.total}
+                    </Typography>
 
                     <Typography
-                      variant="body2"
+                      variant="caption"
                       color="text.secondary"
                     >
-                      Completed
+                      Total Studies
                     </Typography>
-
-
-                    <Typography fontWeight={600}>
-                      {item.completed}
-                    </Typography>
-
                   </Stack>
 
-
-
-                  {/* Pending */}
+                  {/* Completed / Pending */}
                   <Stack
                     direction="row"
                     justifyContent="space-between"
-                    mb={2}
+                    mb={1.25}
                   >
-
                     <Typography
-                      variant="body2"
+                      variant="caption"
                       color="text.secondary"
                     >
-                      Pending
+                      Completed{" "}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        fontWeight={700}
+                        color="text.primary"
+                      >
+                        {item.completed}
+                      </Typography>
                     </Typography>
 
-
-                    <Typography fontWeight={600}>
-                      {item.pending}
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                    >
+                      Pending{" "}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        fontWeight={700}
+                        color="text.primary"
+                      >
+                        {item.pending}
+                      </Typography>
                     </Typography>
-
                   </Stack>
-
-
 
                   {/* Progress */}
                   <LinearProgress
                     variant="determinate"
                     value={progress}
                     sx={{
-                      height:8,
-                      borderRadius:10,
-                      mb:1,
+                      height: 6,
+                      borderRadius: 10,
+                      bgcolor: "#EEF2F7",
 
-                      "& .MuiLinearProgress-bar":{
-                        backgroundColor:"#001F54",
-                        borderRadius:10,
+                      "& .MuiLinearProgress-bar": {
+                        backgroundColor: "#001F54",
+                        borderRadius: 10,
                       },
                     }}
                   />
 
-
-
+                  {/* Footer */}
                   <Stack
                     direction="row"
                     justifyContent="space-between"
+                    alignItems="center"
+                    mt={0.75}
                   >
-
                     <Typography
                       variant="caption"
                       color="text.secondary"
@@ -204,19 +194,14 @@ export default function ModalityCards() {
                       {progress}% Complete
                     </Typography>
 
-
                     <Typography
                       variant="caption"
                       color="text.secondary"
                     >
                       Avg {item.averageTime}
                     </Typography>
-
                   </Stack>
-
-
                 </CardContent>
-
               </Card>
             </Grid>
           );

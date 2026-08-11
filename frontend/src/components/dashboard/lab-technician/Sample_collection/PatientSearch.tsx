@@ -46,98 +46,107 @@ export default function PatientSearch({
   onChange,
   disabled = false,
 }: PatientSearchProps) {
-
-  
   return (
     <Box>
       <Typography
-        variant="h6"
+        variant="subtitle1"
         fontWeight={600}
-        mb={2}
+        mb={1}
       >
         Patient Search
       </Typography>
 
       <Autocomplete
-  disabled={disabled}
-  options={patientOptions}
-  value={value}
-  onChange={(_, newValue) => onChange(newValue)}
-  fullWidth
-  filterOptions={(options, { inputValue }) => {
-    const query = inputValue.toLowerCase().trim();
+        disabled={disabled}
+        options={patientOptions}
+        value={value}
+        onChange={(_, newValue) => onChange(newValue)}
+        fullWidth
+        size="small"
+        filterOptions={(options, { inputValue }) => {
+          const query = inputValue.toLowerCase().trim();
 
-    return options.filter(
-      (option) =>
-        option.patientName.toLowerCase().includes(query) ||
-        option.uhid.toLowerCase().includes(query) ||
-        option.mobile.includes(query) ||
-        option.id.toLowerCase().includes(query)
-    );
-  }}
-  getOptionLabel={(option) => option.patientName}
-  isOptionEqualToValue={(option, value) =>
-    option.id === value.id
-  }
-  renderInput={(params) => (
-    <TextField
-      {...params}
-      label="Search Patient"
-      placeholder="Search by Order ID, UHID, Name or Mobile"
-      InputProps={{
-        ...params.InputProps,
-        startAdornment: (
-          <>
-            <SearchRoundedIcon
-              sx={{
-                mr: 1,
-                color: "text.secondary",
-              }}
-            />
-            {params.InputProps.startAdornment}
-          </>
-        ),
-      }}
-    />
-  )}
-  renderOption={(props, option) => (
-    <Box
-      component="li"
-      {...props}
-      key={option.id}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        py: 1,
-      }}
-    >
-      <Typography fontWeight={600}>
-        {option.patientName}
-      </Typography>
+          return options.filter(
+            (option) =>
+              option.patientName
+                .toLowerCase()
+                .includes(query) ||
+              option.uhid
+                .toLowerCase()
+                .includes(query) ||
+              option.mobile.includes(query) ||
+              option.id
+                .toLowerCase()
+                .includes(query)
+          );
+        }}
+        getOptionLabel={(option) => option.patientName}
+        isOptionEqualToValue={(option, value) =>
+          option.id === value.id
+        }
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Search Patient"
+            placeholder="Order ID, UHID, Name or Mobile"
+            size="small"
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: (
+                <>
+                  <SearchRoundedIcon
+                    sx={{
+                      mr: 0.75,
+                      fontSize: 19,
+                      color: "text.secondary",
+                    }}
+                  />
+                  {params.InputProps.startAdornment}
+                </>
+              ),
+            }}
+          />
+        )}
+        renderOption={(props, option) => (
+          <Box
+            component="li"
+            {...props}
+            key={option.id}
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              py: 0.75,
+              px: 1.5,
+            }}
+          >
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              lineHeight={1.3}
+            >
+              {option.patientName}
+            </Typography>
 
-      <Typography
-        variant="body2"
-        color="text.secondary"
-      >
-        UHID: {option.uhid} • Order: {option.id}
-      </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              lineHeight={1.3}
+            >
+              UHID: {option.uhid} • Order: {option.id}
+            </Typography>
 
-      <Typography
-        variant="body2"
-        color="text.secondary"
-      >
-        {option.age} Years • {option.gender}
-      </Typography>
-
-      <Typography
-        variant="caption"
-        color="text.secondary"
-      >
-        {option.mobile}
-      </Typography>
-    </Box>
-  )}
-/>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              lineHeight={1.3}
+            >
+              {option.age} Years • {option.gender} •{" "}
+              {option.mobile}
+            </Typography>
+          </Box>
+        )}
+      />
     </Box>
   );
 }

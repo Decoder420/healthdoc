@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 
 import {
+  Card,
   Chip,
   IconButton,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -45,108 +45,269 @@ export default function VerifiedReportsTable({
   );
 
   return (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Report No.</TableCell>
-            <TableCell>Patient</TableCell>
-            <TableCell>UHID</TableCell>
-            <TableCell>Test</TableCell>
-            <TableCell>Barcode</TableCell>
-            <TableCell>Verified By</TableCell>
-            <TableCell>Verified Date</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell align="center">
-              PDF
-            </TableCell>
-          </TableRow>
-        </TableHead>
-
-        <TableBody>
-          {verifiedReports.length > 0 ? (
-            verifiedReports.map((item) => (
-              <TableRow
-                hover
-                key={item.report.reportNo}
-              >
-                <TableCell>
-                  {item.report.reportNo}
-                </TableCell>
-
-                <TableCell>
-                  <Stack spacing={0.5}>
-                    <Typography fontWeight={600}>
-                      {item.patient.name}
-                    </Typography>
-
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                    >
-                      {item.patient.age} Years •{" "}
-                      {item.patient.gender}
-                    </Typography>
-                  </Stack>
-                </TableCell>
-
-                <TableCell>
-                  {item.patient.uhid}
-                </TableCell>
-
-                <TableCell>
-                  {item.report.testName}
-                </TableCell>
-
-                <TableCell>
-                  {item.sample.barcode}
-                </TableCell>
-
-                <TableCell>
-                  {item.report.verifiedBy}
-                </TableCell>
-
-                <TableCell>
-                  {item.report.verifiedDate}
-                </TableCell>
-
-                <TableCell>
-                  <Chip
-                    label={item.report.status}
-                    color="success"
-                    size="small"
-                  />
-                </TableCell>
-
-                <TableCell align="center">
-                  <Tooltip title="Open Report PDF">
-                    <IconButton
-                      color="error"
-                      onClick={() =>
-                        handleOpenReport(item)
-                      }
-                    >
-                      <PictureAsPdfIcon />
-                    </IconButton>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))
-          ) : (
+    <Card
+      elevation={0}
+      className="surface-card"
+      sx={{
+        mt: 2,
+        overflow: "hidden",
+      }}
+    >
+      <TableContainer>
+        <Table
+          size="small"
+          sx={{
+            "& .MuiTableCell-root": {
+              borderColor: "divider",
+            },
+          }}
+        >
+          <TableHead>
             <TableRow>
               <TableCell
-                colSpan={9}
-                align="center"
-                sx={{ py: 6 }}
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
               >
-                <Typography color="text.secondary">
-                  No verified reports found.
-                </Typography>
+                Report No.
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Patient
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                UHID
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Test
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Barcode
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Verified By
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Verified Date
+              </TableCell>
+
+              <TableCell
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                Status
+              </TableCell>
+
+              <TableCell
+                align="center"
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "action.hover",
+                }}
+              >
+                PDF
               </TableCell>
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
+          </TableHead>
+
+          <TableBody>
+            {verifiedReports.length > 0 ? (
+              verifiedReports.map((item) => (
+                <TableRow
+                  hover
+                  key={item.report.reportNo}
+                  sx={{
+                    "&:last-child td": {
+                      borderBottom: 0,
+                    },
+
+                    "& td": {
+                      verticalAlign: "middle",
+                    },
+                  }}
+                >
+                  {/* Report No. */}
+                  <TableCell>
+                    <Typography
+                      variant="body2"
+                      fontWeight={600}
+                    >
+                      {item.report.reportNo}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Patient */}
+                  <TableCell>
+                    <Stack spacing={0.25}>
+                      <Typography
+                        variant="body2"
+                        fontWeight={600}
+                      >
+                        {item.patient.name}
+                      </Typography>
+
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                      >
+                        {item.patient.age} Years •{" "}
+                        {item.patient.gender}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+
+                  {/* UHID */}
+                  <TableCell>
+                    <Typography variant="body2">
+                      {item.patient.uhid}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Test */}
+                  <TableCell>
+                    <Typography variant="body2">
+                      {item.report.testName}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Barcode */}
+                  <TableCell>
+                    <Typography
+                      variant="body2"
+                      fontFamily="monospace"
+                      sx={{
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.sample.barcode}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Verified By */}
+                  <TableCell>
+                    <Typography variant="body2">
+                      {item.report.verifiedBy}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Verified Date */}
+                  <TableCell>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {item.report.verifiedDate}
+                    </Typography>
+                  </TableCell>
+
+                  {/* Status */}
+                  <TableCell>
+                    <Chip
+                      label={item.report.status}
+                      color="success"
+                      size="small"
+                      sx={{
+                        height: 24,
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                      }}
+                    />
+                  </TableCell>
+
+                  {/* PDF */}
+                  <TableCell align="center">
+                    <Tooltip title="Open Report PDF">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() =>
+                          handleOpenReport(item)
+                        }
+                        sx={{
+                          width: 32,
+                          height: 32,
+                        }}
+                      >
+                        <PictureAsPdfIcon
+                          fontSize="small"
+                        />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={9}
+                  align="center"
+                  sx={{
+                    py: 6,
+                    borderBottom: 0,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                  >
+                    No verified reports found.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
   );
 }

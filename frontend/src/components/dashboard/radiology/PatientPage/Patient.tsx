@@ -64,8 +64,7 @@ export default function RadiologyPatientProfilePage({
           color="text.secondary"
           sx={{ mt: 1 }}
         >
-          No radiology studies were found
-          for this patient.
+          No radiology studies were found for this patient.
         </Typography>
       </Box>
     );
@@ -87,14 +86,12 @@ export default function RadiologyPatientProfilePage({
     )
     .map((study) => ({
       reportId: study.reportId,
-      accessionNumber:
-        study.accessionNumber,
+      accessionNumber: study.accessionNumber,
       studyId: study.dicomStudyId,
       modality: study.modality,
       procedure: study.procedure,
       radiologist: study.radiologist,
-      verifiedDate:
-        study.appointmentDate,
+      verifiedDate: study.appointmentDate,
       status: study.reportStatus,
     }));
 
@@ -116,9 +113,7 @@ export default function RadiologyPatientProfilePage({
 
       <Tabs
         value={tab}
-        onChange={(_, value) =>
-          setTab(value)
-        }
+        onChange={(_, value) => setTab(value)}
         sx={{
           mb: 3,
           minHeight: 42,
