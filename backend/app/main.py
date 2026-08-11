@@ -21,7 +21,7 @@ MODULES = [
     "audit", "billing", "blood_bank", "consent", "departments", "emergency",
     "encounters", "files", "inventory", "ipd", "notifications", "nursing",
     "opd", "orders", "ot", "outbox", "pathology", "patients", "pharmacy",
-    "queue", "radiology", "registration", "reports", "security_audit",
+    "prescriptions", "queue", "radiology", "registration", "reports", "security_audit",
     "users", "wards",
 ]
 
