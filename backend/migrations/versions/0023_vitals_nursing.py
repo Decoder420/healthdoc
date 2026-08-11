@@ -1,7 +1,7 @@
 """0023_vitals_nursing
 
 Revision ID: 0023
-Revises: 0022
+Revises: 0022a
 Create Date: 2026-08-11
 
 Builds: vitals, nursing_handover_notes, intake_output_records,
@@ -20,6 +20,12 @@ nursing_handover_notes follows Aditya's draft on feature/w5-vitals-nursing
 (29 July) — that branch ALTERed vitals rather than creating it, because it
 assumed an 0018 that never merged, so the file could not be reused directly.
 
+Chains off 0022a (dpdp_compliance), not 0022. Vani wrote 0021_dpdp_compliance
+to the §2 plan while 0021 was being reassigned to Aditya's encounter_soap;
+rather than send her to 0035 — which chains off the parked 0034 and would
+have made a finished migration wait for the whole chain — she takes 0022a,
+the same out-of-band convention as 0003a and 0020a-c.
+
 app/nursing/ already exists as an empty package; models for these tables
 belong there and are deliberately not added in this PR. Schema first so the
 chain moves; the module can follow.
@@ -29,7 +35,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "0023"
-down_revision = "0022"
+down_revision = "0022a"
 branch_labels = None
 depends_on = None
 
