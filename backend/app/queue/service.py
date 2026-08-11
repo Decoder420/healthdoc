@@ -11,6 +11,7 @@ from datetime import date, datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.business_date import get_business_date
 from app.common.enums import QueuePriority, QueueTokenStatus
