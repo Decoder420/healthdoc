@@ -3,6 +3,7 @@ prescriptions module router - issue #182: e-prescription creation API
 with prescription_items.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import write_audit_log
@@ -26,16 +27,6 @@ async def create_prescription(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles("doctor")),
 ):
-    try:
-        from app.encounters.models import Encounter
-    except ImportError:
-        Encounter = None
-
-    if Encounter is not None:
-        encounter = await db.get(Encounter, payload.encounter_id)
-        if encounter is None:
-            raise HTTPException(status_code=404, detail="Encounter not found")
-
     if not payload.items:
         raise HTTPException(status_code=422, detail="At least one prescription item is required")
 
@@ -46,7 +37,13 @@ async def create_prescription(
         created_by=current_db_user.id,
     )
     db.add(prescription)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        if "fk_prescriptions_encounter_id" in str(exc.orig):
+            raise HTTPException(status_code=404, detail="Encounter not found") from exc
+        raise
 
     items = [
         PrescriptionItem(
@@ -71,10 +68,10 @@ async def create_prescription(
     # column, which doesn't exist here - so this is the manual path, deliberately.
     await write_audit_log(
         db,
-        table_name="prescriptions",
-        row_id=prescription.id,
+        resource_type="prescriptions",
+        resource_id=prescription.id,
         action="create",
-        actor_id=current_db_user.id,
+        user_id=current_db_user.id,
         facility_id=current_db_user.facility_id,
     )
 
