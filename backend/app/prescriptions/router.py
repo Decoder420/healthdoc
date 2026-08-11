@@ -3,21 +3,35 @@ prescriptions module router - issue #182: e-prescription creation API
 with prescription_items.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import write_audit_log
 from app.common.db import get_db
 from app.auth.deps import require_roles, CurrentDbUser
+from app.opd.models import Encounter
 from app.prescriptions.schemas import PrescriptionCreate, PrescriptionOut, PrescriptionItemOut
 from app.prescriptions.models import Prescription, PrescriptionItem
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
+_ENCOUNTER_NOT_FOUND = HTTPException(404, "Encounter not found")
 
-@router.get("/ping")
-async def ping() -> dict:
-    return {"module": "prescriptions", "status": "stub"}
+
+async def _get_scoped_encounter(
+    db: AsyncSession, encounter_id, caller_facility_id
+) -> Encounter:
+    """Same shape as queue/service.py's _get_scoped_queue: 404 rather
+    than 403 so a caller can't distinguish "doesn't exist" from
+    "exists in another facility" by probing. Without this, any doctor
+    could write a prescription against any facility's encounter_id --
+    the FK alone only confirms the row exists somewhere, not that the
+    caller is allowed to touch it."""
+    result = await db.execute(select(Encounter).where(Encounter.id == encounter_id))
+    encounter = result.scalar_one_or_none()
+    if encounter is None or encounter.facility_id != caller_facility_id:
+        raise _ENCOUNTER_NOT_FOUND
+    return encounter
 
 
 @router.post("", response_model=PrescriptionOut, status_code=201)
@@ -30,6 +44,8 @@ async def create_prescription(
     if not payload.items:
         raise HTTPException(status_code=422, detail="At least one prescription item is required")
 
+    encounter = await _get_scoped_encounter(db, payload.encounter_id, current_db_user.facility_id)
+
     prescription = Prescription(
         encounter_id=payload.encounter_id,
         patient_id=payload.patient_id,
@@ -37,13 +53,7 @@ async def create_prescription(
         created_by=current_db_user.id,
     )
     db.add(prescription)
-    try:
-        await db.flush()
-    except IntegrityError as exc:
-        await db.rollback()
-        if "fk_prescriptions_encounter_id" in str(exc.orig):
-            raise HTTPException(status_code=404, detail="Encounter not found") from exc
-        raise
+    await db.flush()
 
     items = [
         PrescriptionItem(
@@ -66,13 +76,17 @@ async def create_prescription(
     # only via encounter -> visit -> facility_id (same as radiology_order_items).
     # Auto-audit (listeners.py) needs __audit_facility_id_field__ naming a real
     # column, which doesn't exist here - so this is the manual path, deliberately.
+    # facility_id is the encounter's, not the caller's -- for a same-facility
+    # write they're identical, but now that encounter_id is scope-checked
+    # above, the audit trail must record which facility the prescription
+    # actually belongs to, not which facility the doctor happened to be in.
     await write_audit_log(
         db,
         resource_type="prescriptions",
         resource_id=prescription.id,
         action="create",
         user_id=current_db_user.id,
-        facility_id=current_db_user.facility_id,
+        facility_id=encounter.facility_id,
     )
 
     await db.refresh(prescription)
