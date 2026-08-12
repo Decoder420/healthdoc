@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.common.db import Base
@@ -76,7 +76,7 @@ class PrescriptionItem(Base, UUIDPk, Timestamps):
     medicine_name = Column(Text, nullable=False)
     dosage = Column(String(50), nullable=True)
     frequency = Column(String(50), nullable=True)
-    duration_days = Column(UUID(as_uuid=True), nullable=True)  # placeholder, fix below
+    duration_days = Column(Integer, nullable=True)
     route = Column(String(30), nullable=True)
     instructions = Column(Text, nullable=True)
     status = Column(String(50), nullable=False, server_default="prescribed")

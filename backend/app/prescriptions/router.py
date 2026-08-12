@@ -11,7 +11,7 @@ from app.common.db import get_db
 from app.auth.deps import require_roles, CurrentDbUser
 from app.opd.models import Encounter
 from app.prescriptions.schemas import PrescriptionCreate, PrescriptionOut, PrescriptionItemOut
-from app.prescriptions.models import Prescription, PrescriptionItem
+from app.orders.models import Prescription, PrescriptionItem
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
