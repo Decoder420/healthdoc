@@ -526,6 +526,15 @@ async def create_roster_entry(
     department = await db.get(Department, department_id)
     if department is None or department.facility_id != caller_facility_id:
         raise HTTPException(404, "Department not found")
+
+    staff = await db.get(User, staff_user_id)
+    if staff is None or staff.facility_id != caller_facility_id:
+        raise HTTPException(404, "Staff member not found")
+
+    if room_id is not None:
+        room = await db.get(Room, room_id)
+        if room is None or room.department_id != department_id:
+            raise HTTPException(404, "Room not found")
  
     entry = Roster(
         id=uuid.uuid4(),
@@ -538,8 +547,10 @@ async def create_roster_entry(
     db.add(entry)
     try:
         await db.flush()
-    except IntegrityError:
-        raise HTTPException(409, "This staff member already has a roster entry for this date/shift")
+    except IntegrityError as e:
+        if getattr(e.orig, "sqlstate", None) == "23505":
+            raise HTTPException(409, "This staff member already has a roster entry for this date/shift")
+        raise
     await db.refresh(entry)
     return entry
  
@@ -627,6 +638,10 @@ async def _set_queue_open_state(
     caller_roles: list[str],
     caller_department_id: uuid.UUID | None,
 ) -> tuple[Queue, dict | None]:
+    """Pausing doesn't touch a token already CALLED -- that patient still
+    gets seen. On resume, _find_unresolved_called_token() blocks further
+    advancement until that token is completed. Intentional, not a gap.
+    """
     if not ({"hod", "admin"} & set(caller_roles)):
         raise HTTPException(403, "Only hod or admin may pause or resume a queue")
  
