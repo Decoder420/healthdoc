@@ -13,7 +13,7 @@ from app.common.db import Base
 from app.common.models import UUIDPk, Timestamps, Blame, Versioned
 from app.common.enums import (
     Sex, IdentityPath, IdentityStatus, PatientStatus,
-    IdentifierType, MergeStatus,
+    IdentifierType, MergeStatus, MergeSourceType,
 )
 
 
@@ -86,7 +86,7 @@ class PatientIdentifier(Base, UUIDPk, Timestamps):
 class PatientMergeLog(Base, UUIDPk, Timestamps):
     __tablename__ = "patient_merge_log"
     __table_args__ = (
-        CheckConstraint("source_type IN ('thid', 'duplicate_uhid')", name="source_type"),
+        CheckConstraint(MergeSourceType.sql_check("source_type"), name="source_type"),
         CheckConstraint(MergeStatus.sql_check("status"), name="status"),
     )
 
