@@ -11,13 +11,14 @@ from datetime import date, datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.business_date import get_business_date
 from app.common.enums import QueuePriority, QueueTokenStatus
-from app.common.redis import queue_channel
+from app.common.redis import department_channel, queue_channel
 from app.departments.models import Department, Room
 from app.notifications.models import NotificationHistory
-from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange
+from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange, Roster
 from app.users.models import User
 
 PRIORITY_RANK = {
@@ -46,11 +47,12 @@ _NOT_FOUND = HTTPException(404, "Queue not found")
 
 # ---------------- CALLER CONTEXT RESOLUTION ----------------
 # resolve_caller_facility_id() lived here and did exactly what CurrentDbUser
-# now does — one extra users lookup per request to get facility_id from a
+# now does ΓÇö one extra users lookup per request to get facility_id from a
 # keycloak_sub. The routers take CurrentDbUser directly instead.
 #
 # resolve_caller_full_context stays only because DbUser doesn't carry
 # department_id. Add it there and this can go too.
+
 async def resolve_caller_full_context(
     db: AsyncSession, keycloak_sub: str
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID | None]:
@@ -502,3 +504,185 @@ async def list_queue_tokens(
     ]
 
     return {"waiting_count": waiting_count, "now_serving": now_serving, "items": items}
+
+
+# ---------------- ROSTER: CREATE (hod/admin only) ----------------
+async def create_roster_entry(
+    db: AsyncSession,
+    staff_user_id: uuid.UUID,
+    department_id: uuid.UUID,
+    room_id: uuid.UUID | None,
+    shift: str,
+    roster_date: date,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    caller_department_id: uuid.UUID | None,
+) -> Roster:
+    if not ({"hod", "admin"} & set(caller_roles)):
+        raise HTTPException(403, "Only hod or admin may assign roster entries")
+    if "hod" in caller_roles and caller_department_id != department_id:
+        raise HTTPException(403, "hod may only assign staff within their own department")
+ 
+    department = await db.get(Department, department_id)
+    if department is None or department.facility_id != caller_facility_id:
+        raise HTTPException(404, "Department not found")
+ 
+    entry = Roster(
+        id=uuid.uuid4(),
+        staff_user_id=staff_user_id,
+        department_id=department_id,
+        room_id=room_id,
+        shift=shift,
+        roster_date=roster_date,
+    )
+    db.add(entry)
+    try:
+        await db.flush()
+    except IntegrityError:
+        raise HTTPException(409, "This staff member already has a roster entry for this date/shift")
+    await db.refresh(entry)
+    return entry
+ 
+ 
+# ---------------- ROSTER: LIST ----------------
+async def list_roster(
+    db: AsyncSession,
+    department_id: uuid.UUID,
+    roster_date: date,
+    caller_facility_id: uuid.UUID,
+) -> list[Roster]:
+    department = await db.get(Department, department_id)
+    if department is None or department.facility_id != caller_facility_id:
+        raise HTTPException(404, "Department not found")
+ 
+    result = await db.execute(
+        select(Roster).where(
+            Roster.department_id == department_id,
+            Roster.roster_date == roster_date,
+        )
+    )
+    return list(result.scalars().all())
+ 
+ 
+# ---------------- ROSTER: AVAILABILITY (hod/admin only) ----------------
+async def update_roster_availability(
+    db: AsyncSession,
+    roster_id: uuid.UUID,
+    is_available: bool,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    caller_department_id: uuid.UUID | None,
+) -> tuple[Roster, dict | None]:
+    if not ({"hod", "admin"} & set(caller_roles)):
+        raise HTTPException(403, "Only hod or admin may change availability")
+ 
+    entry = await db.get(Roster, roster_id)
+    if entry is None:
+        raise HTTPException(404, "Roster entry not found")
+ 
+    department = await db.get(Department, entry.department_id)
+    if department is None or department.facility_id != caller_facility_id:
+        raise HTTPException(404, "Roster entry not found")
+ 
+    if "hod" in caller_roles and caller_department_id != entry.department_id:
+        raise HTTPException(403, "hod may only act within their own department")
+ 
+    entry.is_available = is_available
+    await db.flush()
+    await db.refresh(entry)
+    #only notify the HOD when an ADMIN made this change
+    pending_event = None
+    if "hod" not in caller_roles and "admin" in caller_roles:
+        staff = await db.get(User, entry.staff_user_id)
+        payload = {
+            "department_id": str(entry.department_id),
+            "roster_id": str(entry.id),
+            "staff_name": staff.full_name if staff else None,
+            "shift": entry.shift,
+            "roster_date": entry.roster_date.isoformat(),
+            "is_available": is_available,
+        }
+        db.add(NotificationHistory(
+            id=uuid.uuid4(),
+            event_type="roster_availability_changed",
+            payload=payload,
+            department_id=entry.department_id,
+        ))
+        await db.flush()
+        pending_event = {
+            "channel": department_channel(entry.department_id),
+            "event_type": "roster_availability_changed",
+            "payload": payload,
+        }
+ 
+    return entry, pending_event
+ 
+ 
+# ---------------- QUEUE: PAUSE / RESUME (hod/admin only) ----------------
+async def _set_queue_open_state(
+    db: AsyncSession,
+    queue_id: uuid.UUID,
+    is_open: bool,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    caller_department_id: uuid.UUID | None,
+) -> tuple[Queue, dict | None]:
+    if not ({"hod", "admin"} & set(caller_roles)):
+        raise HTTPException(403, "Only hod or admin may pause or resume a queue")
+ 
+    queue = await _get_scoped_queue(db, queue_id, caller_facility_id, for_update=True)
+ 
+    if "hod" in caller_roles and caller_department_id != queue.department_id:
+        raise HTTPException(403, "hod may only act within their own department")
+ 
+    queue.is_open = is_open
+    await db.flush()
+    await db.refresh(queue)
+ 
+    # HOD notify cascade: reuses the notifications SSE plumbing from task 6.
+    doctor = await db.get(User, queue.doctor_user_id)
+    payload = {
+        "department_id": str(queue.department_id),
+        "queue_id": str(queue.id),
+        "doctor_name": doctor.full_name if doctor else None,
+        "is_open": is_open,
+    }
+    event_type = "queue_resumed" if is_open else "queue_paused"
+    db.add(NotificationHistory(
+        id=uuid.uuid4(),
+        event_type=event_type,
+        payload=payload,
+        department_id=queue.department_id,
+    ))
+    await db.flush()
+ 
+    pending_event = {
+        "channel": department_channel(queue.department_id),
+        "event_type": event_type,
+        "payload": payload,
+    }
+    return queue, pending_event
+ 
+ 
+async def pause_queue(
+    db: AsyncSession,
+    queue_id: uuid.UUID,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    caller_department_id: uuid.UUID | None,
+) -> tuple[Queue, dict | None]:
+    return await _set_queue_open_state(
+        db, queue_id, False, caller_facility_id, caller_roles, caller_department_id
+    )
+ 
+ 
+async def resume_queue(
+    db: AsyncSession,
+    queue_id: uuid.UUID,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    caller_department_id: uuid.UUID | None,
+) -> tuple[Queue, dict | None]:
+    return await _set_queue_open_state(
+        db, queue_id, True, caller_facility_id, caller_roles, caller_department_id
+    )
