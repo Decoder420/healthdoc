@@ -287,3 +287,108 @@ async def reject_patient_merge(
         if str(e) == "self_approval_not_allowed":
             raise HTTPException(409, {"code": "self_approval_not_allowed"})
         raise HTTPException(400, str(e))
+
+
+# ---------------------------------------------------------------------------
+# [#179] Patient history aggregation — role-filtered, consent-checked, access-logged
+# [#228] Personal access history — who accessed this patient's data
+# ---------------------------------------------------------------------------
+import sqlalchemy as sa
+
+from app.common.enums import AccessChannel
+from app.consent.access_log import log_patient_data_access
+from app.consent.models import DataAccessLog
+from app.patients.history_service import get_patient_history
+
+_HISTORY_ROLES = ("doctor", "nurse", "receptionist", "admin")
+
+
+@router.get(
+    "/{patient_id}/history",
+    dependencies=[
+        Depends(
+            log_patient_data_access(
+                resource_type="patient_history",
+                purpose_code="clinical_review",
+                access_channel=AccessChannel.API.value,
+                consent_required=True,
+            )
+        ),
+        Depends(require_roles(*_HISTORY_ROLES)),
+    ],
+    summary="[#179] Aggregated patient history — role-filtered, consent-checked, access-logged",
+)
+async def get_patient_history_endpoint(
+    patient_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.deleted_at is not None:
+        raise HTTPException(404, {"code": "patient_not_found"})
+    if patient.facility_id != current_db_user.facility_id:
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    return await get_patient_history(
+        db,
+        patient_id=patient_id,
+        role=next(iter(set(current_db_user.roles) & {"doctor","nurse","receptionist","admin"}), "receptionist"),
+    )
+
+
+@router.get(
+    "/{patient_id}/access-history",
+    dependencies=[Depends(require_roles("auditor", "admin", "doctor"))],
+    summary="[#228] Personal access history — who accessed this patient's data",
+)
+async def get_patient_access_history(
+    patient_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.deleted_at is not None:
+        raise HTTPException(404, {"code": "patient_not_found"})
+    if patient.facility_id != current_db_user.facility_id:
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    rows = (
+        await db.execute(
+            sa.select(DataAccessLog)
+            .where(DataAccessLog.patient_id == patient_id)
+            .order_by(DataAccessLog.accessed_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).scalars().all()
+
+    total = (
+        await db.execute(
+            sa.select(sa.func.count()).select_from(DataAccessLog).where(
+                DataAccessLog.patient_id == patient_id
+            )
+        )
+    ).scalar_one()
+
+    return {
+        "patient_id": str(patient_id),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": [
+            {
+                "accessed_at": r.accessed_at.isoformat(),
+                "user_id": str(r.user_id),
+                "role": r.role,
+                "resource_type": r.resource_type,
+                "purpose_code": r.purpose_code,
+                "access_channel": r.access_channel,
+                "emergency_access": r.emergency_access,
+                "consent_required": r.consent_required,
+                "consent_verified": r.consent_verified,
+            }
+            for r in rows
+        ],
+    }
