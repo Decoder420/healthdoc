@@ -285,6 +285,9 @@ async def _advance_queue(db: AsyncSession, queue: Queue) -> tuple[QueueToken | N
         event_type="token_called",
         payload=payload,
         department_id=queue.department_id,
+        # The queue's facility, not the caller's — an admin acting across
+        # facilities must not file this row under their own.
+        facility_id=queue.facility_id,
     ))
     await db.flush()
 
