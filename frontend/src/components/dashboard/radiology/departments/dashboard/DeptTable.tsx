@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Button,
   Chip,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -34,18 +33,38 @@ export default function RadiologyTable({
   );
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        mt: 3,
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
-    >
+    <div className="surface-card mt-3 overflow-hidden">
       <TableContainer>
-        <Table>
+        <Table
+          sx={{
+            minWidth: 1100,
+
+            "& .MuiTableCell-head": {
+              fontWeight: 700,
+              fontSize: 12,
+              color: "text.secondary",
+              backgroundColor: "action.hover",
+              whiteSpace: "nowrap",
+              py: 1.75,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            },
+
+            "& .MuiTableCell-body": {
+              py: 2,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            },
+
+            "& tbody tr:last-child td": {
+              borderBottom: 0,
+            },
+
+            "& tbody tr:hover": {
+              backgroundColor: "action.hover",
+            },
+          }}
+        >
           {/* HEADER */}
           <TableHead>
             <TableRow>
@@ -101,7 +120,10 @@ export default function RadiologyTable({
                       spacing={0.5}
                       alignItems="center"
                     >
-                      <Typography fontWeight={600}>
+                      <Typography
+                        fontWeight={600}
+                        fontSize={14}
+                      >
                         {row.patientName}
                       </Typography>
 
@@ -116,22 +138,55 @@ export default function RadiologyTable({
 
                   {/* UHID */}
                   <TableCell align="center">
-                    {row.uhid}
+                    <Typography
+                      fontSize={13}
+                      color="text.secondary"
+                    >
+                      {row.uhid}
+                    </Typography>
                   </TableCell>
 
                   {/* Accession */}
                   <TableCell align="center">
-                    {row.accessionNumber}
+                    <Typography
+                      fontSize={13}
+                      fontWeight={600}
+                      color="primary.main"
+                    >
+                      {row.accessionNumber}
+                    </Typography>
                   </TableCell>
 
                   {/* Study */}
                   <TableCell align="center">
-                    {row.procedure}
+                    <Typography
+                      fontSize={13}
+                      sx={{
+                        maxWidth: 220,
+                        mx: "auto",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {row.procedure}
+                    </Typography>
                   </TableCell>
 
                   {/* Modality */}
                   <TableCell align="center">
-                    {row.modality}
+                    <Chip
+                      size="small"
+                      label={row.modality}
+                      variant="outlined"
+                      sx={{
+                        minWidth: 70,
+                        height: 28,
+                        borderRadius: 1.5,
+                        fontWeight: 600,
+                        fontSize: 12,
+                        borderColor: "divider",
+                        color: "text.primary",
+                      }}
+                    />
                   </TableCell>
 
                   {/* Priority */}
@@ -139,13 +194,33 @@ export default function RadiologyTable({
                     <Chip
                       size="small"
                       label={row.priority}
-                      color={
-                        row.priority === "Emergency"
-                          ? "error"
-                          : row.priority === "Urgent"
-                          ? "warning"
-                          : "default"
-                      }
+                      variant="outlined"
+                      sx={{
+                        minWidth: 78,
+                        height: 28,
+                        borderRadius: 1.5,
+                        fontWeight: 600,
+                        fontSize: 12,
+
+                        ...(row.priority ===
+                        "Emergency"
+                          ? {
+                              color: "error.main",
+                              borderColor:
+                                "rgba(211, 47, 47, 0.35)",
+                            }
+                          : row.priority ===
+                            "Urgent"
+                          ? {
+                              color: "warning.dark",
+                              borderColor:
+                                "rgba(237, 108, 2, 0.35)",
+                            }
+                          : {
+                              color: "text.secondary",
+                              borderColor: "divider",
+                            }),
+                      }}
                     />
                   </TableCell>
 
@@ -157,19 +232,40 @@ export default function RadiologyTable({
                       <Chip
                         size="small"
                         label={row.status}
-                        color={
-                          row.status === "Verified"
-                            ? "success"
-                            : "warning"
-                        }
+                        variant="outlined"
+                        sx={{
+                          minWidth: 90,
+                          height: 28,
+                          borderRadius: 1.5,
+                          fontWeight: 600,
+                          fontSize: 12,
+
+                          color:
+                            row.status ===
+                            "Verified"
+                              ? "text.primary"
+                              : "primary.main",
+
+                          borderColor:
+                            row.status ===
+                            "Verified"
+                              ? "divider"
+                              : "rgba(0, 31, 84, 0.25)",
+                        }}
                       />
                     )}
                   </TableCell>
 
                   {/* Appointment */}
                   <TableCell align="center">
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2">
+                    <Stack
+                      spacing={0.5}
+                      alignItems="center"
+                    >
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                      >
                         {row.appointmentDate}
                       </Typography>
 
@@ -182,47 +278,65 @@ export default function RadiologyTable({
                     </Stack>
                   </TableCell>
 
-                 {/* Actions */}
-<TableCell align="center">
-  {renderActions ? (
-    renderActions(row)
-  ) : (
-    <Stack
-      direction="row"
-      spacing={1}
-      justifyContent="center"
-    >
-      {row.status === "Processing" && (
-        <Button
-          variant="contained"
-          size="small"
-          onClick={() =>
-            router.push(
-              `/radiology/test_results?accessionNumber=${row.accessionNumber}`
-            )
-          }
-        >
-          Complete Test
-        </Button>
-      )}
+                  {/* Actions */}
+                  <TableCell align="center">
+                    {renderActions ? (
+                      renderActions(row)
+                    ) : (
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        justifyContent="center"
+                        alignItems="center"
+                      >
+                        {row.status ===
+                          "Processing" && (
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() =>
+                              router.push(
+                                `/radiology/test_results?accessionNumber=${row.accessionNumber}`
+                              )
+                            }
+                            sx={{
+                              minWidth: 115,
+                              height: 34,
+                              borderRadius: 2,
+                              textTransform:
+                                "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Complete Test
+                          </Button>
+                        )}
 
-      {row.status === "Verified" && (
-        <Button
-          variant="outlined"
-          color="success"
-          size="small"
-          onClick={() =>
-            router.push(
-              `/radiology/reports/${row.accessionNumber}`
-            )
-          }
-        >
-          View Report
-        </Button>
-      )}
-    </Stack>
-  )}
-</TableCell>
+                        {row.status ===
+                          "Verified" && (
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() =>
+                              router.push(
+                                `/radiology/reports/${row.accessionNumber}`
+                              )
+                            }
+                            sx={{
+                              minWidth: 105,
+                              height: 34,
+                              borderRadius: 2,
+                              textTransform:
+                                "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            View Report
+                          </Button>
+                        )}
+                      </Stack>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
 
@@ -233,13 +347,29 @@ export default function RadiologyTable({
                   <TableCell
                     colSpan={9}
                     align="center"
+                    sx={{
+                      py: 8,
+                    }}
                   >
-                    <Typography
-                      py={5}
-                      color="text.secondary"
+                    <Stack
+                      spacing={1}
+                      alignItems="center"
                     >
-                      No processing or verified studies found.
-                    </Typography>
+                      <Typography
+                        fontWeight={600}
+                      >
+                        No studies found
+                      </Typography>
+
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                      >
+                        No processing or verified
+                        studies are currently
+                        available.
+                      </Typography>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               )}
@@ -250,9 +380,11 @@ export default function RadiologyTable({
                 <TableCell
                   colSpan={9}
                   align="center"
+                  sx={{
+                    py: 8,
+                  }}
                 >
                   <Typography
-                    py={5}
                     color="text.secondary"
                   >
                     Loading studies...
@@ -263,6 +395,6 @@ export default function RadiologyTable({
           </TableBody>
         </Table>
       </TableContainer>
-    </Paper>
+    </div>
   );
 }

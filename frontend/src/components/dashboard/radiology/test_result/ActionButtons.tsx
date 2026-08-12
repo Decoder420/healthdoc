@@ -6,6 +6,10 @@ import {
   Stack,
 } from "@mui/material";
 
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
+
 interface ActionButtonsProps {
   loading?: boolean;
   canVerify: boolean;
@@ -24,15 +28,22 @@ export default function ActionButtons({
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
-      spacing={2}
+      spacing={1.5}
       justifyContent="flex-end"
-      sx={{ mt: 3 }}
+      sx={{ mt: 2 }}
     >
       <Button
         variant="outlined"
-        size="large"
+        size="medium"
         disabled={loading}
         onClick={onSaveDraft}
+        startIcon={<SaveOutlinedIcon />}
+        sx={{
+          minWidth: 130,
+          fontWeight: 600,
+          borderRadius: 1.5,
+          textTransform: "none",
+        }}
       >
         Save Draft
       </Button>
@@ -40,23 +51,38 @@ export default function ActionButtons({
       <Button
         variant="outlined"
         color="success"
-        size="large"
+        size="medium"
         disabled={!canVerify || loading}
         onClick={onViewReport}
+        startIcon={<VisibilityOutlinedIcon />}
+        sx={{
+          minWidth: 130,
+          fontWeight: 600,
+          borderRadius: 1.5,
+          textTransform: "none",
+        }}
       >
         View Report
       </Button>
 
       <Button
         variant="contained"
-        size="large"
+        size="medium"
         disabled={!canVerify || loading}
         onClick={onVerify}
         startIcon={
           loading ? (
-            <CircularProgress size={18} color="inherit" />
-          ) : undefined
+            <CircularProgress size={17} color="inherit" />
+          ) : (
+            <VerifiedOutlinedIcon />
+          )
         }
+        sx={{
+          minWidth: 150,
+          fontWeight: 600,
+          borderRadius: 1.5,
+          textTransform: "none",
+        }}
       >
         {loading ? "Verifying..." : "Verify Report"}
       </Button>

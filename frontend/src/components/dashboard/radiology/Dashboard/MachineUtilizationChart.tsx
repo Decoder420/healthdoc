@@ -5,8 +5,6 @@ import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 
 import {
   Box,
-  Card,
-  CardContent,
   Chip,
   Divider,
   LinearProgress,
@@ -19,7 +17,6 @@ import {
   getRadiologyModalityDistribution,
 } from "@/components/dashboard/radiology/test_queue/DummyData";
 
-
 const modalityCounts = Object.fromEntries(
   getRadiologyModalityDistribution(
     appointmentQueue
@@ -28,7 +25,6 @@ const modalityCounts = Object.fromEntries(
     item.value,
   ])
 );
-
 
 const machineData = [
   {
@@ -141,10 +137,7 @@ const machineData = [
   },
 ];
 
-
-function statusColor(
-  status: string
-) {
+function statusColor(status: string) {
   switch (status) {
     case "Available":
       return "#16A34A";
@@ -160,10 +153,7 @@ function statusColor(
   }
 }
 
-
-function progressColor(
-  value: number
-) {
+function progressColor(value: number) {
   if (value >= 90) {
     return "#DC2626";
   }
@@ -175,270 +165,204 @@ function progressColor(
   return "#16A34A";
 }
 
-
 export default function RadiologyMachineUtilization() {
+  const totalMachines = machineData.length;
 
-  const totalMachines =
-    machineData.length;
+  const available = machineData.filter(
+    (m) => m.status === "Available"
+  ).length;
 
+  const busy = machineData.filter(
+    (m) => m.status === "Busy"
+  ).length;
 
-  const available =
-    machineData.filter(
-      (m) =>
-        m.status === "Available"
-    ).length;
+  const maintenance = machineData.filter(
+    (m) => m.status === "Maintenance"
+  ).length;
 
-
-  const busy =
-    machineData.filter(
-      (m) =>
-        m.status === "Busy"
-    ).length;
-
-
-  const maintenance =
-    machineData.filter(
-      (m) =>
-        m.status === "Maintenance"
-    ).length;
-
-
-  const avgUtilization =
-    Math.round(
-      machineData.reduce(
-        (sum, item) =>
-          sum + item.utilization,
-        0
-      ) / totalMachines
-    );
-
+  const avgUtilization = Math.round(
+    machineData.reduce(
+      (sum, item) => sum + item.utilization,
+      0
+    ) / totalMachines
+  );
 
   return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 4,
-        border: "1px solid",
-        borderColor: "divider",
-        height: "100%",
-      }}
-    >
-      <CardContent
-        sx={{
-          p: 3,
-        }}
+    <div className="surface-card h-full p-6">
+      {/* Header */}
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
       >
-                {/* Header */}
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
-          <Box>
-            <Typography
-              variant="h6"
-              fontWeight={700}
-            >
-              Machine Utilization
-            </Typography>
+        <Box>
+          <Typography
+            variant="h6"
+            fontWeight={700}
+          >
+            Machine Utilization
+          </Typography>
 
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Live equipment usage
-            </Typography>
-          </Box>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+          >
+            Live equipment usage
+          </Typography>
+        </Box>
 
-
-          <Chip
-            icon={
-              <TrendingUpRoundedIcon
-                sx={{
-                  fontSize: 18,
-                }}
-              />
-            }
-            label={`${avgUtilization}% Avg`}
-            size="small"
-            sx={{
-              bgcolor: "#EEF4FF",
-              color: "#001F54",
-              fontWeight: 700,
-            }}
-          />
-        </Stack>
-
-
-        {/* Machines */}
-        <Stack spacing={2.5}>
-          {machineData.map((item) => (
-            <Box
-              key={item.id}
-            >
-
-              {/* Machine info */}
-              <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                mb={1}
-              >
-
-                <Stack spacing={0.3}>
-
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                  >
-
-                    <CircleRoundedIcon
-                      sx={{
-                        fontSize: 10,
-                        color:
-                          statusColor(
-                            item.status
-                          ),
-                      }}
-                    />
-
-
-                    <Typography
-                      fontWeight={600}
-                      fontSize={14}
-                    >
-                      {item.machine}
-                    </Typography>
-
-                  </Stack>
-
-
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                  >
-                    {item.studies} Studies
-                    {" • "}
-                    Next: {item.next}
-                  </Typography>
-
-                </Stack>
-
-
-                <Typography
-                  fontWeight={700}
-                  color="#001F54"
-                >
-                  {item.utilization}%
-                </Typography>
-
-              </Stack>
-
-
-              {/* Utilization progress */}
-              <LinearProgress
-                variant="determinate"
-                value={item.utilization}
-                sx={{
-                  height: 8,
-                  borderRadius: 10,
-                  bgcolor: "#EEF2F7",
-
-                  "& .MuiLinearProgress-bar": {
-                    borderRadius: 10,
-                    backgroundColor:
-                      progressColor(
-                        item.utilization
-                      ),
-                  },
-                }}
-              />
-
-            </Box>
-          ))}
-        </Stack>
-
-
-        <Divider
+        <Chip
+          icon={
+            <TrendingUpRoundedIcon
+              sx={{
+                fontSize: 18,
+              }}
+            />
+          }
+          label={`${avgUtilization}% Avg`}
+          size="small"
           sx={{
-            my: 3,
+            bgcolor: "#EEF4FF",
+            color: "#001F54",
+            fontWeight: 700,
           }}
         />
+      </Stack>
 
+      {/* Machines */}
+      <Stack spacing={2.5}>
+        {machineData.map((item) => (
+          <Box key={item.id}>
+            {/* Machine info */}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={1}
+            >
+              <Stack spacing={0.3}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                >
+                  <CircleRoundedIcon
+                    sx={{
+                      fontSize: 10,
+                      color: statusColor(
+                        item.status
+                      ),
+                    }}
+                  />
 
-        {/* Footer Summary */}
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-        >
+                  <Typography
+                    fontWeight={600}
+                    fontSize={14}
+                  >
+                    {item.machine}
+                  </Typography>
+                </Stack>
 
-          <Stack
-            alignItems="center"
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                >
+                  {item.studies} Studies
+                  {" • "}
+                  Next: {item.next}
+                </Typography>
+              </Stack>
+
+              <Typography
+                fontWeight={700}
+                color="#001F54"
+              >
+                {item.utilization}%
+              </Typography>
+            </Stack>
+
+            {/* Utilization progress */}
+            <LinearProgress
+              variant="determinate"
+              value={item.utilization}
+              sx={{
+                height: 8,
+                borderRadius: 10,
+                bgcolor: "#EEF2F7",
+
+                "& .MuiLinearProgress-bar": {
+                  borderRadius: 10,
+                  backgroundColor:
+                    progressColor(
+                      item.utilization
+                    ),
+                },
+              }}
+            />
+          </Box>
+        ))}
+      </Stack>
+
+      <Divider
+        sx={{
+          my: 3,
+        }}
+      />
+
+      {/* Footer Summary */}
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+      >
+        <Stack alignItems="center">
+          <Typography
+            fontWeight={700}
+            color="#16A34A"
           >
-            <Typography
-              fontWeight={700}
-              color="#16A34A"
-            >
-              {available}
-            </Typography>
+            {available}
+          </Typography>
 
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              Available
-            </Typography>
-
-          </Stack>
-
-
-
-          <Stack
-            alignItems="center"
+          <Typography
+            variant="caption"
+            color="text.secondary"
           >
-            <Typography
-              fontWeight={700}
-              color="#F59E0B"
-            >
-              {busy}
-            </Typography>
-
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              Busy
-            </Typography>
-
-          </Stack>
-
-
-
-          <Stack
-            alignItems="center"
-          >
-            <Typography
-              fontWeight={700}
-              color="#EF4444"
-            >
-              {maintenance}
-            </Typography>
-
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              Maintenance
-            </Typography>
-
-          </Stack>
-
+            Available
+          </Typography>
         </Stack>
 
+        <Stack alignItems="center">
+          <Typography
+            fontWeight={700}
+            color="#F59E0B"
+          >
+            {busy}
+          </Typography>
 
-      </CardContent>
-    </Card>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+          >
+            Busy
+          </Typography>
+        </Stack>
+
+        <Stack alignItems="center">
+          <Typography
+            fontWeight={700}
+            color="#EF4444"
+          >
+            {maintenance}
+          </Typography>
+
+          <Typography
+            variant="caption"
+            color="text.secondary"
+          >
+            Maintenance
+          </Typography>
+        </Stack>
+      </Stack>
+    </div>
   );
 }

@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Paper,
   Step,
   StepLabel,
   Stepper,
-  Typography,
 } from "@mui/material";
 
 import {
@@ -23,6 +21,12 @@ const workflowSteps = [
 ];
 
 function getActiveStep() {
+  const hasReleased = appointmentQueue.some(
+    (item) => item.status === "Released"
+  );
+
+  if (hasReleased) return 6;
+
   const hasVerified = appointmentQueue.some(
     (item) => item.status === "Verified"
   );
@@ -34,12 +38,6 @@ function getActiveStep() {
   );
 
   if (hasReporting) return 4;
-
-  const hasCompleted = appointmentQueue.some(
-    (item) => item.status === "Completed"
-  );
-
-  if (hasCompleted) return 4;
 
   const hasScanStarted = appointmentQueue.some(
     (item) => item.status === "Scan Started"
@@ -53,29 +51,18 @@ function getActiveStep() {
 
   if (hasQueue) return 1;
 
-  return 0;
+  // Default workflow starts after order creation
+  return 2; // Patient Arrived
 }
 
 export default function WorkflowOverview() {
   const activeStep = getActiveStep();
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
-      <Typography
-        variant="h6"
-        fontWeight={700}
-        mb={3}
-      >
-        Workflow Overview
-      </Typography>
+    <div className="surface-card p-6">
+      <h2 className="mb-3 text-foreground">
+        Radiology Workflow
+      </h2>
 
       <Stepper
         activeStep={activeStep}
@@ -86,12 +73,10 @@ export default function WorkflowOverview() {
             key={label}
             completed={index < activeStep}
           >
-            <StepLabel>
-              {label}
-            </StepLabel>
+            <StepLabel>{label}</StepLabel>
           </Step>
         ))}
       </Stepper>
-    </Paper>
+    </div>
   );
 }

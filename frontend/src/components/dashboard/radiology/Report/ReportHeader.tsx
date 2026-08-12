@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
+
 import {
   Box,
   Divider,
   Stack,
   Typography,
-  Chip,
 } from "@mui/material";
 
 export interface ReportHeaderProps {
@@ -22,7 +22,6 @@ export interface ReportHeaderProps {
   report: {
     reportNo: string;
     accessionNo: string;
-    status: string;
     studyDate: string;
     reportDate: string;
   };
@@ -34,97 +33,184 @@ export default function ReportHeader({
 }: ReportHeaderProps) {
   return (
     <Box>
-      {/* Hospital Information */}
+      {/* Hospital Header */}
       <Stack
-        direction="row"
-        spacing={2}
+        direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: "flex-start", md: "center" }}
+        spacing={2}
       >
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack
+          direction="row"
+          spacing={1.75}
+          alignItems="center"
+        >
           {hospital.logo ? (
-            <Image
-              src={hospital.logo}
-              alt="Hospital Logo"
-              width={70}
-              height={70}
-            />
+            <Box
+              sx={{
+                width: 64,
+                height: 64,
+                position: "relative",
+                flexShrink: 0,
+              }}
+            >
+              <Image
+                src={hospital.logo}
+                alt="Hospital Logo"
+                fill
+                sizes="64px"
+                style={{
+                  objectFit: "contain",
+                }}
+              />
+            </Box>
           ) : (
             <Box
               sx={{
-                width: 70,
-                height: 70,
+                width: 64,
+                height: 64,
+                flexShrink: 0,
                 border: "1px solid",
                 borderColor: "divider",
-                borderRadius: 2,
+                borderRadius: 1.5,
+                bgcolor: "grey.50",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                bgcolor: "grey.100",
+                color: "text.disabled",
+                fontSize: 11,
+                fontWeight: 600,
               }}
             >
-              Logo
+              LOGO
             </Box>
           )}
 
           <Box>
-            <Typography variant="h5" fontWeight={700}>
+            <Typography
+              fontSize={20}
+              fontWeight={800}
+              lineHeight={1.25}
+              color="text.primary"
+            >
               {hospital.name}
             </Typography>
 
-            <Typography variant="body2">
+            <Typography
+              fontSize={11.5}
+              color="text.secondary"
+              mt={0.5}
+            >
               {hospital.address}
             </Typography>
 
-            <Typography variant="body2">
-              Phone: {hospital.phone}
+            <Typography
+              fontSize={11}
+              color="text.secondary"
+              mt={0.25}
+            >
+              {hospital.phone} • {hospital.email}
+              {hospital.website
+                ? ` • ${hospital.website}`
+                : ""}
             </Typography>
-
-            <Typography variant="body2">
-              Email: {hospital.email}
-            </Typography>
-
-            {hospital.website && (
-              <Typography variant="body2">
-                {hospital.website}
-              </Typography>
-            )}
           </Box>
         </Stack>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
 
-      {/* Report Details */}
+      {/* Report Metadata */}
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: {
             xs: "1fr",
-            md: "repeat(2,1fr)",
+            sm: "repeat(2, 1fr)",
+            md: "repeat(4, 1fr)",
           },
           gap: 2,
         }}
       >
-        <Stack spacing={0.5}>
-          <Typography variant="body2">
-            <strong>Report No:</strong> {report.reportNo}
+        <Box>
+          <Typography
+            fontSize={10.5}
+            fontWeight={600}
+            color="text.secondary"
+            textTransform="uppercase"
+            letterSpacing={0.4}
+          >
+            Report No.
           </Typography>
 
-          <Typography variant="body2">
-            <strong>Accession No:</strong> {report.accessionNo}
+          <Typography
+            fontSize={13}
+            fontWeight={700}
+            mt={0.25}
+          >
+            {report.reportNo}
           </Typography>
-        </Stack>
+        </Box>
 
-        <Stack spacing={0.5}>
-          <Typography variant="body2">
-            <strong>Study Date:</strong> {report.studyDate}
+        <Box>
+          <Typography
+            fontSize={10.5}
+            fontWeight={600}
+            color="text.secondary"
+            textTransform="uppercase"
+            letterSpacing={0.4}
+          >
+            Accession No.
           </Typography>
 
-          <Typography variant="body2">
-            <strong>Report Date:</strong> {report.reportDate}
+          <Typography
+            fontSize={13}
+            fontWeight={700}
+            mt={0.25}
+          >
+            {report.accessionNo}
           </Typography>
-        </Stack>
+        </Box>
+
+        <Box>
+          <Typography
+            fontSize={10.5}
+            fontWeight={600}
+            color="text.secondary"
+            textTransform="uppercase"
+            letterSpacing={0.4}
+          >
+            Study Date
+          </Typography>
+
+          <Typography
+            fontSize={13}
+            fontWeight={700}
+            mt={0.25}
+          >
+            {report.studyDate}
+          </Typography>
+        </Box>
+
+        <Box>
+          <Typography
+            fontSize={10.5}
+            fontWeight={600}
+            color="text.secondary"
+            textTransform="uppercase"
+            letterSpacing={0.4}
+          >
+            Report Date
+          </Typography>
+
+          <Typography
+            fontSize={13}
+            fontWeight={700}
+            mt={0.25}
+          >
+            {report.reportDate}
+          </Typography>
+        </Box>
       </Box>
 
       <Divider sx={{ mt: 2 }} />

@@ -2,7 +2,6 @@
 
 import {
   Box,
-  Divider,
   Paper,
   Stack,
   Typography,
@@ -22,57 +21,84 @@ export default function ReportFooter({
   generatedOn,
   hospital,
 }: ReportFooterProps) {
+  const contactDetails = [
+    hospital.phone,
+    hospital.email,
+    hospital.website,
+  ].filter(Boolean);
+
   return (
     <Paper
       elevation={0}
       sx={{
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        overflow: "hidden",
         mt: 2,
+        px: 2.5,
+        py: 1.75,
+        borderTop: "1px solid",
+        borderColor: "divider",
+        borderRadius: 0,
+        bgcolor: "grey.50",
       }}
     >
-      <Divider />
-
-      <Box p={2}>
-        <Stack
-          spacing={1}
-          alignItems="center"
-          textAlign="center"
+      <Stack
+        spacing={0.75}
+        alignItems="center"
+        textAlign="center"
+      >
+        <Typography
+          fontSize={13}
+          fontWeight={700}
+          color="text.primary"
         >
+          {hospital.name}
+        </Typography>
+
+        {contactDetails.length > 0 && (
           <Typography
-            variant="body2"
+            fontSize={11}
             color="text.secondary"
           >
-            Generated On: <strong>{generatedOn}</strong>
+            {contactDetails.join(" • ")}
           </Typography>
+        )}
 
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ maxWidth: 700 }}
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: 700,
+            my: 0.5,
+            borderTop: "1px solid",
+            borderColor: "divider",
+          }}
+        />
+
+        <Typography
+          fontSize={11}
+          color="text.secondary"
+        >
+          Generated On:{" "}
+          <Box
+            component="span"
+            fontWeight={600}
+            color="text.primary"
           >
-            This is a computer-generated radiology report and has been
-            electronically verified by the reporting radiologist. No physical
-            signature is required.
-          </Typography>
+            {generatedOn}
+          </Box>
+        </Typography>
 
-          {(hospital.phone ||
-            hospital.email ||
-            hospital.website) && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-            >
-              {hospital.name}
-              {hospital.phone && ` • ${hospital.phone}`}
-              {hospital.email && ` • ${hospital.email}`}
-              {hospital.website && ` • ${hospital.website}`}
-            </Typography>
-          )}
-        </Stack>
-      </Box>
+        <Typography
+          fontSize={10.5}
+          color="text.secondary"
+          sx={{
+            maxWidth: 750,
+            lineHeight: 1.5,
+          }}
+        >
+          This is a computer-generated radiology report and has been
+          electronically verified by the reporting radiologist. No physical
+          signature is required.
+        </Typography>
+      </Stack>
     </Paper>
   );
 }

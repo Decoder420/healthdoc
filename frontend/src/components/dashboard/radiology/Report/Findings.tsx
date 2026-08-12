@@ -5,7 +5,6 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import {
   Avatar,
   Box,
-  Divider,
   Paper,
   Stack,
   Typography,
@@ -18,52 +17,64 @@ export interface FindingsProps {
 export default function Findings({
   findings,
 }: FindingsProps) {
+  const findingItems =
+    findings
+      ?.trim()
+      .split(/\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean) ?? [];
+
+  const hasFindings = findingItems.length > 0;
+
   return (
     <Paper
       elevation={0}
       sx={{
-        borderRadius: 3,
         border: "1px solid",
         borderColor: "divider",
+        borderRadius: 2,
         overflow: "hidden",
+        bgcolor: "background.paper",
       }}
     >
       {/* Header */}
       <Box
         sx={{
-          px: 3,
-          py: 2,
-          bgcolor: "#F8FAFC",
-          borderLeft: "6px solid",
-          borderColor: "primary.main",
+          px: 2.5,
+          py: 1.75,
+          bgcolor: "grey.50",
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
         <Stack
           direction="row"
-          spacing={2}
+          spacing={1.5}
           alignItems="center"
         >
           <Avatar
             sx={{
+              width: 42,
+              height: 42,
               bgcolor: "primary.main",
-              width: 46,
-              height: 46,
             }}
           >
-            <DescriptionOutlinedIcon />
+            <DescriptionOutlinedIcon fontSize="small" />
           </Avatar>
 
           <Box>
             <Typography
+              fontSize={16}
               fontWeight={700}
-              fontSize={18}
+              lineHeight={1.3}
             >
               Findings
             </Typography>
 
             <Typography
-              variant="body2"
+              fontSize={12}
               color="text.secondary"
+              lineHeight={1.4}
             >
               Detailed radiological observations
             </Typography>
@@ -71,33 +82,55 @@ export default function Findings({
         </Stack>
       </Box>
 
-      <Divider />
-
       {/* Content */}
-      <Box p={3}>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 3,
-            borderRadius: 2,
-            bgcolor: "#FAFBFC",
-            borderStyle: "solid",
-          }}
-        >
-          <Typography
+      <Box px={2.5} py={2}>
+        {hasFindings ? (
+          <Box
+            component="ul"
             sx={{
-              whiteSpace: "pre-wrap",
-              textAlign: "justify",
-              lineHeight: 1.9,
-              fontSize: 14,
+              m: 0,
+              pl: 2.5,
               color: "text.primary",
-              minHeight: 140,
             }}
           >
-            {findings?.trim() ||
-              "No radiological findings available."}
+            {findingItems.map((finding, index) => (
+              <Box
+                component="li"
+                key={`${finding}-${index}`}
+                sx={{
+                  pl: 0.75,
+                  mb:
+                    index === findingItems.length - 1
+                      ? 0
+                      : 0.75,
+                  "&::marker": {
+                    color: "primary.main",
+                  },
+                }}
+              >
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 13.5,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {finding.replace(/^[-•*]\s*/, "")}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Typography
+            sx={{
+              fontSize: 13.5,
+              lineHeight: 1.7,
+              color: "text.secondary",
+            }}
+          >
+            No radiological findings available.
           </Typography>
-        </Paper>
+        )}
       </Box>
     </Paper>
   );

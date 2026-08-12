@@ -7,7 +7,6 @@ import {
   Button,
   InputAdornment,
   MenuItem,
-  Paper,
   Stack,
   TextField,
 } from "@mui/material";
@@ -37,7 +36,12 @@ const modalities = [
   "ECG",
 ];
 
-const priorities = ["All", "Emergency", "Urgent", "Routine"];
+const priorities = [
+  "All",
+  "Emergency",
+  "Urgent",
+  "Routine",
+];
 
 export default function QueueFilters({
   search,
@@ -51,16 +55,7 @@ export default function QueueFilters({
   onReset,
 }: Props) {
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        px: 2,
-        py: 1.5,
-        borderRadius: 4,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
+    <div className="surface-card px-3 py-3 mb-3">
       <Stack
         direction={{
           xs: "column",
@@ -71,12 +66,15 @@ export default function QueueFilters({
           lg: "center",
         }}
       >
+        {/* Search */}
         <TextField
           fullWidth
           size="small"
           placeholder="Search Patient / UHID / Accession No. / Order ID"
           value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) =>
+            onSearchChange(e.target.value)
+          }
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -89,11 +87,14 @@ export default function QueueFilters({
           }}
         />
 
+        {/* Modality */}
         <TextField
           select
           size="small"
           value={modality}
-          onChange={(e) => onModalityChange(e.target.value)}
+          onChange={(e) =>
+            onModalityChange(e.target.value)
+          }
           sx={{
             minWidth: 160,
             "& .MuiOutlinedInput-root": {
@@ -108,11 +109,14 @@ export default function QueueFilters({
           ))}
         </TextField>
 
+        {/* Priority */}
         <TextField
           select
           size="small"
           value={priority}
-          onChange={(e) => onPriorityChange(e.target.value)}
+          onChange={(e) =>
+            onPriorityChange(e.target.value)
+          }
           sx={{
             minWidth: 160,
             "& .MuiOutlinedInput-root": {
@@ -127,11 +131,14 @@ export default function QueueFilters({
           ))}
         </TextField>
 
+        {/* Status */}
         <TextField
           select
           size="small"
           value={status}
-          onChange={(e) => onStatusChange(e.target.value)}
+          onChange={(e) =>
+            onStatusChange(e.target.value)
+          }
           sx={{
             minWidth: 170,
             "& .MuiOutlinedInput-root": {
@@ -146,9 +153,12 @@ export default function QueueFilters({
           ))}
         </TextField>
 
+        {/* Reset */}
         <Button
           variant="outlined"
-          startIcon={<RestartAltRoundedIcon fontSize="small" />}
+          startIcon={
+            <RestartAltRoundedIcon fontSize="small" />
+          }
           onClick={onReset}
           sx={{
             minWidth: 110,
@@ -162,6 +172,6 @@ export default function QueueFilters({
           Reset
         </Button>
       </Stack>
-    </Paper>
+    </div>
   );
 }

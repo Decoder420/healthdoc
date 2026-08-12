@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Chip,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -42,42 +41,31 @@ const queuePatients = appointmentQueue
   })
   .slice(0, 12);
 
-
 function getPriorityStyle(priority: string) {
   switch (priority) {
     case "Emergency":
       return {
-        bgcolor: "#FEECEC",
-        color: "#D32F2F",
+        bgcolor: "action.hover",
+        color: "error.main",
       };
 
     case "Urgent":
       return {
-        bgcolor: "#FFF4E5",
-        color: "#ED6C02",
+        bgcolor: "action.hover",
+        color: "warning.main",
       };
 
     default:
       return {
-        bgcolor: "#EEF4FF",
-        color: "#001F54",
+        bgcolor: "action.hover",
+        color: "text.secondary",
       };
   }
 }
 
-
 export default function AppointmentQueueTable() {
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 4,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
-    >
-
+    <div className="surface-card overflow-hidden">
       {/* Header */}
       <Box
         sx={{
@@ -88,18 +76,24 @@ export default function AppointmentQueueTable() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          gap: 2,
         }}
       >
         <Box>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography
+            variant="h6"
+            fontWeight={600}
+          >
             Appointment Queue
           </Typography>
 
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+          >
             Patients waiting for imaging today ({queuePatients.length} shown)
           </Typography>
         </Box>
-
 
         <Button
           component={Link}
@@ -111,25 +105,24 @@ export default function AppointmentQueueTable() {
             />
           }
           sx={{
-            color: "#001F54",
+            color: "primary.main",
             textTransform: "none",
             fontWeight: 600,
+            whiteSpace: "nowrap",
           }}
         >
           View Full Queue
         </Button>
-
       </Box>
 
-
       <TableContainer>
-
         <Table>
-
           <TableHead>
-
-            <TableRow sx={{ bgcolor: "grey.50" }}>
-
+            <TableRow
+              sx={{
+                bgcolor: "action.hover",
+              }}
+            >
               {[
                 "Accession No.",
                 "Patient",
@@ -139,56 +132,47 @@ export default function AppointmentQueueTable() {
                 "Priority",
                 "Status",
               ].map((head) => (
-
                 <TableCell
                   key={head}
                   align="center"
                   sx={{
-                    fontWeight: 700,
+                    fontWeight: 600,
+                    color: "text.secondary",
+                    fontSize: 13,
                     whiteSpace: "nowrap",
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
                   }}
                 >
                   {head}
                 </TableCell>
-
               ))}
-
             </TableRow>
-
           </TableHead>
 
-
           <TableBody>
-
             {queuePatients.map((patient) => (
-
               <TableRow
                 key={patient.id}
                 hover
               >
-
                 {/* Accession */}
                 <TableCell align="center">
-
                   <Typography
-                    fontWeight={700}
-                    color="#001F54"
+                    fontWeight={600}
+                    color="primary.main"
                   >
                     {patient.accessionNumber}
                   </Typography>
-
                 </TableCell>
-
 
                 {/* Patient */}
                 <TableCell align="center">
-
                   <Box
                     display="flex"
                     flexDirection="column"
                     alignItems="center"
                   >
-
                     <Typography
                       fontWeight={600}
                       fontSize={14}
@@ -196,83 +180,69 @@ export default function AppointmentQueueTable() {
                       {patient.patientName}
                     </Typography>
 
-
                     <Typography
                       variant="caption"
                       color="text.secondary"
                     >
                       {patient.age} yrs • {patient.gender}
                     </Typography>
-
                   </Box>
-
                 </TableCell>
-
 
                 {/* Modality */}
                 <TableCell align="center">
-
                   <Chip
                     label={patient.modality}
                     size="small"
                     sx={{
-                      bgcolor:"#EEF4FF",
-                      color:"#001F54",
-                      fontWeight:600,
-                      borderRadius:2,
-                      minWidth:70,
+                      bgcolor: "action.hover",
+                      color: "text.primary",
+                      fontWeight: 600,
+                      borderRadius: 2,
+                      minWidth: 70,
                     }}
                   />
-
                 </TableCell>
-
 
                 {/* Procedure */}
                 <TableCell align="center">
-
                   <Typography
                     variant="body2"
                     sx={{
-                      maxWidth:180,
-                      margin:"auto",
+                      maxWidth: 180,
+                      margin: "auto",
                     }}
                   >
                     {patient.procedure}
                   </Typography>
-
                 </TableCell>
-
 
                 {/* Time */}
                 <TableCell align="center">
-
-                  <Typography fontWeight={500}>
+                  <Typography
+                    fontWeight={500}
+                    fontSize={14}
+                  >
                     {patient.appointmentTime}
                   </Typography>
-
                 </TableCell>
-
 
                 {/* Priority */}
                 <TableCell align="center">
-
                   <Chip
                     label={patient.priority}
                     size="small"
                     sx={{
                       ...getPriorityStyle(patient.priority),
-                      fontWeight:600,
-                      borderRadius:2,
-                      minWidth:80,
+                      fontWeight: 600,
+                      borderRadius: 2,
+                      minWidth: 80,
                     }}
                   />
-
                 </TableCell>
-
 
                 {/* Status */}
                 <TableCell align="center">
-
                   <Chip
                     label={
                       patient.status === "Processing"
@@ -282,48 +252,34 @@ export default function AppointmentQueueTable() {
                     size="small"
                     variant="outlined"
                     sx={{
-                      fontWeight:600,
-                      borderRadius:2,
-                      minWidth:90,
-                      color:"text.primary",
-                      borderColor:"divider",
+                      fontWeight: 600,
+                      borderRadius: 2,
+                      minWidth: 90,
+                      color: "text.secondary",
+                      borderColor: "divider",
+                      bgcolor: "transparent",
                     }}
                   />
-
                 </TableCell>
-
-
               </TableRow>
-
             ))}
 
-
             {queuePatients.length === 0 && (
-
               <TableRow>
-
                 <TableCell
                   colSpan={7}
                   align="center"
-                  sx={{ py:6 }}
+                  sx={{ py: 6 }}
                 >
-
                   <Typography color="text.secondary">
                     No patients are currently waiting.
                   </Typography>
-
                 </TableCell>
-
               </TableRow>
-
             )}
-
           </TableBody>
-
         </Table>
-
       </TableContainer>
-
-    </Paper>
+    </div>
   );
 }

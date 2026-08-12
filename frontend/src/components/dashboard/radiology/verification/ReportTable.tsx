@@ -7,7 +7,6 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import {
   Chip,
   IconButton,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -16,7 +15,6 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  
   Typography,
 } from "@mui/material";
 
@@ -24,32 +22,22 @@ import type {
   RadiologyReportPatient,
 } from "@/components/dashboard/radiology/test_result/types";
 
-
 interface Props {
   reports: RadiologyReportPatient[];
 }
 
-
 export default function VerifiedReportsTable({
   reports,
 }: Props) {
-
-
   const router = useRouter();
-
-
 
   const handleOpenReport = (
     report: RadiologyReportPatient
   ) => {
-
     router.push(
       `/radiology/reports/${report.id}`
     );
-
   };
-
-
 
   const verifiedReports =
     reports.filter(
@@ -57,24 +45,22 @@ export default function VerifiedReportsTable({
         item.studyStatus === "Verified"
     );
 
-
-
   return (
+    <TableContainer className="surface-card">
+      <Table
+        sx={{
+          "& th": {
+            textAlign: "center",
+          },
 
-    <TableContainer
-      component={Paper}
-      sx={{
-        borderRadius: 2,
-      }}
-    >
-
-      <Table>
-
-
+          "& td": {
+            textAlign: "center",
+            verticalAlign: "middle",
+          },
+        }}
+      >
         <TableHead>
-
           <TableRow>
-
             <TableCell>
               Accession No
             </TableCell>
@@ -110,89 +96,72 @@ export default function VerifiedReportsTable({
             <TableCell align="center">
               Report
             </TableCell>
-
           </TableRow>
-
         </TableHead>
 
-
-
         <TableBody>
-
-
           {verifiedReports.length > 0 ? (
-
-            verifiedReports.map((item)=>(
-
+            verifiedReports.map((item) => (
               <TableRow
                 hover
                 key={item.id}
               >
-
-
-                <TableCell>
+                {/* Accession */}
+                <TableCell align="center">
                   {item.accessionNumber}
                 </TableCell>
 
-
-
-                <TableCell>
-
-                  <Stack spacing={0.5}>
-
+                {/* Patient */}
+                <TableCell align="center">
+                  <Stack
+                    spacing={0.5}
+                    alignItems="center"
+                  >
                     <Typography
                       fontWeight={600}
                     >
                       {item.patientName}
                     </Typography>
 
-
                     <Typography
                       variant="caption"
                       color="text.secondary"
                     >
-                      {item.age} Years • {item.gender}
+                      {item.age} Years •{" "}
+                      {item.gender}
                     </Typography>
-
-
                   </Stack>
-
                 </TableCell>
 
-
-
-                <TableCell>
+                {/* UHID */}
+                <TableCell align="center">
                   {item.uhid}
                 </TableCell>
 
-
-
-                <TableCell>
+                {/* Modality */}
+                <TableCell align="center">
                   {item.modality}
                 </TableCell>
 
-
-
-                <TableCell>
+                {/* Procedure */}
+                <TableCell align="center">
                   {item.procedure}
                 </TableCell>
 
-
-
-                <TableCell>
+                {/* Radiologist */}
+                <TableCell align="center">
                   {item.radiologist}
                 </TableCell>
 
-
-
-                <TableCell>
-
-                  <Stack>
-
+                {/* Appointment */}
+                <TableCell align="center">
+                  <Stack
+                    spacing={0.25}
+                    alignItems="center"
+                  >
                     <Typography variant="body2">
                       {item.appointmentDate}
                     </Typography>
-
 
                     <Typography
                       variant="caption"
@@ -200,88 +169,53 @@ export default function VerifiedReportsTable({
                     >
                       {item.appointmentTime}
                     </Typography>
-
-
                   </Stack>
-
                 </TableCell>
 
-
-
-                <TableCell>
-
+                {/* Status */}
+                <TableCell align="center">
                   <Chip
                     label={item.studyStatus}
                     color="success"
                     size="small"
                   />
-
                 </TableCell>
 
-
-
+                {/* Report */}
                 <TableCell align="center">
-
-                  <Tooltip
-                    title="View Report"
-                  >
-
+                  <Tooltip title="View Report">
                     <IconButton
                       color="error"
                       onClick={() =>
                         handleOpenReport(item)
                       }
                     >
-
                       <PictureAsPdfIcon />
-
                     </IconButton>
-
-
                   </Tooltip>
-
-
                 </TableCell>
-
-
               </TableRow>
-
             ))
-
           ) : (
-
             <TableRow>
-
               <TableCell
                 colSpan={9}
                 align="center"
                 sx={{
                   py: 6,
+                  textAlign: "center",
                 }}
               >
-
                 <Typography
                   color="text.secondary"
                 >
                   No verified reports found.
                 </Typography>
-
-
               </TableCell>
-
-
             </TableRow>
-
           )}
-
-
         </TableBody>
-
-
       </Table>
-
-
     </TableContainer>
-
   );
 }

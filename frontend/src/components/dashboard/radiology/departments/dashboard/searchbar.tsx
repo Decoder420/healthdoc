@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Paper,
   Stack,
   TextField,
   MenuItem,
@@ -30,20 +29,11 @@ export default function SearchToolbar({
   actions,
 }: SearchToolbarProps) {
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 2,
-        mt: 3,
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
+    <div className="surface-card p-3 mt-3">
       <Stack
         direction={{ xs: "column", lg: "row" }}
         spacing={2}
-        alignItems="center"
+        alignItems={{ xs: "stretch", lg: "center" }}
       >
         {/* Filters */}
         <Stack
@@ -51,7 +41,7 @@ export default function SearchToolbar({
           spacing={2}
           flex={1}
           width="100%"
-          alignItems="center"
+          alignItems={{ xs: "stretch", sm: "center" }}
         >
           {/* Search */}
           <TextField
@@ -141,6 +131,7 @@ export default function SearchToolbar({
           direction="row"
           spacing={1.5}
           flexWrap="wrap"
+          alignItems="center"
         >
           <Button
             variant="outlined"
@@ -177,6 +168,6 @@ export default function SearchToolbar({
           {actions}
         </Stack>
       </Stack>
-    </Paper>
+    </div>
   );
 }

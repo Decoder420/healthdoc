@@ -12,7 +12,6 @@ import {
   Breadcrumbs,
   Button,
   Chip,
-  Paper,
   Stack,
   Typography,
 } from "@mui/material";
@@ -50,15 +49,7 @@ export default function QueueHeader({
   });
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        borderRadius: 4,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
-    >
+    <div className="surface-card p-6">
       <Stack
         direction={{ xs: "column", md: "row" }}
         justifyContent="space-between"
@@ -67,7 +58,10 @@ export default function QueueHeader({
       >
         <Box>
           <Breadcrumbs sx={{ mb: 1, fontSize: 13 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+            >
               Radiology
             </Typography>
 
@@ -155,6 +149,6 @@ export default function QueueHeader({
           </Stack>
         </Stack>
       </Stack>
-    </Paper>
+    </div>
   );
 }

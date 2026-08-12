@@ -1,9 +1,12 @@
 "use client";
 
 import Image from "next/image";
+
+import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
+
 import {
+  Avatar,
   Box,
-  Divider,
   Paper,
   Stack,
   Typography,
@@ -32,70 +35,119 @@ export default function Signature({
         borderRadius: 2,
         overflow: "hidden",
         mb: 2,
+        bgcolor: "background.paper",
       }}
     >
       {/* Header */}
       <Box
         sx={{
-          px: 2,
-          py: 1,
-          bgcolor: "grey.100",
+          px: 2.5,
+          py: 1.5,
+          bgcolor: "grey.50",
+          borderBottom: "1px solid",
+          borderColor: "divider",
         }}
       >
-        <Typography
-          variant="subtitle1"
-          fontWeight={700}
+        <Stack
+          direction="row"
+          spacing={1.25}
+          alignItems="center"
         >
-          Verified By
-        </Typography>
+          <Avatar
+            sx={{
+              width: 36,
+              height: 36,
+              bgcolor: "success.main",
+            }}
+          >
+            <VerifiedOutlinedIcon fontSize="small" />
+          </Avatar>
+
+          <Box>
+            <Typography
+              fontSize={15}
+              fontWeight={700}
+              lineHeight={1.3}
+            >
+              Verified By
+            </Typography>
+
+            <Typography
+              fontSize={11}
+              color="text.secondary"
+              lineHeight={1.4}
+            >
+              Electronically verified radiology report
+            </Typography>
+          </Box>
+        </Stack>
       </Box>
 
-      <Divider />
-
+      {/* Content */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
-        alignItems={{ xs: "flex-start", sm: "flex-end" }}
+        alignItems={{ xs: "stretch", sm: "center" }}
         spacing={3}
-        p={2}
+        px={2.5}
+        py={2}
       >
-        {/* Doctor Details */}
+        {/* Radiologist Details */}
         <Box>
           <Typography
-            variant="h6"
+            fontSize={16}
             fontWeight={700}
+            color="text.primary"
           >
             {radiologist.name}
           </Typography>
 
-          <Typography variant="body2">
-            {radiologist.qualification}
-          </Typography>
-
-          <Typography variant="body2">
+          <Typography
+            fontSize={12.5}
+            color="text.secondary"
+            mt={0.25}
+          >
+            {radiologist.qualification} •{" "}
             {radiologist.designation}
           </Typography>
 
-          <Typography variant="body2">
-            <strong>Registration No:</strong>{" "}
-            {radiologist.registrationNo}
-          </Typography>
-
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            display="block"
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={{ xs: 0.25, sm: 2 }}
             mt={1}
           >
-            Verified On: {radiologist.verifiedOn}
-          </Typography>
+            <Typography fontSize={12}>
+              <Box
+                component="span"
+                fontWeight={600}
+                color="text.secondary"
+              >
+                Registration No:
+              </Box>{" "}
+              {radiologist.registrationNo}
+            </Typography>
+
+            <Typography
+              fontSize={12}
+              color="text.secondary"
+            >
+              Verified On:{" "}
+              <Box
+                component="span"
+                color="text.primary"
+                fontWeight={600}
+              >
+                {radiologist.verifiedOn}
+              </Box>
+            </Typography>
+          </Stack>
         </Box>
 
         {/* Signature */}
         <Box
           sx={{
+            minWidth: { sm: 210 },
             textAlign: "center",
-            minWidth: 180,
           }}
         >
           {radiologist.signature ? (
@@ -103,27 +155,28 @@ export default function Signature({
               src={radiologist.signature}
               alt="Digital Signature"
               width={180}
-              height={70}
+              height={60}
               style={{
                 objectFit: "contain",
+                maxWidth: "100%",
               }}
             />
           ) : (
             <Box
               sx={{
-                height: 70,
                 width: 180,
-                border: "1px dashed",
-                borderColor: "divider",
-                borderRadius: 1,
+                height: 60,
+                mx: "auto",
+                borderBottom: "1px dashed",
+                borderColor: "text.disabled",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
               <Typography
-                variant="caption"
-                color="text.secondary"
+                fontSize={11}
+                color="text.disabled"
               >
                 Digital Signature
               </Typography>
@@ -131,12 +184,12 @@ export default function Signature({
           )}
 
           <Typography
-            variant="caption"
-            display="block"
-            mt={1}
-            fontWeight={600}
+            fontSize={10.5}
+            color="success.main"
+            fontWeight={700}
+            mt={0.75}
           >
-            Electronically Verified Report
+            Electronically Verified
           </Typography>
         </Box>
       </Stack>

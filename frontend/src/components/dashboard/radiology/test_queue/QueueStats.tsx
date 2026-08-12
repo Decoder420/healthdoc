@@ -9,8 +9,6 @@ import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
 import {
   Box,
-  Card,
-  CardContent,
   Chip,
   Stack,
   Typography,
@@ -79,13 +77,10 @@ export default function QueueStats() {
             lg: 2.4,
           }}
         >
-          <Card
-            elevation={0}
+          <Box
+            className="surface-card"
             sx={{
               height: "100%",
-              borderRadius: 4,
-              border: "1px solid",
-              borderColor: "divider",
               transition: "all .25s ease",
 
               "&:hover": {
@@ -94,7 +89,7 @@ export default function QueueStats() {
               },
             }}
           >
-            <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ p: 2.5 }}>
               <Stack
                 direction="row"
                 justifyContent="space-between"
@@ -115,7 +110,11 @@ export default function QueueStats() {
                 </Box>
 
                 <Chip
-                  icon={<TrendingUpRoundedIcon sx={{ fontSize: 16 }} />}
+                  icon={
+                    <TrendingUpRoundedIcon
+                      sx={{ fontSize: 16 }}
+                    />
+                  }
                   label={item.trend}
                   size="small"
                   variant="outlined"
@@ -125,11 +124,18 @@ export default function QueueStats() {
                 />
               </Stack>
 
-              <Typography variant="h4" fontWeight={700} mt={3}>
+              <Typography
+                variant="h4"
+                fontWeight={700}
+                mt={3}
+              >
                 {item.value}
               </Typography>
 
-              <Typography fontWeight={600} mt={0.8}>
+              <Typography
+                fontWeight={600}
+                mt={0.8}
+              >
                 {item.title}
               </Typography>
 
@@ -140,8 +146,8 @@ export default function QueueStats() {
               >
                 {item.subtitle}
               </Typography>
-            </CardContent>
-          </Card>
+            </Box>
+          </Box>
         </Grid>
       ))}
     </Grid>
