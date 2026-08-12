@@ -19,6 +19,7 @@ from app.common.redis import publish_event
 from app.queue import service
 from app.queue.schemas import (
     CompleteAdvanceOut,
+    HodDashboardOverviewOut,
     QueueCreate,
     QueueOut,
     QueueTokenGenerateRequest,
@@ -29,6 +30,10 @@ from app.queue.schemas import (
     RosterCreate,
     RosterOut,
     TokenPriorityElevate,
+    PendingLabOrderOut,
+    TokenReassign,
+    DepartmentWorkloadOut,
+    EmergencyEscalationOut,
 )
 
 router = APIRouter(prefix="/queue", tags=["queue"])
@@ -323,3 +328,92 @@ async def resume_queue(
             publish_event, pending_event["channel"], pending_event["event_type"], pending_event["payload"]
         )
     return QueueOut.model_validate(queue).model_dump(mode="json")
+
+
+# ---------------- HOD DASHBOARD: OVERVIEW ----------------
+@router.get(
+    "/hod-dashboard/{department_id}",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def get_hod_dashboard_overview(
+    department_id: uuid.UUID,
+    overview_date: date,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    overview = await service.get_hod_dashboard_overview(
+        db, department_id, overview_date, current_db_user.facility_id
+    )
+    return HodDashboardOverviewOut(**overview).model_dump(mode="json")
+
+
+# ---------------- HOD DASHBOARD: PENDING LAB ORDERS ----------------
+@router.get(
+    "/hod-dashboard/{department_id}/pending-lab-orders",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def get_pending_lab_orders(
+    department_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    items = await service.get_pending_lab_orders(db, department_id, current_db_user.facility_id)
+    return {"items": [PendingLabOrderOut(**item).model_dump(mode="json") for item in items]}
+
+
+# ---------------- HOD DASHBOARD: REASSIGN TOKEN (hod/admin only) ----------------
+@router.post(
+    "/tokens/{token_id}/reassign",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def reassign_token(
+    token_id: uuid.UUID,
+    payload: TokenReassign,
+    user: CurrentUser,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+    actor: AuditActor = Depends(get_current_actor_dependency),
+) -> dict:
+    _caller_user_id, _caller_facility_id, caller_department_id = await service.resolve_caller_full_context(
+        db, user.sub
+    )
+    new_token = await service.reassign_token(
+        db,
+        token_id=token_id,
+        target_queue_id=payload.target_queue_id,
+        caller_facility_id=current_db_user.facility_id,
+        caller_roles=current_db_user.roles,
+        caller_department_id=caller_department_id,
+    )
+    return QueueTokenOut.model_validate(new_token).model_dump(mode="json")
+
+
+# ---------------- HOD DASHBOARD: DEPARTMENT WORKLOAD ----------------
+@router.get(
+    "/hod-dashboard/{department_id}/workload",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def get_department_workload(
+    department_id: uuid.UUID,
+    workload_date: date,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    workload = await service.get_department_workload(
+        db, department_id, workload_date, current_db_user.facility_id
+    )
+    return DepartmentWorkloadOut(**workload).model_dump(mode="json")
+
+
+# ---------------- HOD DASHBOARD: EMERGENCY ESCALATIONS ----------------
+@router.get(
+    "/hod-dashboard/{department_id}/emergency-escalations",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def get_emergency_escalations(
+    department_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    escalations = await service.get_emergency_escalations(db, department_id, current_db_user.facility_id)
+    return {"items": [EmergencyEscalationOut(**item).model_dump(mode="json") for item in escalations]}
