@@ -48,6 +48,7 @@ async def create_prescription(
 
     prescription = Prescription(
         encounter_id=payload.encounter_id,
+        facility_id=encounter.facility_id,
         patient_id=payload.patient_id,
         notes=payload.notes,
         created_by=current_db_user.id,
@@ -72,14 +73,12 @@ async def create_prescription(
     db.add_all(items)
     await db.flush()
 
-    # prescriptions/prescription_items have no facility_id column - reached
-    # only via encounter -> visit -> facility_id (same as radiology_order_items).
-    # Auto-audit (listeners.py) needs __audit_facility_id_field__ naming a real
-    # column, which doesn't exist here - so this is the manual path, deliberately.
-    # facility_id is the encounter's, not the caller's -- for a same-facility
-    # write they're identical, but now that encounter_id is scope-checked
-    # above, the audit trail must record which facility the prescription
-    # actually belongs to, not which facility the doctor happened to be in.
+    # prescriptions.facility_id now exists (migration 0035) and is set above
+    # from encounter.facility_id -- the encounter's facility, not the caller's.
+    # For a same-facility write they're identical, but since encounter_id is
+    # scope-checked above, the audit trail must record which facility the
+    # prescription actually belongs to, not which facility the doctor happened
+    # to be in.
     await write_audit_log(
         db,
         resource_type="prescriptions",
