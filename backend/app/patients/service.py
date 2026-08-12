@@ -393,6 +393,7 @@ async def update_patient(
             setattr(patient, field, getattr(payload, field))
 
         patient.updated_by = updated_by
+        patient.row_version += 1
         audit.new_value = {f: _json_safe_value(getattr(patient, f)) for f in fields_being_changed}
 
     await db.flush()

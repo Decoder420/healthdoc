@@ -57,30 +57,19 @@ def _thid_sequence_name(facility_code: str, day_str: str) -> str:
 
 
 async def _next_thid_sequence(db: AsyncSession, facility_code: str, day_str: str) -> int:
-    """THID sequences are per facility+day — created on first use of the day.
+    """Run CREATE SEQUENCE IF NOT EXISTS unconditionally before nextval.
 
-    Unlike UHID (per facility+year), THID sequences are too numerous to
-    pre-create. We catch pgcode 42P01 (undefined_object) and create on
-    demand, then retry once. Safe because the race window is only the very
-    first registration of the day at a facility.
+    The previous 42P01 catch-and-recover pattern cannot work — Postgres
+    aborts the transaction on that error, so every statement after it
+    returns 25P02. Running CREATE SEQUENCE IF NOT EXISTS first is
+    idempotent and removes the error path entirely.
     """
-    from sqlalchemy.exc import ProgrammingError
-
     seq_name = _thid_sequence_name(facility_code, day_str)
-    try:
-        result = await db.execute(
-            text("SELECT nextval(:seq_name)"), {"seq_name": seq_name}
-        )
-        return result.scalar()
-    except ProgrammingError as exc:
-        pgcode = getattr(getattr(exc, "orig", None), "pgcode", None)
-        if pgcode != "42P01":  # 42P01 = undefined_object
-            raise
-        await db.execute(text(f'CREATE SEQUENCE IF NOT EXISTS "{seq_name}"'))
-        result = await db.execute(
-            text("SELECT nextval(:seq_name)"), {"seq_name": seq_name}
-        )
-        return result.scalar()
+    await db.execute(text(f'CREATE SEQUENCE IF NOT EXISTS "{seq_name}"'))
+    result = await db.execute(
+        text("SELECT nextval(:seq_name)"), {"seq_name": seq_name}
+    )
+    return result.scalar()
 
 
 async def generate_thid(

@@ -207,6 +207,12 @@ async def update_patient_endpoint(
     actor: AuditActor = Depends(get_current_actor_dependency),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
+    """Update a patient record.
+
+    row_version is incremented on every mutation (optimistic concurrency §4A.2).
+    If-Match enforcement (reject stale writes) is staged for a follow-up — the
+    column and increment are wired; the header check is not yet implemented.
+    """
     try:
         return await update_patient(
             db,
