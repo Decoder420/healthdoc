@@ -4,11 +4,14 @@ export type QueueStatus =
   | "Waiting"
   | "In Progress"
   | "In Review"
+  | "Approved"
+  | "Ready for Dispense"
   | "On Hold"
   | "Clarification Pending"
   | "Dispensing"
   | "Partial"
-  | "Completed";
+  | "Completed"
+  | "Rejected";
 
 export type QueuePriority =
   | "Normal"

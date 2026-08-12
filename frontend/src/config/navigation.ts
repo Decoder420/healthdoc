@@ -225,7 +225,7 @@ export const navigation: NavItem[] = [
     roles: [ROLES.ADMIN, ROLES.RECEPTIONIST, ROLES.DOCTOR, ROLES.NURSE],
   },
   {
-    label: "Pharmacy queue",
+    label: "Prescription Queue",
     href: "/pharmacy/prescription-queue",
     roles: [ROLES.ADMIN, ROLES.PHARMACIST],
   },

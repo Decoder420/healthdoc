@@ -7,6 +7,12 @@ interface DispenseFooterProps {
 
   isSaving?: boolean;
   isConfirming?: boolean;
+
+  /**
+   * Disable all actions when the prescription
+   * is currently being processed.
+   */
+  disabled?: boolean;
 }
 
 export default function DispenseFooter({
@@ -15,34 +21,44 @@ export default function DispenseFooter({
   onConfirm,
   isSaving = false,
   isConfirming = false,
+  disabled = false,
 }: DispenseFooterProps) {
+  const actionsDisabled =
+    disabled || isSaving || isConfirming;
+
   return (
     <div className="surface-card p-6">
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        {/* Cancel */}
         <button
           type="button"
           className="btn btn-outline"
           onClick={onCancel}
+          disabled={actionsDisabled}
         >
           Cancel
         </button>
 
+        {/* Save Draft */}
         <button
           type="button"
           className="btn btn-secondary"
           onClick={onSaveDraft}
-          disabled={isSaving}
+          disabled={actionsDisabled}
         >
           {isSaving ? "Saving..." : "Save Draft"}
         </button>
 
+        {/* Confirm Dispense */}
         <button
           type="button"
           className="btn btn-primary"
           onClick={onConfirm}
-          disabled={isConfirming}
+          disabled={actionsDisabled}
         >
-          {isConfirming ? "Dispensing..." : "Confirm Dispense"}
+          {isConfirming
+            ? "Dispensing..."
+            : "Confirm Dispense"}
         </button>
       </div>
     </div>

@@ -3,11 +3,14 @@
 import { useState, type ComponentType } from "react";
 
 import WarningCards from "@/components/dashboard/pharmacist/dashboard/WarningCard";
+
 import InteractionDialog from "@/components/dashboard/pharmacist/dashboard/InteractionDialog";
 import NearExpiryDialog from "@/components/dashboard/pharmacist/dashboard/NearExpiryyDialog";
 import LowStockDialog from "@/components/dashboard/pharmacist/dashboard/LowStockDialog";
 
-const WarningCardsComponent = WarningCards as ComponentType<{ onAction: (title: string) => void }>;
+const WarningCardsWithAction = WarningCards as ComponentType<{
+  onAction: (title: string) => void;
+}>;
 
 export default function WarningCenter() {
   const [interactionOpen, setInteractionOpen] = useState(false);
@@ -27,6 +30,9 @@ export default function WarningCenter() {
       case "Low Stock Medicines":
         setStockOpen(true);
         break;
+
+      default:
+        break;
     }
   };
 
@@ -39,7 +45,7 @@ export default function WarningCenter() {
           </h2>
         </div>
 
-        <WarningCards onAction={handleAction} />
+        <WarningCardsWithAction onAction={handleAction} />
       </div>
 
       <InteractionDialog

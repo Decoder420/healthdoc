@@ -1,19 +1,46 @@
 "use client";
 
+import { Eye, Pill } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-import { Eye } from "lucide-react";
 import PriorityBadge from "./PriorityBadge";
 import StatusBadge from "./StatusBadge";
 import { QueueItem } from "@/features/pharmacy/types";
-import { useRouter } from "next/dist/client/components/navigation";
 
 interface QueueRowProps {
   item: QueueItem;
   onReview: (item: QueueItem) => void;
 }
 
-export default function QueueRow({ item, onReview }: QueueRowProps) {
-     const router = useRouter();
+export default function QueueRow({
+  item,
+  onReview,
+}: QueueRowProps) {
+  const router = useRouter();
+
+  const canDispense =
+    item.status === "Approved" ||
+    item.status === "Ready for Dispense" ||
+    item.status === "Dispensing" ||
+    item.status === "Partial";
+
+  const handleAction = () => {
+    if (canDispense) {
+      router.push(
+        `/pharmacy/dispense?prescription=${item.id}`
+      );
+      return;
+    }
+
+    onReview(item);
+  };
+
+  const actionLabel = canDispense
+    ? item.status === "Partial" || item.status === "Dispensing"
+      ? "Continue"
+      : "Dispense"
+    : "Review";
+
   return (
     <tr className="border-b border-border transition-colors hover:bg-muted/40">
       <td className="px-5 py-4 font-medium">
@@ -58,12 +85,17 @@ export default function QueueRow({ item, onReview }: QueueRowProps) {
 
       <td className="px-5 py-4">
         <button
-        className="btn btn-primary "
-        onClick={() => onReview(item)}
-      >
-        <Eye size={16} />
-        Review
-      </button>
+          className="btn btn-primary"
+          onClick={handleAction}
+        >
+          {canDispense ? (
+            <Pill size={16} />
+          ) : (
+            <Eye size={16} />
+          )}
+
+          {actionLabel}
+        </button>
       </td>
     </tr>
   );

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import HoldPrescriptionDialog from "./HoldPrescriptionDialog";
 import ClarificationDialog from "./ClarificationDialog";
+import type { QueueStatus } from "@/features/pharmacy/types";
+
 
 import {
   Dialog,
@@ -17,7 +19,7 @@ import {
   Divider,
   Grid,
 } from "@mui/material";
-import { useRouter } from "next/navigation";
+
 
 import {
   Table,
@@ -36,23 +38,16 @@ interface Props {
   open: boolean;
   prescription: any;
   onClose: () => void;
-   onStatusChange: (
+  onStatusChange: (
     id: string,
-     status:
-      | "Waiting"
-      | "In Review"
-      | "On Hold"
-      | "Clarification Pending"
-      | "Dispensing"
-      | "Completed",
-      details?: {
+    status: QueueStatus,
+    details?: {
       holdReason?: string;
       holdNotes?: string;
       clarificationReason?: string;
       clarificationMessage?: string;
       pharmacistNotes?: string;
     }
-
   ) => void;
 }
 
@@ -64,7 +59,7 @@ export default function PrescriptionReviewModal({
   onClose,
   onStatusChange,
 }: Props) {
-  const router = useRouter();
+  
   const [notes, setNotes] = useState("");
 
 const [holdOpen, setHoldOpen] = useState(false);
@@ -216,25 +211,22 @@ const [clarifyOpen, setClarifyOpen] = useState(false);
         </Button>
 
         <Button
-    variant="contained"
-    onClick={() => {
+  variant="contained"
+  color="primary"
+  onClick={() => {
 
         onStatusChange(
-            prescription.id,
-            "Dispensing",
-            {
-                pharmacistNotes: notes,
-            }
-        );
-
-        onClose();
-
-      router.push(
-  `/pharmacy/dispense?prescription=${prescription.id}`
+  prescription.id,
+  "Approved",
+  {
+    pharmacistNotes: notes,
+  }
 );
+
+onClose();
     }}
 >
-    Approve & Dispense
+    Approve 
 </Button>
 
       </DialogActions>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import DispenseHeader from "@/components/dashboard/pharmacist/dispense/DispenseHeader";
@@ -11,9 +11,14 @@ import PharmacistNotes from "@/components/dashboard/pharmacist/dispense/Pharmaci
 import DispenseFooter from "@/components/dashboard/pharmacist/dispense/DispenseFooter";
 
 import {
-  patient,
-  medicines,
-} from "@/features/pharmacy/data/dispenseData";
+  pharmacyPrescriptions,
+} from "@/features/pharmacy/data/prescriptionData";
+
+import {
+  selectFEFOBatch,
+} from "@/lib/utils/fefo";
+
+import type { DispenseMedicine } from "@/features/pharmacy/types/types";
 
 export function PharmacyDispenseScreen() {
   const searchParams = useSearchParams();
@@ -21,33 +26,122 @@ export function PharmacyDispenseScreen() {
 
   const prescriptionId = searchParams.get("prescription");
 
-  console.log("URL:", window.location.href);
-console.log("Prescription ID:", prescriptionId);
-
-if (!prescriptionId) {
-  console.log(">>> EMPTY STATE <<<");
-} else {
-  console.log(">>> DISPENSE FORM <<<");
-}
-
-  
-
   const [notes, setNotes] = useState("");
-  const [rows, setRows] = useState(medicines);
+  const [rows, setRows] = useState<DispenseMedicine[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
 
-  // Cancel
+  /*
+   * Find the selected prescription
+   */
+  const prescription = useMemo(() => {
+    if (!prescriptionId) {
+      return null;
+    }
+
+    return (
+      pharmacyPrescriptions.find(
+        (item) => item.id === prescriptionId
+      ) ?? null
+    );
+  }, [prescriptionId]);
+
+  /*
+   * Apply FEFO when prescription changes
+   */
+  const fefoMedicines = useMemo(() => {
+    if (!prescription) {
+      return [];
+    }
+
+    return prescription.medicines.map((medicine) => {
+      const fefoBatch = selectFEFOBatch(medicine.batches);
+
+      /*
+       * No stock available
+       */
+      if (!fefoBatch) {
+        return {
+          ...medicine,
+          batchNumber: "",
+          expiryDate: "",
+          availableStock: 0,
+          dispenseQty: 0,
+          status: "Out of Stock" as const,
+        };
+      }
+
+      /*
+       * Automatically calculate the initial
+       * quantity that can actually be dispensed.
+       */
+      const initialDispenseQty = Math.min(
+        medicine.prescribedQty,
+        fefoBatch.availableStock
+      );
+
+      return {
+        ...medicine,
+
+        // FEFO selected batch
+        batchNumber: fefoBatch.batchNumber,
+        expiryDate: fefoBatch.expiryDate,
+        availableStock: fefoBatch.availableStock,
+
+        // Initial quantity
+        dispenseQty: initialDispenseQty,
+
+        status:
+          initialDispenseQty < medicine.prescribedQty
+            ? ("Partial" as const)
+            : ("Available" as const),
+      };
+    });
+  }, [prescription]);
+
+  /*
+   * Put FEFO-selected medicines into editable state
+   */
+  useEffect(() => {
+    setRows(fefoMedicines);
+  }, [fefoMedicines]);
+
+  /*
+   * Cancel
+   */
   const handleCancel = () => {
-    window.history.back();
+    router.push("/pharmacy/prescription-queue");
   };
 
-  // Save Draft
+  /*
+   * Save Draft
+   */
   const handleSaveDraft = () => {
     console.log("Draft Saved");
+
+    console.log({
+      prescriptionId,
+      notes,
+      medicines: rows,
+    });
   };
 
-  // Confirm Dispense
+  /*
+   * Confirm Dispense
+   */
   const handleConfirmDispense = async () => {
+  if (isConfirming) {
+    return;
+  }
+
+  setIsConfirming(true);
+
+  try {
     console.log("Confirm Dispense clicked");
+
+    if (!prescription) {
+      alert("Prescription not found.");
+      return;
+    }
 
     const invalidMedicine = rows.find(
       (medicine) =>
@@ -62,6 +156,18 @@ if (!prescriptionId) {
       return;
     }
 
+    const exceedsPrescription = rows.find(
+      (medicine) =>
+        medicine.dispenseQty > medicine.prescribedQty
+    );
+
+    if (exceedsPrescription) {
+      alert(
+        `${exceedsPrescription.medicineName}: Dispense quantity cannot exceed prescribed quantity.`
+      );
+      return;
+    }
+
     const totalDispensed = rows.reduce(
       (sum, medicine) => sum + medicine.dispenseQty,
       0
@@ -72,23 +178,49 @@ if (!prescriptionId) {
       return;
     }
 
-    console.log("Creating pharmacy_dispenses...");
-    console.log("Creating pharmacy_dispense_items...");
-    console.log("Updating inventory_batches...");
-    console.log("Updating prescription status...");
-    console.log("Creating audit log...");
+    const hasIncompleteMedicine = rows.some(
+      (medicine) =>
+        medicine.dispenseQty < medicine.prescribedQty
+    );
 
-    try {
-      alert("Medicines dispensed successfully.");
+    const dispenseType = hasIncompleteMedicine
+      ? "Partial"
+      : "Full";
 
-      router.push("/pharmacy/receipt/preview");
-    } catch (error) {
-      console.error(error);
-      alert("Failed to complete dispense.");
-    }
-  };
+    console.log("Dispense Type:", dispenseType);
 
-  // ✅ Empty state when no prescription is selected
+    /*
+     * Transaction creation will be added next.
+     */
+
+    alert(
+      dispenseType === "Full"
+        ? "Medicines fully dispensed successfully."
+        : "Medicines partially dispensed successfully."
+    );
+
+    router.push(
+      `/pharmacy/receipt/preview?prescription=${prescriptionId}`
+    );
+  } catch (error) {
+    console.error("Dispense failed:", error);
+
+    alert("Failed to complete dispense.");
+  } finally {
+    setIsConfirming(false);
+  }
+};
+
+
+      /*
+       * Receipt integration will be connected
+       * after the dispense record is created.
+       */
+      
+
+  /*
+   * No prescription selected
+   */
   if (!prescriptionId) {
     return (
       <div className="space-y-6">
@@ -100,15 +232,47 @@ if (!prescriptionId) {
           </h2>
 
           <p className="mt-3 text-gray-500">
-            Select a prescription from the Prescription Queue to begin
-            dispensing medicines.
+            Select a prescription from the Prescription Queue
+            to begin dispensing medicines.
           </p>
 
           <button
-            onClick={() => router.push("/pharmacy/prescription-queue")}
+            onClick={() =>
+              router.push("/pharmacy/prescription-queue")
+            }
             className="btn btn-primary mt-6"
           >
             Go to Prescription Queue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Prescription ID exists but prescription doesn't
+   */
+  if (!prescription) {
+    return (
+      <div className="space-y-6">
+        <DispenseHeader />
+
+        <div className="surface-card rounded-xl p-12 text-center">
+          <h2 className="text-2xl font-semibold text-[#001F54]">
+            Prescription Not Found
+          </h2>
+
+          <p className="mt-3 text-gray-500">
+            The selected prescription could not be found.
+          </p>
+
+          <button
+            onClick={() =>
+              router.push("/pharmacy/prescription-queue")
+            }
+            className="btn btn-primary mt-6"
+          >
+            Back to Prescription Queue
           </button>
         </div>
       </div>
@@ -119,7 +283,9 @@ if (!prescriptionId) {
     <div className="space-y-6">
       <DispenseHeader />
 
-      <PatientInformationCard patient={patient} />
+      <PatientInformationCard
+        patient={prescription.patient}
+      />
 
       <MedicationTable
         medicines={rows}
@@ -137,6 +303,7 @@ if (!prescriptionId) {
         onCancel={handleCancel}
         onSaveDraft={handleSaveDraft}
         onConfirm={handleConfirmDispense}
+         isConfirming={isConfirming}
       />
     </div>
   );
