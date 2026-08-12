@@ -21,7 +21,6 @@ import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import MedicalServicesRoundedIcon from "@mui/icons-material/MedicalServicesRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
-import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
 import MonitorHeartRoundedIcon from "@mui/icons-material/MonitorHeartRounded";
@@ -93,28 +92,6 @@ export default function RadiologyPatientHeader({
     }
   };
 
-  const getReportStatusColor = (
-    status?: RadiologyQueueItem["reportStatus"]
-  ):
-    | "success"
-    | "warning"
-    | "info"
-    | "default" => {
-    switch (status) {
-      case "Verified":
-        return "success";
-
-      case "Draft":
-        return "warning";
-
-      case "Not Started":
-        return "info";
-
-      default:
-        return "default";
-    }
-  };
-
   const initials =
     patient.patientName
       ?.split(" ")
@@ -147,9 +124,7 @@ export default function RadiologyPatientHeader({
         >
           <Button
             variant="outlined"
-            startIcon={
-              <ArrowBackRoundedIcon />
-            }
+            startIcon={<ArrowBackRoundedIcon />}
             onClick={() => router.back()}
             sx={{
               borderRadius: 2,
@@ -189,9 +164,7 @@ export default function RadiologyPatientHeader({
         >
           <Chip
             label={patient.status}
-            color={getStatusColor(
-              patient.status
-            )}
+            color={getStatusColor(patient.status)}
             sx={{
               fontWeight: 700,
               borderRadius: 2,
@@ -200,9 +173,7 @@ export default function RadiologyPatientHeader({
 
           <Chip
             label={patient.priority}
-            color={getPriorityColor(
-              patient.priority
-            )}
+            color={getPriorityColor(patient.priority)}
             variant="outlined"
             sx={{
               fontWeight: 700,
@@ -218,12 +189,7 @@ export default function RadiologyPatientHeader({
 
       <Card
         elevation={0}
-        sx={{
-          borderRadius: 4,
-          border: "1px solid",
-          borderColor: "divider",
-          overflow: "hidden",
-        }}
+        className="surface-card"
       >
         <CardContent
           sx={{
@@ -375,9 +341,7 @@ export default function RadiologyPatientHeader({
                   }}
                 >
                   <Info
-                    icon={
-                      <MonitorHeartRoundedIcon />
-                    }
+                    icon={<MonitorHeartRoundedIcon />}
                     title="Modality"
                     value={patient.modality}
                   />
@@ -403,9 +367,7 @@ export default function RadiologyPatientHeader({
                   }}
                 >
                   <Info
-                    icon={
-                      <MedicalServicesRoundedIcon />
-                    }
+                    icon={<MedicalServicesRoundedIcon />}
                     title="Radiologist"
                     value={patient.radiologist}
                   />
@@ -430,7 +392,7 @@ export default function RadiologyPatientHeader({
           <Divider sx={{ my: 3.5 }} />
 
           {/* =====================================
-              STUDY INFORMATION
+              IMAGING STUDY
               ===================================== */}
 
           <Stack spacing={2}>
@@ -460,14 +422,12 @@ export default function RadiologyPatientHeader({
                 size={{
                   xs: 12,
                   sm: 6,
-                  md: 3,
+                  md: 4,
                 }}
               >
                 <StudyInfo
                   label="Accession Number"
-                  value={
-                    patient.accessionNumber
-                  }
+                  value={patient.accessionNumber}
                 />
               </Grid>
 
@@ -475,7 +435,7 @@ export default function RadiologyPatientHeader({
                 size={{
                   xs: 12,
                   sm: 6,
-                  md: 3,
+                  md: 4,
                 }}
               >
                 <StudyInfo
@@ -488,77 +448,13 @@ export default function RadiologyPatientHeader({
                 size={{
                   xs: 12,
                   sm: 6,
-                  md: 3,
+                  md: 4,
                 }}
               >
                 <StudyInfo
                   label="Images"
                   value={`${patient.imageCount} Images`}
                 />
-              </Grid>
-
-              <Grid
-                size={{
-                  xs: 12,
-                  sm: 6,
-                  md: 3,
-                }}
-              >
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  alignItems="center"
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2.5,
-                    bgcolor: "action.hover",
-                    minHeight: 70,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      minWidth: 40,
-                      borderRadius: 2,
-                      bgcolor:
-                        "background.paper",
-                      border: "1px solid",
-                      borderColor: "divider",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "primary.main",
-                    }}
-                  >
-                    <AssignmentRoundedIcon />
-                  </Box>
-
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      display="block"
-                    >
-                      Report Status
-                    </Typography>
-
-                    <Chip
-                      size="small"
-                      label={
-                        patient.reportStatus
-                      }
-                      color={getReportStatusColor(
-                        patient.reportStatus
-                      )}
-                      sx={{
-                        mt: 0.5,
-                        fontWeight: 700,
-                        borderRadius: 1.5,
-                      }}
-                    />
-                  </Box>
-                </Stack>
               </Grid>
             </Grid>
           </Stack>
@@ -597,9 +493,7 @@ export default function RadiologyPatientHeader({
           <SummaryCard
             icon={<ImageRoundedIcon />}
             label="Images"
-            value={String(
-              patient.imageCount
-            )}
+            value={String(patient.imageCount)}
           />
         </Grid>
 
@@ -611,9 +505,9 @@ export default function RadiologyPatientHeader({
           }}
         >
           <SummaryCard
-            icon={<AccessTimeRoundedIcon />}
-            label="Report Status"
-            value={patient.reportStatus}
+            icon={<EventRoundedIcon />}
+            label="Appointment"
+            value={`${patient.appointmentDate} • ${patient.appointmentTime}`}
           />
         </Grid>
 
@@ -720,7 +614,6 @@ function StudyInfo({
       sx={{
         p: 1.5,
         borderRadius: 2.5,
-        bgcolor: "action.hover",
         minHeight: 70,
       }}
     >
@@ -761,11 +654,7 @@ function SummaryCard({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
+      className="surface-card"
     >
       <CardContent sx={{ p: 2 }}>
         <Stack

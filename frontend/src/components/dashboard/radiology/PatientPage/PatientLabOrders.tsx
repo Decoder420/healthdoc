@@ -119,14 +119,13 @@ export default function PatientRadiologyOrders({
 
   return (
     <Card
-      elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        overflow: "hidden",
-      }}
-    >
+  elevation={0}
+  sx={{
+    borderColor: "divider",
+    overflow: "hidden",
+  }}
+  className="surface-card"
+>
       <CardContent
         sx={{
           p: 2.5,
@@ -236,7 +235,11 @@ export default function PatientRadiologyOrders({
                   md: 500,
                 },
                 "& .MuiOutlinedInput-root": {
+                  height: 34,
                   bgcolor: "background.paper",
+                },
+                "& .MuiInputBase-input": {
+                  py: 0,
                 },
               }}
               InputProps={{
@@ -251,7 +254,7 @@ export default function PatientRadiologyOrders({
               }}
             />
 
-            {/* Status */}
+            {/* Status + Reset */}
 
             <Stack
               direction="row"
@@ -275,7 +278,11 @@ export default function PatientRadiologyOrders({
                 sx={{
                   minWidth: 160,
                   "& .MuiOutlinedInput-root": {
+                    height: 34,
                     bgcolor: "background.paper",
+                  },
+                  "& .MuiSelect-select": {
+                    py: 0.5,
                   },
                 }}
               >
@@ -309,8 +316,8 @@ export default function PatientRadiologyOrders({
                   onClick={resetFilters}
                   size="small"
                   sx={{
-                    width: 40,
-                    height: 40,
+                    width: 34,
+                    height: 34,
                     border: "1px solid",
                     borderColor: "divider",
                     bgcolor: "background.paper",
@@ -348,8 +355,6 @@ export default function PatientRadiologyOrders({
               },
             }}
           >
-            {/* Table Header */}
-
             <TableHead>
               <TableRow
                 sx={{
@@ -368,20 +373,13 @@ export default function PatientRadiologyOrders({
                 }}
               >
                 <TableCell>ACCESSION</TableCell>
-
                 <TableCell>PATIENT</TableCell>
-
                 <TableCell>STUDY</TableCell>
-
                 <TableCell>RADIOLOGIST</TableCell>
-
                 <TableCell>PRIORITY</TableCell>
-
                 <TableCell>STATUS</TableCell>
               </TableRow>
             </TableHead>
-
-            {/* Table Body */}
 
             <TableBody>
               {filteredOrders.map((study) => (

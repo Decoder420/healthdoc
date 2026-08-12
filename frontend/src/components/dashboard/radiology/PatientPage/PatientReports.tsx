@@ -49,11 +49,7 @@ export default function PatientReports({
     return (
       <Card
         elevation={0}
-        sx={{
-          borderRadius: 3,
-          border: "1px solid",
-          borderColor: "divider",
-        }}
+        className="surface-card"
       >
         <CardContent
           sx={{
@@ -67,6 +63,7 @@ export default function PatientReports({
             textAlign="center"
           >
             <Box
+              className="surface-card"
               sx={{
                 width: 52,
                 height: 52,
@@ -105,11 +102,7 @@ export default function PatientReports({
   return (
     <Card
       elevation={0}
-      sx={{
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-      }}
+      className="surface-card"
     >
       <CardContent
         sx={{
@@ -117,7 +110,6 @@ export default function PatientReports({
             xs: 2,
             md: 2.5,
           },
-
           "&:last-child": {
             pb: {
               xs: 2,
@@ -135,6 +127,7 @@ export default function PatientReports({
           mb={2}
         >
           <Box
+            className="surface-card"
             sx={{
               width: 34,
               height: 34,
@@ -177,10 +170,9 @@ export default function PatientReports({
           {reports.map((report) => (
             <Card
               key={report.reportId}
-              variant="outlined"
+              elevation={0}
+              className="surface-card"
               sx={{
-                borderRadius: 2.5,
-                borderColor: "divider",
                 transition:
                   "border-color 0.2s ease, box-shadow 0.2s ease",
 
@@ -223,8 +215,6 @@ export default function PatientReports({
                     spacing={1}
                     minWidth={0}
                   >
-                    {/* Report ID + Status */}
-
                     <Stack
                       direction="row"
                       alignItems="center"
@@ -400,6 +390,7 @@ function MetaItem({
       }}
     >
       <Box
+        className="surface-card"
         sx={{
           display: "flex",
           alignItems: "center",

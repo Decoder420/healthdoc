@@ -78,13 +78,8 @@ export default function PatientOverview({
   };
 
   return (
-    <Grid
-      container
-      spacing={2}
-    >
-      {/* =========================================
-          PATIENT DETAILS
-          ========================================= */}
+    <Grid container spacing={2}>
+      {/* PATIENT DETAILS */}
 
       <Grid
         size={{
@@ -132,9 +127,7 @@ export default function PatientOverview({
         </CompactCard>
       </Grid>
 
-      {/* =========================================
-          STUDY / VISIT DETAILS
-          ========================================= */}
+      {/* STUDY / VISIT DETAILS */}
 
       <Grid
         size={{
@@ -186,9 +179,7 @@ export default function PatientOverview({
                   <Chip
                     label={patient.priority}
                     size="small"
-                    color={priorityColor(
-                      patient.priority
-                    )}
+                    color={priorityColor(patient.priority)}
                     sx={{
                       height: 24,
                       fontSize: 12,
@@ -206,9 +197,7 @@ export default function PatientOverview({
                   <Chip
                     label={patient.status}
                     size="small"
-                    color={statusColor(
-                      patient.status
-                    )}
+                    color={statusColor(patient.status)}
                     sx={{
                       height: 24,
                       fontSize: 12,
@@ -222,15 +211,9 @@ export default function PatientOverview({
         </CompactCard>
       </Grid>
 
-      {/* =========================================
-          IMAGING DETAILS
-          ========================================= */}
+      {/* IMAGING DETAILS */}
 
-      <Grid
-        size={{
-          xs: 12,
-        }}
-      >
+      <Grid size={{ xs: 12 }}>
         <CompactCard
           icon={<MonitorHeartRoundedIcon />}
           title="Imaging Details"
@@ -315,9 +298,7 @@ export default function PatientOverview({
         </CompactCard>
       </Grid>
 
-      {/* =========================================
-          PACS / REPORT INFORMATION
-          ========================================= */}
+      {/* PACS INFORMATION */}
 
       <Grid
         size={{
@@ -384,9 +365,7 @@ export default function PatientOverview({
         </CompactCard>
       </Grid>
 
-      {/* =========================================
-          REPORT INFORMATION
-          ========================================= */}
+      {/* REPORT INFORMATION */}
 
       <Grid
         size={{
@@ -485,12 +464,9 @@ function CompactCard({
   return (
     <Card
       elevation={0}
+      className="surface-card"
       sx={{
         height: "100%",
-        borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
-        backgroundColor: "background.paper",
       }}
     >
       <CardContent

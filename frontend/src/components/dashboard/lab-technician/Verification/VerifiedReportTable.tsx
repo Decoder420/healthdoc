@@ -30,18 +30,12 @@ export default function VerifiedReportsTable({
 }: Props) {
   const router = useRouter();
 
-  const handleOpenReport = (
-    report: VerifiedReportData
-  ) => {
-    router.push(
-      `/lab/reports/${report.report.reportNo}`
-    );
+  const handleOpenReport = (report: VerifiedReportData) => {
+    router.push(`/lab/reports/${report.report.reportNo}`);
   };
 
-  // Show only verified reports
   const verifiedReports = reports.filter(
-    (report) =>
-      report.report.status === "VERIFIED"
+    (report) => report.report.status === "VERIFIED"
   );
 
   return (
@@ -59,6 +53,8 @@ export default function VerifiedReportsTable({
           sx={{
             "& .MuiTableCell-root": {
               borderColor: "divider",
+              textAlign: "center",
+              verticalAlign: "middle",
             },
           }}
         >
@@ -167,13 +163,9 @@ export default function VerifiedReportsTable({
                     "&:last-child td": {
                       borderBottom: 0,
                     },
-
-                    "& td": {
-                      verticalAlign: "middle",
-                    },
                   }}
                 >
-                  {/* Report No. */}
+                  {/* REPORT NO. */}
                   <TableCell>
                     <Typography
                       variant="body2"
@@ -183,9 +175,12 @@ export default function VerifiedReportsTable({
                     </Typography>
                   </TableCell>
 
-                  {/* Patient */}
+                  {/* PATIENT */}
                   <TableCell>
-                    <Stack spacing={0.25}>
+                    <Stack
+                      spacing={0.25}
+                      alignItems="center"
+                    >
                       <Typography
                         variant="body2"
                         fontWeight={600}
@@ -210,14 +205,14 @@ export default function VerifiedReportsTable({
                     </Typography>
                   </TableCell>
 
-                  {/* Test */}
+                  {/* TEST */}
                   <TableCell>
                     <Typography variant="body2">
                       {item.report.testName}
                     </Typography>
                   </TableCell>
 
-                  {/* Barcode */}
+                  {/* BARCODE */}
                   <TableCell>
                     <Typography
                       variant="body2"
@@ -230,14 +225,14 @@ export default function VerifiedReportsTable({
                     </Typography>
                   </TableCell>
 
-                  {/* Verified By */}
+                  {/* VERIFIED BY */}
                   <TableCell>
                     <Typography variant="body2">
                       {item.report.verifiedBy}
                     </Typography>
                   </TableCell>
 
-                  {/* Verified Date */}
+                  {/* VERIFIED DATE */}
                   <TableCell>
                     <Typography
                       variant="body2"
@@ -250,7 +245,7 @@ export default function VerifiedReportsTable({
                     </Typography>
                   </TableCell>
 
-                  {/* Status */}
+                  {/* STATUS */}
                   <TableCell>
                     <Chip
                       label={item.report.status}
@@ -278,9 +273,7 @@ export default function VerifiedReportsTable({
                           height: 32,
                         }}
                       >
-                        <PictureAsPdfIcon
-                          fontSize="small"
-                        />
+                        <PictureAsPdfIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>

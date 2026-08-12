@@ -78,19 +78,14 @@ export default function PatientLabOrders({
     switch (value) {
       case "VERIFIED":
         return "success";
-
       case "READY":
         return "primary";
-
       case "PROCESSING":
         return "warning";
-
       case "COLLECTED":
         return "secondary";
-
       case "QUEUE":
         return "info";
-
       default:
         return "default";
     }
@@ -102,10 +97,8 @@ export default function PatientLabOrders({
     switch (priority?.toLowerCase()) {
       case "emergency":
         return "error";
-
       case "urgent":
         return "warning";
-
       default:
         return "default";
     }
@@ -124,7 +117,6 @@ export default function PatientLabOrders({
       <CardContent
         sx={{
           p: 2.5,
-
           "&:last-child": {
             pb: 2.5,
           },
@@ -220,8 +212,6 @@ export default function PatientLabOrders({
               md: "center",
             }}
           >
-            {/* SEARCH */}
-
             <TextField
               size="small"
               fullWidth
@@ -234,23 +224,19 @@ export default function PatientLabOrders({
                 maxWidth: {
                   md: 460,
                 },
-
                 "& .MuiOutlinedInput-root": {
                   height: 36,
                   bgcolor: "background.paper",
                   borderRadius: 1.5,
                 },
-
                 "& .MuiInputBase-input": {
                   py: 0.75,
                   fontSize: 13,
                 },
-
                 "& .MuiInputBase-input::placeholder": {
                   fontSize: 13,
                   opacity: 0.7,
                 },
-
                 "& .MuiInputAdornment-root": {
                   mr: 0.5,
                 },
@@ -269,8 +255,6 @@ export default function PatientLabOrders({
               }}
             />
 
-            {/* STATUS + RESET */}
-
             <Stack
               direction="row"
               spacing={1}
@@ -288,13 +272,11 @@ export default function PatientLabOrders({
                 }
                 sx={{
                   minWidth: 150,
-
                   "& .MuiOutlinedInput-root": {
                     height: 36,
                     bgcolor: "background.paper",
                     borderRadius: 1.5,
                   },
-
                   "& .MuiSelect-select": {
                     py: 0.75,
                     fontSize: 13,
@@ -337,7 +319,6 @@ export default function PatientLabOrders({
                     borderColor: "divider",
                     bgcolor: "background.paper",
                     borderRadius: 1.5,
-
                     "&:hover": {
                       bgcolor: "action.selected",
                     },
@@ -371,6 +352,8 @@ export default function PatientLabOrders({
 
               "& .MuiTableCell-root": {
                 borderColor: "divider",
+                textAlign: "center",
+                verticalAlign: "middle",
               },
             }}
           >
@@ -383,34 +366,37 @@ export default function PatientLabOrders({
 
                   "& .MuiTableCell-root": {
                     py: 1.25,
+                    px: 1.5,
                     fontSize: 12,
                     fontWeight: 700,
                     color: "text.secondary",
                     whiteSpace: "nowrap",
+                    textAlign: "center",
+                    verticalAlign: "middle",
                   },
                 }}
               >
-                <TableCell>
+                <TableCell align="center">
                   ORDER
                 </TableCell>
 
-                <TableCell>
+                <TableCell align="center">
                   DOCTOR
                 </TableCell>
 
-                <TableCell>
+                <TableCell align="center">
                   TESTS
                 </TableCell>
 
-                <TableCell>
+                <TableCell align="center">
                   BARCODE
                 </TableCell>
 
-                <TableCell>
+                <TableCell align="center">
                   PRIORITY
                 </TableCell>
 
-                <TableCell>
+                <TableCell align="center">
                   STATUS
                 </TableCell>
               </TableRow>
@@ -433,13 +419,19 @@ export default function PatientLabOrders({
 
                     "& .MuiTableCell-root": {
                       py: 1.4,
+                      px: 1.5,
+                      textAlign: "center",
+                      verticalAlign: "middle",
                     },
                   }}
                 >
                   {/* ORDER */}
 
-                  <TableCell>
-                    <Stack spacing={0.25}>
+                  <TableCell align="center">
+                    <Stack
+                      spacing={0.25}
+                      alignItems="center"
+                    >
                       <Typography
                         variant="body2"
                         fontWeight={700}
@@ -461,8 +453,11 @@ export default function PatientLabOrders({
 
                   {/* DOCTOR */}
 
-                  <TableCell>
-                    <Stack spacing={0.25}>
+                  <TableCell align="center">
+                    <Stack
+                      spacing={0.25}
+                      alignItems="center"
+                    >
                       <Typography
                         variant="body2"
                         fontWeight={600}
@@ -475,26 +470,28 @@ export default function PatientLabOrders({
                         variant="caption"
                         color="text.secondary"
                       >
-                        {visit.doctor
-                          ?.department ?? "--"}
+                        {visit.doctor?.department ??
+                          "--"}
                       </Typography>
                     </Stack>
                   </TableCell>
 
                   {/* TESTS */}
 
-                  <TableCell>
+                  <TableCell align="center">
                     <Stack
                       direction="row"
                       spacing={0.5}
                       useFlexGap
                       flexWrap="wrap"
+                      justifyContent="center"
+                      alignItems="center"
                       sx={{
                         maxWidth: 280,
+                        mx: "auto",
                       }}
                     >
-                      {visit.requestedTests
-                        ?.length ? (
+                      {visit.requestedTests?.length ? (
                         visit.requestedTests.map(
                           (test: string) => (
                             <Chip
@@ -524,7 +521,7 @@ export default function PatientLabOrders({
 
                   {/* BARCODE */}
 
-                  <TableCell>
+                  <TableCell align="center">
                     <Typography
                       variant="body2"
                       fontFamily="monospace"
@@ -538,7 +535,7 @@ export default function PatientLabOrders({
 
                   {/* PRIORITY */}
 
-                  <TableCell>
+                  <TableCell align="center">
                     <Chip
                       size="small"
                       label={
@@ -565,7 +562,7 @@ export default function PatientLabOrders({
 
                   {/* STATUS */}
 
-                  <TableCell>
+                  <TableCell align="center">
                     <Chip
                       size="small"
                       label={
@@ -594,10 +591,12 @@ export default function PatientLabOrders({
                     align="center"
                     sx={{
                       py: 7,
+                      textAlign: "center",
                     }}
                   >
                     <Stack
                       alignItems="center"
+                      justifyContent="center"
                       spacing={1}
                     >
                       <Box
