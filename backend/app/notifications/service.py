@@ -16,6 +16,7 @@ from app.notifications.models import NotificationHistory
  
 async def prepare_lab_report_ready_event(
     db: AsyncSession,
+    facility_id: uuid.UUID,
     department_id: uuid.UUID,
     lab_order_item_id: uuid.UUID,
     accession_number: str,
@@ -34,6 +35,7 @@ async def prepare_lab_report_ready_event(
         event_type="lab_report_ready",
         payload=payload,
         department_id=department_id,
+        facility_id=facility_id,
     ))
     await db.flush()
     return {
@@ -45,6 +47,7 @@ async def prepare_lab_report_ready_event(
  
 async def prepare_critical_value_alert_event(
     db: AsyncSession,
+    facility_id: uuid.UUID,
     department_id: uuid.UUID,
     lab_order_item_id: uuid.UUID,
     accession_number: str,
@@ -67,6 +70,7 @@ async def prepare_critical_value_alert_event(
         event_type="critical_value_alert",
         payload=payload,
         department_id=department_id,
+        facility_id=facility_id,
     ))
     await db.flush()
     return {
@@ -78,16 +82,13 @@ async def prepare_critical_value_alert_event(
  
 async def prepare_low_stock_alert_event(
     db: AsyncSession,
+    facility_id: uuid.UUID,
     item_id: uuid.UUID,
     item_name: str,
     current_quantity: str,
     reorder_level: str,
     department_id: uuid.UUID | None = None,
-    facility_id: uuid.UUID | None = None,
 ) -> dict:
-    if (department_id is None) == (facility_id is None):
-        raise ValueError("Provide exactly one of department_id or facility_id")
- 
     payload = {
         "item_id": str(item_id),
         "item_name": item_name,
