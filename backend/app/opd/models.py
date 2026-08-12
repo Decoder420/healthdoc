@@ -95,12 +95,12 @@ class Visit(Base, UUIDPk, Timestamps, Blame):
     __table_args__ = (
         CheckConstraint(
             "visit_type IN ('opd', 'ipd', 'emergency', 'teleconsult')",
-            name="ck_visits_visit_type",
+            name="visit_type",
         ),
         CheckConstraint(
             "status IN ('registered', 'in_consultation', 'completed', "
             "'lwbs', 'cancelled', 'closed')",
-            name="ck_visits_status",
+            name="status",
         ),
         Index("ix_visits_patient_id_visit_date", "patient_id", "visit_date"),
         Index("ix_visits_facility_id", "facility_id"),
@@ -110,8 +110,12 @@ class Visit(Base, UUIDPk, Timestamps, Blame):
 
 class Encounter(Base, UUIDPk, Timestamps, Blame):
     __tablename__ = "encounters"
+    __audit_resource_type__ = "encounters"
+    __audit_facility_id_field__ = "facility_id"
+    __audit_visit_id_field__ = "visit_id"
 
     visit_id = Column(UUID(as_uuid=True), ForeignKey("visits.id"), nullable=False)
+    facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id"), nullable=False)
     provider_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     encounter_type = Column(String(50), nullable=True)
     chief_complaint = Column(Text, nullable=True)
@@ -129,7 +133,7 @@ class Encounter(Base, UUIDPk, Timestamps, Blame):
     __table_args__ = (
         CheckConstraint(
             "note_status IN ('pending', 'stored', 'failed')",
-            name="ck_encounters_note_status",
+            name="note_status",
         ),
         Index("ix_encounters_visit_id", "visit_id"),
         Index("ix_encounters_provider_user_id", "provider_user_id"),
@@ -154,8 +158,11 @@ class IcdCode(Base, UUIDPk, Timestamps):
 
 class Diagnosis(Base, UUIDPk, Timestamps, Blame):
     __tablename__ = "diagnoses"
+    __audit_resource_type__ = "diagnoses"
+    __audit_facility_id_field__ = "facility_id"
 
     encounter_id = Column(UUID(as_uuid=True), ForeignKey("encounters.id"), nullable=False)
+    facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id"), nullable=False)
     icd_code = Column(String(30), nullable=False)
     icd_version = Column(String(30), nullable=False)
     icd_code_id = Column(UUID(as_uuid=True), ForeignKey("icd_codes.id"), nullable=True)
@@ -168,7 +175,7 @@ class Diagnosis(Base, UUIDPk, Timestamps, Blame):
     __table_args__ = (
         CheckConstraint(
             "diagnosis_type IN ('provisional', 'final', 'differential')",
-            name="ck_diagnoses_diagnosis_type",
+            name="diagnosis_type",
         ),
         Index("ix_diagnoses_icd_code_icd_version", "icd_code", "icd_version"),
     )

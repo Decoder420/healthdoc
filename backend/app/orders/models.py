@@ -1,9 +1,21 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
-from app.common.database import Base
+from app.common.db import Base
 from app.common.enums import OrderPriority, OrderStatus, OrderType
-from app.common.mixins import Blame, Timestamps, UUIDPk
+from app.common.models import Blame, Timestamps, UUIDPk
+
+
+class OrderNumberCounter(Base, UUIDPk, Timestamps):
+    """Gapless per-facility-per-business-day allocator for order_number, same pattern as visit_number_counters."""
+    __tablename__ = "order_number_counters"
+    __table_args__ = (
+        UniqueConstraint("facility_id", "counter_date", name="uq_order_number_counters_facility_id_counter_date"),
+    )
+
+    facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id"), nullable=False)
+    counter_date = Column(Date, nullable=False)
+    seq = Column(Integer, nullable=False, server_default="0")
 
 
 class Order(Base, UUIDPk, Timestamps, Blame):
@@ -17,9 +29,14 @@ class Order(Base, UUIDPk, Timestamps, Blame):
     __tablename__ = "orders"
 
     order_number = Column(String(30), unique=True, nullable=False)
+    __audit_resource_type__ = "orders"
+    __audit_facility_id_field__ = "facility_id"
+    __audit_encounter_id_field__ = "encounter_id"
+
     encounter_id = Column(
         UUID(as_uuid=True), ForeignKey("encounters.id", ondelete="RESTRICT"), nullable=False
     )
+    facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False)
     patient_id = Column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False
     )
@@ -29,9 +46,9 @@ class Order(Base, UUIDPk, Timestamps, Blame):
     ordered_at = Column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
-        CheckConstraint(OrderType.sql_check("order_type"), name="ck_orders_order_type"),
-        CheckConstraint(OrderPriority.sql_check("priority"), name="ck_orders_priority"),
-        CheckConstraint(OrderStatus.sql_check("status"), name="ck_orders_status"),
+        CheckConstraint(OrderType.sql_check("order_type"), name="order_type"),
+        CheckConstraint(OrderPriority.sql_check("priority"), name="priority"),
+        CheckConstraint(OrderStatus.sql_check("status"), name="status"),
         Index("ix_orders_order_type_status", "order_type", "status"),
         Index("ix_orders_patient_id", "patient_id"),
         Index("ix_orders_encounter_id", "encounter_id"),
@@ -44,9 +61,14 @@ class Prescription(Base, UUIDPk, Timestamps, Blame):
 
     __tablename__ = "prescriptions"
 
+    __audit_resource_type__ = "orders"
+    __audit_facility_id_field__ = "facility_id"
+    __audit_encounter_id_field__ = "encounter_id"
+
     encounter_id = Column(
         UUID(as_uuid=True), ForeignKey("encounters.id", ondelete="RESTRICT"), nullable=False
     )
+    facility_id = Column(UUID(as_uuid=True), ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False)
     patient_id = Column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False
     )
