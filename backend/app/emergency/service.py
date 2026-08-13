@@ -210,6 +210,7 @@ async def approve_promotion(
         patient.uhid = uhid
         patient.identity_path = "demographics_only"
         patient.updated_by = approved_by
+        patient.row_version += 1
         audit.new_value = {"uhid": uhid, "identity_path": "demographics_only"}
         audit.reason = merge_log.reason
 
@@ -272,6 +273,7 @@ async def unmerge_promotion(
         patient.uhid = None
         patient.identity_path = "thid"
         patient.updated_by = unmerged_by
+        patient.row_version += 1
         audit.new_value = {"uhid": None, "identity_path": "thid"}
         audit.reason = unmerge_reason
 

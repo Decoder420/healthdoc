@@ -560,8 +560,21 @@ async def approve_merge(
     await _repoint_visits(db, source=source, target=target)
     await _repoint_ot_schedules(db, source=source, target=target)
 
-    source.status = "merged"
-    source.merged_into_patient_id = target.id
+    async with audited_mutation(
+        db,
+        facility_id=source.facility_id,
+        action=AuditAction.UHID_MERGE,
+        resource_type="patients",
+        patient_id=source.id,
+    ) as audit:
+        audit.resource_id = source.id
+        audit.old_value = _patient_snapshot(source)
+        source.status = "merged"
+        source.merged_into_patient_id = target.id
+        source.row_version += 1
+        audit.new_value = _patient_snapshot(source)
+        audit.reason = merge_log.reason
+
     await db.flush()
 
     merge_log.status = "approved"

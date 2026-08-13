@@ -335,11 +335,38 @@ async def get_patient_history_endpoint(
     if patient.facility_id != current_db_user.facility_id:
         raise HTTPException(404, {"code": "patient_not_found"})
 
-    return await get_patient_history(
+    # §3 0006 merge repointing rule: every patient read resolves the merge
+    # pointer. Follow the chain to the canonical record.
+    merged_from_id: uuid.UUID | None = None
+    if patient.status == "merged" and patient.merged_into_patient_id:
+        merged_from_id = patient.id
+        canonical = await db.get(Patient, patient.merged_into_patient_id)
+        if canonical is None or canonical.deleted_at is not None:
+            raise HTTPException(404, {"code": "patient_not_found"})
+        if canonical.facility_id != current_db_user.facility_id:
+            raise HTTPException(404, {"code": "patient_not_found"})
+        patient_id = canonical.id
+
+    # TODO [#179 deferred]: consent gate — blocked on consent module
+    # exposing check_active_consent(). Access is logged with
+    # consent_required=True above so the audit trail is intact.
+
+    # Explicit priority list — set iteration is non-deterministic.
+    # doctor > nurse > receptionist/admin.
+    _ROLE_PRIORITY = ["doctor", "nurse", "receptionist", "admin"]
+    role_set = set(current_db_user.roles)
+    resolved_role = next((r for r in _ROLE_PRIORITY if r in role_set), "receptionist")
+
+    history = await get_patient_history(
         db,
         patient_id=patient_id,
-        role=next(iter(set(current_db_user.roles) & {"doctor","nurse","receptionist","admin"}), "receptionist"),
+        role=resolved_role,
     )
+
+    if merged_from_id is not None:
+        history["merged_from_patient_id"] = str(merged_from_id)
+
+    return history
 
 
 @router.get(
@@ -398,3 +425,100 @@ async def get_patient_access_history(
             for r in rows
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# [#228] Patient portal — own ABHA data
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/{patient_id}/abha",
+    dependencies=[Depends(require_roles("auditor", "admin", "doctor", "patient"))],
+    summary="[#228] Patient portal — view own ABHA linking data",
+)
+async def get_patient_abha(
+    patient_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Returns the patient's ABHA number and linking status.
+
+    abha_linking_token_encrypted is NEVER returned — it is a credential,
+    not a display field (schema §7: never return encrypted PII fields).
+    abha_number is returned as-is per schema §7: "plaintext by design,
+    it is a health ID, never a key".
+
+    Role gate: auditor/admin/doctor for staff audit; 'patient' role for
+    the portal self-service path. Patient-self auth (ABHA OTP flow) is a
+    B1 concern — this endpoint is wired for the role once that lands.
+    """
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.deleted_at is not None:
+        raise HTTPException(404, {"code": "patient_not_found"})
+    if patient.facility_id != current_db_user.facility_id:
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    return {
+        "patient_id": str(patient_id),
+        "abha_number": patient.abha_number,
+        # 0030 columns — present only if migration 0030 has landed (B1).
+        # Guard with getattr so this endpoint doesn't 500 on envs where
+        # 0030 hasn't run yet.
+        "abha_linked_at": (
+            getattr(patient, "abha_linked_at", None).isoformat()
+            if getattr(patient, "abha_linked_at", None) else None
+        ),
+        "abha_linking_key_version": getattr(patient, "abha_linking_key_version", None),
+        # Linking token encrypted is a credential — never returned.
+    }
+
+
+# ---------------------------------------------------------------------------
+# [#228] Patient portal — own consent list
+# ---------------------------------------------------------------------------
+import importlib as _il
+_consent_service = _il.import_module("app.consent.service")
+
+from app.consent.schemas import ConsentRecordOut
+
+
+@router.get(
+    "/{patient_id}/consents",
+    response_model=list[ConsentRecordOut],
+    dependencies=[
+        Depends(
+            log_patient_data_access(
+                resource_type="consent_records",
+                purpose_code="self_review",
+                access_channel=AccessChannel.API.value,
+                consent_required=False,
+            )
+        ),
+        Depends(require_roles("auditor", "admin", "doctor", "patient")),
+    ],
+    summary="[#228] Patient portal — view own consent records",
+)
+async def get_patient_consents(
+    patient_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[ConsentRecordOut]:
+    """Patient's own consent records, scoped to their facility.
+
+    Viewing one's own consent log is not itself consent-gated
+    (consent_required=False) — same ruling as consent/router.py's
+    existing /patients/{id}/records endpoint.
+
+    Role gate mirrors the ABHA endpoint: staff roles for audit,
+    'patient' role for self-service once B1 lands portal auth.
+    """
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.deleted_at is not None:
+        raise HTTPException(404, {"code": "patient_not_found"})
+    if patient.facility_id != current_db_user.facility_id:
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    records = await _consent_service.list_consent_records_for_patient(
+        db, patient_id, facility_id=current_db_user.facility_id
+    )
+    return [ConsentRecordOut.model_validate(r) for r in records]
