@@ -81,6 +81,60 @@ class TestAdmitPatient:
                 db, visit_id=uuid.uuid4(), ward_id=ward.id, bed_id=bed.id, created_by=doctor.id,
             )
 
+    async def test_admit_race_past_precheck_still_converts_to_bed_not_available(
+        self, db, seed, visit, ward, bed, monkeypatch,
+    ):
+        """Simulates the race the reviewer flagged on #372: a second
+        request admits to the same bed in the window between the
+        pre-check and the insert. uq_admissions_active_bed (0034) is
+        the real guarantee that stops it, via a Postgres unique
+        violation (sqlstate 23505) on flush -- but SQLite has no
+        sqlstate attribute on its own IntegrityError, so a real SQLite
+        constraint violation can't exercise the sqlstate check this
+        code actually does. Instead, db.flush() is monkeypatched to
+        raise a crafted IntegrityError with .orig.sqlstate = '23505',
+        which tests exactly the branch this code takes in production
+        against Postgres, independent of which dialect the test suite
+        runs on."""
+        import types
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+
+        _dept, _room, doctor = seed
+
+        class _FakeOrig(Exception):
+            sqlstate = "23505"
+
+        async def _fake_flush_raises_unique_violation():
+            raise _IntegrityError("duplicate key value violates unique constraint", None, _FakeOrig())
+
+        monkeypatch.setattr(db, "flush", _fake_flush_raises_unique_violation)
+
+        with pytest.raises(service.BedNotAvailable):
+            await service.admit_patient(
+                db, visit_id=visit.id, ward_id=ward.id, bed_id=bed.id, created_by=doctor.id,
+            )
+
+    async def test_admit_reraises_non_unique_integrity_errors(self, db, seed, visit, ward, bed, monkeypatch):
+        """The sqlstate check must be specific -- some other constraint
+        violation (e.g. a NOT NULL failure) must propagate as-is, not
+        get misreported as BedNotAvailable."""
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+
+        _dept, _room, doctor = seed
+
+        class _FakeOrig(Exception):
+            sqlstate = "23502"  # not_null_violation, not unique_violation
+
+        async def _fake_flush_raises_other_violation():
+            raise _IntegrityError("null value in column violates not-null constraint", None, _FakeOrig())
+
+        monkeypatch.setattr(db, "flush", _fake_flush_raises_other_violation)
+
+        with pytest.raises(_IntegrityError):
+            await service.admit_patient(
+                db, visit_id=visit.id, ward_id=ward.id, bed_id=bed.id, created_by=doctor.id,
+            )
+
 
 class TestTransferPatient:
     async def test_transfer_moves_ward_and_bed_and_frees_old_bed(self, db, seed, visit, ward, bed):
@@ -151,6 +205,58 @@ class TestTransferPatient:
         to_bed = await seed_bed(db, ward_id=to_ward.id, bed_number="1")
 
         with pytest.raises(service.AdmissionNotActive):
+            await service.transfer_patient(
+                db, admission=admission, to_ward_id=to_ward.id, to_bed_id=to_bed.id, moved_by=doctor.id,
+            )
+
+    async def test_transfer_race_past_precheck_still_converts_to_bed_not_available(
+        self, db, seed, visit, ward, bed, monkeypatch,
+    ):
+        """Same race as admit_patient (see that test's docstring),
+        applied to transfer_patient's own pre-check-then-update. Same
+        dialect-independent approach: db.flush() is monkeypatched to
+        raise a crafted IntegrityError with .orig.sqlstate = '23505'."""
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+
+        _dept, _room, doctor = seed
+        admission = await service.admit_patient(
+            db, visit_id=visit.id, ward_id=ward.id, bed_id=bed.id, created_by=doctor.id,
+        )
+        to_ward = await seed_ward(db, facility_id=visit.facility_id, name="Ward 2")
+        to_bed = await seed_bed(db, ward_id=to_ward.id, bed_number="1")
+
+        class _FakeOrig(Exception):
+            sqlstate = "23505"
+
+        async def _fake_flush_raises_unique_violation():
+            raise _IntegrityError("duplicate key value violates unique constraint", None, _FakeOrig())
+
+        monkeypatch.setattr(db, "flush", _fake_flush_raises_unique_violation)
+
+        with pytest.raises(service.BedNotAvailable):
+            await service.transfer_patient(
+                db, admission=admission, to_ward_id=to_ward.id, to_bed_id=to_bed.id, moved_by=doctor.id,
+            )
+
+    async def test_transfer_reraises_non_unique_integrity_errors(self, db, seed, visit, ward, bed, monkeypatch):
+        from sqlalchemy.exc import IntegrityError as _IntegrityError
+
+        _dept, _room, doctor = seed
+        admission = await service.admit_patient(
+            db, visit_id=visit.id, ward_id=ward.id, bed_id=bed.id, created_by=doctor.id,
+        )
+        to_ward = await seed_ward(db, facility_id=visit.facility_id, name="Ward 2")
+        to_bed = await seed_bed(db, ward_id=to_ward.id, bed_number="1")
+
+        class _FakeOrig(Exception):
+            sqlstate = "23502"
+
+        async def _fake_flush_raises_other_violation():
+            raise _IntegrityError("null value in column violates not-null constraint", None, _FakeOrig())
+
+        monkeypatch.setattr(db, "flush", _fake_flush_raises_other_violation)
+
+        with pytest.raises(_IntegrityError):
             await service.transfer_patient(
                 db, admission=admission, to_ward_id=to_ward.id, to_bed_id=to_bed.id, moved_by=doctor.id,
             )

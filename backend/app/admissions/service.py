@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.models import Admission, Bed, PatientMovementLog
@@ -89,7 +90,20 @@ async def admit_patient(
     )
     db.add(admission)
     bed.status = "occupied"
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        # Race window between the pre-check above and this insert: a
+        # second concurrent admit_patient() can slip in and take the
+        # bed first. uq_admissions_active_bed (0034) is the real
+        # guarantee -- the pre-check is just the fast, friendly path.
+        # Without this catch the loser gets a raw 500 instead of the
+        # same clean BedNotAvailable the pre-check gives in the common
+        # case. Two clerks admitting to the same bed on a busy ward is
+        # not a hypothetical.
+        if getattr(e.orig, "sqlstate", None) == "23505":
+            raise BedNotAvailable(bed_id)
+        raise
 
     await write_audit_log(
         db, facility_id=visit.facility_id, action="create", resource_type="admissions",
@@ -132,7 +146,16 @@ async def transfer_patient(
     admission.ward_id = to_ward_id
     admission.bed_id = to_bed_id
     admission.updated_by = moved_by
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        # Same race as admit_patient() -- a concurrent request can take
+        # to_bed between the pre-check above and this update. Converts
+        # the loser's uq_admissions_active_bed violation into the same
+        # clean BedNotAvailable the pre-check gives in the common case.
+        if getattr(e.orig, "sqlstate", None) == "23505":
+            raise BedNotAvailable(to_bed_id)
+        raise
 
     visit = await db.get(Visit, admission.visit_id)
     await write_audit_log(
