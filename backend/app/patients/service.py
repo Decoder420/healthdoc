@@ -469,7 +469,7 @@ async def request_merge(
 # fails the build the day a new FK to patients.id appears without a
 # matching entry here. Do not add a table name here without also adding
 # the repointing code for it below.
-REPOINTED_ON_MERGE: frozenset[str] = frozenset({"patient_identifiers", "visits", "ot_schedules"})
+REPOINTED_ON_MERGE: frozenset[str] = frozenset({"patient_identifiers", "visits", "ot_schedules", "admissions"})
 
 # patient_merge_log itself has FKs to patients.id (source_patient_id,
 # target_patient_id) — these must NEVER be repointed. It's the audit trail
@@ -487,7 +487,11 @@ PENDING_REPOINT_OTHER_MODULES: frozenset[str] = frozenset({
     "orders",         # B3/0008 — see below; surfaced when app/orders became importable
     "prescriptions",  # B3/0008 — same
 })
-# visits and ot_schedules moved to REPOINTED_ON_MERGE (B3, #284).
+# visits, ot_schedules, and admissions moved to REPOINTED_ON_MERGE (B3,
+# #284 / #372). admissions was the fifth entry added to this set on
+# b3-w5-01-pr2-admit-transfer (PR #372); rather than leave it pending a
+# second time, this same branch adds _repoint_admissions() below and
+# moves it across — see that function's docstring for why.
 #
 # orders and prescriptions appear here now not because anything changed in
 # 0008 but because app/orders/models.py finally imports — it referenced
@@ -496,12 +500,15 @@ PENDING_REPOINT_OTHER_MODULES: frozenset[str] = frozenset({
 # FKs to patients.id. They have been unrepointed since 0008 merged; only the
 # detection is new.
 #
-# FOUR entries now. A merge currently succeeds while leaving the patient's
-# allergies, invoices, orders and prescriptions attached to the merged-away
-# record — orders and prescriptions being clinical history, not metadata.
-# This set was a reasonable escape hatch at one entry. At four it is a merge
-# that reports success and loses most of the record. Before adding a fifth,
-# approve_merge should refuse outright while this set is non-empty.
+# FOUR entries remain (allergies, invoices, orders, prescriptions). A merge
+# currently succeeds while leaving those attached to the merged-away
+# record — every one of those being clinical or financial history, not
+# metadata. Before adding a fifth again, approve_merge should refuse
+# outright while this set is non-empty — that gate is a real behavioural
+# change (merge stops working for every caller until every pending table
+# is handled) affecting work in flight across four other module owners,
+# so it is deliberately not implemented as a side effect of any one
+# module's PR. Necessary follow-up, not silently deferred.
 
 
 async def approve_merge(
@@ -558,6 +565,7 @@ async def approve_merge(
     await _repoint_identifiers(db, source=source, target=target)
     await _repoint_visits(db, source=source, target=target)
     await _repoint_ot_schedules(db, source=source, target=target)
+    await _repoint_admissions(db, source=source, target=target)
 
     source.status = "merged"
     source.merged_into_patient_id = target.id
@@ -648,6 +656,29 @@ async def _repoint_ot_schedules(db: AsyncSession, *, source: Patient, target: Pa
 
     await db.execute(
         update(OtSchedule).where(OtSchedule.patient_id == source.id).values(patient_id=target.id)
+    )
+    await db.flush()
+
+
+async def _repoint_admissions(db: AsyncSession, *, source: Patient, target: Patient) -> None:
+    """Moves source's admissions rows onto target (§3 0006 merge
+    repointing rule). Same shape as _repoint_visits/_repoint_ot_schedules:
+    admissions.patient_id has no per-patient uniqueness constraint (the
+    table's only uniqueness is per-bed, via wards/beds), so every source
+    row simply moves. Owned by this module (B3, 0015+0034) -- this
+    branch's own PR (#372) is what made app/admissions importable and
+    surfaced this table to the merge guard test in the first place, so
+    it's this PR's job to close the gap rather than leave it in
+    PENDING_REPOINT_OTHER_MODULES for someone else. Without this, a
+    merged-away patient's admission history (ward, bed, discharge)
+    silently stays orphaned on the source row -- the same
+    "looks like it worked, quietly loses clinical history" failure the
+    guard test exists to catch.
+    """
+    from app.admissions.models import Admission
+
+    await db.execute(
+        update(Admission).where(Admission.patient_id == source.id).values(patient_id=target.id)
     )
     await db.flush()
 

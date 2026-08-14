@@ -97,3 +97,79 @@ async def test_repoint_visits_and_ot_schedules_moves_child_rows(db, seed):
     await db.refresh(ot_schedule)
     assert visit.patient_id == target.id
     assert ot_schedule.patient_id == target.id
+
+
+async def test_repoint_admissions_moves_child_rows(db, seed):
+    """DB-backed regression test, same shape as
+    test_repoint_visits_and_ot_schedules_moves_child_rows above --
+    confirms the actual UPDATE happens for admissions, not just that
+    the guard-test bookkeeping in REPOINTED_ON_MERGE is satisfied. A
+    passing guard test alone would not have caught a typo'd column or
+    reversed WHERE clause in _repoint_admissions."""
+    import uuid
+    from datetime import datetime, timezone
+    from app.admissions.models import Admission
+    from app.opd.models import Visit
+    from app.patients.models import Patient
+    from app.patients.service import _repoint_admissions
+    from tests.admissions.conftest import seed_ward, seed_bed
+
+    dept, room, doctor = seed
+    facility_id = dept.facility_id
+
+    source = Patient(
+        id=uuid.uuid4(),
+        thid=f"TH-TST01-260807-{uuid.uuid4().hex[:4]}",
+        full_name="Source Patient",
+        sex="male",
+        age_years=40,
+        identity_path="demographics_only",
+        facility_id=facility_id,
+        created_by=doctor.id,
+    )
+    target = Patient(
+        id=uuid.uuid4(),
+        thid=f"TH-TST01-260807-{uuid.uuid4().hex[:4]}",
+        full_name="Target Patient",
+        sex="male",
+        age_years=40,
+        identity_path="demographics_only",
+        facility_id=facility_id,
+        created_by=doctor.id,
+    )
+    db.add_all([source, target])
+    await db.flush()
+
+    visit = Visit(
+        id=uuid.uuid4(),
+        visit_number=f"VST-TST01-260807-{uuid.uuid4().hex[:5]}",
+        patient_id=source.id,
+        facility_id=facility_id,
+        visit_type="ipd",
+        visit_date=datetime.now(timezone.utc),
+        created_by=doctor.id,
+    )
+    db.add(visit)
+    await db.flush()
+
+    ward = await seed_ward(db, facility_id=facility_id, department_id=dept.id)
+    bed = await seed_bed(db, ward_id=ward.id)
+
+    admission = Admission(
+        id=uuid.uuid4(),
+        visit_id=visit.id,
+        patient_id=source.id,
+        ward_id=ward.id,
+        bed_id=bed.id,
+        admitted_at=datetime.now(timezone.utc),
+        status="admitted",
+        created_by=doctor.id,
+    )
+    db.add(admission)
+    await db.flush()
+
+    await _repoint_admissions(db, source=source, target=target)
+
+    await db.refresh(admission)
+    assert admission.patient_id == target.id
+
