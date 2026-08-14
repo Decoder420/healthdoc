@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
-from app.common.enums import QueuePriority
+from app.common.enums import QueuePriority, Shift
 
 
 class QueueCreate(BaseModel):
@@ -45,6 +45,7 @@ class QueueTokenOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class QueueTokenGenerateRequest(BaseModel):
     """visit_id is required — complete_by_visit_id() needs it to trigger
     automatic call-next."""
@@ -57,9 +58,11 @@ class TokenPriorityElevate(BaseModel):
     priority: str
     reason: str
 
+
 class QueueTokenListItemOut(QueueTokenOut):
     doctor_name: str
     room_number: str | None
+
     model_config = ConfigDict(from_attributes=True)
  
  
@@ -73,3 +76,27 @@ class CompleteAdvanceOut(BaseModel):
     completed_token: QueueTokenOut
     next_token: QueueTokenOut | None
     
+
+class RosterCreate(BaseModel):
+    staff_user_id: uuid.UUID
+    department_id: uuid.UUID
+    room_id: uuid.UUID | None = None
+    shift: Shift
+    roster_date: date
+ 
+ 
+class RosterOut(BaseModel):
+    id: uuid.UUID
+    staff_user_id: uuid.UUID
+    department_id: uuid.UUID
+    room_id: uuid.UUID | None
+    shift: str
+    roster_date: date
+    is_available: bool
+ 
+    model_config = ConfigDict(from_attributes=True)
+ 
+ 
+class RosterAvailabilityUpdate(BaseModel):
+    is_available: bool
+    reason: str | None = None
