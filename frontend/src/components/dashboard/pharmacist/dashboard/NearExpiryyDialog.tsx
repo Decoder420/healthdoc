@@ -9,17 +9,27 @@ import {
   Chip,
 } from "@mui/material";
 
-import { interactionWarnings } from "@/features/pharmacy/data/dashboardData";
+import { useRouter } from "next/navigation";
+
+import { nearExpiryData } from "@/features/pharmacy/data/dashboardData";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-export default function InteractionDialog({
+export default function NearExpiryyDialog({
   open,
   onClose,
 }: Props) {
+  const router = useRouter();
+
+  const handleViewExpiryTracker = () => {
+    onClose();
+
+    router.push("/inventory/audit/stock-ledger");
+  };
+
   return (
     <Dialog
       open={open}
@@ -28,63 +38,111 @@ export default function InteractionDialog({
       maxWidth="lg"
     >
       <DialogTitle>
-        Drug Interaction Alerts
+        Near Expiry Medicines
       </DialogTitle>
 
       <DialogContent dividers>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse">
-            <thead className="bg-[#001F54] text-white">
-              <tr>
-                <th className="px-4 py-3 text-left">Patient</th>
-                <th className="px-4 py-3 text-left">UHID</th>
-                <th className="px-4 py-3 text-left">Prescription</th>
-                <th className="px-4 py-3 text-left">Interaction</th>
-                <th className="px-4 py-3 text-center">Severity</th>
-              </tr>
-            </thead>
+        {nearExpiryData.length === 0 ? (
+          <div className="py-10 text-center text-gray-500">
+            No medicines are near expiry.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse">
+              <thead className="bg-[#001F54] text-white">
+                <tr>
+                  <th className="px-4 py-3 text-left">
+                    Medicine
+                  </th>
 
-            <tbody>
-              {interactionWarnings.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-b hover:bg-gray-50"
-                >
-                  <td className="px-4 py-3">{item.patient}</td>
+                  <th className="px-4 py-3 text-left">
+                    Batch
+                  </th>
 
-                  <td className="px-4 py-3">{item.uhid}</td>
+                  <th className="px-4 py-3 text-center">
+                    Available
+                  </th>
 
-                  <td className="px-4 py-3">
-                    {item.prescription}
-                  </td>
+                  <th className="px-4 py-3 text-left">
+                    Expiry Date
+                  </th>
 
-                  <td className="px-4 py-3">
-                    {item.interaction}
-                  </td>
+                  <th className="px-4 py-3 text-center">
+                    Days Left
+                  </th>
 
-                  <td className="px-4 py-3 text-center">
-                    <Chip
-                      label={item.severity}
-                      size="small"
-                      color={
-                        item.severity === "High"
-                          ? "error"
-                          : item.severity === "Medium"
-                          ? "warning"
-                          : "success"
-                      }
-                    />
-                  </td>
+                  <th className="px-4 py-3 text-center">
+                    Status
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody>
+                {nearExpiryData.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-b hover:bg-gray-50"
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      {item.medicine}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {item.batch}
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      {item.quantity}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {item.expiry}
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      {item.daysLeft}
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      <Chip
+                        label={
+                          item.daysLeft <= 30
+                            ? "Critical"
+                            : item.daysLeft <= 60
+                            ? "Near Expiry"
+                            : "Monitor"
+                        }
+                        size="small"
+                        color={
+                          item.daysLeft <= 30
+                            ? "error"
+                            : item.daysLeft <= 60
+                            ? "warning"
+                            : "success"
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>
+        <Button
+          variant="outlined"
+          onClick={onClose}
+        >
           Close
+        </Button>
+
+        <Button
+          variant="contained"
+          onClick={handleViewExpiryTracker}
+        >
+          View Expiry Tracker
         </Button>
       </DialogActions>
     </Dialog>

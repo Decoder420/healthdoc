@@ -9,6 +9,8 @@ import {
   Chip,
 } from "@mui/material";
 
+import { useRouter } from "next/navigation";
+
 import { lowStockData } from "@/features/pharmacy/data/dashboardData";
 
 interface Props {
@@ -20,6 +22,13 @@ export default function LowStockDialog({
   open,
   onClose,
 }: Props) {
+  const router = useRouter();
+
+  const handleCreateIndent = () => {
+    onClose();
+    router.push("/inventory/departments/indent");
+  };
+
   return (
     <Dialog
       open={open}
@@ -36,11 +45,25 @@ export default function LowStockDialog({
           <table className="min-w-full border-collapse">
             <thead className="bg-[#001F54] text-white">
               <tr>
-                <th className="px-4 py-3 text-left">Medicine</th>
-                <th className="px-4 py-3 text-center">Available</th>
-                <th className="px-4 py-3 text-center">Reorder Level</th>
-                <th className="px-4 py-3 text-left">Supplier</th>
-                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-left">
+                  Medicine
+                </th>
+
+                <th className="px-4 py-3 text-center">
+                  Available
+                </th>
+
+                <th className="px-4 py-3 text-center">
+                  Reorder Level
+                </th>
+
+                <th className="px-4 py-3 text-left">
+                  Supplier
+                </th>
+
+                <th className="px-4 py-3 text-center">
+                  Status
+                </th>
               </tr>
             </thead>
 
@@ -90,7 +113,7 @@ export default function LowStockDialog({
 
         <Button
           variant="contained"
-          color="primary"
+          onClick={handleCreateIndent}
         >
           Create Indent
         </Button>

@@ -195,4 +195,28 @@ export const inventoryItems = [
     department: "Emergency",
     stock: 320,
   },
+  {
+    id: "ITEM007",
+    name: "Paracetamol 500 mg",
+    department: "Pharmacy",
+    stock: 120,
+  },
+  {
+    id: "ITEM008",
+    name: "Amoxicillin 250 mg",
+    department: "Pharmacy",
+    stock: 5,
+  },
+  {
+    id: "ITEM009",
+     name: "Pantoprazole 40 mg",
+    department: "Pharmacy",
+    stock: 85,
+  },
+  {
+    id: "ITEM010",
+    name: "Vitamin D3",
+    department: "Pharmacy",
+    stock: 10,
+  },
 ];

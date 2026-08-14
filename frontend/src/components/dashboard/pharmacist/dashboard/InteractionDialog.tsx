@@ -6,9 +6,14 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  Chip,
 } from "@mui/material";
 
-import { interactionWarnings } from "@/features/pharmacy/data/dashboardData";
+import { useRouter } from "next/navigation";
+
+import {
+  interactionWarnings,
+} from "@/features/pharmacy/data/dashboardData";
 
 interface Props {
   open: boolean;
@@ -19,46 +24,107 @@ export default function InteractionDialog({
   open,
   onClose,
 }: Props) {
+  const router = useRouter();
+
+  const handleReviewPrescription = () => {
+    onClose();
+
+    router.push("/pharmacy/prescription-queue");
+  };
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="md"
+      maxWidth="lg"
     >
       <DialogTitle>
         Drug Interaction Alerts
       </DialogTitle>
 
       <DialogContent dividers>
-        <table className="min-w-full">
-          <thead>
-            <tr>
-              <th>Patient</th>
-              <th>UHID</th>
-              <th>Prescription</th>
-              <th>Interaction</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead className="bg-[#001F54] text-white">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  Patient
+                </th>
 
-          <tbody>
-            {interactionWarnings.map((item) => (
-              <tr key={item.id}>
-                <td>{item.patient}</td>
-                <td>{item.uhid}</td>
-                <td>{item.prescription}</td>
-                <td>{item.interaction}</td>
-                <td>{item.severity}</td>
+                <th className="px-4 py-3 text-left">
+                  UHID
+                </th>
+
+                <th className="px-4 py-3 text-left">
+                  Prescription
+                </th>
+
+                <th className="px-4 py-3 text-left">
+                  Interaction
+                </th>
+
+                <th className="px-4 py-3 text-center">
+                  Severity
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {interactionWarnings.map((item) => (
+                <tr
+                  key={item.id}
+                  className="border-b hover:bg-gray-50"
+                >
+                  <td className="px-4 py-3">
+                    {item.patient}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {item.uhid}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {item.prescription}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {item.interaction}
+                  </td>
+
+                  <td className="px-4 py-3 text-center">
+                    <Chip
+                      label={item.severity}
+                      size="small"
+                      color={
+                        item.severity === "High"
+                          ? "error"
+                          : item.severity === "Medium"
+                          ? "warning"
+                          : "success"
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>
+        <Button
+          variant="outlined"
+          onClick={onClose}
+        >
           Close
+        </Button>
+
+        <Button
+          variant="contained"
+          onClick={handleReviewPrescription}
+        >
+          Review Prescription
         </Button>
       </DialogActions>
     </Dialog>

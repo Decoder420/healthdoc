@@ -10,7 +10,7 @@ import {
 const actions = [
   {
     title: "Dispense",
-    description: "Review and dispense medicines",
+    description: "Dispense medicines from prescriptions",
     icon: Pill,
     route: "/pharmacy/prescription-queue",
   },
@@ -18,13 +18,13 @@ const actions = [
     title: "Create Indent",
     description: "Request medicines from inventory",
     icon: ClipboardPlus,
-    route: "/inventory/indent",
+    route: "/inventory/departments/IndentRequests",
   },
   {
     title: "Stock Adjustment",
-    description: "Update and correct stock",
+    description: "Update stock corrections",
     icon: SlidersHorizontal,
-    route: "/inventory/audit/stock-ledger",
+    route: "/inventory/audit/verification",
   },
 ];
 
@@ -32,12 +32,12 @@ export default function QuickActions() {
   const router = useRouter();
 
   return (
-    <section className="bg-white rounded-xl p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#001F54] mb-4">
+    <section className="surface-card p-5">
+      <h2 className="mb-4 text-lg font-semibold text-[#001F54]">
         Quick Actions
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {actions.map((action) => {
           const Icon = action.icon;
 
@@ -46,22 +46,9 @@ export default function QuickActions() {
               key={action.title}
               type="button"
               onClick={() => router.push(action.route)}
-              className="
-                flex items-center gap-4
-                border rounded-xl p-4
-                hover:shadow-md
-                transition
-                text-left
-              "
+              className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:shadow-md"
             >
-              <div
-                className="
-                  bg-[#001F54]
-                  text-white
-                  p-3
-                  rounded-lg
-                "
-              >
+              <div className="rounded-lg bg-[#001F54] p-3 text-white">
                 <Icon size={22} />
               </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import WarningCards from "@/components/dashboard/pharmacist/dashboard/WarningCard";
 
@@ -8,11 +9,9 @@ import InteractionDialog from "@/components/dashboard/pharmacist/dashboard/Inter
 import NearExpiryDialog from "@/components/dashboard/pharmacist/dashboard/NearExpiryyDialog";
 import LowStockDialog from "@/components/dashboard/pharmacist/dashboard/LowStockDialog";
 
-const WarningCardsWithAction = WarningCards as ComponentType<{
-  onAction: (title: string) => void;
-}>;
-
 export default function WarningCenter() {
+  const router = useRouter();
+
   const [interactionOpen, setInteractionOpen] = useState(false);
   const [expiryOpen, setExpiryOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);
@@ -45,22 +44,40 @@ export default function WarningCenter() {
           </h2>
         </div>
 
-        <WarningCardsWithAction onAction={handleAction} />
+        <WarningCards {...({ onAction: handleAction } as any)} />
       </div>
 
       <InteractionDialog
         open={interactionOpen}
         onClose={() => setInteractionOpen(false)}
+        {...({
+          onReview: () => {
+            setInteractionOpen(false);
+            router.push("/pharmacy/prescription-queue");
+          },
+        } as any)}
       />
 
       <NearExpiryDialog
         open={expiryOpen}
         onClose={() => setExpiryOpen(false)}
+        {...({
+          onViewExpiry: () => {
+            setExpiryOpen(false);
+            router.push("/inventory/audit/stock-ledger");
+          },
+        } as any)}
       />
 
       <LowStockDialog
         open={stockOpen}
         onClose={() => setStockOpen(false)}
+        {...({
+          onViewStock: () => {
+            setStockOpen(false);
+            router.push("/inventory/stock-list");
+          },
+        } as any)}
       />
     </>
   );
