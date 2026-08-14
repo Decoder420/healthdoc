@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function AdmissionStatus({
   admissionId,
-  records,
+  record,
 }: AdmissionStatusProps) {
   if (!admissionId) {
     return (
@@ -32,11 +32,11 @@ export default function AdmissionStatus({
     );
   }
 
-  if (records.length === 0) {
+  if (!record) {
     return (
       <div className="surface-card p-6">
         <p className="text-sm text-muted-foreground">
-          No admission status records available.
+          No admission status available.
         </p>
       </div>
     );
@@ -49,25 +49,18 @@ export default function AdmissionStatus({
         Current admission workflow status.
       </p>
 
-      <div className="mt-4 space-y-3">
-        {records.map((record) => (
-          <div
-            key={record.id}
-            className="flex items-center justify-between rounded-lg border border-border p-4"
-          >
-            <span
-              className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_STYLES[record.status]}`}
-            >
-              {STATUS_LABELS[record.status]}
-            </span>
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-4">
+        <span
+          className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_STYLES[record.status]}`}
+        >
+          {STATUS_LABELS[record.status]}
+        </span>
 
-            {record.updated_at && (
-              <span className="text-xs text-muted-foreground" suppressHydrationWarning>
-                {new Date(record.updated_at).toLocaleString()}
-              </span>
-            )}
-          </div>
-        ))}
+        {record.updated_at && (
+          <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+            {new Date(record.updated_at).toLocaleString()}
+          </span>
+        )}
       </div>
     </section>
   );

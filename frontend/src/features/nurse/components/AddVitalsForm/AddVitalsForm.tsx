@@ -10,7 +10,7 @@ import NumberField from "../../../../components/forms/NumberField";
 import SelectField from "../../../../components/forms/SelectField";
 import FormActions from "../../../../components/forms/FormActions";
 
-import { AddVitalsFormProps } from "./Addvitalsform.types";
+import { AddVitalsFormProps } from "./AddVitalsForm.types";
 
 import { DEFAULT_VALUES, PAIN_SCORE_OPTIONS } from "./constants";
 
@@ -18,6 +18,8 @@ import { addVitalsSchema, type AddVitalsSchema } from "./validation";
 
 export default function AddVitalsForm({
   patientId,
+  admissionId,
+  encounterId,
   isSubmitting = false,
   onSubmit,
 }: AddVitalsFormProps) {
@@ -33,6 +35,8 @@ export default function AddVitalsForm({
     defaultValues: {
       ...DEFAULT_VALUES,
       patient_id: patientId,
+      admission_id: admissionId,
+      encounter_id: encounterId,
     },
   });
 
@@ -40,12 +44,16 @@ export default function AddVitalsForm({
     if (patientId) {
       setValue("patient_id", patientId);
     }
-  }, [patientId, setValue]);
+    setValue("admission_id", admissionId);
+    setValue("encounter_id", encounterId);
+  }, [patientId, admissionId, encounterId, setValue]);
 
   const handleReset = () => {
     reset({
       ...DEFAULT_VALUES,
       patient_id: patientId,
+      admission_id: admissionId,
+      encounter_id: encounterId,
     });
   };
 
@@ -63,6 +71,10 @@ export default function AddVitalsForm({
       description="Record latest vital signs for the selected patient."
     >
       <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+        {errors.admission_id && (
+          <p className="text-sm text-danger">{errors.admission_id.message}</p>
+        )}
+
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <NumberField
             label="Temperature (°C)"

@@ -1,7 +1,9 @@
+"use client";
+
 import { useState } from "react";
 
-import { addVitals } from "../services/nurse.service";
-import type { AddVitalsSchema } from "@/src/features/nurse/components/AddVitalsForm/validation";
+import { addVitals } from "@/features/nurse/services/nurse.service";
+import type { AddVitalsSchema } from "@/features/nurse/components/AddVitalsForm/validation";
 
 export function useAddVitals() {
   const [isSubmitting, setIsSubmitting] = useState(false);

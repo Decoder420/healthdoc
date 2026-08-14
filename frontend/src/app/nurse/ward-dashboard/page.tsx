@@ -29,6 +29,10 @@ import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
 import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
 import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
 
+import AddNursingNoteForm from "@/features/nurse/components/AddNursingNoteForm";
+import { useAddNursingNote } from "@/features/nurse/hooks/useAddNursingNote";
+import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursingNoteForm/validation";
+
 import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
 import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
 
@@ -52,6 +56,9 @@ import { admissionsByBedId } from "@/lib/data/admissionsByBed";
 import { beds } from "@/lib/data/beds";
 import { vitals } from "@/lib/data/vitals";
 import { medications } from "@/lib/data/medications";
+import { PRESCRIPTIONS } from "@/lib/data/prescriptions";
+import { MOCK_DISCHARGES } from "@/lib/data/mockDischarges";
+import type { WardStat } from "@/features/nurse/components/WardStats/WardStats.types";
 
 import { INTAKE_OUTPUT } from "@/lib/data/intakeOutput";
 import { HANDOVER_NOTES } from "@/lib/data/handover";
@@ -71,7 +78,9 @@ export default function Page() {
   );
 
   // procedure_records is keyed by encounter_id + patient_id, not admission_id —
-  // a separate mock lookup from admissionsByBedId.
+  // a separate mock lookup from admissionsByBedId. medications (prescription_items)
+  // follow the same pattern: they only link to a patient through
+  // prescriptions.patient_id, not admission_id.
   const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(
     null
   );
@@ -97,7 +106,49 @@ export default function Page() {
       "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
   };
 
+  const handleWardChange = (wardId: string) => {
+    setSelectedWard(wardId);
+    // Changing ward should clear the previously selected bed/patient —
+    // otherwise stale records from the old ward's bed keep showing.
+    setSelectedBed(null);
+    setSelectedPatient(null);
+    setSelectedAdmissionId(null);
+    setSelectedEncounterId(null);
+    setSelectedPatientId(null);
+  };
+
   const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
+
+  // "Critical Patients" removed — no criticality concept exists anywhere in
+  // the schema (patients/vitals/admissions have no such flag). Occupied/
+  // Available are scoped to the selected ward (same beds as the Ward
+  // Overview grid below); Discharges Today is hospital-wide, computed the
+  // same way as the IPD dashboard KPI.
+  const today = new Date().toDateString();
+  const dischargesTodayCount = MOCK_DISCHARGES.filter(
+    (d) => new Date(d.discharged_at).toDateString() === today
+  ).length;
+
+  const wardStats: WardStat[] = [
+    {
+      id: "occupied",
+      title: "Occupied Beds",
+      value: filteredBeds.filter((b) => b.status === "occupied").length,
+      description: "Patients currently admitted",
+    },
+    {
+      id: "available",
+      title: "Available Beds",
+      value: filteredBeds.filter((b) => b.status === "vacant").length,
+      description: "Ready for admission",
+    },
+    {
+      id: "discharge",
+      title: "Discharges Today",
+      value: dischargesTodayCount,
+      description: "Planned discharges",
+    },
+  ];
 
   const handleBedClick = (bed: Bed) => {
     setSelectedBed(bed);
@@ -113,6 +164,10 @@ export default function Page() {
     setSelectedPatientId(procedureContext?.patientId ?? null);
   };
 
+  // Local-only for now — no backend endpoint is called here yet. `orders`
+  // is [Blame]-tagged (has a generic updated_at), but `completed_at` isn't
+  // a confirmed column in the schema doc. Confirm with backend before
+  // wiring this to a real API call.
   const handleCheckOff = (orderId: string) => {
     setOrders((prev) =>
       prev.map((o) =>
@@ -122,6 +177,12 @@ export default function Page() {
       )
     );
   };
+
+  // Vitals — schema has admission_id directly, so filter the same way as
+  // IntakeOutput/HandoverNotes/PatientMovement.
+  const admissionVitals = selectedAdmissionId
+    ? vitals.filter((v) => v.admission_id === selectedAdmissionId)
+    : [];
 
   const admissionIntakeOutput = selectedAdmissionId
     ? intakeOutputRecords.filter(
@@ -146,11 +207,28 @@ export default function Page() {
       )
     : [];
 
-  const admissionStatusRecords = selectedAdmissionId
-    ? ADMISSION_STATUS.filter(
-        (record) => record.admission_id === selectedAdmissionId
+  // Medications — prescription_items don't carry patient_id directly; they
+  // link through prescription_id → prescriptions.patient_id.
+  const patientPrescriptionIds = selectedPatientId
+    ? PRESCRIPTIONS.filter((rx) => rx.patient_id === selectedPatientId).map(
+        (rx) => rx.id
       )
     : [];
+
+  const patientMedications = selectedPatientId
+    ? medications.filter((m) =>
+        patientPrescriptionIds.includes(m.prescription_id)
+      )
+    : [];
+
+  // admissions.status is a single column — no history/log table is
+  // confirmed in the schema, so this finds the one current status,
+  // not a list of past changes.
+  const admissionStatusRecord = selectedAdmissionId
+    ? ADMISSION_STATUS.find(
+        (record) => record.admission_id === selectedAdmissionId
+      ) ?? null
+    : null;
 
   const { submitVitals, isSubmitting } = useAddVitals();
   const { submitHandover, isSubmitting: isSubmittingHandover } = useAddHandover();
@@ -160,20 +238,22 @@ export default function Page() {
     useAddPatientMovement();
   const { submitProcedureAssistance, isSubmitting: isSubmittingProcedure } =
     useAddProcedureAssistance();
+  const { submitNursingNote, isSubmitting: isSubmittingNursingNote } =
+    useAddNursingNote();
 
   const handleAddHandover = async (
     data: Parameters<typeof submitHandover>[0]
   ) => {
-    try {
-      await submitHandover(data);
-    } catch {
-      // backend endpoint isn't confirmed yet — still show it locally below
-    }
+    const ok = await submitHandover(data);
 
+    // backend endpoint isn't confirmed yet — still show it locally regardless
+    // of submit success, same as other handlers in this file
     setHandoverNotes((prev) => [
       ...prev,
       { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() },
     ]);
+
+    return ok;
   };
 
   const handleAddIntakeOutput = async (
@@ -229,6 +309,11 @@ export default function Page() {
     return ok;
   };
 
+  const handleAddNursingNote = async (data: AddNursingNoteSchema) => {
+    const ok = await submitNursingNote(data);
+    return ok;
+  };
+
   return (
     <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
       {/* Header */}
@@ -250,11 +335,11 @@ export default function Page() {
       <WardSelector
         wards={WARDS}
         selectedWard={selectedWard}
-        onChange={setSelectedWard}
+        onChange={handleWardChange}
       />
 
       {/* Ward Statistics */}
-      <WardStats />
+      <WardStats stats={wardStats} />
 
       {/* Task Queue (W4) — ward/shift-level, not tied to the selected patient */}
       <section className="space-y-4">
@@ -296,8 +381,18 @@ export default function Page() {
           </p>
         </div>
 
-        <VitalsTimeline records={vitals} />
-        <VitalsChart records={vitals} />
+        {!selectedAdmissionId ? (
+          <div className="surface-card p-6">
+            <p className="text-sm text-muted-foreground">
+              Select a bed to view vitals.
+            </p>
+          </div>
+        ) : (
+          <>
+            <VitalsTimeline records={admissionVitals} />
+            <VitalsChart records={admissionVitals} />
+          </>
+        )}
       </section>
 
       {/* Intake Output */}
@@ -394,11 +489,12 @@ export default function Page() {
 
         <AdmissionStatus
           admissionId={selectedAdmissionId}
-          records={admissionStatusRecords}
+          record={admissionStatusRecord}
         />
       </section>
 
-      {/* Medication */}
+      {/* Medication — prescription_items linked via prescriptions.patient_id,
+          not admission_id. Same "select a patient first" pattern as above. */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">
@@ -409,7 +505,15 @@ export default function Page() {
           </p>
         </div>
 
-        <EMARTable medications={medications} />
+        {!selectedPatientId ? (
+          <div className="surface-card p-6">
+            <p className="text-sm text-muted-foreground">
+              Select a bed to view medications.
+            </p>
+          </div>
+        ) : (
+          <EMARTable medications={patientMedications} />
+        )}
       </section>
 
       {/* Quick Actions */}
@@ -439,7 +543,8 @@ export default function Page() {
 
         {activeAction === "vitals" && selectedAdmissionId && (
           <AddVitalsForm
-            patientId={selectedPatient?.uhid ?? ""}
+            patientId={selectedPatient?.id ?? ""}
+            admissionId={selectedAdmissionId}
             isSubmitting={isSubmitting}
             onSubmit={submitVitals}
           />
@@ -455,6 +560,21 @@ export default function Page() {
             movedBy={CURRENT_NURSE_ID}
             isSubmitting={isSubmittingPatientMovement}
             onSubmit={handleAddPatientMovement}
+          />
+        )}
+
+        {/* NOTE: assumes QuickActions' action id for "Nursing Note" is
+            "note" — confirm against the actual QuickActions component and
+            adjust this string if it differs. Gated on encounterId +
+            patientId (not selectedAdmissionId) since clinical_notes keys
+            off encounter_id per the schema doc, same as Procedure
+            Assistance above. */}
+        {activeAction === "note" && selectedEncounterId && selectedPatientId && (
+          <AddNursingNoteForm
+            encounterId={selectedEncounterId}
+            patientId={selectedPatientId}
+            isSubmitting={isSubmittingNursingNote}
+            onSubmit={handleAddNursingNote}
           />
         )}
       </section>

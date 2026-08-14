@@ -5,5 +5,5 @@ export interface AddHandoverFormProps {
 
   isSubmitting?: boolean;
 
-  onSubmit: (data: AddHandoverSchema) => Promise<void> | void;
+  onSubmit: (data: AddHandoverSchema) => Promise<boolean> | boolean; 
 }

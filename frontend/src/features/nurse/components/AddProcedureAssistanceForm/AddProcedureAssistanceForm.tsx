@@ -121,6 +121,14 @@ export default function AddProcedureAssistanceForm({
             registration={register("procedure_code")}
             error={errors.procedure_code}
           />
+
+      
+          <TextField
+            label="Code System (optional)"
+            placeholder="ICD-11, SNOMED-CT, etc."
+            registration={register("code_system")}
+            error={errors.code_system}
+          />
         </div>
 
         <TextAreaField

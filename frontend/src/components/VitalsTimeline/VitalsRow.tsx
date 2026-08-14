@@ -25,6 +25,7 @@ export default function VitalRow({ record }: VitalRowProps) {
         {record.bp_systolic ?? "-"}/{record.bp_diastolic ?? "-"}
       </td>
       <td className="px-4 py-3 text-sm">{record.spo2_pct ?? "-"}%</td>
+      <td className="px-4 py-3 text-sm">{record.pain_score ?? "-"}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
         {record.created_by ?? "-"}
       </td>

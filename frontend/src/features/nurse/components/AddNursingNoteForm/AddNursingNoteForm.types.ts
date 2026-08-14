@@ -1,13 +1,10 @@
-import type {
-  AddNursingNoteSchema,
-} from "@/features/nurse/validation/nursingNote.schema";
+import type { AddNursingNoteSchema } from "./validation";
 
 export interface AddNursingNoteFormProps {
+  encounterId: string;
   patientId: string;
 
   isSubmitting?: boolean;
 
-  onSubmit: (
-    data: AddNursingNoteSchema
-  ) => Promise<boolean> | boolean;
+  onSubmit: (data: AddNursingNoteSchema) => Promise<boolean> | boolean;
 }

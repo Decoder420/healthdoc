@@ -5,12 +5,12 @@ export default function WardSelector({
   selectedWard,
   onChange,
 }: WardSelectorProps) {
+
+  const activeWards = wards.filter((ward) => ward.is_active);
+
   return (
     <section className="surface-card p-6">
-      <label
-        htmlFor="ward"
-        className="mb-2 block text-sm font-semibold"
-      >
+      <label htmlFor="ward" className="mb-2 block text-sm font-semibold">
         Ward
       </label>
 
@@ -20,11 +20,8 @@ export default function WardSelector({
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-ring"
       >
-        {wards.map((ward) => (
-          <option
-            key={ward.id}
-            value={ward.id}
-          >
+        {activeWards.map((ward) => (
+          <option key={ward.id} value={ward.id}>
             {ward.name}
           </option>
         ))}

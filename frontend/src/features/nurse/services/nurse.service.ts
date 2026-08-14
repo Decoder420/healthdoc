@@ -5,6 +5,7 @@ import type { AddPatientMovementSchema } from "@/components/AddPatientMovementFo
 import type { AddHandoverSchema } from "@/features/nurse/components/AddHandoverForm/validation";
 import type { AddIntakeOutputSchema } from "@/features/nurse/components/AddIntakeOutputForm/validation";
 import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
+import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursingNoteForm/validation";
 
 export interface Vitals {
   id: string;
@@ -82,6 +83,20 @@ export interface ProcedureRecord {
   complications: string | null;
 }
 
+// clinical_notes → Mongo, keyed by encounter_id (per schema doc). URL not
+// documented — confirm with backend, same as the other unconfirmed
+// endpoints below.
+export interface NursingNote {
+  id: string;
+  encounter_id: string;
+  patient_id: string;
+  category: string;
+  priority: string;
+  note: string;
+  created_by?: string;
+  created_at?: string;
+}
+
 export async function addVitals(data: AddVitalsSchema) {
   return api<Vitals>("/vitals", {
     method: "POST",
@@ -113,6 +128,13 @@ export async function addPatientMovement(data: AddPatientMovementSchema) {
 
 export async function addProcedureAssistance(data: AddProcedureAssistanceSchema) {
   return api<ProcedureRecord>("/procedures", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addNursingNote(data: AddNursingNoteSchema) {
+  return api<NursingNote>("/nursing/notes", {
     method: "POST",
     body: JSON.stringify(data),
   });

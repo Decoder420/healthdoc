@@ -1,7 +1,8 @@
-import type { AddNursingNoteSchema } from "@/features/nurse/validation/nursingNote.schema";
+import type { AddNursingNoteSchema } from "./validation";
 
 export const DEFAULT_VALUES: AddNursingNoteSchema = {
-  patientId: "",
+  encounter_id: "",
+  patient_id: "",
   category: "General",
   priority: "Normal",
   note: "",
@@ -15,9 +16,4 @@ export const NOTE_CATEGORIES = [
   "Observation",
 ];
 
-export const PRIORITIES = [
-  "Low",
-  "Normal",
-  "High",
-  "Critical",
-] as const;
+export const PRIORITIES = ["Low", "Normal", "High", "Critical"] as const;

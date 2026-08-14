@@ -48,11 +48,12 @@ export default function AddHandoverForm({
     });
   };
 
-  const submitHandler = async (data: AddHandoverSchema) => {
-    await onSubmit(data);
-    handleReset();
-  };
 
+  const submitHandler = async (data: AddHandoverSchema) => {
+  const success = await onSubmit(data);
+  if (success) handleReset();
+ };
+ 
   return (
     <FormSection
       title="Patient Handover"

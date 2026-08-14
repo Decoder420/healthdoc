@@ -1,3 +1,2 @@
 export { default } from "./AddVitalsForm";
-
-export * from "./validation";
+export * from "./AddVitalsForm.types";

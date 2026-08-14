@@ -1,6 +1,8 @@
 export const DEFAULT_VALUES = {
   patient_id: "",
   measured_at: "",
+  encounter_id: undefined,
+  admission_id: undefined,
   height_cm: undefined,
   weight_kg: undefined,
   waist_cm: undefined,

@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const addNursingNoteSchema = z.object({
-  patientId: z.string().min(1),
+  encounter_id: z.string().min(1),
+  patient_id: z.string().min(1),
 
   category: z.string().min(1),
 
@@ -13,6 +14,4 @@ export const addNursingNoteSchema = z.object({
     .max(1000),
 });
 
-export type AddNursingNoteSchema = z.infer<
-  typeof addNursingNoteSchema
->;
+export type AddNursingNoteSchema = z.infer<typeof addNursingNoteSchema>;

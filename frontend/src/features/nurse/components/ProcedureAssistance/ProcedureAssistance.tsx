@@ -50,6 +50,13 @@ export default function ProcedureAssistance({
               </span>
             </div>
 
+            {record.procedure_code && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {record.procedure_code}
+                {record.code_system ? ` (${record.code_system})` : ""}
+              </p>
+            )}
+
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground">Performed By</p>
@@ -74,6 +81,13 @@ export default function ProcedureAssistance({
                   {record.ended_at ? new Date(record.ended_at).toLocaleString() : "-"}
                 </p>
               </div>
+
+              {record.setting === "ot" && record.ot_schedule_id && (
+                <div>
+                  <p className="text-xs text-muted-foreground">OT Schedule ID</p>
+                  <p className="font-medium">{record.ot_schedule_id}</p>
+                </div>
+              )}
             </div>
 
             {record.outcome && (

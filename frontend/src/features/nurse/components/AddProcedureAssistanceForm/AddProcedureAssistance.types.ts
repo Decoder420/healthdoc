@@ -1,4 +1,4 @@
-import type { AddProcedureAssistanceSchema } from "./validation.ts";
+import type { AddProcedureAssistanceSchema } from "./validation";
 
 export interface AddProcedureAssistanceFormProps {
   encounterId: string;

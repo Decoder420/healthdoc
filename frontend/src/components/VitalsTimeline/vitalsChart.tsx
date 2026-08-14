@@ -27,6 +27,56 @@ function formatTick(measuredAt: string): string {
   });
 }
 
+interface MiniChartProps {
+  title: string;
+  data: VitalRecord[];
+  lines: { dataKey: keyof VitalRecord; name: string; stroke: string }[];
+  yDomain?: [number, number];
+}
+
+function MiniChart({ title, data, lines, yDomain }: MiniChartProps) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold text-muted-foreground">{title}</p>
+
+      <div className="h-56 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis
+              dataKey="measured_at"
+              tickFormatter={formatTick}
+              tick={{ fontSize: 11 }}
+            />
+
+            <YAxis
+              domain={yDomain ?? ["auto", "auto"]}
+              tick={{ fontSize: 11 }}
+              width={36}
+            />
+
+            <Tooltip labelFormatter={(label) => formatTick(String(label))} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+
+            {lines.map((line) => (
+              <Line
+                key={String(line.dataKey)}
+                type="monotone"
+                dataKey={line.dataKey}
+                name={line.name}
+                stroke={line.stroke}
+                connectNulls
+                isAnimationActive={false}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export default function VitalsChart({ records }: VitalsChartProps) {
   if (records.length === 0) {
     return (
@@ -52,85 +102,44 @@ export default function VitalsChart({ records }: VitalsChartProps) {
         Time-series trend of patient vitals.
       </p>
 
-      <div className="mt-6 h-80 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+      {/* Split into clinically-grouped small charts instead of one shared
+          axis — pulse (~60-100), resp. rate (~12-20), BP (~80-140), and
+          SpO2 (~90-100%) have very different scales, so plotting them
+          together on one axis compresses smaller-range values (e.g. resp.
+          rate) flat and makes similar-valued lines (e.g. pulse vs BP
+          diastolic) overlap. */}
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <MiniChart
+          title="Pulse & Respiratory Rate"
+          data={chartData}
+          lines={[
+            { dataKey: "pulse_bpm", name: "Pulse (bpm)", stroke: "#b91c1c" },
+            { dataKey: "resp_rate", name: "Resp. Rate (rpm)", stroke: "#166534" },
+          ]}
+        />
 
-            <XAxis
-              dataKey="measured_at"
-              tickFormatter={formatTick}
-              tick={{ fontSize: 12 }}
-            />
+        <MiniChart
+          title="Blood Pressure"
+          data={chartData}
+          lines={[
+            { dataKey: "bp_systolic", name: "BP Systolic", stroke: "#7c3aed" },
+            { dataKey: "bp_diastolic", name: "BP Diastolic", stroke: "#3d8bfd" },
+          ]}
+        />
 
-            <YAxis yAxisId="left" tick={{ fontSize: 12 }} width={40} />
+        <MiniChart
+          title="SpO₂"
+          data={chartData}
+          lines={[{ dataKey: "spo2_pct", name: "SpO₂ (%)", stroke: "#001f54" }]}
+          yDomain={[50, 100]}
+        />
 
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} width={40} />
-
-            <Tooltip labelFormatter={(label) => formatTick(String(label))} />
-            <Legend />
-
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="pulse_bpm"
-              name="Pulse (bpm)"
-              stroke="#b91c1c"
-              connectNulls
-              isAnimationActive={false}
-            />
-
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="resp_rate"
-              name="Resp. Rate (rpm)"
-              stroke="#166534"
-              connectNulls
-              isAnimationActive={false}
-            />
-
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="spo2_pct"
-              name="SpO₂ (%)"
-              stroke="#001f54"
-              connectNulls
-              isAnimationActive={false}
-            />
-
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="bp_systolic"
-              name="BP Systolic"
-              stroke="#7c3aed"
-              connectNulls
-              isAnimationActive={false}
-            />
-
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="bp_diastolic"
-              name="BP Diastolic"
-              stroke="#3d8bfd"
-              connectNulls
-              isAnimationActive={false}
-            />
-
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="temp_c"
-              name="Temp (°C)"
-              stroke="#b45309"
-              connectNulls
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <MiniChart
+          title="Temperature"
+          data={chartData}
+          lines={[{ dataKey: "temp_c", name: "Temp (°C)", stroke: "#b45309" }]}
+          yDomain={[30, 45]}
+        />
       </div>
     </div>
   );

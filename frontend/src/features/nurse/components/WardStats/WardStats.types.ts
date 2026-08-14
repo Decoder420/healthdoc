@@ -4,3 +4,7 @@ export interface WardStat {
   value: number;
   description: string;
 }
+
+export interface WardStatsProps {
+  stats: WardStat[];
+}

@@ -58,6 +58,10 @@ export default function AdmissionForm({
     >
       <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div className="grid gap-5 md:grid-cols-2">
+          {/* NOTE: this should become a visit-picker (search by patient
+              name/UHID) once a visit-lookup source is available; kept as a
+              free-text UUID input for now — same limitation as
+              AddHandoverForm's "Handed Over To" field. */}
           <TextField
             label="Visit ID"
             placeholder="Visit UUID"
@@ -65,6 +69,8 @@ export default function AdmissionForm({
             error={errors.visit_id}
           />
 
+          {/* NOTE: same as above — should become a patient-picker once
+              available; kept as a free-text UUID input for now. */}
           <TextField
             label="Patient ID"
             placeholder="Patient UUID"
