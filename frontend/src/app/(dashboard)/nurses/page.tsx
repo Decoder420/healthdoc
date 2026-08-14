@@ -1,10 +1,6 @@
-import { ModulePage } from "@/components/shared/module-page";
+import { redirect } from "next/navigation";
 
-export default function NursesPage() {
-  return (
-    <ModulePage
-      title="Nurses"
-      description="Manage nursing staff and ward assignments."
-    />
-  );
+/** Compat alias — canonical nurse workspace is under `/nurse/*`. */
+export default function NursesRedirectPage() {
+  redirect("/nurse/ward-dashboard");
 }

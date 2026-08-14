@@ -1,35 +1,17 @@
 import type { NextConfig } from "next";
 
+/**
+ * Do not set Access-Control-Allow-Origin: * here.
+ * Credentialed CORS is handled in proxy.ts via an allowlist
+ * (see src/config/cors.ts + NEXT_PUBLIC_ALLOWED_ORIGINS).
+ */
 const nextConfig: NextConfig = {
-  // Allow every private/public IPv4 host to load Next.js HMR/dev assets
+  // Dev HMR from LAN hosts listed in NEXT_PUBLIC_ALLOWED_ORIGINS / local network
   allowedDevOrigins: [
-    "*.*.*.*",
-    "*.*.*",
-    "*.*",
     "localhost",
     "*.localhost",
     "127.0.0.1",
   ],
-  async headers() {
-    return [
-      {
-        source: "/:path*",
-        headers: [
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          {
-            key: "Access-Control-Allow-Methods",
-            value: "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
-          },
-          {
-            key: "Access-Control-Allow-Headers",
-            value:
-              "Content-Type, Authorization, X-Requested-With, Accept, Origin",
-          },
-          { key: "Access-Control-Max-Age", value: "86400" },
-        ],
-      },
-    ];
-  },
 };
 
 export default nextConfig;

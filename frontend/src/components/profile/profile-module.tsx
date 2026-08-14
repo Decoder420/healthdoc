@@ -7,7 +7,7 @@ import {
   getStaffProfileForAuthUser,
   updateStaffProfile,
 } from "@/features/profile/api";
-import { clearAuthToken, setAuthSession, type AuthUser } from "@/lib/auth";
+import { setAuthSession, type AuthUser } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ProfileHeaderCard } from "@/components/profile/profile-header-card";
@@ -40,7 +40,7 @@ function toUpdateInput(profile: StaffProfile): StaffProfileUpdateInput {
 
 export function ProfileModule() {
   const router = useRouter();
-  const { user, isLoading, updateUser } = useAuth();
+  const { user, isLoading, updateUser, logout } = useAuth();
   const [tab, setTab] = useState<ProfileTab>("overview");
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [editForm, setEditForm] = useState<StaffProfileUpdateInput | null>(null);
@@ -91,7 +91,7 @@ export function ProfileModule() {
       email: next.email,
       role: next.role,
     };
-    setAuthSession(authUser, "dev-token");
+    setAuthSession(authUser);
     updateUser(authUser);
   }
 
@@ -151,9 +151,8 @@ export function ProfileModule() {
     setSuccess("Preferences saved.");
   }
 
-  function handleLogout() {
-    clearAuthToken();
-    window.location.href = "/login";
+  async function handleLogout() {
+    await logout();
   }
 
   return (

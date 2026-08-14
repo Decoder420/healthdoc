@@ -334,7 +334,9 @@ Sidebar navigation is filtered per role in `src/config/navigation.ts` via `getNa
 
 | Route | Status |
 | --- | --- |
-| `/settings`, `/assets`, `/attendance`, `/leave`, `/payroll`, `/insurance`, `/operation-theatre`, `/ambulance`, `/blood-bank`, `/nurses` | Generic `ModulePage` placeholder |
+| `/settings`, `/assets`, `/attendance`, `/leave`, `/payroll`, `/insurance`, `/operation-theatre`, `/ambulance`, `/blood-bank` | Generic `ModulePage` placeholder |
+| `/nurses` | Redirect → `/nurse/ward-dashboard` |
+| `/laboratory` | Redirect → `/lab` |
 
 ---
 

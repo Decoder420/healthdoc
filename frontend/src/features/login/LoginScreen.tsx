@@ -7,7 +7,10 @@ import { ROLES, type Role } from "@/config/roles";
 import { Button } from "@/components/ui/button";
 import { FieldSelect } from "@/components/ui/mui-field";
 import { setAuthSession } from "@/lib/auth";
+import { isDevAuthEnabled } from "@/lib/auth/mode";
+import { loginWithKeycloak } from "@/lib/auth/keycloak";
 import { getDefaultRouteForRole } from "@/lib/auth/routes";
+import { useAuth } from "@/providers/auth-provider";
 
 const DEV_USERS: Record<
   Role,
@@ -59,17 +62,48 @@ const DEV_USERS: Record<
 
 export function LoginScreen() {
   const searchParams = useSearchParams();
+  const { updateUser } = useAuth();
   const [role, setRole] = useState<Role>(ROLES.RECEPTIONIST);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const devAuth = isDevAuthEnabled();
 
-  function handleDevLogin() {
-    const user = DEV_USERS[role];
-    setAuthSession(user, "dev-token");
+  function redirectAfterLogin(selectedRole: Role) {
     const redirectTo = searchParams.get("redirect");
     const destination =
-      redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+      redirectTo &&
+      redirectTo.startsWith("/") &&
+      !redirectTo.startsWith("//") &&
+      redirectTo !== "/"
         ? redirectTo
-        : getDefaultRouteForRole(role);
+        : getDefaultRouteForRole(selectedRole);
     window.location.href = destination;
+  }
+
+  async function handleKeycloakLogin() {
+    setBusy(true);
+    setError(null);
+    try {
+      const redirectTo = searchParams.get("redirect");
+      const redirectUri =
+        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+          ? `${window.location.origin}${redirectTo}`
+          : `${window.location.origin}/dashboard`;
+      await loginWithKeycloak(redirectUri);
+    } catch (err) {
+      console.error(err);
+      setError("Keycloak sign-in failed. Check KEYCLOAK is running and NEXT_PUBLIC_KEYCLOAK_URL.");
+      setBusy(false);
+    }
+  }
+
+  function handleDevLogin() {
+    if (!devAuth) return;
+    const user = DEV_USERS[role];
+    // UX presence only — no bearer token; APIs stay unauthenticated in pure UI mode.
+    setAuthSession(user);
+    updateUser(user);
+    redirectAfterLogin(role);
   }
 
   return (
@@ -81,23 +115,53 @@ export function LoginScreen() {
       </p>
 
       <div className="mt-6 space-y-4">
-        <FieldSelect
-          label="Dev role"
-          value={role}
-          onChange={(event) => setRole(event.target.value as Role)}
-          options={[
-            { value: ROLES.RECEPTIONIST, label: "Receptionist" },
-            { value: ROLES.DOCTOR, label: "Doctor" },
-            { value: ROLES.NURSE, label: "Nurse" },
-            { value: ROLES.ADMIN, label: "Admin" },
-            { value: ROLES.PHARMACIST, label: "Pharmacist" },
-            { value: ROLES.LAB_TECHNICIAN, label: "Lab Technician" },
-            { value: ROLES.ACCOUNTANT, label: "Accountant" },
-          ]}
-        />
-        <Button type="button" onClick={handleDevLogin} className="w-full">
-          Continue (dev login)
-        </Button>
+        {!devAuth && (
+          <>
+            <Button
+              type="button"
+              onClick={() => void handleKeycloakLogin()}
+              className="w-full"
+              disabled={busy}
+            >
+              {busy ? "Redirecting…" : "Sign in with Keycloak"}
+            </Button>
+            {error && (
+              <p className="text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Identity is Keycloak OIDC. Middleware only gates navigation; API
+              calls use a Bearer access token held in memory.
+            </p>
+          </>
+        )}
+
+        {devAuth && (
+          <>
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Dev auth mode (`NEXT_PUBLIC_AUTH_MODE=dev`). UI scaffolding only —
+              not production identity. Do not use against real patient data.
+            </p>
+            <FieldSelect
+              label="Dev role"
+              value={role}
+              onChange={(event) => setRole(event.target.value as Role)}
+              options={[
+                { value: ROLES.RECEPTIONIST, label: "Receptionist" },
+                { value: ROLES.DOCTOR, label: "Doctor" },
+                { value: ROLES.NURSE, label: "Nurse" },
+                { value: ROLES.ADMIN, label: "Admin" },
+                { value: ROLES.PHARMACIST, label: "Pharmacist" },
+                { value: ROLES.LAB_TECHNICIAN, label: "Lab Technician" },
+                { value: ROLES.ACCOUNTANT, label: "Accountant" },
+              ]}
+            />
+            <Button type="button" onClick={handleDevLogin} className="w-full">
+              Continue (dev UI only)
+            </Button>
+          </>
+        )}
       </div>
 
       <p className="mt-4 text-xs text-muted-foreground">
