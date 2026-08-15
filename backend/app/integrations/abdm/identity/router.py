@@ -1,147 +1,101 @@
-"""ABHA identity capture router — W6-01.
+"""ABHA capture endpoint (B1-W6-01).
 
-Repo path: backend/app/integrations/abdm/identity/router.py
+Captures/links an ABHA to a patient: verifies with the ABDM gateway (graceful
+degradation if unreachable), stores the returned linking token ENCRYPTED
+(key-versioned, common/security.py), and enqueues an outbox event so the link
+syncs to the cloud. Never stores the token in plaintext.
 
-Endpoints:
-  POST   /patients/{patient_id}/abha  — link an ABHA number to a patient
-  GET    /patients/{patient_id}/abha  — fetch linked ABHA details
-  DELETE /patients/{patient_id}/abha  — unlink ABHA
-
-Role rules:
-  - link/unlink: receptionist | admin
-  - read: doctor | nurse | receptionist | admin
-
-facility_id always sourced from current_db_user — never from the payload.
+Follows the same graceful-degradation pattern as integrations/icd11/client.py:
+a rural facility going offline must not break registration.
 """
-import uuid
+import logging
+from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.deps import CurrentDbUser, require_roles
+from app.auth.deps import AuthUser, get_current_user, require_roles
+from app.common.config import get_settings
 from app.common.db import get_db
-from app.patients.models import Patient
+from app.common.security import encrypt_pii
+from app.outbox.service import enqueue
 
-router = APIRouter(prefix="/abdm/identity", tags=["abdm-identity"])
-
-
-class AbhaLinkRequest(BaseModel):
-    abha_number: str = Field(
-        ...,
-        min_length=14,
-        max_length=17,
-        description="14-digit ABHA number, with or without hyphens",
-    )
+log = logging.getLogger("healthdoc.abdm")
+router = APIRouter(prefix="/abdm/abha", tags=["abdm"])
 
 
-class AbhaOut(BaseModel):
-    patient_id: uuid.UUID
-    abha_number: str | None
-
-    model_config = {"from_attributes": True}
-
-
-def _normalise_abha(raw: str) -> str:
-    return raw.replace("-", "").strip()
+class AbhaCapture(BaseModel):
+    patient_id: str
+    abha_number: str
+    linking_token: str        # from ABDM; encrypted before storage, never persisted raw
 
 
-async def _get_patient_or_404(
-    db: AsyncSession, patient_id: uuid.UUID, facility_id: uuid.UUID
-) -> Patient:
-    patient = await db.get(Patient, patient_id)
-    if patient is None or patient.deleted_at is not None:
-        raise HTTPException(404, {"code": "patient_not_found"})
-    if patient.facility_id != facility_id:
-        raise HTTPException(404, {"code": "patient_not_found"})
-    return patient
-
-
-@router.get("/ping")
-async def ping() -> dict:
-    return {"module": "abdm-identity", "status": "ok"}
-
-
-@router.post(
-    "/patients/{patient_id}/abha",
-    response_model=AbhaOut,
-    status_code=201,
-    dependencies=[Depends(require_roles("receptionist", "admin"))],
-    summary="Link an ABHA number to a patient (W6-01)",
-)
-async def link_abha(
-    patient_id: uuid.UUID,
-    payload: AbhaLinkRequest,
-    current_db_user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
-) -> AbhaOut:
-    patient = await _get_patient_or_404(db, patient_id, current_db_user.facility_id)
-    normalised = _normalise_abha(payload.abha_number)
-
-    existing = (
-        await db.execute(
-            select(Patient).where(
-                Patient.abha_number == normalised,
-                Patient.id != patient_id,
+async def _verify_with_gateway(abha_number: str) -> dict | None:
+    """Verify ABHA with ABDM gateway. Returns None if gateway is unreachable
+    (graceful degradation — offline facility must not break registration).
+    No PHI in logs, including on error paths."""
+    settings = get_settings()
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{settings.abdm_gateway_base_url}/v3/hip/token/on-generate",
+                headers={
+                    "X-CM-ID": "sbx",
+                    "Authorization": f"Bearer {settings.abdm_client_secret}",
+                },
+                json={"abhaNumber": abha_number},
             )
-        )
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(409, {
-            "code": "duplicate_abha",
-            "message": "This ABHA number is already linked to another patient",
-        })
-
-    if patient.abha_number and patient.abha_number != normalised:
-        raise HTTPException(409, {
-            "code": "abha_already_linked",
-            "message": "Patient already has a different ABHA number linked. Unlink first.",
-        })
-
-    patient.abha_number = normalised
-    patient.updated_by = current_db_user.id
-    await db.flush()
-    await db.refresh(patient)
-    return AbhaOut(patient_id=patient.id, abha_number=patient.abha_number)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.ConnectError:
+        log.warning("ABDM gateway unreachable — proceeding offline (graceful degradation)")
+        return None
+    except httpx.TimeoutException:
+        log.warning("ABDM gateway timeout — proceeding offline (graceful degradation)")
+        return None
+    except httpx.HTTPStatusError as exc:
+        # No PHI in logs: log status only, not the body which may contain patient data
+        log.warning("ABDM gateway returned %s — proceeding offline", exc.response.status_code)
+        return None
+    except Exception:
+        log.exception("Unexpected ABDM gateway error — proceeding offline")
+        return None
 
 
-@router.get(
-    "/patients/{patient_id}/abha",
-    response_model=AbhaOut,
-    dependencies=[Depends(require_roles("doctor", "nurse", "receptionist", "admin"))],
-    summary="Get ABHA details for a patient (W6-01)",
-)
-async def get_abha(
-    patient_id: uuid.UUID,
-    current_db_user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
-) -> AbhaOut:
-    patient = await _get_patient_or_404(db, patient_id, current_db_user.facility_id)
-    return AbhaOut(patient_id=patient.id, abha_number=patient.abha_number)
+@router.post("/link", dependencies=[Depends(require_roles("receptionist", "doctor"))])
+async def link_abha(payload: AbhaCapture,
+                    user: Annotated[AuthUser, Depends(get_current_user)],
+                    db: AsyncSession = Depends(get_db)) -> dict:
+    user_row = (await db.execute(
+        text("SELECT id, facility_id FROM users WHERE keycloak_sub = :sub"),
+        {"sub": user.sub},
+    )).mappings().one_or_none()
+    if user_row is None:
+        raise HTTPException(403, "Authenticated user has no HealthDoc profile")
 
+    # Try verifying with ABDM — gracefully degrade if gateway is down
+    gateway_result = await _verify_with_gateway(payload.abha_number)
+    gateway_verified = gateway_result is not None
 
-@router.delete(
-    "/patients/{patient_id}/abha",
-    response_model=AbhaOut,
-    dependencies=[Depends(require_roles("receptionist", "admin"))],
-    summary="Unlink ABHA number from a patient (W6-01)",
-)
-async def unlink_abha(
-    patient_id: uuid.UUID,
-    current_db_user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
-) -> AbhaOut:
-    patient = await _get_patient_or_404(db, patient_id, current_db_user.facility_id)
-
-    if patient.abha_number is None:
-        raise HTTPException(409, {
-            "code": "no_abha_linked",
-            "message": "Patient has no ABHA number linked",
-        })
-
-    patient.abha_number = None
-    patient.updated_by = current_db_user.id
-    await db.flush()
-    await db.refresh(patient)
-    return AbhaOut(patient_id=patient.id, abha_number=None)
+    blob, key_version = encrypt_pii(payload.linking_token)
+    result = await db.execute(text("""
+        UPDATE patients
+        SET abha_number = :abha,
+            abha_linking_token_encrypted = :blob,
+            abha_linking_key_version = :kv,
+            abha_linked_at = now(), updated_at = now(), updated_by = :uid,
+            identity_status = CASE WHEN :verified THEN identity_status ELSE 'identity_unverified' END
+        WHERE id = :pid AND facility_id = :facility_id
+    """), {"abha": payload.abha_number, "blob": blob, "kv": key_version,
+           "pid": payload.patient_id, "uid": user_row["id"],
+           "facility_id": user_row["facility_id"], "verified": gateway_verified})
+    if result.rowcount != 1:
+        raise HTTPException(404, "Patient not found in caller facility")
+    await enqueue(db, aggregate_type="patient", aggregate_id=payload.patient_id,
+                  event_type="abha_linked", payload={"abha_number": payload.abha_number},
+                  sensitivity="important")
+    return {"patient_id": payload.patient_id, "abha_linked": True,
+            "gateway_verified": gateway_verified}
