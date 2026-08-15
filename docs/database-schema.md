@@ -151,6 +151,7 @@ do not merge out of order.**
 | 0034 | ipd_bed_integrity | ALTER admissions, ALTER discharges | B4 (B4-W?-01) |
 | 0035 | patients_row_version | ALTER patients: row_version | B2 (#353) |
 | 0036 | patient_merge_log_decision_reason | ALTER patient_merge_log: decision_reason | B2 (#353) |
+| 0036a | prescriptions_facility_id | ALTER prescriptions: facility_id | B3+B6 — out-of-band insert, `down_revision = "0036"`. The ORM has declared this column since 0008 and no migration ever created it; it stayed hidden until code first inserted a Prescription through the ORM |
 | 0037 | patients_constraint_naming | ALTER patients: constraint names -> NAMING_CONVENTION | B2 (#353) |
 | 0038 | doctor_reviews | doctor_reviews | B3 (W4) — #361, written against this number |
 | 0039 | notification_history_facility_id | ALTER notification_history: facility_id NOT NULL | B4 — no facility column meant no way to scope #230's read API |
@@ -632,8 +633,13 @@ INDEX ix_orders_patient_id (patient_id) · INDEX ix_orders_encounter_id (encount
 ```
 encounter_id UUID NOT NULL → encounters
 patient_id   UUID NOT NULL → patients
+facility_id  UUID NOT NULL → facilities        -- added 0036a; denormalized for audit
 notes        text
 ```
+`facility_id` is denormalized from the encounter for the same reason as
+`orders.facility_id`: the audit layer opts a model in via
+`__audit_facility_id_field__` and reads the column off the row, so reaching
+through `encounter_id` would make every audited write a join.
 
 **prescription_items**
 ```
