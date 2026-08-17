@@ -10,24 +10,37 @@ import PartialDispenseAlerts from "@/components/dashboard/pharmacist/dispense/Pa
 import PharmacistNotes from "@/components/dashboard/pharmacist/dispense/PharmacistNotes";
 import DispenseFooter from "@/components/dashboard/pharmacist/dispense/DispenseFooter";
 
-import {
-  pharmacyPrescriptions,
-} from "@/features/pharmacy/data/prescriptionData";
+import { pharmacyPrescriptions } from "@/features/pharmacy/data/prescriptionData";
 
-import {
-  selectFEFOBatch,
-} from "@/lib/utils/fefo";
+import { selectFEFOBatch } from "@/lib/utils/fefo";
 
 import {
   reducePharmacyStock,
-} from "@/features/pharmacy/data/pharmacyStock";
+  getPharmacyStock,
+} from "@/features/pharmacy/data/pharmacyStockData";
 
-import type {
-  DispenseMedicine,
-} from "@/features/pharmacy/types/types";
+import type { DispenseMedicine } from "@/features/pharmacy/types/types";
 
-const DISPENSE_HISTORY_KEY =
-  "pharmacy_dispense_history";
+const DISPENSE_HISTORY_KEY = "pharmacy_dispense_history";
+
+type PharmacyStockAlertPayload = {
+  itemId: string;
+  medicineName: string;
+  batchNumber: string;
+  availableStock: number;
+  reorderLevel: number;
+  type: "Out of Stock" | "Low Stock";
+  message: string;
+};
+
+const createPharmacyStockAlert = (
+  payload: PharmacyStockAlertPayload
+) => {
+  console.warn(
+    "Pharmacy stock alert created:",
+    payload
+  );
+};
 
 interface DispenseHistoryRecord {
   id: string;
@@ -52,19 +65,16 @@ export function PharmacyDispenseScreen() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const prescriptionId =
-    searchParams.get("prescription");
+  const prescriptionId = searchParams.get("prescription");
 
   const [notes, setNotes] = useState("");
-  const [rows, setRows] =
-    useState<DispenseMedicine[]>([]);
-  const [isConfirming, setIsConfirming] =
-    useState(false);
+  const [rows, setRows] = useState<DispenseMedicine[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * FIND PRESCRIPTION
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   const prescription = useMemo(() => {
@@ -74,16 +84,15 @@ export function PharmacyDispenseScreen() {
 
     return (
       pharmacyPrescriptions.find(
-        (item) =>
-          item.id === prescriptionId
+        (item) => item.id === prescriptionId
       ) ?? null
     );
   }, [prescriptionId]);
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * APPLY FEFO
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   const fefoMedicines = useMemo(() => {
@@ -91,69 +100,53 @@ export function PharmacyDispenseScreen() {
       return [];
     }
 
-    return prescription.medicines.map(
-      (medicine) => {
-        const fefoBatch =
-          selectFEFOBatch(
-            medicine.batches
-          );
+    return prescription.medicines.map((medicine) => {
+      const fefoBatch = selectFEFOBatch(medicine.batches);
 
-        /*
-         * No stock available
-         */
-        if (!fefoBatch) {
-          return {
-            ...medicine,
-
-            batchNumber: "",
-            expiryDate: "",
-            availableStock: 0,
-            dispenseQty: 0,
-
-            status:
-              "Out of Stock" as const,
-          };
-        }
-
-        /*
-         * Maximum quantity that can
-         * currently be dispensed.
-         */
-        const initialDispenseQty =
-          Math.min(
-            medicine.prescribedQty,
-            fefoBatch.availableStock
-          );
-
+      /*
+       * No stock
+       */
+      if (!fefoBatch) {
         return {
           ...medicine,
-
-          batchNumber:
-            fefoBatch.batchNumber,
-
-          expiryDate:
-            fefoBatch.expiryDate,
-
-          availableStock:
-            fefoBatch.availableStock,
-
-          dispenseQty:
-            initialDispenseQty,
-
-          status:
-            initialDispenseQty <
-            medicine.prescribedQty
-              ? ("Partial" as const)
-              : ("Available" as const),
+          batchNumber: "",
+          expiryDate: "",
+          availableStock: 0,
+          dispenseQty: 0,
+          status: "Out of Stock" as const,
         };
       }
-    );
+
+      /*
+       * Maximum quantity that can currently
+       * be dispensed.
+       */
+      const initialDispenseQty = Math.min(
+        medicine.prescribedQty,
+        fefoBatch.availableStock
+      );
+
+      return {
+        ...medicine,
+
+        batchNumber: fefoBatch.batchNumber,
+        expiryDate: fefoBatch.expiryDate,
+        availableStock: fefoBatch.availableStock,
+
+        dispenseQty: initialDispenseQty,
+
+        status:
+          initialDispenseQty < medicine.prescribedQty
+            ? ("Partial" as const)
+            : ("Available" as const),
+      };
+    });
   }, [prescription]);
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * LOAD FEFO MEDICINES
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   useEffect(() => {
@@ -161,27 +154,23 @@ export function PharmacyDispenseScreen() {
   }, [fefoMedicines]);
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * CANCEL
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   const handleCancel = () => {
-    router.push(
-      "/pharmacy/prescription-queue"
-    );
+    router.push("/pharmacy/prescription-queue");
   };
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * SAVE DRAFT
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   const handleSaveDraft = () => {
-    console.log("Draft Saved");
-
-    console.log({
+    console.log("Pharmacy dispense draft saved:", {
       prescriptionId,
       notes,
       medicines: rows,
@@ -189,50 +178,38 @@ export function PharmacyDispenseScreen() {
   };
 
   /*
-   * ----------------------------------------------------------
-   * CREATE DISPENSE HISTORY
-   * ----------------------------------------------------------
+   * ============================================================
+   * SAVE DISPENSE HISTORY
+   * ============================================================
    */
 
   const saveDispenseHistory = (
     dispenseType: "Full" | "Partial"
   ) => {
     if (!prescription) {
-      return;
+      return null;
     }
 
-    const existing: DispenseHistoryRecord[] =
-      JSON.parse(
-        localStorage.getItem(
-          DISPENSE_HISTORY_KEY
-        ) || "[]"
-      );
+    const existing: DispenseHistoryRecord[] = JSON.parse(
+      localStorage.getItem(DISPENSE_HISTORY_KEY) || "[]"
+    );
 
-    const receiptNo =
-      `RCP-${Date.now()}`;
+    const receiptNo = `RCP-${Date.now()}`;
 
     const record: DispenseHistoryRecord = {
-      id:
-        `DISP-${Date.now()}`,
+      id: `DISP-${Date.now()}`,
 
-      prescriptionId:
-        prescription.id,
+      prescriptionId: prescription.id,
 
       receiptNo,
 
-      patientName:
-        prescription.patient.patientName,
+      patientName: prescription.patient.patientName,
 
-      uhid:
-        prescription.patient.uhid,
+      uhid: prescription.patient.uhid,
 
-      pharmacist:
-        "Current Pharmacist",
+      pharmacist: "Current Pharmacist",
 
-      date:
-        new Date().toLocaleDateString(
-          "en-IN"
-        ),
+      date: new Date().toLocaleDateString("en-IN"),
 
       status:
         dispenseType === "Full"
@@ -241,29 +218,20 @@ export function PharmacyDispenseScreen() {
 
       dispenseType,
 
-      medicines:
-        rows
-          .filter(
-            (medicine) =>
-              medicine.dispenseQty > 0
-          )
-          .map(
-            (medicine) => ({
-              medicineName:
-                medicine.medicineName,
-
-              batchNumber:
-                medicine.batchNumber,
-
-              quantity:
-                medicine.dispenseQty,
-            })
-          ),
+      medicines: rows
+        .filter(
+          (medicine) =>
+            medicine.dispenseQty > 0
+        )
+        .map((medicine) => ({
+          medicineName: medicine.medicineName,
+          batchNumber: medicine.batchNumber,
+          quantity: medicine.dispenseQty,
+        })),
 
       notes,
 
-      createdAt:
-        new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     };
 
     localStorage.setItem(
@@ -274,250 +242,324 @@ export function PharmacyDispenseScreen() {
       ])
     );
 
-    /*
-     * Notify history screen if it
-     * happens to be mounted.
-     */
-    window.dispatchEvent(
-      new Event(
-        "pharmacy-dispense-updated"
-      )
-    );
-
     return record;
   };
 
   /*
-   * ----------------------------------------------------------
-   * CONFIRM DISPENSE
-   * ----------------------------------------------------------
+   * ============================================================
+   * CREATE LOW STOCK ALERT
+   * ============================================================
    */
 
-  const handleConfirmDispense =
-    async () => {
-      if (isConfirming) {
+  const checkAndCreateLowStockAlert = (
+    medicine: DispenseMedicine
+  ) => {
+    try {
+      const stock = getPharmacyStock();
+
+      const stockItem = stock.find(
+        (item) =>
+          item.itemId === medicine.id &&
+          item.batchNumber === medicine.batchNumber
+      );
+
+      if (!stockItem) {
+        console.warn(
+          "Stock item not found after dispense:",
+          medicine.medicineName
+        );
+
         return;
       }
 
-      setIsConfirming(true);
-
-      try {
-        /*
-         * Prescription validation
-         */
-        if (!prescription) {
-          alert(
-            "Prescription not found."
-          );
-
-          return;
-        }
-
-        /*
-         * ------------------------------------------------------
-         * VALIDATE QUANTITY
-         * ------------------------------------------------------
-         */
-
-        const invalidMedicine =
-          rows.find(
-            (medicine) =>
-              medicine.dispenseQty < 0 ||
-              medicine.dispenseQty >
-                medicine.availableStock
-          );
-
-        if (invalidMedicine) {
-          alert(
-            `${invalidMedicine.medicineName}: Dispense quantity cannot exceed available stock.`
-          );
-
-          return;
-        }
-
-        /*
-         * ------------------------------------------------------
-         * VALIDATE PRESCRIPTION
-         * ------------------------------------------------------
-         */
-
-        const exceedsPrescription =
-          rows.find(
-            (medicine) =>
-              medicine.dispenseQty >
-              medicine.prescribedQty
-          );
-
-        if (exceedsPrescription) {
-          alert(
-            `${exceedsPrescription.medicineName}: Dispense quantity cannot exceed prescribed quantity.`
-          );
-
-          return;
-        }
-
-        /*
-         * ------------------------------------------------------
-         * CHECK AT LEAST ONE MEDICINE
-         * ------------------------------------------------------
-         */
-
-        const totalDispensed =
-          rows.reduce(
-            (sum, medicine) =>
-              sum +
-              medicine.dispenseQty,
-            0
-          );
-
-        if (totalDispensed === 0) {
-          alert(
-            "Please dispense at least one medicine."
-          );
-
-          return;
-        }
-
-        /*
-         * ------------------------------------------------------
-         * DETERMINE DISPENSE TYPE
-         * ------------------------------------------------------
-         */
-
-        const hasIncompleteMedicine =
-          rows.some(
-            (medicine) =>
-              medicine.dispenseQty <
-              medicine.prescribedQty
-          );
-
-        const dispenseType =
-          hasIncompleteMedicine
-            ? "Partial"
-            : "Full";
-
-        /*
-         * ------------------------------------------------------
-         * VALIDATE FEFO BATCHES BEFORE
-         * CHANGING ANY STOCK
-         * ------------------------------------------------------
-         */
-
-        const medicinesToDispense =
-          rows.filter(
-            (medicine) =>
-              medicine.dispenseQty > 0
-          );
-
-        /*
-         * ------------------------------------------------------
-         * UPDATE PHARMACY STOCK
-         * ------------------------------------------------------
-         */
-
-        for (
-          const medicine of
-            medicinesToDispense
-        ) {
-          if (
-            !medicine.batchNumber
-          ) {
-            throw new Error(
-              `${medicine.medicineName}: No valid batch selected.`
-            );
-          }
-
-          reducePharmacyStock({
-            itemId:
-              medicine.id,
-
-            medicineName:
-              medicine.medicineName,
-
-            batchNumber:
-              medicine.batchNumber,
-
-            quantity:
-              medicine.dispenseQty,
-
-            prescriptionId:
-              prescription.id,
-          });
-        }
-
-        /*
-         * ------------------------------------------------------
-         * SAVE DISPENSE HISTORY
-         * ------------------------------------------------------
-         */
-
-        const historyRecord =
-          saveDispenseHistory(
-            dispenseType
-          );
-
-        /*
-         * ------------------------------------------------------
-         * NOTIFY DASHBOARD
-         * ------------------------------------------------------
-         */
-
-        window.dispatchEvent(
-          new Event(
-            "pharmacy-stock-updated"
-          )
-        );
-
-        window.dispatchEvent(
-          new Event(
-            "pharmacy-dispense-updated"
-          )
-        );
-
-        console.log(
-          "DISPENSE COMPLETED:",
-          {
-            prescriptionId:
-              prescription.id,
-
-            dispenseType,
-
-            medicines:
-              medicinesToDispense,
-
-            historyRecord,
-          }
-        );
-
-        /*
-         * ------------------------------------------------------
-         * GO TO RECEIPT
-         * ------------------------------------------------------
-         */
-
-        router.push(
-          `/pharmacy/receipt/preview?prescription=${prescriptionId}`
-        );
-      } catch (error) {
-        console.error(
-          "Dispense failed:",
-          error
-        );
-
-        alert(
-          error instanceof Error
-            ? error.message
-            : "Failed to complete dispense."
-        );
-      } finally {
-        setIsConfirming(false);
+      /*
+       * The stock service should already calculate
+       * the current available quantity.
+       */
+      if (
+        stockItem.availableStock <=
+        stockItem.reorderLevel
+      ) {
+        createPharmacyStockAlert({
+          itemId: stockItem.itemId,
+          medicineName: stockItem.itemName,
+          batchNumber: stockItem.batchNumber,
+          availableStock: stockItem.availableStock,
+          reorderLevel: stockItem.reorderLevel,
+          type:
+            stockItem.availableStock === 0
+              ? "Out of Stock"
+              : "Low Stock",
+          message:
+            stockItem.availableStock === 0
+              ? `${stockItem.itemName} is out of stock.`
+              : `${stockItem.itemName} has reached its reorder level.`,
+        });
       }
-    };
+    } catch (error) {
+      /*
+       * Alert creation should not cancel
+       * an already successful dispense.
+       */
+      console.error(
+        "Failed to create pharmacy stock alert:",
+        error
+      );
+    }
+  };
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
+   * CONFIRM DISPENSE
+   * ============================================================
+   */
+
+  const handleConfirmDispense = async () => {
+    if (isConfirming) {
+      return;
+    }
+
+    setIsConfirming(true);
+
+    try {
+      /*
+       * --------------------------------------------------------
+       * PRESCRIPTION VALIDATION
+       * --------------------------------------------------------
+       */
+
+      if (!prescription) {
+        alert("Prescription not found.");
+        return;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * QUANTITY VALIDATION
+       * --------------------------------------------------------
+       */
+
+      const invalidMedicine = rows.find(
+        (medicine) =>
+          medicine.dispenseQty < 0 ||
+          medicine.dispenseQty >
+            medicine.availableStock
+      );
+
+      if (invalidMedicine) {
+        alert(
+          `${invalidMedicine.medicineName}: Dispense quantity cannot exceed available stock.`
+        );
+
+        return;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * PRESCRIBED QUANTITY VALIDATION
+       * --------------------------------------------------------
+       */
+
+      const exceedsPrescription = rows.find(
+        (medicine) =>
+          medicine.dispenseQty >
+          medicine.prescribedQty
+      );
+
+      if (exceedsPrescription) {
+        alert(
+          `${exceedsPrescription.medicineName}: Dispense quantity cannot exceed prescribed quantity.`
+        );
+
+        return;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * AT LEAST ONE MEDICINE
+       * --------------------------------------------------------
+       */
+
+      const totalDispensed = rows.reduce(
+        (sum, medicine) =>
+          sum + medicine.dispenseQty,
+        0
+      );
+
+      if (totalDispensed === 0) {
+        alert(
+          "Please dispense at least one medicine."
+        );
+
+        return;
+      }
+
+      /*
+       * --------------------------------------------------------
+       * DISPENSE TYPE
+       * --------------------------------------------------------
+       */
+
+      const hasIncompleteMedicine = rows.some(
+        (medicine) =>
+          medicine.dispenseQty <
+          medicine.prescribedQty
+      );
+
+      const dispenseType =
+        hasIncompleteMedicine
+          ? "Partial"
+          : "Full";
+
+      /*
+       * --------------------------------------------------------
+       * MEDICINES TO DISPENSE
+       * --------------------------------------------------------
+       */
+
+      const medicinesToDispense = rows.filter(
+        (medicine) =>
+          medicine.dispenseQty > 0
+      );
+
+      /*
+       * --------------------------------------------------------
+       * VALIDATE BATCHES FIRST
+       * --------------------------------------------------------
+       */
+
+      for (const medicine of medicinesToDispense) {
+        if (!medicine.batchNumber) {
+          throw new Error(
+            `${medicine.medicineName}: No valid FEFO batch selected.`
+          );
+        }
+      }
+
+      /*
+       * --------------------------------------------------------
+       * UPDATE PHARMACY STOCK
+       * --------------------------------------------------------
+       *
+       * Pharmacy stock is reduced ONLY here.
+       */
+
+      for (const medicine of medicinesToDispense) {
+        reducePharmacyStock(
+          medicine.id,
+          medicine.dispenseQty
+        );
+      }
+
+      /*
+       * --------------------------------------------------------
+       * CREATE LOW STOCK ALERTS
+       * --------------------------------------------------------
+       */
+
+      for (const medicine of medicinesToDispense) {
+        checkAndCreateLowStockAlert(
+          medicine
+        );
+      }
+
+      /*
+       * --------------------------------------------------------
+       * CREATE DISPENSE HISTORY
+       * --------------------------------------------------------
+       */
+
+      const historyRecord =
+        saveDispenseHistory(
+          dispenseType
+        );
+
+      /*
+       * --------------------------------------------------------
+       * NOTIFY PHARMACY COMPONENTS
+       * --------------------------------------------------------
+       */
+
+      window.dispatchEvent(
+        new Event(
+          "pharmacy-stock-updated"
+        )
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "pharmacy-dispense-updated"
+        )
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "pharmacy-stock-alert-updated"
+        )
+      );
+
+      /*
+       * --------------------------------------------------------
+       * DEBUG
+       * --------------------------------------------------------
+       */
+
+      console.log(
+        "PHARMACY DISPENSE COMPLETED",
+        {
+          prescriptionId:
+            prescription.id,
+
+          dispenseType,
+
+          medicines:
+            medicinesToDispense,
+
+          historyRecord,
+        }
+      );
+
+      /*
+       * --------------------------------------------------------
+       * SUCCESS MESSAGE
+       * --------------------------------------------------------
+       */
+
+      alert(
+        dispenseType === "Full"
+          ? "Medicines fully dispensed successfully."
+          : "Medicines partially dispensed successfully."
+      );
+
+      /*
+       * --------------------------------------------------------
+       * OPEN RECEIPT
+       * --------------------------------------------------------
+       */
+
+      router.push(
+        `/pharmacy/receipt/preview?prescription=${prescriptionId}`
+      );
+    } catch (error) {
+      console.error(
+        "Dispense failed:",
+        error
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to complete dispense."
+      );
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  /*
+   * ============================================================
    * NO PRESCRIPTION
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   if (!prescriptionId) {
@@ -531,12 +573,13 @@ export function PharmacyDispenseScreen() {
           </h2>
 
           <p className="mt-3 text-gray-500">
-            Select a prescription from
-            the Prescription Queue to
-            begin dispensing medicines.
+            Select a prescription from the
+            Prescription Queue to begin
+            dispensing medicines.
           </p>
 
           <button
+            type="button"
             onClick={() =>
               router.push(
                 "/pharmacy/prescription-queue"
@@ -552,9 +595,9 @@ export function PharmacyDispenseScreen() {
   }
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * PRESCRIPTION NOT FOUND
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   if (!prescription) {
@@ -568,11 +611,12 @@ export function PharmacyDispenseScreen() {
           </h2>
 
           <p className="mt-3 text-gray-500">
-            The selected prescription
-            could not be found.
+            The selected prescription could
+            not be found.
           </p>
 
           <button
+            type="button"
             onClick={() =>
               router.push(
                 "/pharmacy/prescription-queue"
@@ -588,9 +632,9 @@ export function PharmacyDispenseScreen() {
   }
 
   /*
-   * ----------------------------------------------------------
+   * ============================================================
    * MAIN SCREEN
-   * ----------------------------------------------------------
+   * ============================================================
    */
 
   return (
@@ -598,9 +642,7 @@ export function PharmacyDispenseScreen() {
       <DispenseHeader />
 
       <PatientInformationCard
-        patient={
-          prescription.patient
-        }
+        patient={prescription.patient}
       />
 
       <MedicationTable
@@ -620,12 +662,8 @@ export function PharmacyDispenseScreen() {
       <DispenseFooter
         onCancel={handleCancel}
         onSaveDraft={handleSaveDraft}
-        onConfirm={
-          handleConfirmDispense
-        }
-        isConfirming={
-          isConfirming
-        }
+        onConfirm={handleConfirmDispense}
+        isConfirming={isConfirming}
       />
     </div>
   );
