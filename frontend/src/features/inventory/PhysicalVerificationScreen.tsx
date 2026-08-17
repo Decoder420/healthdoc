@@ -1,152 +1,814 @@
 "use client";
 
-import { Eye, ClipboardCheck, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-import type { PhysicalVerificationItem } from "@/features/inventory/types/physicalVerification";
+import {
+  Box,
+  Typography,
+  Button,
+} from "@mui/material";
 
-interface Props {
-  items: PhysicalVerificationItem[];
-  onStart: (item: PhysicalVerificationItem) => void;
-  onView: (item: PhysicalVerificationItem) => void;
-  onCreateAdjustment: (item: PhysicalVerificationItem) => void;
-}
+import { ShieldCheck } from "lucide-react";
 
-export default function PhysicalVerificationTable({
-  items,
-  onStart,
-  onView,
-  onCreateAdjustment,
-}: Props) {
+import PhysicalVerificationStats from "@/components/dashboard/inventory/Audit/PhysicalVerification/PhysicalVerificationStats";
+
+import PhysicalVerificationFilters, {
+  type PhysicalVerificationFilterValues,
+} from "@/components/dashboard/inventory/Audit/PhysicalVerification/PhysicalVerificationFilters";
+
+import PhysicalVerificationTable from "@/components/dashboard/inventory/Audit/PhysicalVerification/PhysicalVerificationTable";
+
+import PhysicalVerificationDialog from "@/components/dashboard/inventory/Audit/PhysicalVerification/PhysicalVerificationDialog";
+
+import StockAdjustmentApproval from "@/components/dashboard/inventory/Audit/StockLedger/StockAdjustmentApproval";
+
+import CreateAdjustmentDialog from "@/components/dashboard/inventory/Audit/PhysicalVerification/CreateAdjustmentDialog";
+
+import {
+  getPhysicalVerifications,
+  savePhysicalVerifications,
+} from "@/features/inventory/data/physicalVerificationData";
+
+import type {
+  PhysicalVerificationItem,
+} from "@/features/inventory/types/physicalVerification";
+
+import {
+  getStockAdjustments,
+  createStockAdjustment,
+  generateAdjustmentId,
+} from "@/features/inventory/data/stockAdjustmentData";
+
+import type {
+  StockAdjustment,
+} from "@/features/inventory/types/stockAdjustment";
+
+
+const initialFilters: PhysicalVerificationFilterValues = {
+  search: "",
+  status: "",
+  result: "",
+};
+
+
+export default function PhysicalVerificationScreen() {
+
+  /*
+   * ============================================================
+   * STATE
+   * ============================================================
+   */
+
+  const [items, setItems] =
+    useState<PhysicalVerificationItem[]>([]);
+
+  const [filters, setFilters] =
+    useState<PhysicalVerificationFilterValues>(
+      initialFilters
+    );
+
+  const [selectedVerification, setSelectedVerification] =
+    useState<PhysicalVerificationItem | null>(null);
+
+  const [dialogOpen, setDialogOpen] =
+    useState(false);
+
+  const [readOnly, setReadOnly] =
+    useState(false);
+
+  const [
+    adjustmentVerification,
+    setAdjustmentVerification,
+  ] = useState<PhysicalVerificationItem | null>(null);
+
+  const [
+    adjustmentDialogOpen,
+    setAdjustmentDialogOpen,
+  ] = useState(false);
+
+  const [
+    approvalDialogOpen,
+    setApprovalDialogOpen,
+  ] = useState(false);
+
+
+  /*
+   * ============================================================
+   * LOAD DATA
+   * ============================================================
+   */
+
+  const loadPhysicalVerifications = () => {
+
+    try {
+
+      const data =
+        getPhysicalVerifications();
+
+      setItems(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Failed to load physical verifications:",
+        error
+      );
+
+      setItems([]);
+
+    }
+  };
+
+
+  useEffect(() => {
+
+    loadPhysicalVerifications();
+
+    const handleVerificationUpdate = () => {
+      loadPhysicalVerifications();
+    };
+
+    const handleAdjustmentUpdate = () => {
+      loadPhysicalVerifications();
+    };
+
+    window.addEventListener(
+      "physical-verification-updated",
+      handleVerificationUpdate
+    );
+
+    window.addEventListener(
+      "stock-adjustment-updated",
+      handleAdjustmentUpdate
+    );
+
+    return () => {
+
+      window.removeEventListener(
+        "physical-verification-updated",
+        handleVerificationUpdate
+      );
+
+      window.removeEventListener(
+        "stock-adjustment-updated",
+        handleAdjustmentUpdate
+      );
+
+    };
+
+  }, []);
+
+
+  /*
+   * ============================================================
+   * FILTER DATA
+   * ============================================================
+   */
+
+  const filteredItems =
+    useMemo<PhysicalVerificationItem[]>(() => {
+
+      const search =
+        filters.search
+          .toLowerCase()
+          .trim();
+
+      return items.filter((item) => {
+
+        const matchesSearch =
+          !search ||
+          item.id
+            .toLowerCase()
+            .includes(search) ||
+          item.item_id
+            .toLowerCase()
+            .includes(search) ||
+          item.item_name
+            .toLowerCase()
+            .includes(search) ||
+          item.batch_id
+            ?.toLowerCase()
+            .includes(search);
+
+        const matchesStatus =
+          !filters.status ||
+          item.status === filters.status;
+
+        const matchesResult =
+          !filters.result ||
+          item.result === filters.result;
+
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesResult
+        );
+      });
+
+    }, [items, filters]);
+
+
+  /*
+   * ============================================================
+   * STATS
+   * ============================================================
+   */
+
+  const stats = useMemo(() => {
+
+    return {
+
+      total:
+        items.length,
+
+      pending:
+        items.filter(
+          (item) =>
+            item.status === "Pending"
+        ).length,
+
+      completed:
+        items.filter(
+          (item) =>
+            item.status === "Completed"
+        ).length,
+
+      variances:
+        items.filter(
+          (item) =>
+            item.result === "Variance Found"
+        ).length,
+
+    };
+
+  }, [items]);
+
+
+  /*
+   * ============================================================
+   * START VERIFICATION
+   * ============================================================
+   */
+
+  const handleStart = (
+    verification: PhysicalVerificationItem
+  ) => {
+
+    setSelectedVerification(
+      verification
+    );
+
+    setReadOnly(false);
+
+    setDialogOpen(true);
+  };
+
+
+  /*
+   * ============================================================
+   * VIEW VERIFICATION
+   * ============================================================
+   */
+
+  const handleView = (
+    verification: PhysicalVerificationItem
+  ) => {
+
+    setSelectedVerification(
+      verification
+    );
+
+    setReadOnly(true);
+
+    setDialogOpen(true);
+  };
+
+
+  /*
+   * ============================================================
+   * CLOSE VERIFICATION DIALOG
+   * ============================================================
+   */
+
+  const handleCloseVerificationDialog = () => {
+
+    setDialogOpen(false);
+
+    setSelectedVerification(null);
+
+    setReadOnly(false);
+  };
+
+
+  /*
+   * ============================================================
+   * CREATE ADJUSTMENT
+   * ============================================================
+   */
+
+  const handleCreateAdjustment = (
+    verification: PhysicalVerificationItem
+  ) => {
+
+    const variance =
+      verification.variance ?? 0;
+
+    if (variance === 0) {
+
+      console.warn(
+        "Cannot create adjustment because variance is 0."
+      );
+
+      return;
+    }
+
+    setAdjustmentVerification(
+      verification
+    );
+
+    setAdjustmentDialogOpen(
+      true
+    );
+  };
+
+
+  /*
+   * ============================================================
+   * SAVE PHYSICAL VERIFICATION
+   * ============================================================
+   */
+
+  const handleSave = (
+    verificationId: string,
+    physicalQuantity: number,
+    remarks: string
+  ) => {
+
+    const updated =
+      items.map((item) => {
+
+        if (
+          item.id !== verificationId
+        ) {
+          return item;
+        }
+
+        const variance =
+          physicalQuantity -
+          item.system_quantity;
+
+        return {
+
+          ...item,
+
+          physical_quantity:
+            physicalQuantity,
+
+          variance,
+
+          result:
+            variance === 0
+              ? ("Matched" as const)
+              : ("Variance Found" as const),
+
+          status:
+            "Completed",
+
+          verified_by:
+            "USR-005",
+
+          verified_at:
+            new Date().toISOString(),
+
+          remarks,
+
+        } as PhysicalVerificationItem;
+
+      });
+
+
+    savePhysicalVerifications(
+      updated
+    );
+
+    setItems(updated);
+
+    setDialogOpen(false);
+
+    setSelectedVerification(
+      null
+    );
+
+    setReadOnly(false);
+
+
+    window.dispatchEvent(
+      new Event(
+        "physical-verification-updated"
+      )
+    );
+
+  };
+
+
+  /*
+   * ============================================================
+   * SUBMIT STOCK ADJUSTMENT
+   * ============================================================
+   */
+
+  const handleSubmitAdjustment = (
+    verification: PhysicalVerificationItem,
+    reason: string
+  ) => {
+
+    try {
+
+      const adjustmentQuantity =
+        verification.variance ?? 0;
+
+
+      /*
+       * VALIDATE VARIANCE
+       */
+
+      if (
+        adjustmentQuantity === 0
+      ) {
+
+        console.warn(
+          "Cannot create adjustment with zero variance."
+        );
+
+        return;
+      }
+
+
+      /*
+       * LOAD EXISTING ADJUSTMENTS
+       */
+
+      const existing =
+        getStockAdjustments();
+
+
+      /*
+       * PREVENT DUPLICATE ACTIVE ADJUSTMENT
+       */
+
+      const duplicate =
+        existing.find(
+          (item) =>
+            item.reason?.includes(
+              `(${verification.id})`
+            ) &&
+            (
+              item.status ===
+                "Pending Approval" ||
+              item.status ===
+                "First Approved"
+            )
+        );
+
+
+      if (duplicate) {
+
+        console.warn(
+          "Adjustment already exists:",
+          duplicate
+        );
+
+        setAdjustmentDialogOpen(
+          false
+        );
+
+        setAdjustmentVerification(
+          null
+        );
+
+        window.dispatchEvent(
+          new Event(
+            "stock-adjustment-updated"
+          )
+        );
+
+        return;
+      }
+
+
+      /*
+       * CREATE ADJUSTMENT
+       */
+
+      const adjustment:
+        StockAdjustment = {
+
+        id:
+          generateAdjustmentId(),
+
+        item_id:
+          verification.item_id,
+
+        batch_id:
+          verification.batch_id ??
+          null,
+
+        system_quantity:
+          verification.system_quantity,
+
+        physical_quantity:
+          verification.physical_quantity ??
+          0,
+
+        adjustment_quantity:
+          adjustmentQuantity,
+
+        reason:
+          `${reason} (${verification.id})`,
+
+        requested_by:
+          "USR-005",
+
+        requested_at:
+          new Date().toISOString(),
+
+        status:
+          "Pending Approval",
+
+        first_approved_by:
+          null,
+
+        first_approved_at:
+          null,
+
+        second_approved_by:
+          null,
+
+        second_approved_at:
+          null,
+
+        rejection_reason:
+          null,
+      };
+
+
+      console.log(
+        "CREATING STOCK ADJUSTMENT:",
+        adjustment
+      );
+
+
+      /*
+       * SAVE
+       */
+
+      createStockAdjustment(
+        adjustment
+      );
+
+
+      /*
+       * VERIFY SAVE
+       */
+
+      const savedAdjustments =
+        getStockAdjustments();
+
+      const savedAdjustment =
+        savedAdjustments.find(
+          (item) =>
+            item.id ===
+            adjustment.id
+        );
+
+
+      if (!savedAdjustment) {
+
+        throw new Error(
+          "Stock adjustment was not saved."
+        );
+
+      }
+
+
+      console.log(
+        "STOCK ADJUSTMENT SAVED:",
+        savedAdjustment
+      );
+
+
+      /*
+       * NOTIFY OTHER COMPONENTS
+       */
+
+      window.dispatchEvent(
+        new Event(
+          "stock-adjustment-updated"
+        )
+      );
+
+
+      /*
+       * CLOSE CREATE DIALOG
+       */
+
+      setAdjustmentDialogOpen(
+        false
+      );
+
+      setAdjustmentVerification(
+        null
+      );
+
+
+      /*
+       * OPEN DUAL SIGN-OFF
+       */
+
+      setTimeout(() => {
+
+        setApprovalDialogOpen(
+          true
+        );
+
+      }, 150);
+
+    } catch (error) {
+
+      console.error(
+        "CREATE STOCK ADJUSTMENT ERROR:",
+        error
+      );
+
+    }
+  };
+
+
+  /*
+   * ============================================================
+   * RESET FILTERS
+   * ============================================================
+   */
+
+  const handleReset = () => {
+
+    setFilters(
+      initialFilters
+    );
+
+  };
+
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
+
   return (
-    <div className="surface-card overflow-x-auto">
-      <table className="min-w-full">
-        <thead className="bg-[#001F54] text-white">
-          <tr>
-            <th className="px-4 py-3 text-left">Item</th>
-            <th className="px-4 py-3 text-left">Batch</th>
-            <th className="px-4 py-3 text-center">System Qty</th>
-            <th className="px-4 py-3 text-center">Physical Qty</th>
-            <th className="px-4 py-3 text-center">Variance</th>
-            <th className="px-4 py-3 text-center">Status</th>
-            <th className="px-4 py-3 text-center">Result</th>
-            <th className="px-4 py-3 text-center">Actions</th>
-          </tr>
-        </thead>
 
-        <tbody>
-          {items.length === 0 ? (
-            <tr>
-              <td
-                colSpan={8}
-                className="px-4 py-8 text-center text-gray-500"
-              >
-                No physical verification records found.
-              </td>
-            </tr>
-          ) : (
-            items.map((item) => (
-              <tr
-                key={item.id}
-                className="border-b hover:bg-gray-50"
-              >
-                <td className="px-4 py-3">
-                  <div>
-                    <p className="font-medium text-[#001F54]">
-                      {item.item_name}
-                    </p>
+    <Box>
 
-                    <p className="text-xs text-gray-500">
-                      {item.item_id}
-                    </p>
-                  </div>
-                </td>
+      {/* HEADER */}
 
-                <td className="px-4 py-3">
-                  {item.batch_id ?? "--"}
-                </td>
+      <Box
+        mb={3}
+        display="flex"
+        justifyContent="space-between"
+        alignItems="flex-start"
+        gap={2}
+      >
 
-                <td className="px-4 py-3 text-center">
-                  {item.system_quantity}
-                </td>
+        <Box>
 
-                <td className="px-4 py-3 text-center">
-                  {item.physical_quantity ?? "--"}
-                </td>
+          <Typography
+            variant="h5"
+            fontWeight={700}
+          >
+            Physical Verification
+          </Typography>
 
-                <td className="px-4 py-3 text-center">
-                  {item.variance ?? "--"}
-                </td>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+          >
+            Compare physical stock with system
+            inventory and identify variances.
+          </Typography>
 
-                <td className="px-4 py-3 text-center">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      item.status === "Completed"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {item.status}
-                  </span>
-                </td>
+        </Box>
 
-                <td className="px-4 py-3 text-center">
-                  {item.result ? (
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        item.result === "Matched"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {item.result}
-                    </span>
-                  ) : (
-                    "--"
-                  )}
-                </td>
 
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    {item.status === "Pending" && (
-                      <button
-                        type="button"
-                        onClick={() => onStart(item)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-[#001F54] px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
-                      >
-                        <ClipboardCheck size={15} />
-                        Start
-                      </button>
-                    )}
+        <Button
+          variant="outlined"
+          startIcon={
+            <ShieldCheck size={18} />
+          }
+          onClick={() =>
+            setApprovalDialogOpen(
+              true
+            )
+          }
+        >
+          Dual Sign-off
+        </Button>
 
-                    {item.status === "Completed" && (
-                      <button
-                        type="button"
-                        onClick={() => onView(item)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-[#001F54] bg-white px-3 py-2 text-xs font-semibold text-[#001F54] hover:bg-gray-50"
-                      >
-                        <Eye size={15} />
-                        View
-                      </button>
-                    )}
+      </Box>
 
-                    {item.status === "Completed" &&
-                      item.result === "Variance Found" && (
-                        <button
-                          type="button"
-                          onClick={() => onCreateAdjustment(item)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
-                        >
-                          <SlidersHorizontal size={15} />
-                          Adjustment
-                        </button>
-                      )}
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+
+      {/* STATS */}
+
+      <PhysicalVerificationStats
+        {...stats}
+      />
+
+
+      {/* FILTERS */}
+
+      <PhysicalVerificationFilters
+        filters={filters}
+        onChange={setFilters}
+        onReset={handleReset}
+      />
+
+
+      {/* TABLE */}
+
+      <PhysicalVerificationTable
+        items={filteredItems ?? []}
+        onStart={handleStart}
+        onView={handleView}
+        onCreateAdjustment={
+          handleCreateAdjustment
+        }
+      />
+
+
+      {/* VERIFICATION DIALOG */}
+
+      <PhysicalVerificationDialog
+        open={dialogOpen}
+        verification={
+          selectedVerification
+        }
+        readOnly={readOnly}
+        onClose={
+          handleCloseVerificationDialog
+        }
+        onSave={handleSave}
+      />
+
+
+      {/* DUAL SIGN-OFF */}
+
+      <StockAdjustmentApproval
+        open={approvalDialogOpen}
+        onClose={() =>
+          setApprovalDialogOpen(
+            false
+          )
+        }
+        onUpdated={() => {
+
+          loadPhysicalVerifications();
+
+          window.dispatchEvent(
+            new Event(
+              "stock-adjustment-updated"
+            )
+          );
+
+        }}
+      />
+
+
+      {/* CREATE STOCK ADJUSTMENT */}
+
+      <CreateAdjustmentDialog
+        open={adjustmentDialogOpen}
+        verification={
+          adjustmentVerification
+        }
+        onClose={() => {
+
+          setAdjustmentDialogOpen(
+            false
+          );
+
+          setAdjustmentVerification(
+            null
+          );
+
+        }}
+        onSubmit={
+          handleSubmitAdjustment
+        }
+      />
+
+    </Box>
   );
 }

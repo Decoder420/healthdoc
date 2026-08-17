@@ -24,7 +24,7 @@ const actions = [
     title: "Stock Adjustment",
     description: "Update stock corrections",
     icon: SlidersHorizontal,
-    route: "/inventory/audit/verification",
+    route: "/pharmacy/QuickActions/PharmacyStockAdjustment",
   },
 ];
 

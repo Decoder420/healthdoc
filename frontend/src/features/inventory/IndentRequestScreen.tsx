@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 
 import IndentStats from "@/components/dashboard/inventory/departments/indent/IndentStats";
@@ -19,9 +19,10 @@ import type { IndentRequest } from "./types/indent";
 export default function IndentRequestScreen() {
   const { user } = useAuth();
 
-  const [indents, setIndents] = useState<IndentRequest[]>(() =>
-    getIndentRequests()
-  );
+  // IMPORTANT:
+  // Start with empty data so server and client render
+  // the same HTML during hydration.
+  const [indents, setIndents] = useState<IndentRequest[]>([]);
 
   const [openCreate, setOpenCreate] = useState(false);
 
@@ -30,11 +31,25 @@ export default function IndentRequestScreen() {
   const [selectedIndent, setSelectedIndent] =
     useState<IndentRequest | null>(null);
 
+  /*
+   * Load localStorage data only on the client.
+   */
+  useEffect(() => {
+    const data = getIndentRequests();
+    setIndents(data);
+  }, []);
+
+  /*
+   * View indent
+   */
   const handleView = (indent: IndentRequest) => {
     setSelectedIndent(indent);
     setViewOpen(true);
   };
 
+  /*
+   * Create indent
+   */
   const handleCreateIndent = ({
     indent,
     indentItems,
@@ -56,7 +71,7 @@ export default function IndentRequestScreen() {
     // Save to localStorage
     addIndentRequest(completeIndent);
 
-    // Update UI
+    // Update screen immediately
     setIndents((prev) => [
       completeIndent,
       ...prev,
@@ -65,30 +80,34 @@ export default function IndentRequestScreen() {
     setOpenCreate(false);
   };
 
+  /*
+   * Approve indent
+   */
   const handleApprove = (indent: IndentRequest) => {
-  const updatedIndent: IndentRequest = {
-    ...indent,
-    status: "Approved",
+    const updatedIndent: IndentRequest = {
+      ...indent,
+      status: "Approved",
+    };
+
+    updateIndentRequest(
+      updatedIndent.id,
+      updatedIndent
+    );
+
+    setIndents((prev) =>
+      prev.map((item) =>
+        item.id === updatedIndent.id
+          ? updatedIndent
+          : item
+      )
+    );
   };
-
-  updateIndentRequest(updatedIndent.id, updatedIndent);
-
-  setIndents((prev) =>
-    prev.map((item) =>
-      item.id === updatedIndent.id
-        ? updatedIndent
-        : item
-    )
-  );
-};
 
   return (
     <div className="space-y-6">
 
       {/* Header */}
-
       <div className="flex items-center justify-between">
-
         <div>
           <h1 className="text-2xl font-bold text-foreground">
             Welcome, {user?.name ?? "Inventory Manager"}
@@ -115,29 +134,23 @@ export default function IndentRequestScreen() {
         >
           Create Indent
         </button>
-
       </div>
 
       {/* Stats */}
-
       <IndentStats indents={indents} />
 
       {/* Table */}
-
       <section>
         <div className="surface-card overflow-hidden p-5">
-
           <IndentTable
             indents={indents}
             onView={handleView}
-             onApprove={handleApprove}
+            onApprove={handleApprove}
           />
-
         </div>
       </section>
 
       {/* Create Indent */}
-
       <CreateIndentDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
@@ -145,7 +158,6 @@ export default function IndentRequestScreen() {
       />
 
       {/* View Indent */}
-
       <IndentViewDialog
         open={viewOpen}
         indent={selectedIndent}
@@ -154,7 +166,6 @@ export default function IndentRequestScreen() {
           setSelectedIndent(null);
         }}
       />
-
     </div>
   );
 }
