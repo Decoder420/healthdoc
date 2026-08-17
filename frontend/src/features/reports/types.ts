@@ -1,6 +1,7 @@
 /**
- * Reports MIS types — kpi_snapshots (0025) + GET /reports/kpis?period=
- * Reuses shared KpiSnapshot; no invent catalog table.
+ * Reports MIS types.
+ * - kpi_snapshots shape for future GET /reports/kpis?period= (schema; BE stub today)
+ * - Billing finance MIS: see @/features/billing types DailyRevenue* / Pending* / Scheme*
  */
 
 export type { KpiChartPoint, KpiSnapshot } from "@/types/kpi";

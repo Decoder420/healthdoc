@@ -1,14 +1,22 @@
-import type { AccessChannel, ConsentStatus } from "./types";
+import type { AccessChannel, ConsentChannel, ConsentStatus } from "./types";
 
 import { MOCK_FACILITY_ID } from "@/lib/mock/facility";
 
 export const FACILITY_ID = MOCK_FACILITY_ID;
 
 export const CONSENT_STATUS_LABELS: Record<ConsentStatus, string> = {
-  active: "Active",
-  expired: "Expired",
+  requested: "Requested",
+  granted: "Granted",
+  denied: "Denied",
   revoked: "Revoked",
-  pending: "Pending",
+  expired: "Expired",
+};
+
+export const CONSENT_CHANNEL_LABELS: Record<ConsentChannel, string> = {
+  verbal: "Verbal",
+  written: "Written",
+  digital_otp: "Digital OTP",
+  abdm_consent_manager: "ABDM consent manager",
 };
 
 export const ACCESS_CHANNEL_LABELS: Record<AccessChannel, string> = {

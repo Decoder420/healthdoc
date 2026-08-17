@@ -91,7 +91,8 @@ export type Paginated<T> = {
   items: T[];
   page: number;
   page_size: number;
-  total: number;
+  /** Present in mock; live GET /users may omit total */
+  total?: number;
 };
 
 export type UserAccountRequest = {

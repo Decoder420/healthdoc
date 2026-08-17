@@ -53,6 +53,7 @@ function item(
     quantity?: number;
     reference_type?: string | null;
     reference_id?: string | null;
+    charge_master_id?: string | null;
   } = {},
 ): InvoiceWithItems["items"][0] {
   return withLineAmount({
@@ -61,6 +62,7 @@ function item(
     charge_category,
     reference_type: opts.reference_type ?? null,
     reference_id: opts.reference_id ?? null,
+    charge_master_id: opts.charge_master_id ?? null,
     description,
     quantity: opts.quantity ?? 1,
     unit_price: toMoney(unit_price),
@@ -96,14 +98,18 @@ export const MOCK_INVOICES: InvoiceWithItems[] = [
     },
     visit: { visit_type: "opd" },
     items: [
-      item("11000000-0000-4000-8000-000000000001", INV1, "registration", "OPD registration fee", 200),
+      item("11000000-0000-4000-8000-000000000001", INV1, "registration", "OPD registration fee", 200, {
+        charge_master_id: "cm-reg-opd",
+      }),
       item("11000000-0000-4000-8000-000000000002", INV1, "consultation", "General medicine consultation", 500, {
         reference_type: "consultations",
         reference_id: "40000000-0000-4000-8000-000000000501",
+        charge_master_id: "cm-consult-gm",
       }),
       item("11000000-0000-4000-8000-000000000003", INV1, "lab", "Complete Blood Count (CBC)", 450, {
         reference_type: "lab_order_items",
         reference_id: "40000000-0000-4000-8000-000000000901",
+        charge_master_id: "cm-lab-cbc",
       }),
     ],
   }),
@@ -126,15 +132,19 @@ export const MOCK_INVOICES: InvoiceWithItems[] = [
     },
     visit: { visit_type: "opd" },
     items: [
-      item("11000000-0000-4000-8000-000000000011", INV2, "registration", "OPD registration fee", 200),
+      item("11000000-0000-4000-8000-000000000011", INV2, "registration", "OPD registration fee", 200, {
+        charge_master_id: "cm-reg-opd",
+      }),
       item("11000000-0000-4000-8000-000000000012", INV2, "radiology", "Chest X-Ray PA view", 800, {
         reference_type: "radiology_orders",
         reference_id: "40000000-0000-4000-8000-000000000301",
+        charge_master_id: "cm-rad-cxr",
       }),
       item("11000000-0000-4000-8000-000000000013", INV2, "pharmacy", "Amoxicillin 250mg (strip)", 75, {
         quantity: 2,
         reference_type: "pharmacy_dispense",
         reference_id: "40000000-0000-4000-8000-000000000201",
+        charge_master_id: "cm-pharm-amox",
       }),
     ],
   }),
@@ -158,12 +168,17 @@ export const MOCK_INVOICES: InvoiceWithItems[] = [
     visit: { visit_type: "ipd" },
     payments: undefined,
     items: [
-      item("11000000-0000-4000-8000-000000000021", INV3, "registration", "IPD registration fee", 500),
+      item("11000000-0000-4000-8000-000000000021", INV3, "registration", "IPD registration fee", 500, {
+        charge_master_id: "cm-reg-ipd",
+      }),
       item("11000000-0000-4000-8000-000000000022", INV3, "ipd_stay", "General ward bed charges (1 day)", 2500, {
         reference_type: "admissions",
         reference_id: "40000000-0000-4000-8000-000000000101",
+        charge_master_id: "cm-ipd-bed-day",
       }),
-      item("11000000-0000-4000-8000-000000000023", INV3, "procedure", "Wound dressing", 350),
+      item("11000000-0000-4000-8000-000000000023", INV3, "procedure", "Wound dressing", 350, {
+        charge_master_id: "cm-proc-dressing",
+      }),
     ],
   }),
   buildInvoice({
@@ -185,10 +200,13 @@ export const MOCK_INVOICES: InvoiceWithItems[] = [
     },
     visit: { visit_type: "opd" },
     items: [
-      item("11000000-0000-4000-8000-000000000031", INV4, "registration", "OPD registration fee", 200),
+      item("11000000-0000-4000-8000-000000000031", INV4, "registration", "OPD registration fee", 200, {
+        charge_master_id: "cm-reg-opd",
+      }),
       item("11000000-0000-4000-8000-000000000032", INV4, "consultation", "Gynecology consultation", 600, {
         reference_type: "consultations",
         reference_id: "40000000-0000-4000-8000-000000000502",
+        charge_master_id: "cm-consult-gyn",
       }),
     ],
   }),

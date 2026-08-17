@@ -114,6 +114,24 @@ const STATUS_TONE_MAP: Record<string, StatusTone> = {
     border: "rgb(180 83 9 / 0.2)",
     label: "Pending",
   },
+  requested: {
+    bg: "#fef3c7",
+    fg: meridian.warning,
+    border: "rgb(180 83 9 / 0.2)",
+    label: "Requested",
+  },
+  granted: {
+    bg: "#dcfce7",
+    fg: meridian.success,
+    border: "rgb(22 101 52 / 0.18)",
+    label: "Granted",
+  },
+  denied: {
+    bg: "#fee2e2",
+    fg: meridian.danger,
+    border: "rgb(185 28 28 / 0.18)",
+    label: "Denied",
+  },
   active: {
     bg: "#dcfce7",
     fg: meridian.success,

@@ -133,6 +133,7 @@ export async function addInvoiceItem(
     charge_category: body.charge_category,
     reference_type: body.reference_type ?? null,
     reference_id: body.reference_id ?? null,
+    charge_master_id: body.charge_master_id ?? null,
     description: body.description,
     quantity: body.quantity,
     unit_price: toMoney(fromMoney(body.unit_price)),

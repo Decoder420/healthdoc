@@ -41,9 +41,11 @@ export async function listUsers(
   }
 
   const total = rows.length;
+  void total;
   const start = (page - 1) * page_size;
   const items = rows.slice(start, start + page_size);
-  return delay({ items, page, page_size, total });
+  // Match live GET /users: { items, page, page_size } — no total
+  return delay({ items, page, page_size });
 }
 
 export async function getUser(id: string): Promise<User | null> {

@@ -27,9 +27,9 @@ const LINKS = [
     subtitle: "facility_modules toggles + Keycloak role matrix",
   },
   {
-    href: "/admin/audit",
+    href: "/audit-viewer",
     title: "Audit trail",
-    subtitle: "audit logs · access log · integrity (schema /audit/*)",
+    subtitle: "Opens the auditor workplace (admin may view; not an admin-only module)",
   },
 ] as const;
 
@@ -39,7 +39,7 @@ export function AdminHub() {
       <AdminPageHeader
         eyebrow="Governance"
         title="Admin"
-        subtitle="User management · account governance · facility modules · audit trail"
+        subtitle="User management · account governance · facility modules. Audit trail is a separate auditor workplace."
       />
 
       <Stack spacing={1.5}>

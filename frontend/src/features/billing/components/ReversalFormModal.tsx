@@ -41,7 +41,14 @@ export function ReversalFormModal({ open, payment, busy, onClose, onSubmit }: Pr
 
   const handleSave = async () => {
     if (!reason.trim() || amount <= 0 || amount > maxRefund + 0.001) return;
-    await onSubmit({ amount: toMoney(amount), reason: reason.trim() });
+    await onSubmit({
+      amount: toMoney(amount),
+      reason: reason.trim(),
+      idempotency_key:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `idem-rfd-${Date.now()}`,
+    });
   };
 
   return (

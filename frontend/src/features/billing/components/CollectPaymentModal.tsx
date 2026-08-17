@@ -43,6 +43,11 @@ export function CollectPaymentModal({
     await onSubmit({
       amount: toMoney(amount),
       mode,
+      currency: "INR",
+      idempotency_key:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `idem-${Date.now()}`,
     });
   };
 

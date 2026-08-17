@@ -76,15 +76,17 @@ export function ConsentRecordDetail({
             gap: 1.75,
           }}
         >
-          <Meta label="Purpose" value={record.purpose_label ?? record.purpose_code} />
+          <Meta label="Purpose" value={record.purpose_label ?? record.purpose_code ?? record.purpose_id} />
+          <Meta label="Channel" value={record.channel} />
           <Meta
-            label="Validity"
-            value={`${formatDate(record.valid_from)} → ${record.valid_to ? formatDate(record.valid_to) : "open"}`}
+            label="Expires"
+            value={record.expires_at ? formatDate(record.expires_at) : "open-ended"}
           />
           <Meta label="Granted" value={formatDateTime(record.granted_at)} />
+          <Meta label="Granted by" value={String(record.granted_by_type)} />
           <Meta
-            label="Revoked"
-            value={record.revoked_at ? formatDateTime(record.revoked_at) : "—"}
+            label="Status changed"
+            value={formatDateTime(record.status_changed_at)}
           />
         </Box>
       </Box>

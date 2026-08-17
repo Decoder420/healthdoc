@@ -1,38 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  X,
-  Search,
-  LayoutDashboard,
-  Receipt,
-  Shield,
-  FileText,
-  BarChart3,
-  Settings,
-  ChevronRight,
-} from "lucide-react";
+import { usePathname } from "next/navigation";
+import { X, Search, ChevronRight } from "lucide-react";
+
+import { useMockSession } from "@/lib/session/mockSession";
 
 interface SidebarProps {
   open: boolean;
   setOpen: (value: boolean) => void;
 }
 
-const NAV_ITEMS = [
-  { href: "/billing", label: "Billing", icon: Receipt },
-  { href: "/consent", label: "Consent", icon: FileText },
-  { href: "/audit-viewer", label: "Audit viewer", icon: Shield },
-  { href: "/reports", label: "Reports (MIS)", icon: BarChart3 },
-  { href: "/admin", label: "Admin", icon: Settings },
-] as const;
-
 export default function Sidebar({ open, setOpen }: SidebarProps) {
   const [query, setQuery] = useState("");
+  const pathname = usePathname();
+  const { roleLabel, navItems, areaLabel } = useMockSession();
 
-  const filtered = NAV_ITEMS.filter((item) =>
-    item.label.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return navItems.filter((item) => item.label.toLowerCase().includes(q));
+  }, [navItems, query]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const item of filtered) {
+      const key = areaLabel(item.area);
+      const list = map.get(key) ?? [];
+      list.push(item);
+      map.set(key, list);
+    }
+    return [...map.entries()];
+  }, [filtered, areaLabel]);
 
   return (
     <>
@@ -66,7 +65,9 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
             <h2 className="text-xl font-bold text-[#001F54] tracking-wide">
               HMIS
             </h2>
-            <p className="text-xs text-gray-500 mt-1">F6 · Admin &amp; finance</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Signed in as {roleLabel}
+            </p>
           </div>
 
           <button
@@ -93,60 +94,62 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
           />
         </div>
 
-        <p className="mb-3 text-[11px] uppercase tracking-[2px] text-gray-400 font-semibold">
-          Menu
-        </p>
-
-        <nav className="space-y-2">
-          <Link
-            href="/billing"
-            onClick={() => setOpen(false)}
-            className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-6 flex justify-center">
-                <LayoutDashboard
-                  size={20}
-                  className="text-gray-500 group-hover:text-[#001F54]"
-                />
-              </div>
-              <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-                Home (Billing)
-              </span>
-            </div>
-            <ChevronRight
-              size={16}
-              className="text-gray-300 group-hover:text-[#001F54]"
-            />
-          </Link>
-
-          {filtered.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-6 flex justify-center">
-                    <Icon
-                      size={20}
-                      className="text-gray-500 group-hover:text-[#001F54]"
-                    />
-                  </div>
-                  <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-                    {item.label}
-                  </span>
+        <nav className="space-y-4">
+          {groups.length === 0 ? (
+            <p className="px-2 text-sm text-gray-500">No screens for this role.</p>
+          ) : (
+            groups.map(([group, items]) => (
+              <div key={group}>
+                <p className="mb-2 text-[11px] uppercase tracking-[2px] text-gray-400 font-semibold">
+                  {group}
+                </p>
+                <div className="space-y-1">
+                  {items.map((item) => {
+                    const Icon = item.icon;
+                    const active =
+                      pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className={`group flex items-center justify-between rounded-xl px-4 py-3 transition ${
+                          active ? "bg-[#EEF4FF]" : "hover:bg-[#EEF4FF]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 flex justify-center">
+                            <Icon
+                              size={20}
+                              className={
+                                active
+                                  ? "text-[#001F54]"
+                                  : "text-gray-500 group-hover:text-[#001F54]"
+                              }
+                            />
+                          </div>
+                          <span
+                            className={`font-medium ${
+                              active
+                                ? "text-[#001F54]"
+                                : "text-gray-700 group-hover:text-[#001F54]"
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          className="text-gray-300 group-hover:text-[#001F54]"
+                        />
+                      </Link>
+                    );
+                  })}
                 </div>
-                <ChevronRight
-                  size={16}
-                  className="text-gray-300 group-hover:text-[#001F54]"
-                />
-              </Link>
-            );
-          })}
+              </div>
+            ))
+          )}
         </nav>
       </aside>
     </>

@@ -21,6 +21,7 @@ export const mockUsers: MockUser[] = [];
 
 export * from "./facility";
 export * from "./billing_data";
+export * from "./charge_master_data";
 export * from "./consent_data";
 export * from "./audit_data";
 export * from "./admin_data";

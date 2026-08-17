@@ -29,6 +29,7 @@ import {
   snapshotsToCsv,
 } from "../lib/kpiView";
 import type { CoreKpiCode, KpiPeriod } from "../types";
+import { BillingMisPanel } from "./BillingMisPanel";
 import { KpiLatestTable } from "./KpiLatestTable";
 import { KpiSparklineCard } from "./KpiSparklinePanel";
 import { KpiSummaryBar } from "./KpiSummaryBar";
@@ -183,8 +184,9 @@ export function MisDashboard() {
                 color: "rgba(255, 255, 255, 0.88)",
               }}
             >
-              Daily kpi_snapshots for OPD wait and sharp injuries (schema examples).
-              Filter by period · export the window.
+              Daily kpi_snapshots for OPD wait and sharp injuries (schema
+              examples · GET /reports/kpis when BE lands). Billing finance MIS
+              uses /billing/mis/* below.
             </Typography>
           </Box>
 
@@ -376,6 +378,8 @@ export function MisDashboard() {
       ) : null}
 
       <KpiLatestTable latest={latest} loading={loading} />
+
+      <BillingMisPanel />
     </Box>
   );
 }

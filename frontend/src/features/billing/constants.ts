@@ -63,10 +63,10 @@ export const SCHEME_OPTIONS: {
   description: string;
 }[] = [
   {
-    code: "SELF_PAY",
+    code: "self_pay",
     label: "Self-pay / Cash",
     scheme_code: null,
-    description: "Patient pays net amount in full",
+    description: "Patient pays net amount in full (stored as null; MIS shows self_pay)",
   },
   {
     code: "PM-JAY",

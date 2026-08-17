@@ -1,6 +1,14 @@
-import { redirect } from "next/navigation";
+"use client";
 
-/** Audit viewer lives under Admin governance — keep old URL working. */
+import Box from "@mui/material/Box";
+
+import { AuditTrailDashboard } from "@/features/audit-viewer";
+
+/** Auditor workplace — not nested under Admin. */
 export default function Page() {
-  redirect("/admin/audit");
+  return (
+    <Box sx={{ mx: "auto", maxWidth: 1280, px: { xs: 2, md: 3 }, py: 3 }}>
+      <AuditTrailDashboard />
+    </Box>
+  );
 }

@@ -31,8 +31,31 @@ const VIS1 = "20000000-0000-4000-8000-000000000001";
 const VIS2 = "20000000-0000-4000-8000-000000000008";
 const INV1 = "10000000-0000-4000-8000-000000000001";
 
+type AuditSeedRow = {
+  id: string;
+  created_at: string;
+  facility_id: string;
+  user_id: string | null;
+  role: string | null;
+  department_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  patient_id: string | null;
+  visit_id: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  reason: string | null;
+  ip_address: string | null;
+  device_id: string | null;
+  signature: string;
+  signer_key_id: string;
+  user_display?: string;
+  patient_display?: string;
+};
+
 const SEED_AUDIT: AuditLog[] = (() => {
-  const rows: Omit<AuditLog, "prev_hash" | "entry_hash">[] = [
+  const rows: AuditSeedRow[] = [
     {
       id: "70000000-0000-4000-8000-000000000001",
       created_at: "2026-07-01T02:42:00.000Z",
@@ -256,13 +279,24 @@ const SEED_AUDIT: AuditLog[] = (() => {
   return rows.map((row, i) => {
     const payload = `${prev}|${row.id}|${row.created_at}|${row.action}|${row.resource_type}`;
     const entry_hash = h(payload + String(i));
-    const full: AuditLog = {
-      ...row,
-      prev_hash: prev === GENESIS ? GENESIS : prev,
-      entry_hash,
-    };
     prev = entry_hash;
-    return full;
+    // Slim §4.4 AuditLogOut — extras above are seed-only / integrity internals
+    const slim: AuditLog = {
+      id: row.id,
+      user_id: row.user_id,
+      role: row.role,
+      action: row.action,
+      resource_type: row.resource_type,
+      resource_id: row.resource_id,
+      patient_id: row.patient_id,
+      old_value: row.old_value,
+      new_value: row.new_value,
+      created_at: row.created_at,
+      entry_hash,
+      user_display: row.user_display,
+      patient_display: row.patient_display,
+    };
+    return slim;
   });
 })();
 

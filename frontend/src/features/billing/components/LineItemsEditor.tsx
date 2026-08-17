@@ -14,19 +14,15 @@ import { meridian } from "@/styles/theme";
 import { CHARGE_CATEGORY_LABELS } from "../constants";
 import { formatINR } from "../lib/formatters";
 import { fromMoney } from "../lib/money";
-import type { ChargeCategory, InvoiceItem } from "../types";
+import type { AddInvoiceItemInput, InvoiceItem } from "../types";
 import { AddInvoiceItemModal } from "./AddInvoiceItemModal";
 
 type Props = {
   items: InvoiceItem[];
   canEdit: boolean;
   busy?: boolean;
-  onAdd: (body: {
-    charge_category: ChargeCategory;
-    description: string;
-    quantity: number;
-    unit_price: number;
-  }) => Promise<void> | void;
+  scheme_code?: string | null;
+  onAdd: (body: AddInvoiceItemInput) => Promise<void> | void;
   onPatch: (
     itemId: string,
     patch: Partial<{ quantity: number; unit_price: number; description: string }>,
@@ -38,6 +34,7 @@ export function LineItemsEditor({
   items,
   canEdit,
   busy,
+  scheme_code,
   onAdd,
   onPatch,
   onRemove,
@@ -207,6 +204,7 @@ export function LineItemsEditor({
 
       <AddInvoiceItemModal
         open={addOpen}
+        scheme_code={scheme_code}
         onClose={() => setAddOpen(false)}
         onSave={async (body) => {
           await onAdd(body);

@@ -65,7 +65,7 @@ export function AuditEntryDetail({ entry, loading }: Props) {
           color: meridian.textSecondary,
         }}
       >
-        Select an audit log entry to inspect hashes, signature, and JSON diff.
+        Select an audit log entry to inspect entry_hash and JSON diff (§4.4).
       </Box>
     );
   }
@@ -103,31 +103,29 @@ export function AuditEntryDetail({ entry, loading }: Props) {
         <Field label="Resource" value={`${entry.resource_type} / ${entry.resource_id ?? "—"}`} />
         <Field label="User" value={entry.user_display ?? entry.user_id ?? "—"} />
         <Field label="Patient" value={entry.patient_display ?? entry.patient_id ?? "—"} />
-        <Field label="Visit" value={entry.visit_id ?? "—"} />
-        <Field label="IP / device" value={`${entry.ip_address ?? "—"} · ${entry.device_id ?? "—"}`} />
-        <Field label="Reason" value={entry.reason ?? "—"} />
+        <Field
+          label="entry_hash"
+          value={
+            <Stack direction="row" useFlexGap sx={{ gap: 1, alignItems: "center" }}>
+              <span>{truncateHash(entry.entry_hash)}</span>
+              {entry.entry_hash ? (
+                <Button
+                  size="small"
+                  onClick={() => void copyText("entry_hash", entry.entry_hash!)}
+                  sx={{ textTransform: "none" }}
+                >
+                  Copy
+                </Button>
+              ) : null}
+            </Stack>
+          }
+        />
       </Box>
 
-      <Typography sx={{ m: 0, mb: 1, fontSize: "0.875rem", fontWeight: 700, color: meridian.textPrimary }}>
-        Hash chain
+      <Typography sx={{ m: 0, mb: 1, fontSize: "0.75rem", color: meridian.textSecondary }}>
+        Live GET /audit/logs returns this slim §4.4 shape (no prev_hash / signature /
+        visit_id / IP on the wire).
       </Typography>
-      <Stack spacing={1.25} sx={{ mb: 2.5 }}>
-        <Stack direction="row" useFlexGap sx={{ gap: 1, alignItems: "center" }}>
-          <Field label="prev_hash" value={truncateHash(entry.prev_hash)} />
-          {entry.prev_hash ? (
-            <Button size="small" onClick={() => void copyText("prev_hash", entry.prev_hash!)} sx={{ textTransform: "none" }}>
-              Copy
-            </Button>
-          ) : null}
-        </Stack>
-        <Stack direction="row" useFlexGap sx={{ gap: 1, alignItems: "center" }}>
-          <Field label="entry_hash" value={truncateHash(entry.entry_hash)} />
-          <Button size="small" onClick={() => void copyText("entry_hash", entry.entry_hash)} sx={{ textTransform: "none" }}>
-            Copy
-          </Button>
-        </Stack>
-        <Field label="signature / key" value={`${entry.signature} · ${entry.signer_key_id}`} />
-      </Stack>
 
       <Box
         sx={{

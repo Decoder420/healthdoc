@@ -115,11 +115,11 @@ export function ConsentListPanel({
                   <StatusChip status={row.status} label={CONSENT_STATUS_LABELS[row.status]} />
                 </Stack>
                 <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>
-                  {row.purpose_label ?? row.purpose_code} · {row.id}
+                  {row.purpose_label ?? row.purpose_code} · {row.channel} · {row.id}
                 </Typography>
                 <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>
-                  {row.patient?.uhid} · valid {formatDate(row.valid_from)}
-                  {row.valid_to ? ` → ${formatDate(row.valid_to)}` : " → open-ended"}
+                  {row.patient?.uhid} · granted {formatDate(row.granted_at)}
+                  {row.expires_at ? ` · expires ${formatDate(row.expires_at)}` : " · no expiry"}
                 </Typography>
               </Button>
             );

@@ -19,7 +19,7 @@ import type {
 } from "../types";
 
 function schemeCodeFromOption(code: SchemeOptionCode): string | null {
-  if (code === "SELF_PAY") return null;
+  if (code === "self_pay") return null;
   if (code === "PM-JAY") return "PM-JAY";
   return "OTHER";
 }
@@ -27,7 +27,7 @@ function schemeCodeFromOption(code: SchemeOptionCode): string | null {
 function optionFromSchemeCode(scheme_code: string | null): SchemeOptionCode {
   if (scheme_code === "PM-JAY") return "PM-JAY";
   if (scheme_code === "OTHER") return "OTHER";
-  return "SELF_PAY";
+  return "self_pay";
 }
 
 export function useInvoiceEditor(

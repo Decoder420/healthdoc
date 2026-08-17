@@ -187,6 +187,7 @@ export function BillingDashboard() {
                 items={editor.draft.items}
                 canEdit={editor.canEdit}
                 busy={editor.busy}
+                scheme_code={editor.draft.scheme_code}
                 onAdd={editor.addItem}
                 onPatch={editor.patchItem}
                 onRemove={editor.removeItem}

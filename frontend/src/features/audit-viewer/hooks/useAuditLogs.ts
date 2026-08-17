@@ -15,7 +15,7 @@ export function useAuditLogs(initial: AuditLogFilters = { action: "all", resourc
     setLoading(true);
     setError(null);
     try {
-      setRows(await listAuditLogs(filters));
+      setRows((await listAuditLogs(filters)).items);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load audit logs");
     } finally {

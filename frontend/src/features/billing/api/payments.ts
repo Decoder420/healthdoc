@@ -121,6 +121,14 @@ export async function collectPayment(
     throw new Error("Payments only allowed on issued or partially_paid invoices");
   }
 
+  // Live BE requires Idempotency-Key; generate if caller omitted (UI path).
+  const idempotency_key =
+    body.idempotency_key?.trim() ||
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `idem-${Date.now()}`);
+  void idempotency_key;
+
   const payments = getPaymentStore().filter((p) => p.invoice_id === invoiceId);
   const refunds = refundsForInvoice(invoiceId);
   const due = fromMoney(balanceDue(inv.net_amount, payments, refunds));
@@ -138,11 +146,11 @@ export async function collectPayment(
     invoice_id: invoiceId,
     receipt_number: nextReceiptNumber(),
     amount: toMoney(amount),
-    currency: DEFAULT_CURRENCY,
+    currency: (body.currency ?? DEFAULT_CURRENCY).toUpperCase().slice(0, 3),
     mode: body.mode,
     status: "success",
-    collected_by: body.collected_by ?? MOCK_CASHIER_USER_ID,
-    collected_at: new Date().toISOString(),
+    collected_by: MOCK_CASHIER_USER_ID,
+    collected_at: body.collected_at ?? new Date().toISOString(),
     sensitivity: "critical",
   };
 
@@ -163,6 +171,13 @@ export async function createRefund(
   if (payment.status !== "success") {
     throw new Error("Only success payments can be reversed");
   }
+
+  const idempotency_key =
+    body.idempotency_key?.trim() ||
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `idem-rfd-${Date.now()}`);
+  void idempotency_key;
 
   const existingRefunds = getRefundStore().filter((r) => r.payment_id === paymentId);
   const alreadyRefunded = fromMoney(refundedTotal(existingRefunds));
@@ -185,7 +200,7 @@ export async function createRefund(
     refund_number: nextRefundNumber(),
     amount: toMoney(amount),
     reason: body.reason.trim(),
-    approved_by: body.approved_by ?? MOCK_SUPERVISOR_USER_ID,
+    approved_by: MOCK_SUPERVISOR_USER_ID,
     refunded_at: new Date().toISOString(),
   };
 

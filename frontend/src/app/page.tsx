@@ -1,5 +1,17 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+import { useMockSession } from "@/lib/session/mockSession";
 
 export default function HomePage() {
-  redirect("/billing");
+  const router = useRouter();
+  const { homeHref } = useMockSession();
+
+  useEffect(() => {
+    router.replace(homeHref);
+  }, [homeHref, router]);
+
+  return null;
 }

@@ -24,7 +24,8 @@ export function useUsers(initial: UserListFilters = {}) {
     try {
       const res = await listUsers(filters);
       setUsers(res.items);
-      setTotal(res.total);
+      // BE omits total — fall back to page length when unknown
+      setTotal(res.total ?? res.items.length);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load users");
     } finally {

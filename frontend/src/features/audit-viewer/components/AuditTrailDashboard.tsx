@@ -65,7 +65,8 @@ export function AuditTrailDashboard() {
           Audit trail
         </Typography>
         <Typography sx={{ m: 0, mt: 0.5, fontSize: "0.875rem", color: meridian.textSecondary }}>
-          Append-only · hash-chained · monthly partitions (migration 0003)
+          Live: GET /audit/logs (+ CSV export). Access / file / integrity tabs are
+          schema-ahead until BE routes land.
         </Typography>
       </Box>
 
@@ -105,9 +106,9 @@ export function AuditTrailDashboard() {
         }}
       >
         <Tab value="audit" label="Audit logs" />
-        <Tab value="data_access" label="Access log" />
-        <Tab value="files" label="File access" />
-        <Tab value="integrity" label="Integrity & archive" />
+        <Tab value="data_access" label="Access log (schema)" />
+        <Tab value="files" label="File access (schema)" />
+        <Tab value="integrity" label="Integrity (schema)" />
       </Tabs>
 
       {tab === "audit" ? (

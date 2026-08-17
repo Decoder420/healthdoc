@@ -6,6 +6,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import GlobalStyles from "@mui/material/GlobalStyles";
 import { muiTheme } from "@/styles/theme";
 import { Toaster } from "@/components/ui/Toaster";
+import { MockSessionProvider } from "@/lib/session/mockSession";
 
 const LAYER_ORDER = "@layer theme, base, mui, components, utilities;";
 
@@ -16,8 +17,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <GlobalStyles styles={LAYER_ORDER} />
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
-        {children}
-        <Toaster />
+        <MockSessionProvider>
+          {children}
+          <Toaster />
+        </MockSessionProvider>
       </ThemeProvider>
     </AppRouterCacheProvider>
   );

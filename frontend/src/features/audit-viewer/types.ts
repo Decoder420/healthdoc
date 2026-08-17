@@ -1,4 +1,7 @@
-/** Audit DTOs aligned to schema §4.4 data_access_log + 0003 audit + 0019 file_access_log. */
+/**
+ * Audit DTOs — GET /audit/logs matches BE AuditLogOut (§4.4).
+ * data_access / file_access / integrity are schema-ahead (no live BE routes yet).
+ */
 
 export type AuditAction =
   | "create"
@@ -16,33 +19,32 @@ export type FileAccessAction = "view" | "download" | "upload" | "delete_attempt"
 
 export type AccessChannel = "ui" | "api" | "abdm_hiu" | "export";
 
+/** GET /audit/logs — AuditLogOut (slim). */
 export type AuditLog = {
   id: string;
-  created_at: string;
-  facility_id: string;
   user_id: string | null;
   role: string | null;
-  department_id: string | null;
   action: AuditAction | string;
   resource_type: string;
   resource_id: string | null;
   patient_id: string | null;
-  visit_id: string | null;
   old_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
-  reason: string | null;
-  ip_address: string | null;
-  device_id: string | null;
-  prev_hash: string | null;
-  entry_hash: string;
-  signature: string;
-  signer_key_id: string;
-  /** Display helpers (not DB columns) */
+  created_at: string;
+  entry_hash: string | null;
+  /** FE join helpers — not returned by BE */
   user_display?: string;
   patient_display?: string;
 };
 
-/** Schema §4.4 data_access_log — PHI access purpose logging. */
+export type AuditLogListResponse = {
+  items: AuditLog[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+/** Schema §4.4 data_access_log — GET /audit/access-log (not implemented on BE yet). */
 export type DataAccessLog = {
   id: string;
   user_id: string;
@@ -55,11 +57,11 @@ export type DataAccessLog = {
   emergency_access: boolean;
   consent_verified: boolean;
   accessed_at: string;
-  /** Display helpers (not DB columns) */
   user_display?: string;
   patient_display?: string;
 };
 
+/** Schema-ahead — archives / integrity not exposed by live audit router. */
 export type AuditLogArchive = {
   id: string;
   facility_id: string;
@@ -103,8 +105,12 @@ export type AuditLogFilters = {
   query?: string;
   action?: string | "all";
   resource_type?: string | "all";
+  user_id?: string;
+  patient_id?: string;
   from?: string;
   to?: string;
+  page?: number;
+  page_size?: number;
 };
 
 export type FileAccessFilters = {

@@ -1,5 +1,6 @@
 export {
   attemptMutateAuditLog,
+  exportAuditLogsCsv,
   getAuditEntry,
   listArchives,
   listAuditLogs,
