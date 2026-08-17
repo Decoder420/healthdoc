@@ -404,3 +404,70 @@ export interface ResultWorklistItem {
 }
 
 export type OrderStatus = "placed" | "accepted" | "in_progress" | "completed" | "cancelled";
+
+// ---------------------------------------------------------------------------
+// Break-glass (break_glass_grants + data_access_log.emergency_access)
+// ---------------------------------------------------------------------------
+
+/** One row of break_glass_grants — schema v3.13 §3 0004. Real columns. */
+export interface BreakGlassGrant {
+  id: string;
+  patient_id: string;
+  granted_to_user_id: string;
+  justification: string;
+  granted_at: string;
+  /**
+   * Server-computed: granted_at + the facility's TTL (default 2h). The UI must
+   * only ever *render* this value and never compute a deadline of its own — a
+   * browser-side timer restarts on refresh, which would silently hand the
+   * clinician more than the granted window.
+   */
+  expires_at: string;
+  revoked_at?: string;
+  revoked_by?: string;
+  /** Set by the HOD/DPO review, not by this UI. Read-only here. */
+  reviewed_at?: string;
+  reviewed_by?: string;
+  review_outcome?: string;
+}
+
+/**
+ * POST body. The server owns granted_to_user_id (from the JWT), granted_at and
+ * expires_at — none of the three is client-supplied.
+ */
+export interface CreateBreakGlassGrantInput {
+  patient_id: string;
+  justification: string;
+}
+
+/**
+ * PROVISIONAL — why a clinical read was refused.
+ *
+ * In production this is the body of the 403 from the read itself. Schema v3.13
+ * §4.4 documents no /consent endpoints and no error shape for a consent
+ * refusal, so the UI currently has no way to learn that break-glass is the
+ * remedy. This stands in for that contract (raised with B7/TL).
+ */
+export type RecordAccessBlockedReason = "consent_absent" | "consent_expired" | "consent_revoked";
+
+export interface RecordAccess {
+  patient_id: string;
+  allowed: boolean;
+  /** Present only when allowed is false. */
+  blocked_reason?: RecordAccessBlockedReason;
+  /** The caller's own active grant, when one is open. Access is then via break-glass. */
+  grant?: BreakGlassGrant;
+}
+
+/**
+ * PROVISIONAL — step-up MFA result.
+ *
+ * The schema gates break-glass on an MFA session (`amr` contains `otp`) but
+ * never says whether the UI collects a TOTP code inline or bounces through
+ * Keycloak for re-authentication. This is the inline shape; switching to a
+ * redirect is a change to `verifyStepUp` and the modal's second step only.
+ */
+export interface StepUpResult {
+  verified: boolean;
+  error?: string;
+}

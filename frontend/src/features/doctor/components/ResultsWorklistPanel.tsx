@@ -81,7 +81,7 @@ export function ResultsWorklistPanel({
       label: "Test / Study",
       sortable: true,
       render: (row) => (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 0.75 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.75 }}>
           <Typography sx={{ fontSize: "0.875rem" }}>{row.test_name}</Typography>
           <Badge variant="outline">
             {row.order_type === "lab" ? "Lab" : (row.modality?.toUpperCase() ?? "Radiology")}
@@ -105,7 +105,7 @@ export function ResultsWorklistPanel({
       label: "Result",
       width: 170,
       render: (row) => (
-        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap: "wrap", gap: 0.5 }}>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
           {row.result_status ? (
             <StatusChip status={row.result_status} />
           ) : (
@@ -143,7 +143,7 @@ export function ResultsWorklistPanel({
 
   return (
     <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+      <Stack direction="row" spacing={2} sx={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Results</Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>

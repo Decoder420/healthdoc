@@ -32,6 +32,19 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/**
+ * "1:47:22" — time left on a break-glass grant. Takes milliseconds already
+ * measured against the server's expires_at; it never decides the deadline.
+ */
+export function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${h}:${pad(m)}:${pad(s)}`;
+}
+
 const FREQUENCY_LABELS = Object.fromEntries(
   FREQUENCY_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<Frequency, string>;

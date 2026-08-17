@@ -14,6 +14,16 @@ export const MOCK_PROVIDER_NAME = "Dr. A. Sharma";
 export const MOCK_DEPARTMENT = "General Medicine";
 export const MOCK_FACILITY_NAME = "HealthDoc Hospital";
 
+/**
+ * break_glass_grants.justification — the schema annotates it "≥20 chars,
+ * mandatory", but as a comment, not a CHECK constraint. Enforced here so the
+ * form matches intent; the server must enforce it too (raised with B7).
+ */
+export const BREAK_GLASS_JUSTIFICATION_MIN = 20;
+
+/** TOTP code length for the break-glass step-up challenge. */
+export const MFA_CODE_LENGTH = 6;
+
 /** Schema priority sort (high → low) — QueuePriority docstring in enums.py. */
 export const QUEUE_PRIORITY_RANK: Record<QueuePriority, number> = {
   emergency: 0,

@@ -73,9 +73,9 @@ export function ResultDetailPanel({
 
   return (
     <Box sx={{ ...doctorPanelSx, display: "flex", flexDirection: "column", gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+      <Stack direction="row" spacing={2} sx={{ justifyContent: "space-between", alignItems: "flex-start" }}>
         <Box>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}>
             <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>{item.test_name}</Typography>
             <Badge variant="outline">
               {item.order_type === "lab" ? "Lab" : (item.modality?.toUpperCase() ?? "Radiology")}
@@ -90,7 +90,7 @@ export function ResultDetailPanel({
       </Stack>
 
       {versions.length > 1 && (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap", gap: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}>
           <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary, mr: 0.5 }}>
             Versions
           </Typography>
@@ -129,7 +129,7 @@ export function ResultDetailPanel({
       <Divider />
 
       {loading ? (
-        <Stack alignItems="center" sx={{ py: 4 }}>
+        <Stack sx={{ alignItems: "center", py: 4 }}>
           <CircularProgress size={22} />
         </Stack>
       ) : !item.result_status ? (
@@ -155,10 +155,8 @@ export function ResultDetailPanel({
           <Divider />
           <Stack
             direction="row"
-            alignItems="center"
-            justifyContent="space-between"
             spacing={2}
-            sx={{ flexWrap: "wrap", gap: 1.5 }}
+            sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5 }}
           >
             {alreadySigned ? (
               <Stack spacing={0.5}>

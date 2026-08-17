@@ -15,3 +15,9 @@ export {
   getAcknowledgements,
   acknowledgeResult,
 } from "./results";
+export {
+  checkRecordAccess,
+  verifyStepUp,
+  requestBreakGlassGrant,
+  revokeBreakGlassGrant,
+} from "./breakGlass";

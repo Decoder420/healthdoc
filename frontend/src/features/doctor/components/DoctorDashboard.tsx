@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { meridian } from "@/styles/theme";
 import { doctorPageHeaderSx } from "../panelSx";
 import { useDoctorQueue } from "../hooks/useDoctorQueue";
+import { BreakGlassGate } from "./BreakGlassGate";
 import { DoctorQueuePanel } from "./DoctorQueuePanel";
 import { PatientSummarySidebar } from "./PatientSummarySidebar";
 
@@ -95,7 +96,9 @@ export function DoctorDashboard() {
           onSelect={select}
         />
         <Box sx={{ position: "sticky", top: 24 }}>
-          <PatientSummarySidebar patient={selected} />
+          <BreakGlassGate patient={selected}>
+            <PatientSummarySidebar patient={selected} />
+          </BreakGlassGate>
         </Box>
       </Box>
     </Box>
