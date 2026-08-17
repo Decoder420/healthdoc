@@ -18,6 +18,7 @@ from app.common.redis import get_redis
 log = logging.getLogger("healthdoc")
 
 MODULES = [
+    "admissions",
     "audit", "billing", "blood_bank", "consent", "departments", "emergency",
     "encounters", "files", "inventory", "ipd", "notifications", "nursing",
     "opd", "orders", "ot", "outbox", "pathology", "patients", "pharmacy",
