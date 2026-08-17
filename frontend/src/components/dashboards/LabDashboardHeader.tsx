@@ -62,7 +62,7 @@ export default function DashboardHeader() {
             fontSize: "1.2vw",
           }}
         >
-          Welcome back! Here's today's pathology overview.
+          Welcome back! Here&apos;s today&apos;s pathology overview.
         </Typography>
 
         <Typography

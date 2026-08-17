@@ -80,7 +80,6 @@ export default function PathologyQueueClient({
 
   const handleReasonSubmit = ({
   reason,
-  remarks,
 }: {
   reason: string;
   remarks?: string;

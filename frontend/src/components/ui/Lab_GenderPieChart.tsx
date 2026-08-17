@@ -5,6 +5,7 @@ import {
   ArcElement,
   Tooltip,
   Legend,
+  type TooltipItem,
 } from "chart.js";
 import { Pie } from "react-chartjs-2";
 
@@ -39,11 +40,11 @@ interface LabPatient {
     orderedAt: string;
   };
 
-  sample: any;
+  sample: unknown;
 
   requestedTests: string[];
 
-  results: any[];
+  results: unknown[];
 }
 
 interface Props {
@@ -101,8 +102,8 @@ const other = patients.filter(
       },
       tooltip: {
         callbacks: {
-          label: (context: any) => {
-            const value = context.raw;
+          label: (context: TooltipItem<"pie">) => {
+            const value = Number(context.raw ?? 0);
             const percentage =
               total === 0 ? 0 : ((value / total) * 100).toFixed(1);
 

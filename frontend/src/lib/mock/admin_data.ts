@@ -1,7 +1,6 @@
 import type {
   Facility,
   FacilityModule,
-  ModuleCode,
   User,
   UserAccountRequest,
 } from "@/features/admin/types";
@@ -21,7 +20,7 @@ function stamp(iso = now) {
   return { created_at: iso, updated_at: iso };
 }
 
-let facilities: Facility[] = [
+const facilities: Facility[] = [
   {
     id: FACILITY_ID,
     code: FACILITY_CODE,

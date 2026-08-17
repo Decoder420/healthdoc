@@ -67,9 +67,10 @@ export function MisDashboard() {
   const tileCodes = useMemo(() => visibleKpiCodes(capabilities), [capabilities]);
 
   const latest = useMemo(() => latestByCode(items), [items]);
-  const chartCodes = focusCode
-    ? ([focusCode] as const)
-    : tileCodes;
+  const chartCodes = useMemo(
+    () => (focusCode ? ([focusCode] as const) : tileCodes),
+    [focusCode, tileCodes],
+  );
   const chartData = useMemo(
     () => pivotForChart(items, chartCodes),
     [items, chartCodes],

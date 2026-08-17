@@ -49,11 +49,11 @@ interface LabPatient {
     orderedAt: string;
   };
 
-  sample: any;
+  sample: unknown;
 
   requestedTests: string[];
 
-  results: any[];
+  results: unknown[];
 }
 
 interface Props {
