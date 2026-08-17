@@ -119,11 +119,13 @@ export default function AddItemDrawer({
       onClose={onClose}
       fullWidth
       maxWidth="md"
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          bgcolor: "background.paper",
-          color: "text.primary",
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 3,
+            bgcolor: "background.paper",
+            color: "text.primary",
+          },
         },
       }}
     >
@@ -131,12 +133,14 @@ export default function AddItemDrawer({
 
       <DialogTitle sx={{ p: 3 }}>
         <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="flex-start"
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+          }}
         >
           <Box>
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Add Inventory Item
             </Typography>
 
@@ -166,9 +170,11 @@ export default function AddItemDrawer({
         }}
       >
         <Box
-          display="flex"
-          flexDirection="column"
-          gap={2.5}
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2.5,
+          }}
         >
           <TextField
             fullWidth
@@ -213,12 +219,14 @@ export default function AddItemDrawer({
           />
 
           <Box
-            display="grid"
-            gridTemplateColumns={{
-              xs: "1fr",
-              sm: "1fr 1fr",
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "1fr 1fr",
+              },
+              gap: 2,
             }}
-            gap={2}
           >
             <TextField
               fullWidth
@@ -239,12 +247,14 @@ export default function AddItemDrawer({
           </Box>
 
           <Box
-            display="grid"
-            gridTemplateColumns={{
-              xs: "1fr",
-              sm: "1fr 1fr",
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "1fr 1fr",
+              },
+              gap: 2,
             }}
-            gap={2}
           >
             <TextField
               fullWidth
@@ -280,8 +290,8 @@ export default function AddItemDrawer({
             name="expiryDate"
             value={formData.expiryDate}
             onChange={handleChange}
-            InputLabelProps={{
-              shrink: true,
+            slotProps={{
+              inputLabel: { shrink: true },
             }}
           />
         </Box>
