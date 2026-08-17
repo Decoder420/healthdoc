@@ -92,9 +92,6 @@ export default function StatusDistributionChart({
 
       </Stack>
 
-
-
-
       {/* Chart */}
 
       <Box
@@ -152,10 +149,6 @@ export default function StatusDistributionChart({
 
       </Box>
 
-
-
-
-
       {/* Total */}
 
       {
@@ -172,10 +165,6 @@ export default function StatusDistributionChart({
 
         )
       }
-
-
-
-
 
       {/* Legend */}
 
@@ -217,8 +206,6 @@ export default function StatusDistributionChart({
         }
 
       </Stack>
-
-
     </Paper>
 
   );

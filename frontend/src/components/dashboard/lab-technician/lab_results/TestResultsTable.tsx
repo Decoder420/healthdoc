@@ -1,11 +1,13 @@
 "use client";
 
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 
 import {
   Box,
   Button,
   Card,
+  IconButton,
   MenuItem,
   Select,
   Table,
@@ -15,6 +17,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 
@@ -32,6 +35,7 @@ interface Props {
   ) => void;
 
   onAddRow: () => void;
+  onDeleteRow: (index: number) => void;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -106,6 +110,7 @@ export default function TestResultsTable({
   tests,
   onChange,
   onAddRow,
+  onDeleteRow,
 }: Props) {
   const fieldSx = {
     width: "100%",
@@ -210,7 +215,7 @@ export default function TestResultsTable({
           stickyHeader
           size="small"
           sx={{
-            minWidth: 950,
+            minWidth: 1020,
 
             "& .MuiTableCell-root": {
               textAlign: "center",
@@ -229,6 +234,7 @@ export default function TestResultsTable({
                 "Reference Range",
                 "Flag",
                 "Remarks",
+                "Action",
               ].map((heading) => (
                 <TableCell
                   key={heading}
@@ -429,22 +435,17 @@ export default function TestResultsTable({
                           px: 1,
                           display: "flex",
                           alignItems: "center",
-                          justifyContent:
-                            "center",
+                          justifyContent: "center",
                           textAlign: "center",
                         },
 
-                        "& .MuiOutlinedInput-notchedOutline":
-                          {
-                            borderColor:
-                              "divider",
-                          },
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "divider",
+                        },
 
-                        "&:hover .MuiOutlinedInput-notchedOutline":
-                          {
-                            borderColor:
-                              "text.secondary",
-                          },
+                        "&:hover .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "text.secondary",
+                        },
                       }}
                     >
                       <MenuItem value="-">
@@ -486,6 +487,31 @@ export default function TestResultsTable({
                       sx={fieldSx}
                     />
                   </TableCell>
+
+                  {/* Delete */}
+                  <TableCell
+                    align="center"
+                    sx={{
+                      width: 60,
+                      minWidth: 60,
+                    }}
+                  >
+                    <Tooltip title="Delete test">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => onDeleteRow(index)}
+                        aria-label={`Delete ${test.testName || "test"}`}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 1.5,
+                        }}
+                      >
+                        <DeleteOutlineRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -494,7 +520,7 @@ export default function TestResultsTable({
             {tests.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   align="center"
                   sx={{
                     py: 5,

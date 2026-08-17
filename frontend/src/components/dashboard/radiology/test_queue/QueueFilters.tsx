@@ -55,13 +55,13 @@ export default function QueueFilters({
   onReset,
 }: Props) {
   return (
-    <div className="surface-card px-3 py-3 mb-3">
+    <div className="surface-card p-3 mb-3">
       <Stack
         direction={{
           xs: "column",
           lg: "row",
         }}
-        spacing={2}
+        spacing={1.5}
         alignItems={{
           lg: "center",
         }}
@@ -72,17 +72,19 @@ export default function QueueFilters({
           size="small"
           placeholder="Search Patient / UHID / Accession No. / Order ID"
           value={search}
-          onChange={(e) =>
-            onSearchChange(e.target.value)
-          }
+          onChange={(e) => onSearchChange(e.target.value)}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
                 <SearchRoundedIcon fontSize="small" />
               </InputAdornment>
             ),
-            sx: {
-              height: 40,
+          }}
+          sx={{
+            flex: 1,
+            "& .MuiOutlinedInput-root": {
+              height: 34,
+              fontSize: 13,
             },
           }}
         />
@@ -92,13 +94,12 @@ export default function QueueFilters({
           select
           size="small"
           value={modality}
-          onChange={(e) =>
-            onModalityChange(e.target.value)
-          }
+          onChange={(e) => onModalityChange(e.target.value)}
           sx={{
-            minWidth: 160,
+            minWidth: 145,
             "& .MuiOutlinedInput-root": {
-              height: 40,
+              height: 34,
+              fontSize: 13,
             },
           }}
         >
@@ -114,13 +115,12 @@ export default function QueueFilters({
           select
           size="small"
           value={priority}
-          onChange={(e) =>
-            onPriorityChange(e.target.value)
-          }
+          onChange={(e) => onPriorityChange(e.target.value)}
           sx={{
-            minWidth: 160,
+            minWidth: 145,
             "& .MuiOutlinedInput-root": {
-              height: 40,
+              height: 34,
+              fontSize: 13,
             },
           }}
         >
@@ -136,13 +136,12 @@ export default function QueueFilters({
           select
           size="small"
           value={status}
-          onChange={(e) =>
-            onStatusChange(e.target.value)
-          }
+          onChange={(e) => onStatusChange(e.target.value)}
           sx={{
-            minWidth: 170,
+            minWidth: 155,
             "& .MuiOutlinedInput-root": {
-              height: 40,
+              height: 34,
+              fontSize: 13,
             },
           }}
         >
@@ -156,17 +155,19 @@ export default function QueueFilters({
         {/* Reset */}
         <Button
           variant="outlined"
+          size="small"
           startIcon={
             <RestartAltRoundedIcon fontSize="small" />
           }
           onClick={onReset}
           sx={{
-            minWidth: 110,
-            height: 40,
-            px: 2,
+            minWidth: 100,
+            height: 34,
+            px: 1.5,
             textTransform: "none",
             whiteSpace: "nowrap",
-            borderRadius: 2,
+            borderRadius: 1.5,
+            fontSize: 13,
           }}
         >
           Reset

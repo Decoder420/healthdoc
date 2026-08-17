@@ -361,11 +361,23 @@ export default function TestResultsPage() {
       />
 
       {/* Test Results */}
-      <TestResultsTable
-        tests={data.results}
-        onChange={handleTestChange}
-        onAddRow={handleAddRow}
-      />
+<TestResultsTable
+  tests={data.results}
+  onChange={handleTestChange}
+  onAddRow={handleAddRow}
+  onDeleteRow={(index) => {
+    setData((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        results: prev.results.filter(
+          (_, i) => i !== index
+        ),
+      };
+    });
+  }}
+/>
 
       {/* Remarks */}
       <RemarksCard

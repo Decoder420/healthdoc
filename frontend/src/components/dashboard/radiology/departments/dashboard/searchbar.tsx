@@ -29,16 +29,16 @@ export default function SearchToolbar({
   actions,
 }: SearchToolbarProps) {
   return (
-    <div className="surface-card p-3 mt-3">
+    <div className="surface-card p-3 mt-2">
       <Stack
         direction={{ xs: "column", lg: "row" }}
-        spacing={2}
+        spacing={1.5}
         alignItems={{ xs: "stretch", lg: "center" }}
       >
         {/* Filters */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
-          spacing={2}
+          spacing={1.5}
           flex={1}
           width="100%"
           alignItems={{ xs: "stretch", sm: "center" }}
@@ -48,9 +48,7 @@ export default function SearchToolbar({
             size="small"
             placeholder="Search Patient, UHID or Accession No."
             value={search}
-            onChange={(e) =>
-              onSearchChange(e.target.value)
-            }
+            onChange={(e) => onSearchChange(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -65,7 +63,11 @@ export default function SearchToolbar({
                 sm: 280,
               },
               "& .MuiOutlinedInput-root": {
-                height: 40,
+                height: 34,
+                fontSize: 13,
+              },
+              "& .MuiInputBase-input": {
+                py: 0.5,
               },
             }}
           />
@@ -76,30 +78,24 @@ export default function SearchToolbar({
             size="small"
             label="Status"
             value={status}
-            onChange={(e) =>
-              onStatusChange(e.target.value)
-            }
+            onChange={(e) => onStatusChange(e.target.value)}
             sx={{
               width: {
                 xs: "100%",
-                sm: 180,
+                sm: 170,
               },
               "& .MuiOutlinedInput-root": {
-                height: 40,
+                height: 34,
+                fontSize: 13,
+              },
+              "& .MuiInputLabel-root": {
+                fontSize: 13,
               },
             }}
           >
-            <MenuItem value="All">
-              All Status
-            </MenuItem>
-
-            <MenuItem value="Processing">
-              Processing
-            </MenuItem>
-
-            <MenuItem value="Verified">
-              Verified
-            </MenuItem>
+            <MenuItem value="All">All Status</MenuItem>
+            <MenuItem value="Processing">Processing</MenuItem>
+            <MenuItem value="Verified">Verified</MenuItem>
           </TextField>
 
           {/* Date */}
@@ -108,19 +104,21 @@ export default function SearchToolbar({
             size="small"
             label="Appointment Date"
             value={date}
-            onChange={(e) =>
-              onDateChange(e.target.value)
-            }
+            onChange={(e) => onDateChange(e.target.value)}
             InputLabelProps={{
               shrink: true,
             }}
             sx={{
               width: {
                 xs: "100%",
-                sm: 220,
+                sm: 205,
               },
               "& .MuiOutlinedInput-root": {
-                height: 40,
+                height: 34,
+                fontSize: 13,
+              },
+              "& .MuiInputLabel-root": {
+                fontSize: 13,
               },
             }}
           />
@@ -129,21 +127,22 @@ export default function SearchToolbar({
         {/* Actions */}
         <Stack
           direction="row"
-          spacing={1.5}
+          spacing={1}
           flexWrap="wrap"
           alignItems="center"
         >
           <Button
             variant="outlined"
-            startIcon={
-              <RefreshOutlinedIcon />
-            }
+            size="small"
+            startIcon={<RefreshOutlinedIcon fontSize="small" />}
             onClick={onRefresh}
             sx={{
-              height: 40,
-              borderRadius: 2,
+              height: 34,
+              borderRadius: 1.5,
               textTransform: "none",
               whiteSpace: "nowrap",
+              px: 1.5,
+              fontSize: 13,
             }}
           >
             Refresh
@@ -151,15 +150,16 @@ export default function SearchToolbar({
 
           <Button
             variant="contained"
-            startIcon={
-              <FileUploadOutlinedIcon />
-            }
+            size="small"
+            startIcon={<FileUploadOutlinedIcon fontSize="small" />}
             onClick={onExport}
             sx={{
-              height: 40,
-              borderRadius: 2,
+              height: 34,
+              borderRadius: 1.5,
               textTransform: "none",
               whiteSpace: "nowrap",
+              px: 1.5,
+              fontSize: 13,
             }}
           >
             Export
