@@ -14,6 +14,7 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 
 import { MetricCard } from "@/components/ui";
+import { formatDateTime } from "@/lib/api";
 import { patients } from "@/lib/mock/lab_data";
 import { meridian } from "@/styles/theme";
 
@@ -241,7 +242,7 @@ export default function PatientInfo({ patientId, backHref }: PatientInfoProps) {
                   </Box>
                   <Stack spacing={1} sx={{ alignItems: { xs: "flex-start", md: "flex-end" } }}>
                     <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
-                      {new Date(visit.order.orderedAt).toLocaleString()}
+                      {formatDateTime(visit.order.orderedAt)}
                     </Typography>
                     <Chip
                       size="small"

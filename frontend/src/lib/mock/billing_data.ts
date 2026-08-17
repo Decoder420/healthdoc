@@ -7,7 +7,7 @@ import {
   REFUND_PREFIX,
 } from "@/features/billing/constants";
 import { recomputeInvoiceTotals, withLineAmount } from "@/features/billing/lib/calculations";
-import { DEFAULT_CURRENCY, toMoney } from "@/features/billing/lib/money";
+import { DEFAULT_CURRENCY, fromMoney, toMoney } from "@/features/billing/lib/money";
 
 function stamp(iso: string) {
   return { created_at: iso, updated_at: iso };
@@ -27,16 +27,8 @@ function buildInvoice(
   return {
     ...partial,
     items,
-    discount_amount: toMoney(
-      typeof partial.discount_amount === "number"
-        ? partial.discount_amount
-        : Number(partial.discount_amount.amount),
-    ),
-    scheme_adjustment: toMoney(
-      typeof partial.scheme_adjustment === "number"
-        ? partial.scheme_adjustment
-        : Number(partial.scheme_adjustment.amount),
-    ),
+    discount_amount: toMoney(fromMoney(partial.discount_amount)),
+    scheme_adjustment: toMoney(fromMoney(partial.scheme_adjustment)),
     gross_amount,
     net_amount,
     sensitivity: "critical",

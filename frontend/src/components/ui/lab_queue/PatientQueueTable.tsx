@@ -22,6 +22,7 @@ import {
 } from "@/components/shared/StatusStepper/types";
 
 import { pathologyWorkflow } from "@/components/ui/lab_queue/LabWorkFlow";
+import { formatDateTime } from "@/lib/api";
 
 export interface PatientData {
   status: string;
@@ -207,9 +208,7 @@ export default function PatientQueueTable({
                 </TableCell>
 
                 <TableCell>
-                  {new Date(
-                    patient.order.orderedAt
-                  ).toLocaleString()}
+                  {formatDateTime(patient.order.orderedAt)}
                 </TableCell>
 
                 <TableCell align="center">
