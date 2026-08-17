@@ -1,6 +1,5 @@
 // Typed fetch client for the HealthDoc API response envelope.
 // All backend responses: { success, data, error, meta } (see backend/app/common/envelope.py)
-
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
 export interface Envelope<T> {

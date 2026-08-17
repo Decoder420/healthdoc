@@ -56,7 +56,7 @@ export function ImmutableReceipt({ payment, invoice }: Props) {
       <Row label="Invoice #" value={invoice.invoice_number} />
       <Row
         label="Patient"
-        value={`${invoice.patient?.name ?? invoice.patient_id} (${invoice.patient?.uhid ?? "—"})`}
+        value={`${invoice.patient?.full_name ?? invoice.patient_id} (${invoice.patient?.uhid ?? "—"})`}
       />
       <Row label="Amount" value={formatINR(payment.amount)} />
       <Row label="Currency" value={payment.currency} />

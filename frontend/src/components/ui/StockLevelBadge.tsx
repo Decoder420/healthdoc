@@ -3,14 +3,17 @@
 import Chip from "@mui/material/Chip";
 import { meridian } from "@/styles/theme";
 
-interface StockLevelBadgeProps {
+export interface StockLevelBadgeProps {
   quantity: number;
   minimumQuantity: number;
+  /** When true, appends raw quantity to the label (e.g. "Low Stock · 4"). */
+  showQuantity?: boolean;
 }
 
 export default function StockLevelBadge({
   quantity,
   minimumQuantity,
+  showQuantity = false,
 }: StockLevelBadgeProps) {
   let label = "In Stock";
   let bg: string = "#dcfce7";
@@ -27,6 +30,10 @@ export default function StockLevelBadge({
     bg = "#fef3c7";
     fg = meridian.warning;
     border = "rgb(180 83 9 / 0.2)";
+  }
+
+  if (showQuantity) {
+    label = `${label} · ${quantity}`;
   }
 
   return (

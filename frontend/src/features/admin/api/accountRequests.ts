@@ -19,6 +19,16 @@ function delay<T>(value: T, ms = 200): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
 }
 
+export class AdminApiError extends Error {
+  code: string;
+
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = "AdminApiError";
+    this.code = code;
+  }
+}
+
 export async function listAccountRequests(filters: {
   status?: ApprovalStatus | "all";
   facility_id?: string;
@@ -80,17 +90,21 @@ export async function createAccountRequest(
   return delay(row);
 }
 
+/** Approve creates a User and returns it (§4.4). Request row is updated in mock store. */
 export async function approveAccountRequest(
   id: string,
   decided_by: string = MOCK_APPROVER_USER_ID,
-): Promise<UserAccountRequest> {
+): Promise<User> {
   const store = getAccountRequests();
   const idx = store.findIndex((r) => r.id === id);
   if (idx < 0) throw new Error("Account request not found");
   const row = store[idx];
   if (row.status !== "pending") throw new Error("Request is not pending");
   if (row.requested_by === decided_by) {
-    throw new Error("Self-approval is not allowed (requested_by ≠ decided_by)");
+    throw new AdminApiError(
+      "Self-approval is not allowed (requested_by ≠ decided_by)",
+      "self_approval_not_allowed",
+    );
   }
 
   const t = isoNow();
@@ -124,7 +138,7 @@ export async function approveAccountRequest(
   };
   store[idx] = next;
   setAccountRequests(store);
-  return delay(next);
+  return delay(created);
 }
 
 export async function rejectAccountRequest(
@@ -138,7 +152,10 @@ export async function rejectAccountRequest(
   const row = store[idx];
   if (row.status !== "pending") throw new Error("Request is not pending");
   if (row.requested_by === decided_by) {
-    throw new Error("Self-approval is not allowed (requested_by ≠ decided_by)");
+    throw new AdminApiError(
+      "Self-approval is not allowed (requested_by ≠ decided_by)",
+      "self_approval_not_allowed",
+    );
   }
   if (!rejection_reason.trim()) throw new Error("rejection_reason is required");
 

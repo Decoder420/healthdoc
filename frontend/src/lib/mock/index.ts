@@ -19,9 +19,11 @@ export const mockPatients: MockPatient[] = [];
 
 export const mockUsers: MockUser[] = [];
 
+export * from "./facility";
 export * from "./billing_data";
 export * from "./consent_data";
 export * from "./audit_data";
 export * from "./admin_data";
 export * from "./reports_data";
-export * from "./doctor_data";
+export * from "./lab_data";
+export * from "./lab_notification";

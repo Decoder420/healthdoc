@@ -20,8 +20,6 @@ function baseValue(code: CoreKpiCode, dayIndex: number): number {
       return 18 + (dayIndex % 7) * 1.4 + (dayIndex % 3) * 0.5;
     case "sharp_injury_count":
       return dayIndex % 5 === 0 ? 1 : dayIndex % 11 === 0 ? 2 : 0;
-    case "bed_occupancy_pct":
-      return 62 + (dayIndex % 9) * 2.1 + (dayIndex % 4);
     default:
       return 0;
   }
@@ -37,10 +35,7 @@ function buildSnapshots(): KpiSnapshot[] {
       const value = Number(baseValue(kpi_code, dayIndex).toFixed(4));
       let numerator: number | null = null;
       let denominator: number | null = null;
-      if (kpi_code === "bed_occupancy_pct") {
-        denominator = 120;
-        numerator = Math.round((value / 100) * denominator);
-      } else if (kpi_code === "avg_opd_wait_minutes") {
+      if (kpi_code === "avg_opd_wait_minutes") {
         denominator = 40 + (dayIndex % 10);
         numerator = Number((value * denominator).toFixed(2));
       } else {

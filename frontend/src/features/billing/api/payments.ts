@@ -128,8 +128,13 @@ export async function collectPayment(
   if (amount <= 0) throw new Error("Amount must be greater than zero");
   if (amount > due + 0.001) throw new Error(`Amount exceeds balance due (${due})`);
 
+  const paymentId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `50000000-0000-4000-8000-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
+
   const payment: Payment = {
-    id: `pay-${crypto.randomUUID().slice(0, 8)}`,
+    id: paymentId,
     invoice_id: invoiceId,
     receipt_number: nextReceiptNumber(),
     amount: toMoney(amount),
@@ -169,8 +174,13 @@ export async function createRefund(
   }
   if (!body.reason.trim()) throw new Error("Reason is required");
 
+  const refundId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `60000000-0000-4000-8000-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
+
   const refund: Refund = {
-    id: `rfd-${crypto.randomUUID().slice(0, 8)}`,
+    id: refundId,
     payment_id: paymentId,
     refund_number: nextRefundNumber(),
     amount: toMoney(amount),

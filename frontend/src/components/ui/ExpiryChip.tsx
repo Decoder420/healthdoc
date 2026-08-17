@@ -3,7 +3,7 @@
 import Chip from "@mui/material/Chip";
 import { meridian } from "@/styles/theme";
 
-interface ExpiryChipProps {
+export interface ExpiryChipProps {
   daysLeft: number;
 }
 

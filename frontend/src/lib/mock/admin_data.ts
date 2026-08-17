@@ -6,11 +6,14 @@ import type {
   UserAccountRequest,
 } from "@/features/admin/types";
 import {
+  FACILITY_CODE,
+  FACILITY_DISPLAY_NAME,
   FACILITY_ID,
   MOCK_APPROVER_USER_ID,
   MOCK_SESSION_ADMIN_USER_ID,
   MODULE_CODES,
 } from "@/features/admin/constants";
+import { MOCK_FACILITY_TIMEZONE } from "@/lib/mock/facility";
 
 const now = "2026-07-20T08:00:00Z";
 
@@ -21,12 +24,13 @@ function stamp(iso = now) {
 let facilities: Facility[] = [
   {
     id: FACILITY_ID,
-    code: "JPR001",
-    name: "HealthDoc Hospital (JPR001)",
+    code: FACILITY_CODE,
+    name: FACILITY_DISPLAY_NAME,
     state_code: "RJ",
     district: "Jaipur",
     facility_type: "district_hospital",
     hfr_facility_id: null,
+    timezone: MOCK_FACILITY_TIMEZONE,
     is_active: true,
     ...stamp(),
   },
@@ -149,9 +153,10 @@ function seedModules(facilityId: string): FacilityModule[] {
     id: `dddddddd-dddd-4ddd-8ddd-${String(i + 1).padStart(12, "0")}`,
     facility_id: facilityId,
     module_code,
-    is_enabled: module_code !== "patient_portal",
+    is_enabled: module_code !== "blood_bank",
     config: {},
-    disabled_reason: module_code === "patient_portal" ? "Portal not rolled out yet" : null,
+    disabled_reason:
+      module_code === "blood_bank" ? "Blood bank not rolled out yet" : null,
     ...stamp(),
   }));
 }

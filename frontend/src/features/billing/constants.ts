@@ -6,9 +6,15 @@ import type {
   SchemeOptionCode,
 } from "./types";
 
-export const FACILITY_CODE = "HOSP1";
-export const FACILITY_ID = "fac-0001";
-export const FACILITY_DISPLAY_NAME = "HealthDoc Hospital (HOSP1)";
+import {
+  MOCK_FACILITY_CODE,
+  MOCK_FACILITY_ID,
+  MOCK_FACILITY_NAME,
+} from "@/lib/mock/facility";
+
+export const FACILITY_CODE = MOCK_FACILITY_CODE;
+export const FACILITY_ID = MOCK_FACILITY_ID;
+export const FACILITY_DISPLAY_NAME = MOCK_FACILITY_NAME;
 
 /** Mock user UUIDs for payments.collected_by / refunds.approved_by. */
 export const MOCK_CASHIER_USER_ID = "00000000-0000-4000-8000-000000000101";

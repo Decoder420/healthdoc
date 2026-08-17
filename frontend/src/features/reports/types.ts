@@ -5,11 +5,10 @@
 
 export type { KpiChartPoint, KpiSnapshot } from "@/types/kpi";
 
-/** Documented example kpi_codes from schema. */
+/** Documented example kpi_codes from schema kpi_snapshots. */
 export type CoreKpiCode =
   | "avg_opd_wait_minutes"
-  | "sharp_injury_count"
-  | "bed_occupancy_pct";
+  | "sharp_injury_count";
 
 /** UI / API period presets mapped to ?period= (not a DB enum). */
 export type KpiPeriod = "today" | "7d" | "30d";

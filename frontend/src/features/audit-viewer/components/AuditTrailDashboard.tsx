@@ -12,16 +12,18 @@ import { meridian } from "@/styles/theme";
 import { attemptMutateAuditLog } from "../api";
 import { useAuditEntry } from "../hooks/useAuditEntry";
 import { useAuditLogs } from "../hooks/useAuditLogs";
+import { useDataAccessLogs } from "../hooks/useDataAccessLogs";
 import { useFileAccessLogs } from "../hooks/useFileAccessLogs";
 import { useIntegritySummary } from "../hooks/useIntegritySummary";
 import { auditRowKey } from "../lib/formatters";
 import type { AuditLog } from "../types";
 import { AuditEntryDetail } from "./AuditEntryDetail";
 import { AuditLogListPanel } from "./AuditLogListPanel";
+import { DataAccessLogPanel } from "./DataAccessLogPanel";
 import { FileAccessLogPanel } from "./FileAccessLogPanel";
 import { IntegrityArchivePanel } from "./IntegrityArchivePanel";
 
-type TabKey = "audit" | "files" | "integrity";
+type TabKey = "audit" | "data_access" | "files" | "integrity";
 
 export function AuditTrailDashboard() {
   const [tab, setTab] = useState<TabKey>("audit");
@@ -29,6 +31,7 @@ export function AuditTrailDashboard() {
 
   const logs = useAuditLogs({ action: "all", resource_type: "all" });
   const detail = useAuditEntry(selected?.id ?? null, selected?.created_at ?? null);
+  const dataAccess = useDataAccessLogs({ access_channel: "all" });
   const files = useFileAccessLogs({ action: "all" });
   const integrity = useIntegritySummary();
 
@@ -102,6 +105,7 @@ export function AuditTrailDashboard() {
         }}
       >
         <Tab value="audit" label="Audit logs" />
+        <Tab value="data_access" label="Access log" />
         <Tab value="files" label="File access" />
         <Tab value="integrity" label="Integrity & archive" />
       </Tabs>
@@ -129,6 +133,17 @@ export function AuditTrailDashboard() {
           />
           <AuditEntryDetail entry={detail.entry} loading={detail.loading} />
         </Box>
+      ) : null}
+
+      {tab === "data_access" ? (
+        <DataAccessLogPanel
+          rows={dataAccess.rows}
+          loading={dataAccess.loading}
+          query={dataAccess.filters.query ?? ""}
+          accessChannel={dataAccess.filters.access_channel ?? "all"}
+          onQueryChange={dataAccess.setQuery}
+          onAccessChannelChange={dataAccess.setAccessChannel}
+        />
       ) : null}
 
       {tab === "files" ? (

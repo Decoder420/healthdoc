@@ -8,7 +8,6 @@ import type { KpiChartPoint, KpiSnapshot } from "@/types/kpi";
 const KPI_DISPLAY: Record<string, { label: string; unit?: string }> = {
   avg_opd_wait_minutes: { label: "Avg OPD wait", unit: "min" },
   sharp_injury_count: { label: "Sharp injuries" },
-  bed_occupancy_pct: { label: "Bed occupancy", unit: "%" },
 };
 
 export function kpiLabel(kpi_code: string): string {

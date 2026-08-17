@@ -3,12 +3,15 @@ import type {
   AuditLog,
   AuditLogArchive,
   AuditLogFilters,
+  DataAccessFilters,
+  DataAccessLog,
   FileAccessFilters,
   FileAccessLog,
 } from "../types";
 import {
   getArchiveStore,
   getAuditStore,
+  getAuditDataAccessStore,
   getFileAccessStore,
   getIntegrityStore,
 } from "@/lib/mock/audit_data";
@@ -75,6 +78,41 @@ export async function getAuditEntry(
 ): Promise<AuditLog | null> {
   const found = getAuditStore().find((r) => r.id === id && r.created_at === created_at);
   return delay(found ?? null);
+}
+
+export async function listDataAccessLogs(
+  filters: DataAccessFilters = {},
+): Promise<DataAccessLog[]> {
+  const q = filters.query?.trim().toLowerCase() ?? "";
+  const channel = filters.access_channel ?? "all";
+  let rows = getAuditDataAccessStore();
+  if (channel !== "all") {
+    rows = rows.filter((r) => r.access_channel === channel);
+  }
+  if (q) {
+    rows = rows.filter((r) => {
+      const hay = [
+        r.id,
+        r.user_id,
+        r.user_display,
+        r.role,
+        r.resource_type,
+        r.resource_id,
+        r.patient_id,
+        r.patient_display,
+        r.purpose_code,
+        r.access_channel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  rows = [...rows].sort(
+    (a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime(),
+  );
+  return delay(rows);
 }
 
 export async function listFileAccessLogs(

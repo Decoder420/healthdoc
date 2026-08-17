@@ -1,38 +1,34 @@
 import type { ModuleCode, RealmRole } from "./types";
+import {
+  MOCK_FACILITY_CODE,
+  MOCK_FACILITY_ID,
+  MOCK_FACILITY_NAME,
+} from "@/lib/mock/facility";
 
 /** Mock session admin for maker-checker demos (users.id). */
 export const MOCK_SESSION_ADMIN_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 /** Second admin used as approver (≠ requester). */
 export const MOCK_APPROVER_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
 
-export const FACILITY_ID = "fac-0001";
+export const FACILITY_ID = MOCK_FACILITY_ID;
+export const FACILITY_CODE = MOCK_FACILITY_CODE;
+export const FACILITY_DISPLAY_NAME = MOCK_FACILITY_NAME;
 
+/** v3.13 — exactly five optional ModuleCode values. */
 export const MODULE_CODES: ModuleCode[] = [
   "lab",
   "radiology",
   "pharmacy",
-  "inventory",
-  "ipd",
   "ot",
   "blood_bank",
-  "emergency",
-  "patient_portal",
-  "abdm",
-  "billing_refunds",
 ];
 
 export const MODULE_CODE_LABELS: Record<ModuleCode, string> = {
   lab: "Lab",
   radiology: "Radiology",
   pharmacy: "Pharmacy",
-  inventory: "Inventory",
-  ipd: "IPD",
   ot: "OT",
   blood_bank: "Blood bank",
-  emergency: "Emergency",
-  patient_portal: "Patient portal",
-  abdm: "ABDM",
-  billing_refunds: "Billing refunds",
 };
 
 /** Core modules that can never be disabled (schema text — display legend only). */
@@ -48,6 +44,12 @@ export const CORE_ALWAYS_ON_MODULES = [
   "files",
   "users",
   "notifications",
+  "inventory",
+  "ipd",
+  "emergency",
+  "patient_portal",
+  "abdm",
+  "refunds",
 ] as const;
 
 export const REALM_ROLES: RealmRole[] = [
@@ -60,6 +62,7 @@ export const REALM_ROLES: RealmRole[] = [
   "emergency",
   "supervisor",
   "admin",
+  "hod",
   "auditor",
   "patient",
   "superadmin",
@@ -75,6 +78,7 @@ export const REALM_ROLE_LABELS: Record<RealmRole, string> = {
   emergency: "Emergency",
   supervisor: "Supervisor",
   admin: "Admin",
+  hod: "HOD",
   auditor: "Auditor",
   patient: "Patient",
   superadmin: "Superadmin",
@@ -83,7 +87,6 @@ export const REALM_ROLE_LABELS: Record<RealmRole, string> = {
 /**
  * Read-only reference: realm role × ModuleCode (and core clinical).
  * Derived only from role names + module codes in the schema — not a DB ACL table.
- * Authz remains Keycloak.
  */
 export type MatrixCapability =
   | ModuleCode
@@ -94,7 +97,10 @@ export type MatrixCapability =
   | "billing"
   | "consent"
   | "audit"
-  | "users";
+  | "users"
+  | "inventory"
+  | "ipd"
+  | "emergency";
 
 export const MATRIX_CAPABILITIES: MatrixCapability[] = [
   "patients",
@@ -113,9 +119,6 @@ export const MATRIX_CAPABILITIES: MatrixCapability[] = [
   "consent",
   "audit",
   "users",
-  "abdm",
-  "billing_refunds",
-  "patient_portal",
 ];
 
 export const MATRIX_CAPABILITY_LABELS: Record<MatrixCapability, string> = {
@@ -135,9 +138,6 @@ export const MATRIX_CAPABILITY_LABELS: Record<MatrixCapability, string> = {
   consent: "Consent",
   audit: "Audit",
   users: "Users",
-  abdm: "ABDM",
-  billing_refunds: "Refunds",
-  patient_portal: "Portal",
 };
 
 /** Which ModuleCode / core areas each realm role typically touches (reference only). */
@@ -150,10 +150,11 @@ export const ROLE_CAPABILITY_MAP: Record<RealmRole, MatrixCapability[]> = {
   pharmacist: ["patients", "pharmacy", "inventory"],
   emergency: ["patients", "registration", "emergency", "opd"],
   supervisor: ["patients", "registration", "opd", "queue", "billing", "lab", "radiology", "pharmacy", "ipd", "audit"],
-  admin: ["users", "billing", "billing_refunds", "inventory", "abdm", "patient_portal", "audit", "consent"],
+  admin: ["users", "billing", "inventory", "audit", "consent"],
+  hod: ["patients", "opd", "queue", "lab", "radiology", "pharmacy", "ipd", "ot"],
   auditor: ["audit", "consent", "billing"],
-  patient: ["patient_portal"],
-  superadmin: ["users", "abdm", "audit"],
+  patient: ["patients"],
+  superadmin: ["users", "audit"],
 };
 
 export const APPROVAL_STATUS_LABELS: Record<"pending" | "approved" | "rejected", string> = {

@@ -98,7 +98,7 @@ export function KpiSummaryBar({
         />
       ) : (
         <Typography sx={{ m: 0, fontSize: "0.75rem", color: meridian.textSecondary }}>
-          Showing all three core KPIs
+          Showing both schema example KPIs
         </Typography>
       )}
     </Box>

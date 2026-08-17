@@ -1,4 +1,4 @@
-/** Audit DTOs aligned to migrations 0003 (audit) + 0019 (file_access_log). */
+/** Audit DTOs aligned to schema §4.4 data_access_log + 0003 audit + 0019 file_access_log. */
 
 export type AuditAction =
   | "create"
@@ -13,6 +13,8 @@ export type AuditAction =
 export type VerificationStatus = "pending" | "verified" | "failed";
 
 export type FileAccessAction = "view" | "download" | "upload" | "delete_attempt";
+
+export type AccessChannel = "ui" | "api" | "abdm_hiu" | "export";
 
 export type AuditLog = {
   id: string;
@@ -35,6 +37,24 @@ export type AuditLog = {
   entry_hash: string;
   signature: string;
   signer_key_id: string;
+  /** Display helpers (not DB columns) */
+  user_display?: string;
+  patient_display?: string;
+};
+
+/** Schema §4.4 data_access_log — PHI access purpose logging. */
+export type DataAccessLog = {
+  id: string;
+  user_id: string;
+  role: string;
+  resource_type: string;
+  resource_id: string | null;
+  patient_id: string;
+  purpose_code: string;
+  access_channel: AccessChannel;
+  emergency_access: boolean;
+  consent_verified: boolean;
+  accessed_at: string;
   /** Display helpers (not DB columns) */
   user_display?: string;
   patient_display?: string;
@@ -90,4 +110,9 @@ export type AuditLogFilters = {
 export type FileAccessFilters = {
   query?: string;
   action?: FileAccessAction | "all";
+};
+
+export type DataAccessFilters = {
+  query?: string;
+  access_channel?: AccessChannel | "all";
 };

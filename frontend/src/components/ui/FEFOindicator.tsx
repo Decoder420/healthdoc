@@ -3,7 +3,7 @@
 import Chip from "@mui/material/Chip";
 import { meridian } from "@/styles/theme";
 
-interface FEFOIndicatorProps {
+export interface FEFOIndicatorProps {
   fefo: boolean;
 }
 

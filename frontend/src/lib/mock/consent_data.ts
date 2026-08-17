@@ -138,7 +138,7 @@ const SEED_ACCESS: DataAccessLog[] = [
     user_id: "usr-400",
     role: "billing_clerk",
     resource_type: "invoices",
-    resource_id: "inv-001",
+    resource_id: "10000000-0000-4000-8000-000000000001",
     patient_id: "pat-1001",
     purpose_code: "PAYMENT",
     access_channel: "ui",

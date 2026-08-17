@@ -6,11 +6,9 @@ import {
   X,
   Search,
   LayoutDashboard,
-  Package,
-  FolderTree,
-  Truck,
-  ShoppingCart,
-  Building2,
+  Receipt,
+  Shield,
+  FileText,
   BarChart3,
   Settings,
   ChevronRight,
@@ -21,23 +19,29 @@ interface SidebarProps {
   setOpen: (value: boolean) => void;
 }
 
-export default function Sidebar({
-  open,
-  setOpen,
-}: SidebarProps) {
-  const [departmentOpen, setDepartmentOpen] = useState(false);
+const NAV_ITEMS = [
+  { href: "/billing", label: "Billing", icon: Receipt },
+  { href: "/consent", label: "Consent", icon: FileText },
+  { href: "/audit-viewer", label: "Audit viewer", icon: Shield },
+  { href: "/reports", label: "Reports (MIS)", icon: BarChart3 },
+  { href: "/admin", label: "Admin", icon: Settings },
+] as const;
+
+export default function Sidebar({ open, setOpen }: SidebarProps) {
+  const [query, setQuery] = useState("");
+
+  const filtered = NAV_ITEMS.filter((item) =>
+    item.label.toLowerCase().includes(query.trim().toLowerCase()),
+  );
 
   return (
     <>
       {open && (
-        <div
-          onClick={() => setOpen(false)}
-          className="sidebar-overlay"
-        />
+        <div onClick={() => setOpen(false)} className="sidebar-overlay" />
       )}
 
       <aside
-  className={`
+        className={`
     fixed
     top-[70px]
     left-0
@@ -56,271 +60,93 @@ export default function Sidebar({
 
     ${open ? "translate-x-0" : "-translate-x-full"}
   `}
->
-        {/* Logo */}
+      >
         <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-  <div>
-    <h2 className="text-xl font-bold text-[#001F54] tracking-wide">
-      HMIS
-    </h2>
-
-    <p className="text-xs text-gray-500 mt-1">
-      Inventory Management
-    </p>
-  </div>
-
-  <button
-    onClick={() => setOpen(false)}
-    className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition"
-  >
-    <X size={20} />
-  </button>
-</div>
-
-        {/* Search */}
-        <div className="relative mt-5 mb-6">
-  <Search
-    size={18}
-    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-  />
-
-  <input
-    type="text"
-    placeholder="Search menu..."
-    className="w-full h-11 rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:border-[#001F54] focus:bg-white transition"
-  />
-</div>
-
-        <p className="mb-3 text-[11px] uppercase tracking-[2px] text-gray-400 font-semibold">
-  Menu
-</p>
-
-       <nav className="space-y-2">
-         <Link
-  href="/doctor/dashboard"
-  onClick={() => setOpen(false)}
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <LayoutDashboard
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Doctor dashboard
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</Link>
-
-          <a
-  href="#"
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <Package
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Products
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</a>
-
-         <a
-  href="#"
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <FolderTree
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Categories
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</a>
-
-          <a
-  href="#"
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <Truck
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Suppliers
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</a>
-         <a
-  href="#"
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <ShoppingCart
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Purchase Orders
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</a>
           <div>
-            <button
-  onClick={() => setDepartmentOpen(!departmentOpen)}
-  className="group flex w-full items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <Building2
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
-
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Department
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className={`text-gray-400 transition-transform ${
-      departmentOpen ? "rotate-90 text-[#001F54]" : ""
-    }`}
-  />
-</button>
-
-            {departmentOpen && (
-              <div className="ml-7 mt-2 space-y-1 border-l border-gray-200 pl-4">
-                <Link
-                  href="/doctor/dashboard"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Doctor
-                </Link>
-
-                <Link
-                  href="/lab"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Lab
-                </Link>
-
-                <Link
-                  href="/inventory"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Inventory
-                </Link>
-
-                <Link
-                  href="/radiology"
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md py-2 text-sm text-gray-600 transition hover:text-[#001F54] hover:font-medium"
-                >
-                  Radiology
-                </Link>
-              </div>
-            )}
+            <h2 className="text-xl font-bold text-[#001F54] tracking-wide">
+              HMIS
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">F6 · Admin &amp; finance</p>
           </div>
 
-         <Link
-  href="/reports"
-  onClick={() => setOpen(false)}
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <BarChart3
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
+          <button
+            onClick={() => setOpen(false)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-100 transition"
+            type="button"
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Reports
-    </span>
-  </div>
+        <div className="relative mt-5 mb-6">
+          <Search
+            size={18}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search menu..."
+            className="w-full h-11 rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm outline-none focus:border-[#001F54] focus:bg-white transition"
+          />
+        </div>
 
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</Link>
+        <p className="mb-3 text-[11px] uppercase tracking-[2px] text-gray-400 font-semibold">
+          Menu
+        </p>
 
-         <Link
-  href="/admin"
-  onClick={() => setOpen(false)}
-  className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
->
-  <div className="flex items-center gap-3">
-    <div className="w-6 flex justify-center">
-      <Settings
-        size={20}
-        className="text-gray-500 group-hover:text-[#001F54]"
-      />
-    </div>
+        <nav className="space-y-2">
+          <Link
+            href="/billing"
+            onClick={() => setOpen(false)}
+            className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-6 flex justify-center">
+                <LayoutDashboard
+                  size={20}
+                  className="text-gray-500 group-hover:text-[#001F54]"
+                />
+              </div>
+              <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
+                Home (Billing)
+              </span>
+            </div>
+            <ChevronRight
+              size={16}
+              className="text-gray-300 group-hover:text-[#001F54]"
+            />
+          </Link>
 
-    <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
-      Admin
-    </span>
-  </div>
-
-  <ChevronRight
-    size={16}
-    className="text-gray-300 group-hover:text-[#001F54]"
-  />
-</Link>
-
+          {filtered.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="group flex items-center justify-between rounded-xl px-4 py-3 hover:bg-[#EEF4FF] transition"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 flex justify-center">
+                    <Icon
+                      size={20}
+                      className="text-gray-500 group-hover:text-[#001F54]"
+                    />
+                  </div>
+                  <span className="font-medium text-gray-700 group-hover:text-[#001F54]">
+                    {item.label}
+                  </span>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className="text-gray-300 group-hover:text-[#001F54]"
+                />
+              </Link>
+            );
+          })}
         </nav>
       </aside>
     </>

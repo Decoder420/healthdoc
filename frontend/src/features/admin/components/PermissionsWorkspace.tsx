@@ -9,7 +9,7 @@ import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
-import { FACILITY_ID } from "../constants";
+import { FACILITY_ID, MODULE_CODE_LABELS, MODULE_CODES } from "../constants";
 import { useFacilityModules } from "../hooks/useFacilityModules";
 import { AdminPageHeader } from "./AdminPageHeader";
 import { FacilityModulesPanel } from "./FacilityModulesPanel";
@@ -19,7 +19,7 @@ type PermTab = "modules" | "roles";
 
 export function PermissionsWorkspace() {
   const [tab, setTab] = useState<PermTab>("modules");
-  const { modules, loading, busyId, toggle } = useFacilityModules();
+  const { modules, capabilities, loading, busyId, toggle } = useFacilityModules();
 
   const enabledCount = useMemo(
     () => modules.filter((m) => m.is_enabled).length,
@@ -29,6 +29,15 @@ export function PermissionsWorkspace() {
     () => modules.filter((m) => !m.is_enabled).length,
     [modules],
   );
+
+  const capsSummary = useMemo(() => {
+    if (!capabilities) return null;
+    return MODULE_CODES.map((code) => ({
+      code,
+      on: capabilities.modules[code],
+      label: MODULE_CODE_LABELS[code],
+    }));
+  }, [capabilities]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -93,9 +102,29 @@ export function PermissionsWorkspace() {
           ))}
         </Stack>
         <Typography sx={{ m: 0, fontSize: "0.75rem", color: meridian.textSecondary }}>
-          Authz is Keycloak; module toggles are facility_modules (0027).
+          Authz is Keycloak; capabilities from mock GET /facility/capabilities.
         </Typography>
       </Box>
+
+      {capsSummary ? (
+        <Stack direction="row" useFlexGap sx={{ gap: 0.75, flexWrap: "wrap" }}>
+          {capsSummary.map((c) => (
+            <Chip
+              key={c.code}
+              size="small"
+              label={`${c.label}: ${c.on ? "on" : "off"}`}
+              sx={{
+                height: 24,
+                fontWeight: 600,
+                fontSize: "0.6875rem",
+                bgcolor: c.on ? "#e8f0e9" : meridian.muted,
+                color: meridian.textPrimary,
+                border: `1px solid ${meridian.border}`,
+              }}
+            />
+          ))}
+        </Stack>
+      ) : null}
 
       <Tabs
         value={tab}

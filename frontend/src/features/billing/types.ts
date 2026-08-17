@@ -58,12 +58,29 @@ export type InvoiceItem = {
   amount: Money;
 };
 
+/** Visit type enum (lowercase) — schema visits.visit_type. */
+export type VisitType = "opd" | "ipd" | "emergency" | "day_care";
+
+export type PatientSex = "male" | "female" | "other" | "unknown";
+
 export type InvoiceWithItems = Invoice & {
   items: InvoiceItem[];
   payments?: Payment[];
   /** Read context from patients / visits — not invoice columns. */
-  patient?: { uhid: string; name: string; age?: number; gender?: string };
-  visit?: { visit_type: "OPD" | "IPD" };
+  patient?: {
+    uhid: string;
+    full_name: string;
+    age_years?: number;
+    sex?: PatientSex;
+  };
+  visit?: { visit_type: VisitType };
+};
+
+export type Paginated<T> = {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
 };
 
 export type Payment = {
@@ -108,6 +125,8 @@ export type PaymentWithRefunds = Payment & {
 export type InvoiceListFilters = {
   query?: string;
   status?: InvoiceStatus | "all";
+  page?: number;
+  page_size?: number;
 };
 
 export type AddInvoiceItemInput = {

@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
-import HotelOutlinedIcon from "@mui/icons-material/HotelOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -13,15 +12,14 @@ import Typography from "@mui/material/Typography";
 import { ExportButton, type ExportFormat } from "@/components/ui/ExportButton";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { toast } from "@/components/ui/toast";
+import { getFacilityCapabilities } from "@/features/admin/api";
+import type { FacilityCapabilities } from "@/features/admin/types";
 import { kpiSnapshotToMetricCardProps, kpiLabel } from "@/lib/kpi";
 import { meridian } from "@/styles/theme";
 
-import {
-  CORE_KPI_CODES,
-  KPI_SERIES_COLORS,
-  PERIOD_OPTIONS,
-} from "../constants";
+import { FACILITY_ID, KPI_SERIES_COLORS, PERIOD_OPTIONS } from "../constants";
 import { useKpis } from "../hooks";
+import { visibleKpiCodes } from "../lib/capabilitiesFilter";
 import {
   deltaVsPrior,
   downloadTextFile,
@@ -39,17 +37,11 @@ import { KpiTrendChart } from "./KpiTrendChart";
 const KPI_ICONS: Record<CoreKpiCode, React.ReactNode> = {
   avg_opd_wait_minutes: <AccessTimeOutlinedIcon />,
   sharp_injury_count: <WarningAmberOutlinedIcon />,
-  bed_occupancy_pct: <HotelOutlinedIcon />,
 };
 
 function formatDeltaLabel(diff: number, code: CoreKpiCode): string {
   const abs = Math.abs(diff);
-  const unit =
-    code === "avg_opd_wait_minutes"
-      ? " min"
-      : code === "bed_occupancy_pct"
-        ? " pp"
-        : "";
+  const unit = code === "avg_opd_wait_minutes" ? " min" : "";
   const sign = diff > 0 ? "+" : diff < 0 ? "−" : "";
   const formatted =
     code === "sharp_injury_count" ? String(abs) : abs.toFixed(abs >= 10 ? 0 : 1);
@@ -59,14 +51,29 @@ function formatDeltaLabel(diff: number, code: CoreKpiCode): string {
 export function MisDashboard() {
   const { items, loading, error, period, setPeriod } = useKpis("7d");
   const [focusCode, setFocusCode] = useState<CoreKpiCode | null>(null);
+  const [capabilities, setCapabilities] = useState<FacilityCapabilities | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getFacilityCapabilities(FACILITY_ID).then((caps) => {
+      if (!cancelled) setCapabilities(caps);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const tileCodes = useMemo(() => visibleKpiCodes(capabilities), [capabilities]);
 
   const latest = useMemo(() => latestByCode(items), [items]);
-  const chartCodes = focusCode ? ([focusCode] as const) : CORE_KPI_CODES;
+  const chartCodes = focusCode
+    ? ([focusCode] as const)
+    : tileCodes;
   const chartData = useMemo(
     () => pivotForChart(items, chartCodes),
     [items, chartCodes],
   );
-  const sparkDataAll = useMemo(() => pivotForChart(items, CORE_KPI_CODES), [items]);
+  const sparkDataAll = useMemo(() => pivotForChart(items, tileCodes), [items, tileCodes]);
   const windowLabel = useMemo(() => periodWindowLabel(items), [items]);
   const dayCount = useMemo(() => {
     const days = new Set(items.map((r) => r.period_start));
@@ -176,7 +183,7 @@ export function MisDashboard() {
                 color: "rgba(255, 255, 255, 0.88)",
               }}
             >
-              Daily kpi_snapshots for OPD wait, sharp injuries, and bed occupancy.
+              Daily kpi_snapshots for OPD wait and sharp injuries (schema examples).
               Filter by period · export the window.
             </Typography>
           </Box>
@@ -258,11 +265,11 @@ export function MisDashboard() {
           gap: 2,
           gridTemplateColumns: {
             xs: "1fr",
-            sm: "repeat(3, 1fr)",
+            sm: "repeat(2, 1fr)",
           },
         }}
       >
-        {CORE_KPI_CODES.map((code) => {
+        {tileCodes.map((code) => {
           const snap = latest[code];
           const selected = focusCode === code;
           const muted = focusCode != null && !selected;
@@ -325,7 +332,7 @@ export function MisDashboard() {
       </Box>
 
       <Typography sx={{ m: 0, fontSize: "0.75rem", color: meridian.textSecondary }}>
-        Click a tile to focus its trend; click again to show all three. Values come from
+        Click a tile to focus its trend; click again to show both. Values come from
         kpi_snapshots (computed daily).
       </Typography>
 
@@ -349,10 +356,10 @@ export function MisDashboard() {
           sx={{
             display: "grid",
             gap: 2,
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+            gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
           }}
         >
-          {CORE_KPI_CODES.map((code) => (
+          {tileCodes.map((code) => (
             <Box
               key={code}
               onClick={() => setFocusCode(code)}

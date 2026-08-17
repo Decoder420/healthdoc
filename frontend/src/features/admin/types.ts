@@ -2,20 +2,10 @@
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
-export type ModuleCode =
-  | "lab"
-  | "radiology"
-  | "pharmacy"
-  | "inventory"
-  | "ipd"
-  | "ot"
-  | "blood_bank"
-  | "emergency"
-  | "patient_portal"
-  | "abdm"
-  | "billing_refunds";
+/** v3.13 — exactly five toggleable modules (facility_modules). */
+export type ModuleCode = "lab" | "radiology" | "pharmacy" | "ot" | "blood_bank";
 
-/** Keycloak realm roles from schema § access control + superadmin governance. */
+/** Keycloak realm roles from schema § access control + hod + superadmin (13 total). */
 export type RealmRole =
   | "receptionist"
   | "doctor"
@@ -26,6 +16,7 @@ export type RealmRole =
   | "emergency"
   | "supervisor"
   | "admin"
+  | "hod"
   | "auditor"
   | "patient"
   | "superadmin";
@@ -38,6 +29,7 @@ export type Facility = {
   district: string | null;
   facility_type: string | null;
   hfr_facility_id: string | null;
+  timezone: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -154,4 +146,10 @@ export type UpdateFacilityModuleInput = {
   is_enabled: boolean;
   disabled_reason?: string | null;
   config?: Record<string, unknown>;
+};
+
+/** GET /facility/capabilities mock shape (§4.4). */
+export type FacilityCapabilities = {
+  modules: Record<ModuleCode, boolean>;
+  config: Record<ModuleCode, Record<string, unknown>>;
 };

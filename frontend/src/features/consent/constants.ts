@@ -1,6 +1,8 @@
 import type { AccessChannel, ConsentStatus } from "./types";
 
-export const FACILITY_ID = "fac-0001";
+import { MOCK_FACILITY_ID } from "@/lib/mock/facility";
+
+export const FACILITY_ID = MOCK_FACILITY_ID;
 
 export const CONSENT_STATUS_LABELS: Record<ConsentStatus, string> = {
   active: "Active",

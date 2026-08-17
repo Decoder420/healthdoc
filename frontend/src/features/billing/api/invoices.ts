@@ -2,6 +2,7 @@ import type {
   AddInvoiceItemInput,
   InvoiceListFilters,
   InvoiceWithItems,
+  Paginated,
   UpdateInvoiceDraftInput,
 } from "../types";
 import { recomputeInvoiceTotals, withLineAmount } from "../lib/calculations";
@@ -16,11 +17,20 @@ function cloneInvoice(inv: InvoiceWithItems): InvoiceWithItems {
   return structuredClone(inv);
 }
 
+function newRowId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, "0").slice(-12)}`;
+}
+
 export async function listInvoices(
   filters: InvoiceListFilters = {},
-): Promise<InvoiceWithItems[]> {
+): Promise<Paginated<InvoiceWithItems>> {
   const q = filters.query?.trim().toLowerCase() ?? "";
   const status = filters.status ?? "all";
+  const page = filters.page ?? 1;
+  const page_size = Math.min(filters.page_size ?? 20, 100);
 
   let rows = getStore();
   if (status !== "all") {
@@ -32,7 +42,7 @@ export async function listInvoices(
         r.invoice_number,
         r.visit_id,
         r.patient_id,
-        r.patient?.name,
+        r.patient?.full_name,
         r.patient?.uhid,
         r.scheme_code,
       ]
@@ -43,12 +53,14 @@ export async function listInvoices(
     });
   }
 
-  return delay(
-    rows.map((r) => {
-      const payments = getPaymentStore().filter((p) => p.invoice_id === r.id);
-      return cloneInvoice({ ...r, payments });
-    }),
-  );
+  const total = rows.length;
+  const start = (page - 1) * page_size;
+  const pageRows = rows.slice(start, start + page_size).map((r) => {
+    const payments = getPaymentStore().filter((p) => p.invoice_id === r.id);
+    return cloneInvoice({ ...r, payments });
+  });
+
+  return delay({ items: pageRows, page, page_size, total });
 }
 
 export async function getInvoice(id: string): Promise<InvoiceWithItems | null> {
@@ -116,7 +128,7 @@ export async function addInvoiceItem(
   }
 
   const item = withLineAmount({
-    id: `item-${crypto.randomUUID().slice(0, 8)}`,
+    id: newRowId(),
     invoice_id: invoiceId,
     charge_category: body.charge_category,
     reference_type: body.reference_type ?? null,

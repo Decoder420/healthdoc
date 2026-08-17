@@ -12,6 +12,15 @@ class CheckedEnum(str, Enum):
         vals = ", ".join(f"'{v.value}'" for v in cls)
         return f"{column} IN ({vals})"
 
+    @classmethod
+    def values(cls) -> set[str]:
+        """The raw values, for validation and tests.
+
+        Use this instead of hardcoding a list anywhere — a literal list is how the
+        doc and the code drift apart, which is what spec_check.py exists to catch.
+        """
+        return {v.value for v in cls}
+
 
 class Sex(CheckedEnum):
     MALE = "male"
@@ -87,6 +96,29 @@ class ResultStatus(CheckedEnum):
     PRELIMINARY = "preliminary"
     FINAL = "final"
     CORRECTED = "corrected"
+
+
+class RadiologyOrderStatus(CheckedEnum):
+    """The radiology ITEM's lifecycle, which is not the order's.
+
+    OrderStatus (placed|accepted|in_progress|completed|cancelled) describes
+    what happened to a request. This describes where a study physically is,
+    and a modality worklist is built on the difference: 'scanned' means the
+    images exist and a radiologist is owed a report; 'reporting' means one is
+    being written; 'released' means the referring clinician can act on it.
+    Collapsing those into in_progress makes the worklist unable to answer the
+    only question it exists to answer.
+
+    0011 originally constrained radiology_order_items.status to OrderStatus,
+    which no code path could satisfy — the router has always set scheduled,
+    scanned, reporting and released. Corrected in 0020c.
+    """
+    PLACED = "placed"
+    SCHEDULED = "scheduled"
+    SCANNED = "scanned"
+    REPORTING = "reporting"
+    RELEASED = "released"
+    CANCELLED = "cancelled"
 
 
 class PrescriptionItemStatus(CheckedEnum):
@@ -194,6 +226,10 @@ class MergeStatus(CheckedEnum):
     REJECTED = "rejected"
     UNMERGED = "unmerged"
 
+
+class MergeSourceType(CheckedEnum):
+    THID = "thid"
+    DUPLICATE_UHID = "duplicate_uhid"
 
 class OrderType(CheckedEnum):
     LAB = "lab"
@@ -334,6 +370,27 @@ class FileAction(CheckedEnum):
     DELETE_ATTEMPT = "delete_attempt"
 
 
+class ScanStatus(CheckedEnum):
+    """Malware-scan state of an uploaded file (§4A.4).
+
+    `skipped` is the MVP default and is deliberately NOT a synonym for
+    `clean`: no ClamAV sidecar is wired up yet, so every row says plainly
+    that no scan happened rather than implying one did. When scanning
+    lands, the serving endpoint gates on `clean` — at which point every
+    existing `skipped` row needs a backfill decision, not a silent pass.
+
+    `failed` (the scanner errored) is separate from `infected` (the
+    scanner ran and found something) because the responses differ: one is
+    an operational problem, the other is an incident.
+    """
+
+    SKIPPED = "skipped"
+    PENDING = "pending"
+    CLEAN = "clean"
+    INFECTED = "infected"
+    FAILED = "failed"
+
+
 # --- v3 compliance wave (DPDP Rules 2025 + NABH DHS 2nd Ed) ---
 
 class GrievanceType(CheckedEnum):
@@ -427,22 +484,57 @@ class DischargeNotificationTarget(CheckedEnum):
 
 
 class ModuleCode(CheckedEnum):
-    """Per-facility toggleable modules (facility_modules). Core modules
-    (patients, registration, opd, queue, billing, consent, audit, files,
-    users, notifications) are NOT listed — they can never be disabled."""
-    LAB = "lab"
-    RADIOLOGY = "radiology"
+    """The ONLY per-facility toggleable modules (facility_modules).
+
+    Exactly five. Everything else — patients, registration, opd/encounters, queue,
+    departments, billing, consent, audit, files, users, notifications, inventory,
+    ipd, emergency, patient_portal, abdm, refunds — is CORE and can never be
+    disabled (see common/modules.CORE_MODULES).
+
+    Inventory is deliberately core *because* pharmacy is optional: consumables,
+    reagents and ward stock exist even with no dispensary.
+    """
     PHARMACY = "pharmacy"
-    INVENTORY = "inventory"
-    IPD = "ipd"
+    LAB = "lab"                 # pathology
+    RADIOLOGY = "radiology"
     OT = "ot"
     BLOOD_BANK = "blood_bank"
+
+
+class ProcedureSetting(CheckedEnum):
+    """Where a procedure happened — decoupled from the OT module so minor
+    procedures are recordable and billable at a facility with no theatre."""
+    OPD_MINOR = "opd_minor"
+    BEDSIDE = "bedside"
     EMERGENCY = "emergency"
-    PATIENT_PORTAL = "patient_portal"
-    ABDM = "abdm"
-    BILLING_REFUNDS = "billing_refunds"
+    OT = "ot"
 
 
 class FulfilmentMode(CheckedEnum):
     INTERNAL = "internal"
     EXTERNAL_REFERRAL = "external_referral"
+
+class AllergenType(CheckedEnum):
+    DRUG = "drug"
+    FOOD = "food"
+    ENVIRONMENTAL = "environmental"
+    OTHER = "other"
+
+
+class AllergySeverity(CheckedEnum):
+    """Reaction severity as observed. `anaphylaxis` is deliberately separate from
+    `severe` — it drives a hard block at prescribing, not a warning."""
+    MILD = "mild"
+    MODERATE = "moderate"
+    SEVERE = "severe"
+    ANAPHYLAXIS = "anaphylaxis"
+
+
+class AllergyStatus(CheckedEnum):
+    """Allergy records are corrected, never deleted — a removed allergy that was
+    real is the failure mode this enum exists to prevent. `refuted` = clinically
+    ruled out; `entered_in_error` = wrong patient/typo."""
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    REFUTED = "refuted"
+    ENTERED_IN_ERROR = "entered_in_error"

@@ -118,7 +118,7 @@ export function InvoiceListPanel({
               >
                 <Stack direction="row" sx={{ justifyContent: "space-between", gap: 1, mb: 0.5 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: "0.875rem", color: meridian.textPrimary }}>
-                    {inv.patient?.name ?? inv.patient_id}
+                    {inv.patient?.full_name ?? inv.patient_id}
                   </Typography>
                   <InvoiceStatusChip status={inv.status} />
                 </Stack>
@@ -126,7 +126,9 @@ export function InvoiceListPanel({
                   {inv.invoice_number}
                 </Typography>
                 <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>
-                  {inv.patient?.uhid} · {inv.visit?.visit_type ?? "—"} · {formatINR(inv.net_amount)}
+                  {inv.patient?.uhid} ·{" "}
+                  {inv.visit?.visit_type ? inv.visit.visit_type.toUpperCase() : "—"} ·{" "}
+                  {formatINR(inv.net_amount)}
                 </Typography>
               </Button>
             );
