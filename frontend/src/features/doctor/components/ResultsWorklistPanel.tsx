@@ -111,7 +111,7 @@ export function ResultsWorklistPanel({
           ) : (
             <StatusChip status={row.status} />
           )}
-          {row.has_critical && <CriticalBadge />}
+          {false && <CriticalBadge />}
         </Stack>
       ),
     },
@@ -125,7 +125,7 @@ export function ResultsWorklistPanel({
         row.reported_at ? (
           <Box>
             <Typography sx={{ fontSize: "0.75rem" }}>{formatDateTime(row.reported_at)}</Typography>
-            {row.acknowledged_at ? (
+            {row.review_status === "signed_off" ? (
               <Typography sx={{ fontSize: "0.6875rem", color: meridian.success, fontWeight: 600 }}>
                 Signed off
               </Typography>

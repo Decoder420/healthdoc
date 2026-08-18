@@ -10,7 +10,7 @@ import Typography from "@mui/material/Typography";
 import { Badge } from "@/components/ui/Badge";
 import { meridian } from "@/styles/theme";
 import { FREQUENCIES_WITHOUT_DURATION, FREQUENCY_OPTIONS, ROUTE_OPTIONS } from "../constants";
-import type { DraftPrescriptionItem, Frequency, PrescriptionRoute } from "../types";
+import type { DraftPrescriptionItem, FrequencyCode, RouteCode } from "../types";
 
 export interface PrescriptionItemRowProps {
   item: DraftPrescriptionItem;
@@ -19,7 +19,7 @@ export interface PrescriptionItemRowProps {
 }
 
 export function PrescriptionItemRow({ item, onChange, onRemove }: PrescriptionItemRowProps) {
-  const noDuration = FREQUENCIES_WITHOUT_DURATION.includes(item.frequency);
+  const noDuration = FREQUENCIES_WITHOUT_DURATION.includes(item.frequency as never);
 
   return (
     <Box
@@ -57,7 +57,7 @@ export function PrescriptionItemRow({ item, onChange, onRemove }: PrescriptionIt
           select
           label="Frequency"
           value={item.frequency}
-          onChange={(e) => onChange({ frequency: e.target.value as Frequency })}
+          onChange={(e) => onChange({ frequency: e.target.value as FrequencyCode })}
           size="small"
           sx={{ minWidth: 200 }}
         >
@@ -83,7 +83,7 @@ export function PrescriptionItemRow({ item, onChange, onRemove }: PrescriptionIt
           select
           label="Route"
           value={item.route}
-          onChange={(e) => onChange({ route: e.target.value as PrescriptionRoute })}
+          onChange={(e) => onChange({ route: e.target.value as RouteCode })}
           size="small"
           sx={{ minWidth: 170 }}
         >

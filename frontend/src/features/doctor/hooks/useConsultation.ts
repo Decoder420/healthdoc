@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { completeEncounter, createEncounter } from "../api";
-import type { ActiveEncounter, EncounterContext, EncounterType } from "../types";
+import { completeEncounter, createEncounter, updateEncounter } from "../api";
+import type { ActiveEncounter, EncounterContext, EncounterType, NoteStatus } from "../types";
+import type { SoapNote } from "../components/SoapNotePanel";
 
 export type ConsultationStatus = "draft" | "saved" | "completed";
 
@@ -19,6 +20,7 @@ export function useConsultation(context: EncounterContext) {
     visit_id: context.visit_id,
     patient_id: context.patient_id,
     provider_user_id: context.provider_user_id,
+    note_status: "pending" as const,
     started_at: new Date().toISOString(),
   }));
 
@@ -27,6 +29,13 @@ export function useConsultation(context: EncounterContext) {
   const [status, setStatus] = useState<ConsultationStatus>("draft");
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [soap, setSoap] = useState<SoapNote>({ subjective: "", objective: "", assessment: "", plan: "" });
+  const [noteStatus, setNoteStatus] = useState<NoteStatus>("pending");
+
+  const patchSoap = useCallback(
+    (patch: Partial<SoapNote>) => setSoap((prev) => ({ ...prev, ...patch })),
+    [],
+  );
 
   const canComplete = useMemo(() => status === "saved", [status]);
 
@@ -43,11 +52,15 @@ export function useConsultation(context: EncounterContext) {
           provider_user_id: encounter.provider_user_id,
           encounter_type: encounterType,
           chief_complaint: chiefComplaint.trim(),
-          started_at: encounter.started_at,
+  
+    started_at: encounter.started_at,
         },
         encounter.patient_id,
         encounter.id,
       );
+      // SOAP is a PATCH, never part of the POST — EncounterCreate does not accept it.
+      const saved = await updateEncounter({ ...encounter, note_status: "pending" }, soap);
+      setNoteStatus(saved.note_status);
       setStatus("saved");
       toast.success("Encounter saved");
     } catch (e) {
@@ -55,7 +68,7 @@ export function useConsultation(context: EncounterContext) {
     } finally {
       setSaving(false);
     }
-  }, [chiefComplaint, encounter, encounterType]);
+  }, [chiefComplaint, encounter, encounterType, soap]);
 
   const complete = useCallback(async () => {
     setCompleting(true);
@@ -82,5 +95,8 @@ export function useConsultation(context: EncounterContext) {
     canComplete,
     saveEncounter,
     complete,
+    soap,
+    patchSoap,
+    noteStatus,
   };
 }

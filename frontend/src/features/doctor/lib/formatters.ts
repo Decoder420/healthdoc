@@ -1,5 +1,4 @@
 import { FREQUENCY_OPTIONS, ROUTE_OPTIONS } from "../constants";
-import type { Frequency, PrescriptionRoute } from "../types";
 
 /** "34 yrs · Male" style demographics line. */
 export function formatAgeSex(age_years: number, sex: string): string {
@@ -47,14 +46,14 @@ export function formatCountdown(ms: number): string {
 
 const FREQUENCY_LABELS = Object.fromEntries(
   FREQUENCY_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<Frequency, string>;
+) as Record<string, string>;
 
 const ROUTE_LABELS = Object.fromEntries(
   ROUTE_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<PrescriptionRoute, string>;
+) as Record<string, string>;
 
-export const frequencyLabel = (f: Frequency): string => FREQUENCY_LABELS[f] ?? f;
-export const routeLabel = (r: PrescriptionRoute): string => ROUTE_LABELS[r] ?? r;
+export const frequencyLabel = (f: string): string => FREQUENCY_LABELS[f] ?? f;
+export const routeLabel = (r: string): string => ROUTE_LABELS[r] ?? r;
 
 /** BMI from height/weight, or undefined if either is missing. Preview only. */
 export function computeBmi(height_cm?: number, weight_kg?: number): number | undefined {

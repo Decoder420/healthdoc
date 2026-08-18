@@ -4,17 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import {
-  acknowledgeResult,
-  getAcknowledgements,
+  createDoctorReview,
   getLabResults,
   getRadiologyReports,
+  getReviewsForItem,
   listResultsWorklist,
+  REVIEW_ENCOUNTER_ID,
+  updateDoctorReview,
 } from "../api";
-import { MOCK_PROVIDER_NAME, MOCK_PROVIDER_USER_ID } from "../constants";
 import type {
+  DoctorReview,
+  DoctorReviewStatus,
   LabResult,
   RadiologyReport,
-  ResultAcknowledgement,
   ResultWorklistItem,
 } from "../types";
 
@@ -23,8 +25,9 @@ export type ResultsFilter = "all" | "unread" | "critical";
 /**
  * Owns the results worklist and the currently opened result.
  *
- * A selected item loads every version (corrections are new rows, never edits),
- * and the viewer defaults to the current one.
+ * A selected item loads every version (corrections are new rows, never edits)
+ * and the viewer defaults to the current one. Sign-off is a doctor_reviews row
+ * against the encounter — the result itself is never written to.
  */
 export function useResults() {
   const [items, setItems] = useState<ResultWorklistItem[]>([]);
@@ -36,7 +39,7 @@ export function useResults() {
   const [labVersions, setLabVersions] = useState<LabResult[]>([]);
   const [radVersions, setRadVersions] = useState<RadiologyReport[]>([]);
   const [viewingVersion, setViewingVersion] = useState<number | null>(null);
-  const [acks, setAcks] = useState<ResultAcknowledgement[]>([]);
+  const [reviews, setReviews] = useState<DoctorReview[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [signing, setSigning] = useState(false);
 
@@ -51,17 +54,23 @@ export function useResults() {
     };
   }, []);
 
+  const isOutstanding = (i: ResultWorklistItem) =>
+    Boolean(i.result_status) && i.review_status !== "signed_off";
+
   const visible = useMemo(() => {
-    if (filter === "critical") return items.filter((i) => i.has_critical);
-    if (filter === "unread") return items.filter((i) => i.result_status && !i.acknowledged_at);
+    // `critical` here means clinically urgent by ORDER PRIORITY. We do not derive
+    // criticality from result values — result_data has no agreed shape and a
+    // guessed critical flag is a patient-safety defect.
+    if (filter === "critical") return items.filter((i) => i.priority === "stat");
+    if (filter === "unread") return items.filter(isOutstanding);
     return items;
   }, [items, filter]);
 
   const counts = useMemo(
     () => ({
       total: items.length,
-      unread: items.filter((i) => i.result_status && !i.acknowledged_at).length,
-      critical: items.filter((i) => i.has_critical).length,
+      unread: items.filter(isOutstanding).length,
+      critical: items.filter((i) => i.priority === "stat").length,
     }),
     [items],
   );
@@ -70,9 +79,8 @@ export function useResults() {
     setSelected(item);
     setLabVersions([]);
     setRadVersions([]);
-    setAcks([]);
+    setReviews([]);
     setViewingVersion(null);
-
     if (!item.result_status) return; // nothing reported yet
 
     setDetailLoading(true);
@@ -80,16 +88,13 @@ export function useResults() {
       if (item.order_type === "lab") {
         const rows = await getLabResults(item.id);
         setLabVersions(rows);
-        const current = rows.find((r) => r.is_current) ?? rows[0];
-        setViewingVersion(current?.version ?? null);
-        if (current) setAcks(await getAcknowledgements({ lab_result_id: current.id }));
+        setViewingVersion((rows.find((r) => r.is_current) ?? rows[0])?.version ?? null);
       } else {
         const rows = await getRadiologyReports(item.id);
         setRadVersions(rows);
-        const current = rows.find((r) => r.is_current) ?? rows[0];
-        setViewingVersion(current?.version ?? null);
-        if (current) setAcks(await getAcknowledgements({ radiology_report_id: current.id }));
+        setViewingVersion((rows.find((r) => r.is_current) ?? rows[0])?.version ?? null);
       }
+      setReviews(await getReviewsForItem(item.id, item.order_type));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load result");
     } finally {
@@ -106,42 +111,44 @@ export function useResults() {
     [radVersions, viewingVersion],
   );
 
-  /** Sign-off applies to the current version only — you cannot sign a superseded one. */
+  /** You may only review the current version — never a superseded one. */
   const currentVersion = useMemo(() => {
     const current = labVersions.find((r) => r.is_current) ?? radVersions.find((r) => r.is_current);
     return current?.version ?? null;
   }, [labVersions, radVersions]);
 
   const viewingIsCurrent = viewingVersion !== null && viewingVersion === currentVersion;
-  const alreadySigned = acks.length > 0;
+  const review = reviews[0] ?? null;
+  const reviewStatus: DoctorReviewStatus | null = review?.status ?? null;
 
-  const sign = useCallback(
-    async (note?: string) => {
-      const target = labVersions.find((r) => r.is_current) ?? radVersions.find((r) => r.is_current);
-      if (!target || !selected) return;
-
+  /**
+   * Advance the review. `pending` is created on first touch, then the doctor
+   * moves it to `reviewed` (seen, not final) or `signed_off` (done).
+   */
+  const advance = useCallback(
+    async (status: Exclude<DoctorReviewStatus, "pending">, notes?: string) => {
+      if (!selected) return;
       setSigning(true);
       try {
-        const ack = await acknowledgeResult({
-          lab_result_id: selected.order_type === "lab" ? target.id : undefined,
-          radiology_report_id: selected.order_type === "radiology" ? target.id : undefined,
-          reviewed_by: MOCK_PROVIDER_USER_ID,
-          reviewed_by_name: MOCK_PROVIDER_NAME,
-          note,
-        });
-        setAcks((prev) => [...prev, ack]);
+        const existing = review ?? (await createDoctorReview(REVIEW_ENCOUNTER_ID, {
+          lab_order_item_id: selected.order_type === "lab" ? selected.id : undefined,
+          radiology_order_item_id: selected.order_type === "radiology" ? selected.id : undefined,
+          notes,
+        }));
+        const updated = await updateDoctorReview(existing.id, { status, notes });
+        if (updated) setReviews([updated]);
         setItems((prev) =>
-          prev.map((i) => (i.id === selected.id ? { ...i, acknowledged_at: ack.reviewed_at } : i)),
+          prev.map((i) => (i.id === selected.id ? { ...i, review_status: status } : i)),
         );
-        setSelected((prev) => (prev ? { ...prev, acknowledged_at: ack.reviewed_at } : prev));
-        toast.success("Result signed off");
+        setSelected((prev) => (prev ? { ...prev, review_status: status } : prev));
+        toast.success(status === "signed_off" ? "Result signed off" : "Marked as reviewed");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to sign off");
+        toast.error(e instanceof Error ? e.message : "Failed to update review");
       } finally {
         setSigning(false);
       }
     },
-    [labVersions, radVersions, selected],
+    [review, selected],
   );
 
   return {
@@ -161,9 +168,9 @@ export function useResults() {
     viewingVersion,
     setViewingVersion,
     viewingIsCurrent,
-    acks,
-    alreadySigned,
+    review,
+    reviewStatus,
     signing,
-    sign,
+    advance,
   };
 }

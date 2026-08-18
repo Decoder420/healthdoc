@@ -63,7 +63,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
                 border: `1px solid ${meridian.border}`,
               }}
             >
-              <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>{o.item_name}</Typography>
+              <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>{(o.test_name ?? o.scan_type ?? o.procedure_name ?? o.order_type)}</Typography>
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <Badge variant="outline">{typeLabel(o.order_type)}</Badge>
                 <Badge variant={PRIORITY_BADGE[o.priority]}>{o.priority}</Badge>

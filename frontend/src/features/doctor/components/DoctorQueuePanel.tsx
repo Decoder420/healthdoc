@@ -7,14 +7,21 @@ import { DataTable, type DataTableColumn } from "@/components/tables/DataTable";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { Badge } from "@/components/ui/Badge";
 import { MetricCard } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { doctorButtonSx } from "../panelSx";
 import { PRIORITY_META } from "../constants";
-import type { QueuePatient } from "../types";
+import type { QueueToken } from "../types";
+
+/** queue_tokens statuses from which "call next" is meaningful. */
+const CALLABLE: QueueToken["status"][] = ["waiting", "recalled", "skipped"];
 
 export interface DoctorQueuePanelProps {
-  patients: QueuePatient[];
+  patients: QueueToken[];
   loading: boolean;
   selectedId?: string | null;
-  onSelect: (patient: QueuePatient) => void;
+  onSelect: (patient: QueueToken) => void;
+  onCallNext: (tokenId: string) => void;
+  calling?: boolean;
 }
 
 export function DoctorQueuePanel({
@@ -22,6 +29,8 @@ export function DoctorQueuePanel({
   loading,
   selectedId = null,
   onSelect,
+  onCallNext,
+  calling = false,
 }: DoctorQueuePanelProps) {
   const today = new Date().toISOString().slice(0, 10);
   const waiting = patients.filter(
@@ -32,7 +41,7 @@ export function DoctorQueuePanel({
     (r) => r.status === "completed" && (!r.completed_at || r.completed_at.slice(0, 10) === today),
   ).length;
 
-  const columns: DataTableColumn<QueuePatient>[] = [
+  const columns: DataTableColumn<QueueToken>[] = [
     { key: "token_display", label: "Token", sortable: true, width: 96 },
     {
       key: "full_name",
@@ -61,7 +70,29 @@ export function DoctorQueuePanel({
       label: "Wait",
       sortable: true,
       align: "right",
-      render: (row) => `${row.wait_minutes} min`,
+      render: (row) => `${Math.max(0, Math.round((Date.now() - Date.parse(row.created_at)) / 60000))} min`,
+    },
+    {
+      key: "call",
+      label: "",
+      align: "right",
+      width: 118,
+      // Only a token that is still waiting can be called next.
+      render: (row) =>
+        CALLABLE.includes(row.status) ? (
+          <Button
+            size="small"
+            variant="outlined"
+            sx={doctorButtonSx}
+            disabled={calling}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCallNext(row.id);
+            }}
+          >
+            Call next
+          </Button>
+        ) : null,
     },
   ];
 
@@ -73,7 +104,7 @@ export function DoctorQueuePanel({
         <MetricCard label="Completed Today" value={completed} size="sm" loading={loading} />
       </Box>
 
-      <DataTable<QueuePatient>
+      <DataTable<QueueToken>
         columns={columns}
         rows={patients}
         loading={loading}

@@ -16,8 +16,8 @@ import { doctorPanelSx, doctorButtonSx } from "../panelSx";
 import type {
   LabResult,
   RadiologyReport,
-  ResultAcknowledgement,
   ResultWorklistItem,
+  DoctorReview,
 } from "../types";
 import { CriticalBadge } from "./CriticalBadge";
 import { LabResultViewer } from "./LabResultViewer";
@@ -33,10 +33,10 @@ export interface ResultDetailPanelProps {
   viewingVersion: number | null;
   onVersionChange: (v: number) => void;
   viewingIsCurrent: boolean;
-  acks: ResultAcknowledgement[];
-  alreadySigned: boolean;
+  review: DoctorReview | null;
   signing: boolean;
   onSign: (note?: string) => void;
+  onMarkReviewed: () => void;
 }
 
 export function ResultDetailPanel({
@@ -48,12 +48,13 @@ export function ResultDetailPanel({
   viewingVersion,
   onVersionChange,
   viewingIsCurrent,
-  acks,
-  alreadySigned,
+  review,
   signing,
   onSign,
+  onMarkReviewed,
 }: ResultDetailPanelProps) {
   const [signOpen, setSignOpen] = React.useState(false);
+  const alreadySigned = review?.status === "signed_off";
 
   if (!item) {
     return (
@@ -81,7 +82,7 @@ export function ResultDetailPanel({
               {item.order_type === "lab" ? "Lab" : (item.modality?.toUpperCase() ?? "Radiology")}
             </Badge>
             {status && <StatusChip status={status} />}
-            {item.has_critical && <CriticalBadge />}
+            {false && <CriticalBadge />}
           </Stack>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.5 }}>
             {item.patient_name} · UHID {item.uhid} · {item.accession_number}
@@ -160,15 +161,15 @@ export function ResultDetailPanel({
           >
             {alreadySigned ? (
               <Stack spacing={0.5}>
-                {acks.map((a) => (
+                {[review].filter((x): x is DoctorReview => x !== null).map((a) => (
                   <Box key={a.id}>
                     <Typography sx={{ fontSize: "0.8125rem", color: meridian.success, fontWeight: 600 }}>
                       Signed off by {a.reviewed_by_name ?? a.reviewed_by} ·{" "}
-                      {formatDateTime(a.reviewed_at)}
+                      {formatDateTime((a.signed_off_at ?? a.updated_at))}
                     </Typography>
-                    {a.note && (
+                    {a.notes && (
                       <Typography sx={{ fontSize: "0.8125rem", color: meridian.textPrimary }}>
-                        {a.note}
+                        {a.notes}
                       </Typography>
                     )}
                   </Box>
@@ -181,14 +182,26 @@ export function ResultDetailPanel({
             )}
 
             {!alreadySigned && (
-              <Button
-                variant="contained"
-                sx={doctorButtonSx}
-                disabled={signing || !viewingIsCurrent}
-                onClick={() => setSignOpen(true)}
-              >
-                Sign off result
-              </Button>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                {review?.status !== "reviewed" && (
+                  <Button
+                    variant="outlined"
+                    sx={doctorButtonSx}
+                    disabled={signing || !viewingIsCurrent}
+                    onClick={onMarkReviewed}
+                  >
+                    Mark as reviewed
+                  </Button>
+                )}
+                <Button
+                  variant="contained"
+                  sx={doctorButtonSx}
+                  disabled={signing || !viewingIsCurrent}
+                  onClick={() => setSignOpen(true)}
+                >
+                  Sign off result
+                </Button>
+              </Stack>
             )}
           </Stack>
         </>

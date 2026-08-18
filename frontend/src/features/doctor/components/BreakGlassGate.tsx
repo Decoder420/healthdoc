@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { meridian } from "@/styles/theme";
 import { useBreakGlass } from "../hooks/useBreakGlass";
 import { doctorButtonSx, doctorPanelSx } from "../panelSx";
-import type { QueuePatient, RecordAccessBlockedReason } from "../types";
+import type { QueueToken, RecordAccessBlockedReason } from "../types";
 import { BreakGlassBanner } from "./BreakGlassBanner";
 import { BreakGlassWarningModal } from "./BreakGlassWarningModal";
 
@@ -29,7 +29,7 @@ export function BreakGlassGate({
   patient,
   children,
 }: {
-  patient: QueuePatient | null;
+  patient: QueueToken | null;
   children: React.ReactNode;
 }) {
   const { loading, submitting, allowed, blockedReason, grant, msRemaining, requestAccess, revoke } =

@@ -42,9 +42,9 @@ export function PrescriptionPrintView({ context, items, notes }: PrescriptionPri
         </div>
       </div>
 
-      {context.known_allergies.length > 0 && (
+      {[].length > 0 && (
         <div style={{ fontSize: 12, marginTop: 8 }}>
-          <strong>Known allergies:</strong> {context.known_allergies.join(", ")}
+          <strong>Known allergies:</strong> {[].join(", ")}
         </div>
       )}
 

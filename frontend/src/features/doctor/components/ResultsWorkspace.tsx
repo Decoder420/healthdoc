@@ -33,10 +33,9 @@ export function ResultsWorkspace() {
     viewingVersion,
     setViewingVersion,
     viewingIsCurrent,
-    acks,
-    alreadySigned,
+    review,
     signing,
-    sign,
+    advance,
   } = useResults();
 
   const versions = (selected?.order_type === "lab" ? labVersions : radVersions).map((v) => ({
@@ -115,10 +114,11 @@ export function ResultsWorkspace() {
         viewingVersion={viewingVersion}
         onVersionChange={setViewingVersion}
         viewingIsCurrent={viewingIsCurrent}
-        acks={acks}
-        alreadySigned={alreadySigned}
+        review={review}
+        
         signing={signing}
-        onSign={sign}
+        onSign={(notes?: string) => advance("signed_off", notes)}
+        onMarkReviewed={() => advance("reviewed")}
       />
     </Box>
   );

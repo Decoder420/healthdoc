@@ -1,10 +1,13 @@
 import type {
   DiagnosisType,
   EncounterType,
-  Frequency,
+  FrequencyCode,
   OrderPriority,
   OrderType,
-  PrescriptionRoute,
+  Modality,
+  ProcedureSetting,
+  RouteCode,
+  SampleType,
   QueuePriority,
 } from "./types";
 
@@ -23,6 +26,13 @@ export const BREAK_GLASS_JUSTIFICATION_MIN = 20;
 
 /** TOTP code length for the break-glass step-up challenge. */
 export const MFA_CODE_LENGTH = 6;
+
+/**
+ * Minimum characters to override a non-anaphylaxis allergy.
+ * Mirrors backend allergies/service.OVERRIDE_REASON_MIN_CHARS.
+ * Anaphylaxis has no override at any length.
+ */
+export const ALLERGY_OVERRIDE_REASON_MIN = 20;
 
 /** Schema priority sort (high → low) — QueuePriority docstring in enums.py. */
 export const QUEUE_PRIORITY_RANK: Record<QueuePriority, number> = {
@@ -54,6 +64,34 @@ export const ORDER_TYPE_OPTIONS: { value: OrderType; label: string }[] = [
   { value: "procedure", label: "Procedure" },
 ];
 
+/** lab_order_items.sample_type — NOT NULL, so the form must collect it. */
+export const SAMPLE_TYPE_OPTIONS: { value: SampleType; label: string }[] = [
+  { value: "blood", label: "Blood" },
+  { value: "serum", label: "Serum" },
+  { value: "plasma", label: "Plasma" },
+  { value: "urine", label: "Urine" },
+  { value: "stool", label: "Stool" },
+  { value: "swab", label: "Swab" },
+  { value: "tissue", label: "Tissue" },
+];
+
+/** radiology_order_items.modality — NOT NULL. */
+export const MODALITY_OPTIONS: { value: Modality; label: string }[] = [
+  { value: "xray", label: "X-Ray" },
+  { value: "ct", label: "CT" },
+  { value: "mri", label: "MRI" },
+  { value: "usg", label: "Ultrasound" },
+  { value: "mammo", label: "Mammography" },
+];
+
+/** procedures.setting — works with the OT module off. */
+export const PROCEDURE_SETTING_OPTIONS: { value: ProcedureSetting; label: string }[] = [
+  { value: "opd_minor", label: "OPD (minor)" },
+  { value: "bedside", label: "Bedside" },
+  { value: "emergency", label: "Emergency" },
+  { value: "ot", label: "Operation theatre" },
+];
+
 export const ORDER_PRIORITY_OPTIONS: { value: OrderPriority; label: string }[] = [
   { value: "routine", label: "Routine" },
   { value: "urgent", label: "Urgent" },
@@ -76,7 +114,7 @@ export const PRIORITY_META: Record<
 // --- Prescription vocabularies (prescription_items) ---
 
 /** Frequency codes with expansions. SOS = as needed (PRN); STAT = immediately, once. */
-export const FREQUENCY_OPTIONS: { value: Frequency; label: string }[] = [
+export const FREQUENCY_OPTIONS: { value: FrequencyCode; label: string }[] = [
   { value: "OD", label: "OD — once daily" },
   { value: "BD", label: "BD — twice daily" },
   { value: "TDS", label: "TDS — thrice daily" },
@@ -87,9 +125,9 @@ export const FREQUENCY_OPTIONS: { value: Frequency; label: string }[] = [
 ];
 
 /** Frequencies that don't take a fixed duration (single or as-needed dosing). */
-export const FREQUENCIES_WITHOUT_DURATION: Frequency[] = ["SOS", "STAT"];
+export const FREQUENCIES_WITHOUT_DURATION: FrequencyCode[] = ["SOS", "STAT"];
 
-export const ROUTE_OPTIONS: { value: PrescriptionRoute; label: string }[] = [
+export const ROUTE_OPTIONS: { value: RouteCode; label: string }[] = [
   { value: "oral", label: "Oral" },
   { value: "iv", label: "Intravenous (IV)" },
   { value: "im", label: "Intramuscular (IM)" },

@@ -1,27 +1,37 @@
+/**
+ * Results review and doctor sign-off.
+ *
+ * Sign-off is a doctor_reviews row (backend app/encounters) — NOT a column on
+ * lab_results/radiology_reports, which are append-only and versioned: writing a
+ * review onto them would spawn a false result version.
+ */
 import {
-  mockAcknowledgements,
+  MOCK_ENCOUNTER_ID_FOR_REVIEWS,
+  mockDoctorReviews,
   mockLabResults,
   mockRadiologyReports,
   mockResultsWorklist,
-  savedAcknowledgements,
+  savedDoctorReviews,
 } from "@/lib/mock";
+import { MOCK_PROVIDER_NAME, MOCK_PROVIDER_USER_ID } from "../constants";
 import type {
+  CreateDoctorReviewInput,
+  DoctorReview,
   LabResult,
   RadiologyReport,
-  ResultAcknowledgement,
   ResultWorklistItem,
+  UpdateDoctorReviewInput,
 } from "../types";
 
 function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
 }
 
-/** Critical first, then STAT/urgent, then most recently reported. */
+/** STAT/urgent first, then most recently reported. */
 const PRIORITY_RANK = { stat: 0, urgent: 1, routine: 2 } as const;
 
 function sortWorklist(rows: ResultWorklistItem[]): ResultWorklistItem[] {
   return [...rows].sort((a, b) => {
-    if (a.has_critical !== b.has_critical) return a.has_critical ? -1 : 1;
     const byPriority = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
     if (byPriority !== 0) return byPriority;
     return (b.reported_at ?? "").localeCompare(a.reported_at ?? "");
@@ -29,19 +39,14 @@ function sortWorklist(rows: ResultWorklistItem[]): ResultWorklistItem[] {
 }
 
 /**
- * The doctor's results worklist — order items for this provider joined with
- * their current result/report.
- *
- * No single endpoint exists for this yet: §4.4 documents
- * GET /lab/order-items/{id}/results and /radiology/order-items/{id}/reports
- * per item, but nothing that lists a doctor's outstanding results. Raised with
- * B5 — this call stands in for it.
+ * The doctor's outstanding results. Backed by GET /pathology/order-items and
+ * GET /radiology/order-items, joined with each item's current result.
  */
 export async function listResultsWorklist(): Promise<ResultWorklistItem[]> {
   return delay(sortWorklist(mockResultsWorklist));
 }
 
-/** GET /api/v1/lab/order-items/{id}/results — all versions, newest first. */
+/** GET /api/v1/pathology/order-items/{id}/results — all versions, newest first. */
 export async function getLabResults(labOrderItemId: string): Promise<LabResult[]> {
   const rows = mockLabResults
     .filter((r) => r.lab_order_item_id === labOrderItemId)
@@ -59,55 +64,70 @@ export async function getRadiologyReports(
   return delay(rows);
 }
 
-/** Acknowledgements for one result/report (current version). */
-export async function getAcknowledgements(
-  ref: { lab_result_id?: string; radiology_report_id?: string },
-): Promise<ResultAcknowledgement[]> {
-  const all = [...mockAcknowledgements, ...savedAcknowledgements];
-  const rows = all.filter(
-    (a) =>
-      (ref.lab_result_id && a.lab_result_id === ref.lab_result_id) ||
-      (ref.radiology_report_id && a.radiology_report_id === ref.radiology_report_id),
-  );
-  return delay(rows);
+function allReviews(): DoctorReview[] {
+  return [...mockDoctorReviews, ...savedDoctorReviews];
+}
+
+/** GET /api/v1/encounters/{encounter_id}/reviews, filtered to one order item. */
+export async function getReviewsForItem(
+  itemId: string,
+  orderType: "lab" | "radiology",
+): Promise<DoctorReview[]> {
+  const key = orderType === "lab" ? "lab_order_item_id" : "radiology_order_item_id";
+  return delay(allReviews().filter((r) => r[key] === itemId));
 }
 
 /**
- * Doctor sign-off. NOT YET IMPLEMENTABLE against the backend — schema v3.13 has
- * no table and no endpoint for this (see types.ts ResultAcknowledgement).
- *
- * Kept as a single function so wiring the real call is a one-place change:
- *   POST /api/v1/lab/results/{id}/acknowledge   { note }
- *   POST /api/v1/radiology/reports/{id}/acknowledge { note }
+ * POST /api/v1/encounters/{encounter_id}/reviews — opens the review at
+ * `pending`. The server sets reviewed_by from the JWT.
  */
-export async function acknowledgeResult(input: {
-  lab_result_id?: string;
-  radiology_report_id?: string;
-  reviewed_by: string;
-  reviewed_by_name?: string;
-  note?: string;
-}): Promise<ResultAcknowledgement> {
-  const ack: ResultAcknowledgement = {
+export async function createDoctorReview(
+  encounterId: string,
+  input: CreateDoctorReviewInput,
+): Promise<DoctorReview> {
+  const now = new Date().toISOString();
+  const review: DoctorReview = {
     id: crypto.randomUUID(),
-    lab_result_id: input.lab_result_id,
-    radiology_report_id: input.radiology_report_id,
-    reviewed_by: input.reviewed_by,
-    reviewed_by_name: input.reviewed_by_name,
-    reviewed_at: new Date().toISOString(),
-    note: input.note?.trim() || undefined,
+    encounter_id: encounterId,
+    reviewed_by: MOCK_PROVIDER_USER_ID,
+    reviewed_by_name: MOCK_PROVIDER_NAME,
+    lab_order_item_id: input.lab_order_item_id,
+    radiology_order_item_id: input.radiology_order_item_id,
+    status: "pending",
+    notes: input.notes?.trim() || undefined,
+    created_at: now,
+    updated_at: now,
   };
-  savedAcknowledgements.push(ack);
-
-  const row = mockResultsWorklist.find(
-    (w) =>
-      mockLabResults.some(
-        (r) => r.id === input.lab_result_id && r.lab_order_item_id === w.id,
-      ) ||
-      mockRadiologyReports.some(
-        (r) => r.id === input.radiology_report_id && r.radiology_order_item_id === w.id,
-      ),
-  );
-  if (row) row.acknowledged_at = ack.reviewed_at;
-
-  return delay(ack);
+  savedDoctorReviews.push(review);
+  syncWorklist(review);
+  return delay(review);
 }
+
+/** PATCH /api/v1/encounters/reviews/{review_id} — pending → reviewed → signed_off. */
+export async function updateDoctorReview(
+  reviewId: string,
+  input: UpdateDoctorReviewInput,
+): Promise<DoctorReview | null> {
+  const review = allReviews().find((r) => r.id === reviewId);
+  if (!review) return delay(null);
+  review.status = input.status;
+  review.updated_at = new Date().toISOString();
+  if (input.notes !== undefined) review.notes = input.notes.trim() || undefined;
+  if (input.status === "signed_off") review.signed_off_at = review.updated_at;
+  syncWorklist(review);
+  return delay(review);
+}
+
+/** Keep the worklist row's review_status in step with its review. */
+function syncWorklist(review: DoctorReview) {
+  const itemId = review.lab_order_item_id ?? review.radiology_order_item_id;
+  const row = mockResultsWorklist.find((w) => w.id === itemId);
+  if (row) row.review_status = review.status;
+}
+
+/**
+ * The encounter a review is filed against. Reviews belong to an encounter, so
+ * the real screen opens from a consultation; standing alone, we file against a
+ * fixed mock encounter.
+ */
+export const REVIEW_ENCOUNTER_ID = MOCK_ENCOUNTER_ID_FOR_REVIEWS;

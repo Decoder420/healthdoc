@@ -33,25 +33,77 @@ export type QueuePriority =
   | "follow_up_recall"
   | "admin_override";
 
-export interface QueuePatient {
+/**
+ * One queue_tokens row plus the patient columns the list endpoint joins for
+ * display. Clinical facts (allergies, past diagnoses) are deliberately NOT here
+ * — they hang off the patient, not off a token, and are fetched separately.
+ */
+export interface QueueToken {
   id: string;
   token_display: string;
   visit_id: string;
   patient_id: string;
+  status: QueueTokenStatus;
+  priority: QueuePriority;
+  created_at: string;
+  called_at?: string;
+  completed_at?: string;
+  // --- joined for the list row only ---
   full_name: string;
   uhid: string;
   age_years: number;
   sex: Sex;
-  status: QueueTokenStatus;
-  priority: QueuePriority;
-  /** UI-derived from queue_tokens.created_at, not stored. */
-  wait_minutes: number;
-  /** queue_tokens.completed_at — drives "Completed Today" metric. */
-  completed_at?: string;
-  last_visit_date?: string;
-  previous_diagnoses?: string[];
-  /** Known allergies surfaced for prescribing safety (no schema table yet — mock). */
-  known_allergies?: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Patient (patients + /patients/{id}/history)
+// ---------------------------------------------------------------------------
+
+export interface Patient {
+  id: string;
+  /** NULL while the patient is THID-only (emergency path). */
+  uhid?: string;
+  thid?: string;
+  full_name: string;
+  sex: Sex;
+  age_years: number;
+  mobile?: string;
+  photo_file_id?: string;
+}
+
+/** A prior visit as returned by GET /patients/{id}/history. */
+export interface PatientHistoryEntry {
+  visit_id: string;
+  visit_number: string;
+  visit_date: string;
+  department: string;
+  diagnoses: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Allergies (allergies — schema 0032)
+// ---------------------------------------------------------------------------
+
+export type AllergenType = "drug" | "food" | "environmental" | "other";
+/** `anaphylaxis` is separate from `severe`: it is a hard block, not a warning. */
+export type AllergySeverity = "mild" | "moderate" | "severe" | "anaphylaxis";
+/** Allergies are corrected, never deleted. */
+export type AllergyStatus = "active" | "inactive" | "refuted" | "entered_in_error";
+
+export interface Allergy {
+  id: string;
+  patient_id: string;
+  allergen_type: AllergenType;
+  /** Always populated, even when coded — the attendant's words are the record. */
+  substance_text: string;
+  /** THE matchable key. Absent means "unknown", never "clear". */
+  ingredient_code?: string;
+  inventory_item_id?: string;
+  reaction?: string;
+  severity: AllergySeverity;
+  status: AllergyStatus;
+  onset_date?: string;
+  recorded_by: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,26 +123,49 @@ export interface EncounterContext {
   provider_name: string;
   department: string;
   token_display: string;
-  known_allergies: string[];
 }
 
+/**
+ * encounters.note_status — whether the long-form SOAP note reached its store.
+ * `failed` must stay visible: a note that silently vanished is worse than none.
+ */
+export type NoteStatus = "pending" | "stored" | "failed";
+
+/** Mirrors backend EncounterOut (app/encounters/schemas.py). */
 export interface ActiveEncounter {
-  /** encounters.id — §1 rule 1: every PK is `id`. */
   id: string;
   visit_id: string;
   patient_id: string;
   provider_user_id: string;
+  encounter_type?: EncounterType;
+  chief_complaint?: string;
   started_at: string;
   ended_at?: string;
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+  note_status: NoteStatus;
+  row_version?: number;
 }
 
-/** POST /encounters body — only real encounters columns. */
+/** POST /encounters — SOAP is NOT accepted here, only on the PATCH. */
 export interface CreateEncounterInput {
   visit_id: string;
   provider_user_id: string;
   encounter_type: EncounterType;
   chief_complaint: string;
   started_at: string;
+}
+
+/** PATCH /encounters/{id} — mirrors backend EncounterUpdate. */
+export interface UpdateEncounterInput {
+  ended_at?: string;
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+  note_status?: NoteStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,29 +234,57 @@ export interface CreateDiagnosisInput {
 export type OrderType = "lab" | "radiology" | "pharmacy" | "procedure" | "blood";
 export type OrderPriority = "routine" | "urgent" | "stat";
 
-export interface CatalogItem {
-  id: string;
-  name: string;
-  code?: string;
-}
+/** radiology_order_items.modality. */
+export type Modality = "xray" | "ct" | "mri" | "usg" | "mammo";
+/** lab_order_items.sample_type — NOT NULL on the table. */
+export type SampleType = "blood" | "serum" | "plasma" | "urine" | "stool" | "swab" | "tissue";
+/** procedures.setting — works with the OT module off. */
+export type ProcedureSetting = "opd_minor" | "bedside" | "emergency" | "ot";
 
+/**
+ * The order header (orders) — the only row every order type shares. There is no
+ * catalog table in the schema, so nothing here references a catalog id: the
+ * department detail row carries the free-text name the clinician chose.
+ */
 export interface DraftOrder {
   tempId: string;
   order_type: OrderType;
-  /** UI selection; the api resolves it to the detail row's test_code / scan_type. */
-  catalog_item_id: string;
-  /** maps to lab_order_items.test_name / radiology_order_items.scan_type. */
-  item_name: string;
   priority: OrderPriority;
+  /** lab only — lab_order_items.test_name + sample_type (both required). */
+  test_name?: string;
+  sample_type?: SampleType;
+  /** radiology only — radiology_order_items.modality + scan_type (both required). */
+  modality?: Modality;
+  scan_type?: string;
+  /** procedure only — procedures.procedure_name + setting. */
+  procedure_name?: string;
+  setting?: ProcedureSetting;
 }
 
 export interface CreateOrderInput {
   encounter_id: string;
   patient_id: string;
   order_type: OrderType;
-  catalog_item_id: string;
-  item_name: string;
   priority: OrderPriority;
+  test_name?: string;
+  sample_type?: SampleType;
+  modality?: Modality;
+  scan_type?: string;
+  procedure_name?: string;
+  setting?: ProcedureSetting;
+}
+
+/** What the server returns after placing an order — the doctor needs the numbers. */
+export interface PlacedOrder {
+  id: string;
+  order_number: string;
+  order_type: OrderType;
+  priority: OrderPriority;
+  status: OrderStatus;
+  ordered_at: string;
+  /** LAB-… / RAD-… from the department detail row. */
+  accession_number?: string;
+  item_label: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,16 +310,18 @@ export interface Medicine {
   id: string;
   name: string;
   generic_name?: string;
+  /** The key the allergy check matches on. Absent = check cannot run. */
+  ingredient_code?: string;
   strength?: string;
   form: MedicineForm;
   is_controlled_drug: boolean;
 }
 
 /** prescription_items.frequency — SOS = as-needed (PRN); STAT = immediately once. */
-export type Frequency = "OD" | "BD" | "TDS" | "QID" | "HS" | "STAT" | "SOS";
+export type FrequencyCode = "OD" | "BD" | "TDS" | "QID" | "HS" | "STAT" | "SOS";
 
-/** prescription_items.route. */
-export type PrescriptionRoute =
+/** prescription_items.route is varchar too — same story as frequency. */
+export type RouteCode =
   | "oral"
   | "iv"
   | "im"
@@ -231,14 +336,18 @@ export interface DraftPrescriptionItem {
   tempId: string;
   medicine_item_id?: string;
   medicine_name: string;
+  /** Carried for the allergy check; not a prescription_items column. */
+  ingredient_code?: string;
   generic_name?: string;
   strength?: string;
   form?: MedicineForm;
   is_controlled_drug: boolean;
   dosage: string;
-  frequency: Frequency;
+  /** varchar — a code from FREQUENCY_OPTIONS, or free text. */
+  frequency: string;
   duration_days?: number;
-  route: PrescriptionRoute;
+  /** varchar — a code from ROUTE_OPTIONS, or free text. */
+  route: string;
   instructions?: string;
 }
 
@@ -248,9 +357,11 @@ export interface PrescriptionItemInput {
   medicine_item_id?: string;
   medicine_name: string;
   dosage: string;
-  frequency: Frequency;
+  /** varchar — a code from FREQUENCY_OPTIONS, or free text. */
+  frequency: string;
   duration_days?: number;
-  route: PrescriptionRoute;
+  /** varchar — a code from ROUTE_OPTIONS, or free text. */
+  route: string;
   instructions?: string;
 }
 
@@ -261,29 +372,31 @@ export interface CreatePrescriptionInput {
   items: PrescriptionItemInput[];
 }
 
-// --- Prescribing safety (no schema table yet — mock-only warnings) ---
+// --- Prescribing safety (allergies only) ---
+//
+// Drug-drug interaction checking is explicitly OUT OF SCOPE (schema v3.14:
+// "ruled out of scope pending a licensed database"). We do not ship a homemade
+// interaction table — a partial one is more dangerous than none, because it
+// reads as authoritative.
 
-export type SafetySeverity = "info" | "warning" | "critical";
+/**
+ * The three outcomes of checking one prescribed item against the patient's
+ * active allergies. Mirrors backend allergies/service.check_prescription_item.
+ */
+export type AllergyAlertKind =
+  /** Anaphylaxis: a hard block. No role, no reason, no override. */
+  | "block"
+  /** Matched a non-anaphylaxis allergy: needs a written reason to proceed. */
+  | "override_required"
+  /** The medicine has no ingredient_code, so the check could not run at all. */
+  | "uncheckable";
 
-export interface AllergyWarning {
-  kind: "allergy";
-  severity: SafetySeverity;
+export interface AllergyAlert {
+  kind: AllergyAlertKind;
   medicine_name: string;
-  allergen: string;
+  /** The matched allergy row; absent when the check could not run. */
+  allergy?: Allergy;
   message: string;
-}
-
-export interface InteractionWarning {
-  kind: "interaction";
-  severity: SafetySeverity;
-  pair: [string, string];
-  message: string;
-}
-
-export type SafetyWarning = AllergyWarning | InteractionWarning;
-
-export interface SafetyCheckResult {
-  warnings: SafetyWarning[];
 }
 
 // ---------------------------------------------------------------------------
@@ -293,39 +406,14 @@ export interface SafetyCheckResult {
 /** lab_results.status / radiology_reports.status — backend ResultStatus. */
 export type ResultStatus = "pending" | "preliminary" | "final" | "corrected";
 
-/** radiology_order_items.modality — backend Modality. */
-export type Modality = "xray" | "ct" | "mri" | "usg" | "mammo";
-
 /**
- * PROVISIONAL — `lab_results.result_data` is declared only as `jsonb NOT NULL`
- * in schema v3.13 §3 0010; no inner shape is specified anywhere. This is our
- * proposed contract, pending B5 confirmation. Keep every assumption about the
- * payload in this file so a correction is a small diff.
- *
- * `flag` is supplied by the lab, never derived in the browser — reference
- * ranges vary by test, method, age and sex, and a wrong critical badge is a
- * patient-safety defect.
+ * `lab_results.result_data` is `jsonb NOT NULL` with NO inner shape specified by
+ * the schema or the backend. We therefore do not define one: inventing an
+ * analyte/range/flag format here would harden a guess into a contract, and a
+ * wrongly-derived critical flag is a patient-safety defect. The viewer renders
+ * whatever keys the lab actually sent.
  */
-export type AnalyteFlag = "normal" | "low" | "high" | "critical_low" | "critical_high";
-
-export interface ResultAnalyte {
-  /** LOINC where available, else the local test code. */
-  code: string;
-  name: string;
-  /** String, not number — preserves significant digits and carries qualitative
-   *  results ("Negative", "Trace") in the same field. */
-  value: string;
-  unit?: string;
-  ref_low?: number;
-  ref_high?: number;
-  /** Non-numeric reference, e.g. "Negative" — used when ref_low/high are absent. */
-  ref_text?: string;
-  flag: AnalyteFlag;
-}
-
-export interface LabResultData {
-  analytes: ResultAnalyte[];
-}
+export type LabResultData = Record<string, unknown>;
 
 /** One row of lab_results (append-only, versioned). */
 export interface LabResult {
@@ -358,19 +446,38 @@ export interface RadiologyReport {
 }
 
 /**
- * PROVISIONAL — there is no table for doctor sign-off in schema v3.13. Columns
- * cannot simply be added to lab_results/radiology_reports because both are
- * append-only and versioned: a review would spawn a false result version.
- * Shape assumes a dedicated result_acknowledgements table (raised with B5/TL).
+ * doctor_reviews — the real sign-off record (backend app/encounters).
+ * Created against the ENCOUNTER and pointed at a lab or radiology order item;
+ * lab_results/radiology_reports stay append-only and untouched by a review.
  */
-export interface ResultAcknowledgement {
+export type DoctorReviewStatus = "pending" | "reviewed" | "signed_off";
+
+export interface DoctorReview {
   id: string;
-  lab_result_id?: string;
-  radiology_report_id?: string;
+  encounter_id: string;
   reviewed_by: string;
+  /** Joined display name — not a column. */
   reviewed_by_name?: string;
-  reviewed_at: string;
-  note?: string;
+  lab_order_item_id?: string;
+  radiology_order_item_id?: string;
+  status: DoctorReviewStatus;
+  notes?: string;
+  signed_off_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** POST /encounters/{encounter_id}/reviews — mirrors DoctorReviewCreate. */
+export interface CreateDoctorReviewInput {
+  lab_order_item_id?: string;
+  radiology_order_item_id?: string;
+  notes?: string;
+}
+
+/** PATCH /encounters/reviews/{review_id} — mirrors DoctorReviewStatusUpdate. */
+export interface UpdateDoctorReviewInput {
+  status: Exclude<DoctorReviewStatus, "pending">;
+  notes?: string;
 }
 
 /**
@@ -396,11 +503,10 @@ export interface ResultWorklistItem {
   status: OrderStatus;
   /** Status of the current result/report, absent until one exists. */
   result_status?: ResultStatus;
-  /** True when any analyte on the current result carries a critical flag. */
-  has_critical: boolean;
   /** created_at of the current result/report. */
   reported_at?: string;
-  acknowledged_at?: string;
+  /** Status of this item's doctor_reviews row, absent until a review is opened. */
+  review_status?: DoctorReviewStatus;
 }
 
 export type OrderStatus = "placed" | "accepted" | "in_progress" | "completed" | "cancelled";

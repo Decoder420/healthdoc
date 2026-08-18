@@ -5,44 +5,53 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
-import type { SafetySeverity, SafetyWarning } from "../types";
+import type { AllergyAlert, AllergyAlertKind } from "../types";
 
-const TONE: Record<SafetySeverity, { bg: string; fg: string; border: string; label: string }> = {
-  critical: { bg: "#fee2e2", fg: meridian.danger, border: "rgb(185 28 28 / 0.22)", label: "Critical" },
-  warning: { bg: "#fef3c7", fg: meridian.warning, border: "rgb(180 83 9 / 0.22)", label: "Warning" },
-  info: { bg: "#e8eef5", fg: meridian.info, border: "rgb(0 31 84 / 0.16)", label: "Info" },
+const TONE: Record<AllergyAlertKind, { bg: string; fg: string; border: string; label: string }> = {
+  block: { bg: "#fee2e2", fg: meridian.danger, border: "rgb(185 28 28 / 0.22)", label: "Do not prescribe" },
+  override_required: { bg: "#fef3c7", fg: meridian.warning, border: "rgb(180 83 9 / 0.22)", label: "Reason required" },
+  uncheckable: { bg: "#e8eef5", fg: meridian.info, border: "rgb(0 31 84 / 0.16)", label: "Not checked" },
 };
 
+const ORDER: AllergyAlertKind[] = ["block", "override_required", "uncheckable"];
+
 export interface SafetyBannerProps {
-  warnings: SafetyWarning[];
+  alerts: AllergyAlert[];
   checking?: boolean;
 }
 
-/** Allergy + drug-interaction alerts, most severe first. Mock CDS — no schema table yet. */
-export function SafetyBanner({ warnings, checking }: SafetyBannerProps) {
-  if (checking && warnings.length === 0) {
+/**
+ * Allergy alerts, most severe first.
+ *
+ * There are no drug-interaction warnings here on purpose: interaction checking
+ * is out of scope until a licensed database is available (schema v3.14). A
+ * partial interaction list is more dangerous than none, because a clinician
+ * reads silence as "checked and clear".
+ */
+export function SafetyBanner({ alerts, checking }: SafetyBannerProps) {
+  if (checking && alerts.length === 0) {
     return (
       <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary }}>
-        Checking interactions and allergies…
+        Checking allergies…
       </Typography>
     );
   }
-  if (warnings.length === 0) return null;
+  if (alerts.length === 0) return null;
 
-  const order: SafetySeverity[] = ["critical", "warning", "info"];
-  const sorted = [...warnings].sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
+  const sorted = [...alerts].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
 
   return (
     <Stack spacing={1}>
-      {sorted.map((w, i) => {
-        const tone = TONE[w.severity];
+      {sorted.map((alert, i) => {
+        const tone = TONE[alert.kind];
         return (
           <Box
-            key={i}
+            key={`${alert.medicine_name}-${i}`}
             sx={{
               display: "flex",
               gap: 1,
               alignItems: "baseline",
+              flexWrap: "wrap",
               px: 1.5,
               py: 1,
               borderRadius: "12px",
@@ -50,10 +59,20 @@ export function SafetyBanner({ warnings, checking }: SafetyBannerProps) {
               border: `1px solid ${tone.border}`,
             }}
           >
-            <Typography sx={{ fontSize: "0.6875rem", fontWeight: 700, color: tone.fg, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              {w.kind === "allergy" ? "Allergy" : "Interaction"} · {tone.label}
+            <Typography
+              sx={{
+                fontSize: "0.6875rem",
+                fontWeight: 700,
+                color: tone.fg,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {alert.medicine_name} · {tone.label}
             </Typography>
-            <Typography sx={{ fontSize: "0.8125rem", color: meridian.textPrimary }}>{w.message}</Typography>
+            <Typography sx={{ fontSize: "0.8125rem", color: meridian.textPrimary }}>
+              {alert.message}
+            </Typography>
           </Box>
         );
       })}

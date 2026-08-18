@@ -14,6 +14,7 @@ import { ChiefComplaintPanel } from "./ChiefComplaintPanel";
 import { DiagnosesPanel } from "./DiagnosesPanel";
 import { EncounterHeaderPanel } from "./EncounterHeaderPanel";
 import { OrdersPanel } from "./OrdersPanel";
+import { SoapNotePanel } from "./SoapNotePanel";
 import { VitalsPanel } from "./VitalsPanel";
 
 export interface ConsultationWorkspaceProps {
@@ -23,8 +24,8 @@ export interface ConsultationWorkspaceProps {
 /**
  * Week 3 consultation — single-purpose panels + a sticky bar for the encounter
  * row. Owns only encounters columns (encounter_type + chief_complaint); vitals,
- * diagnoses and orders each own their state and their own save. No SOAP, no
- * vitals-on-encounter.
+ * diagnoses and orders each own their state and their own save. SOAP is saved
+ * on the PATCH; vitals stay their own table.
  */
 export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
   const {
@@ -38,6 +39,9 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
     completing,
     canComplete,
     saveEncounter,
+    soap,
+    patchSoap,
+    noteStatus,
     complete,
   } = useConsultation(context);
 
@@ -53,6 +57,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
       />
       <ChiefComplaintPanel value={chiefComplaint} onChange={setChiefComplaint} />
       <VitalsPanel encounter={encounter} />
+      <SoapNotePanel value={soap} noteStatus={noteStatus} onChange={patchSoap} />
       <DiagnosesPanel encounter={encounter} />
       <OrdersPanel encounter={encounter} />
 

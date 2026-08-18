@@ -14,6 +14,7 @@ export function newProvisionalEncounter(context: EncounterContext): ActiveEncoun
     visit_id: context.visit_id,
     patient_id: context.patient_id,
     provider_user_id: context.provider_user_id,
+    note_status: "pending" as const,
     started_at: new Date().toISOString(),
   };
 }

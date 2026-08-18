@@ -3,6 +3,7 @@ import type {
   ActiveEncounter,
   CreateDiagnosisInput,
   CreateEncounterInput,
+  UpdateEncounterInput,
   IcdConcept,
   VitalsInput,
 } from "../types";
@@ -26,9 +27,32 @@ export async function createEncounter(
     visit_id: body.visit_id,
     patient_id,
     provider_user_id: body.provider_user_id,
+    encounter_type: body.encounter_type,
+    chief_complaint: body.chief_complaint,
     started_at: body.started_at,
+    note_status: "pending",
+    row_version: 1,
   };
   return delay(created);
+}
+
+/**
+ * PATCH /api/v1/encounters/{id} — where SOAP is saved (never on the POST).
+ *
+ * note_status tracks whether the long-form note reached its store: it starts
+ * `pending`, becomes `stored` on success, and `failed` must stay visible so a
+ * note that vanished is never mistaken for a note that was never written.
+ */
+export async function updateEncounter(
+  encounter: ActiveEncounter,
+  patch: UpdateEncounterInput,
+): Promise<ActiveEncounter> {
+  const next: ActiveEncounter = {
+    ...encounter,
+    ...patch,
+    note_status: patch.note_status ?? "stored",
+  };
+  return delay(next, 300);
 }
 
 /** PATCH /api/v1/encounters/{id} { ended_at }. */

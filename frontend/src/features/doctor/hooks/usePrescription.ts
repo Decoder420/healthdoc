@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { checkSafety, createPrescription } from "../api";
-import { FREQUENCIES_WITHOUT_DURATION } from "../constants";
+import { checkAllergies, createPrescription } from "../api";
+import { ALLERGY_OVERRIDE_REASON_MIN, FREQUENCIES_WITHOUT_DURATION } from "../constants";
 import type {
   ActiveEncounter,
   DraftPrescriptionItem,
   EncounterContext,
   Medicine,
-  SafetyWarning,
+  AllergyAlert,
 } from "../types";
 
 function itemFromMedicine(m: Medicine): DraftPrescriptionItem {
@@ -18,6 +18,7 @@ function itemFromMedicine(m: Medicine): DraftPrescriptionItem {
     tempId: crypto.randomUUID(),
     medicine_item_id: m.id,
     medicine_name: m.name,
+    ingredient_code: m.ingredient_code,
     generic_name: m.generic_name,
     strength: m.strength,
     form: m.form,
@@ -33,21 +34,26 @@ function itemFromMedicine(m: Medicine): DraftPrescriptionItem {
 export function usePrescription(encounter: ActiveEncounter, context: EncounterContext) {
   const [items, setItems] = useState<DraftPrescriptionItem[]>([]);
   const [notes, setNotes] = useState("");
-  const [warnings, setWarnings] = useState<SafetyWarning[]>([]);
+  const [alerts, setAlerts] = useState<AllergyAlert[]>([]);
   const [checking, setChecking] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Re-run the safety check whenever the item set changes.
+  // Re-check allergies whenever the item set changes. One call per item, on
+  // ingredient_code — matching a stock item would let a second brand of the same
+  // ingredient through for a patient who reacts to the first.
   useEffect(() => {
     let live = true;
     if (items.length === 0) {
-      setWarnings([]);
+      setAlerts([]);
       return;
     }
     setChecking(true);
-    void checkSafety(context.known_allergies, items)
-      .then((r) => {
-        if (live) setWarnings(r.warnings);
+    void Promise.all(
+      items.map((i) => checkAllergies(context.patient_id, i.medicine_name, i.ingredient_code)),
+    )
+      .then((results) => {
+        if (live) setAlerts(results.filter((r): r is AllergyAlert => r !== null));
       })
       .finally(() => {
         if (live) setChecking(false);
@@ -55,7 +61,7 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
     return () => {
       live = false;
     };
-  }, [items, context.known_allergies]);
+  }, [items, context.patient_id]);
 
   const addMedicine = useCallback((m: Medicine) => {
     setItems((prev) =>
@@ -70,7 +76,7 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
           if (i.tempId !== tempId) return i;
           const next = { ...i, ...patch };
           // As-needed / single-dose frequencies carry no duration.
-          if (patch.frequency && FREQUENCIES_WITHOUT_DURATION.includes(patch.frequency)) {
+          if (patch.frequency && FREQUENCIES_WITHOUT_DURATION.includes(patch.frequency as never)) {
             next.duration_days = undefined;
           }
           return next;
@@ -84,7 +90,12 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
     [],
   );
 
-  const hasCritical = warnings.some((w) => w.severity === "critical");
+  /** Anaphylaxis: cannot be prescribed at all, no override at any length. */
+  const hasBlocking = alerts.some((a) => a.kind === "block");
+  /** A non-anaphylaxis allergy: prescribable, but only with a written reason. */
+  const needsOverride = alerts.some((a) => a.kind === "override_required");
+  const overrideOk =
+    !needsOverride || overrideReason.trim().length >= ALLERGY_OVERRIDE_REASON_MIN;
 
   const save = useCallback(async () => {
     if (items.length === 0) {
@@ -124,9 +135,13 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
     items,
     notes,
     setNotes,
-    warnings,
+    alerts,
     checking,
-    hasCritical,
+    hasBlocking,
+    needsOverride,
+    overrideReason,
+    setOverrideReason,
+    overrideOk,
     saving,
     addMedicine,
     updateItem,

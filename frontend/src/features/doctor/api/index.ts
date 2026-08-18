@@ -1,19 +1,23 @@
-export { listQueue, getQueueToken } from "./queue";
+export { listQueue, getQueueToken, callNextToken } from "./queue";
+export { getPatient, getPatientHistory, listAllergies } from "./patients";
 export {
   createEncounter,
+  updateEncounter,
   completeEncounter,
   saveVitals,
   searchIcd,
   saveDiagnoses,
 } from "./consultation";
-export { searchCatalog, createOrder } from "./orders";
-export { searchMedicines, checkSafety, createPrescription } from "./prescriptions";
+export { suggestOrderNames, createOrder } from "./orders";
+export { searchMedicines, checkAllergies, createPrescription } from "./prescriptions";
 export {
   listResultsWorklist,
   getLabResults,
   getRadiologyReports,
-  getAcknowledgements,
-  acknowledgeResult,
+  getReviewsForItem,
+  createDoctorReview,
+  updateDoctorReview,
+  REVIEW_ENCOUNTER_ID,
 } from "./results";
 export {
   checkRecordAccess,

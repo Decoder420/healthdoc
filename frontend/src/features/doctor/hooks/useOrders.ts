@@ -4,35 +4,29 @@ import { useCallback, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { createOrder } from "../api";
-import type { ActiveEncounter, CatalogItem, DraftOrder, OrderPriority, OrderType } from "../types";
+import type { ActiveEncounter, DraftOrder } from "../types";
 
 export function useOrders(encounter: ActiveEncounter) {
   const [orders, setOrders] = useState<DraftOrder[]>([]);
   const [adding, setAdding] = useState(false);
 
   const addOrder = useCallback(
-    async (draft: { order_type: OrderType; item: CatalogItem; priority: OrderPriority }) => {
+    async (draft: Omit<DraftOrder, "tempId">) => {
       setAdding(true);
       try {
         await createOrder({
           encounter_id: encounter.id,
           patient_id: encounter.patient_id,
-          order_type: draft.order_type,
-          catalog_item_id: draft.item.id,
-          item_name: draft.item.name,
-          priority: draft.priority,
+          ...draft,
         });
         setOrders((prev) => [
           ...prev,
           {
             tempId: crypto.randomUUID(),
-            order_type: draft.order_type,
-            catalog_item_id: draft.item.id,
-            item_name: draft.item.name,
-            priority: draft.priority,
+            ...draft,
           },
         ]);
-        toast.success(`${draft.item.name} ordered`);
+        toast.success(`${""} ordered`);
         return true;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to place order");

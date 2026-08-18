@@ -16,6 +16,7 @@ import { MedicineSearchModal } from "./MedicineSearchModal";
 import { PrescriptionItemRow } from "./PrescriptionItemRow";
 import { PrescriptionPrintView } from "./PrescriptionPrintView";
 import { SafetyBanner } from "./SafetyBanner";
+import { ALLERGY_OVERRIDE_REASON_MIN } from "../constants";
 
 import "../prescription-print.css";
 
@@ -31,9 +32,13 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
     items,
     notes,
     setNotes,
-    warnings,
+    alerts,
     checking,
-    hasCritical,
+    hasBlocking,
+    needsOverride,
+    overrideReason,
+    setOverrideReason,
+    overrideOk,
     saving,
     addMedicine,
     updateItem,
@@ -59,7 +64,24 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
           </Button>
         </Stack>
 
-        <SafetyBanner warnings={warnings} checking={checking} />
+        <SafetyBanner alerts={alerts} checking={checking} />
+
+        {needsOverride && !hasBlocking && (
+          <TextField
+            label="Reason for prescribing despite the allergy"
+            value={overrideReason}
+            onChange={(e) => setOverrideReason(e.target.value)}
+            multiline
+            minRows={2}
+            fullWidth
+            error={!overrideOk && overrideReason.length > 0}
+            helperText={
+              overrideOk
+                ? "Recorded against the prescription and read during review."
+                : `${ALLERGY_OVERRIDE_REASON_MIN - overrideReason.trim().length} more characters required.`
+            }
+          />
+        )}
 
         {items.length === 0 ? (
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
@@ -99,9 +121,13 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
         }}
       >
         <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-          <Typography sx={{ fontSize: "0.8125rem", color: hasCritical ? meridian.danger : meridian.textSecondary }}>
+          <Typography sx={{ fontSize: "0.8125rem", color: hasBlocking ? meridian.danger : meridian.textSecondary }}>
             {items.length} medicine{items.length === 1 ? "" : "s"}
-            {hasCritical ? " · resolve critical alerts before saving" : ""}
+            {hasBlocking
+              ? " · anaphylaxis alert cannot be overridden"
+              : !overrideOk
+                ? " · a reason is required for the allergy alert"
+                : ""}
           </Typography>
           <Stack direction="row" spacing={1.5}>
             <Button
@@ -115,7 +141,7 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
             <Button
               variant="contained"
               sx={doctorButtonSx}
-              disabled={items.length === 0 || saving || hasCritical}
+              disabled={items.length === 0 || saving || hasBlocking || !overrideOk}
               onClick={save}
             >
               {saving ? "Saving…" : "Save prescription"}

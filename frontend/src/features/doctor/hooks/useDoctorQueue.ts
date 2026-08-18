@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { listQueue } from "../api";
-import type { QueuePatient } from "../types";
+import { callNextToken, listQueue } from "../api";
+import type { QueueToken } from "../types";
 
 export function useDoctorQueue() {
-  const [patients, setPatients] = useState<QueuePatient[]>([]);
+  const [patients, setPatients] = useState<QueueToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<QueuePatient | null>(null);
+  const [selected, setSelected] = useState<QueueToken | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -27,5 +27,24 @@ export function useDoctorQueue() {
     void refresh();
   }, [refresh]);
 
-  return { patients, loading, error, refresh, selected, select: setSelected };
+  const [calling, setCalling] = useState(false);
+
+  /**
+   * POST /queue/tokens/{id}/call-next. The mock only flips status + called_at;
+   * the real endpoint also moves queues.now_serving_token_id and publishes to
+   * the department display board.
+   */
+  const callNext = useCallback(async (tokenId: string) => {
+    setCalling(true);
+    try {
+      const updated = await callNextToken(tokenId);
+      if (!updated) return;
+      setPatients((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setSelected((prev) => (prev && prev.id === updated.id ? updated : prev));
+    } finally {
+      setCalling(false);
+    }
+  }, []);
+
+  return { patients, loading, error, refresh, selected, select: setSelected, callNext, calling };
 }
