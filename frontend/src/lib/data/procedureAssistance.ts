@@ -1,0 +1,38 @@
+import { ProcedureRecord } from "@/features/nurse/components/ProcedureAssistance/ProcedureAssistance.types";
+
+export const PROCEDURE_RECORDS: ProcedureRecord[] = [
+  {
+    id: "1",
+    order_id: null,
+    encounter_id: "enc-1",
+    patient_id: "P001",
+    procedure_name: "Wound Dressing",
+    procedure_code: null,
+    code_system: null,
+    setting: "bedside",
+    ot_schedule_id: null,
+    performed_by: "a1e2d3c4-0000-4a5b-9c1d-000000000010",
+    assisted_by: "b3f1a2c4-1111-4a5b-9c1d-000000000001",
+    started_at: "2026-07-16T09:30:00Z",
+    ended_at: "2026-07-16T09:50:00Z",
+    outcome: "Wound clean, healing well, no signs of infection.",
+    complications: null,
+  },
+  {
+    id: "2",
+    order_id: null,
+    encounter_id: "enc-2",
+    patient_id: "P002",
+    procedure_name: "IV Cannulation",
+    procedure_code: null,
+    code_system: null,
+    setting: "emergency",
+    ot_schedule_id: null,
+    performed_by: "c4d5e6f7-2222-4a5b-9c1d-000000000004",
+    assisted_by: "c4d5e6f7-2222-4a5b-9c1d-000000000003",
+    started_at: "2026-07-16T11:00:00Z",
+    ended_at: "2026-07-16T11:10:00Z",
+    outcome: "Line placed successfully, patent and secured.",
+    complications: null,
+  },
+];

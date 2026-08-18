@@ -26,7 +26,7 @@ export default function EMARTable({
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Scheduled and administered medications
+          Prescribed medications and status
         </p>
       </div>
 
@@ -34,29 +34,13 @@ export default function EMARTable({
         <table className="min-w-full border-collapse">
           <thead className="bg-muted">
             <tr>
-              <th className="px-4 py-3 text-left">
-                Medication
-              </th>
-
-              <th className="px-4 py-3 text-left">
-                Dosage
-              </th>
-
-              <th className="px-4 py-3 text-left">
-                Route
-              </th>
-
-              <th className="px-4 py-3 text-left">
-                Scheduled
-              </th>
-
-              <th className="px-4 py-3 text-left">
-                Administered By
-              </th>
-
-              <th className="px-4 py-3 text-left">
-                Status
-              </th>
+              <th className="px-4 py-3 text-left">Medication</th>
+              <th className="px-4 py-3 text-left">Dosage</th>
+              <th className="px-4 py-3 text-left">Frequency</th>
+              <th className="px-4 py-3 text-left">Duration</th>
+              <th className="px-4 py-3 text-left">Route</th>
+              <th className="px-4 py-3 text-left">Instructions</th>
+              <th className="px-4 py-3 text-left">Status</th>
             </tr>
           </thead>
 
