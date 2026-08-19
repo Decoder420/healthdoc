@@ -9,7 +9,7 @@ export const DISCHARGE_TYPES = [
 ] as const;
 
 export const addDischargeSchema = z.object({
-  admission_id: z.string().min(1),
+  admission_id: z.string().uuid("Admission ID must be a UUID"),
   discharged_at: z.string().min(1),
   discharge_type: z.enum(DISCHARGE_TYPES),
   discharge_summary: z.string().min(1, "Discharge summary is required"),

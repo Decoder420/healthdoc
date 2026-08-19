@@ -28,8 +28,12 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
   return (
     <div className="surface-card overflow-hidden">
       <div className="border-b border-border px-6 py-4">
-        <h2 className="text-lg font-semibold">Task Queue</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Pending doctor orders, sorted by priority.</p>
+        <h2 className="text-lg font-semibold">Pending doctor orders</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Local preview of pending orders, sorted by priority. Check-off only
+          changes status from placed to completed in this screen — it is not a
+          nurse completion audit record.
+        </p>
       </div>
 
       <div className="overflow-x-auto">
@@ -62,8 +66,12 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
                   {formatOrderedAt(order.ordered_at)}
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  <button className="btn btn-sm btn-primary" onClick={() => onCheckOff(order.id)}>
-                    Check Off
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => onCheckOff(order.id)}
+                    disabled={order.status !== "placed"}
+                  >
+                    Mark completed (local)
                   </button>
                 </td>
               </tr>

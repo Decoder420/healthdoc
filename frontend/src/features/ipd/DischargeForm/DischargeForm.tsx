@@ -83,6 +83,16 @@ export default function DischargeForm({
           </div>
         )}
 
+        {dischargeType === "transferred" && (
+          <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            Discharge type &quot;transferred&quot; means the patient is leaving
+            this facility for another facility. It is not an in-hospital ward or
+            bed move (use Ward transfer / patient movement for that). Destination
+            facility fields are not in the published discharges schema, so they
+            are not collected here.
+          </div>
+        )}
+
         <DateTimeField
           label="Discharged At"
           registration={register("discharged_at")}

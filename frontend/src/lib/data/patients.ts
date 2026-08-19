@@ -1,8 +1,9 @@
 import { Patient, PatientAdmissionContext } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
+import { BED_B101_ID, BED_C301_ID, BED_I201_ID, PATIENT_1_ID, PATIENT_2_ID, PATIENT_3_ID } from "./mockIds";
 
 export const patients: Record<string, Patient & PatientAdmissionContext> = {
-  "1": {
-    id: "P001",
+  [BED_B101_ID]: {
+    id: PATIENT_1_ID,
     uhid: "UHID-240012",
     thid: null,
     full_name: "Rahul Sharma",
@@ -12,14 +13,13 @@ export const patients: Record<string, Patient & PatientAdmissionContext> = {
     guardian_name: null,
     guardian_relationship: null,
     mobile: null,
-    // display-only, joined fields — not columns on `patients`
     ward_name: "General Ward",
     bed_number: "B-101",
     admitted_at: "2026-07-12T00:00:00Z",
     diagnosis_text: "Pneumonia",
   },
-  "3": {
-    id: "P002",
+  [BED_I201_ID]: {
+    id: PATIENT_2_ID,
     uhid: "UHID-240018",
     thid: null,
     full_name: "Amit Singh",
@@ -33,5 +33,21 @@ export const patients: Record<string, Patient & PatientAdmissionContext> = {
     bed_number: "I-201",
     admitted_at: "2026-07-16T00:00:00Z",
     diagnosis_text: "Uncontrolled diabetes",
+  },
+  [BED_C301_ID]: {
+    id: PATIENT_3_ID,
+    uhid: "UHID-240024",
+    thid: null,
+    full_name: "Sneha Patel",
+    sex: "female",
+    dob: null,
+    age_years: 38,
+    guardian_name: null,
+    guardian_relationship: null,
+    mobile: null,
+    ward_name: "CCU",
+    bed_number: "C-301",
+    admitted_at: "2026-08-01T00:00:00Z",
+    diagnosis_text: "Cardiac monitoring",
   },
 };

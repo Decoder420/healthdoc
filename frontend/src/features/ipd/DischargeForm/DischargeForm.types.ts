@@ -1,6 +1,6 @@
 import type { AddDischargeSchema } from "./validation";
 
-export type NotificationStatus = "queued" | "sent" | "acknowledged";
+export type NotificationStatus = "queued" | "sent" | "delivered" | "failed";
 
 export type TargetModule =
   | "pharmacy"

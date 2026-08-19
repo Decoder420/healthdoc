@@ -1,46 +1,55 @@
 import { Ward } from "../../features/nurse/components/WardSelector/WardSelector.types";
+import {
+  CCU_WARD_ID,
+  EMERGENCY_WARD_ID,
+  FACILITY_ID,
+  GENERAL_WARD_ID,
+  ICU_WARD_ID,
+  NICU_WARD_ID,
+  PICU_WARD_ID,
+} from "./mockIds";
 
 export const WARDS: Ward[] = [
   {
-    id: "general",
+    id: GENERAL_WARD_ID,
     name: "General Ward",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
   {
-    id: "icu",
+    id: ICU_WARD_ID,
     name: "ICU",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
   {
-    id: "ccu",
+    id: CCU_WARD_ID,
     name: "CCU",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
   {
-    id: "picu",
+    id: PICU_WARD_ID,
     name: "PICU",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
   {
-    id: "nicu",
+    id: NICU_WARD_ID,
     name: "NICU",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
   {
-    id: "emergency",
+    id: EMERGENCY_WARD_ID,
     name: "Emergency",
     department_id: null,
-    facility_id: "facility-1",
+    facility_id: FACILITY_ID,
     is_active: true,
   },
 ];

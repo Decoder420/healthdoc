@@ -1,3 +1,4 @@
+import { displayUserName } from "@/lib/data/userDisplay";
 import { HandoverNotesProps } from "./HandoverNotes.types";
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -57,12 +58,12 @@ export default function HandoverNotes({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground">Handed Over By</p>
-                <p className="font-medium">{note.created_by ?? "-"}</p>
+                <p className="font-medium">{displayUserName(note.created_by)}</p>
               </div>
 
               <div>
                 <p className="text-xs text-muted-foreground">Handed Over To</p>
-                <p className="font-medium">{note.handed_over_to}</p>
+                <p className="font-medium">{displayUserName(note.handed_over_to)}</p>
               </div>
             </div>
 

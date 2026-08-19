@@ -1,3 +1,4 @@
+import { displayUserName } from "@/lib/data/userDisplay";
 import { VitalRecord } from "./VitalsTimeline.types";
 
 type VitalRowProps = {
@@ -27,7 +28,7 @@ export default function VitalRow({ record }: VitalRowProps) {
       <td className="px-4 py-3 text-sm">{record.spo2_pct ?? "-"}%</td>
       <td className="px-4 py-3 text-sm">{record.pain_score ?? "-"}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
-        {record.created_by ?? "-"}
+        {displayUserName(record.created_by)}
       </td>
     </tr>
   );

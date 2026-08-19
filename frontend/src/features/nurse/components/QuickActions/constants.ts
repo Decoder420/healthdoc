@@ -14,6 +14,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
     color: "bg-green-100 text-green-700",
   },
   {
+    id: "incident",
+    label: "Incident Report",
+    icon: "⚠️",
+    color: "bg-orange-100 text-orange-700",
+  },
+  {
     id: "medication",
     label: "Medication",
     icon: "💊",
@@ -21,7 +27,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   },
   {
     id: "transfer",
-    label: "Transfer",
+    label: "Ward transfer",
     icon: "🚑",
     color: "bg-yellow-100 text-yellow-700",
   },

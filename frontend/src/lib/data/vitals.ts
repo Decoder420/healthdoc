@@ -1,11 +1,12 @@
 import { VitalRecord } from "@/components/VitalsTimeline";
+import { ADMISSION_1_ID, NURSE_ANITA_ID, NURSE_RAHUL_ID, PATIENT_1_ID } from "./mockIds";
 
 export const vitals: VitalRecord[] = [
   {
-    id: "1",
-    patient_id: "p1",
+    id: "aa000001-0000-4000-8000-000000000001",
+    patient_id: PATIENT_1_ID,
     encounter_id: null,
-    admission_id: "adm-1",
+    admission_id: ADMISSION_1_ID,
     measured_at: "2026-07-22T08:00:00Z",
     height_cm: null,
     weight_kg: null,
@@ -20,14 +21,14 @@ export const vitals: VitalRecord[] = [
     bp_diastolic: 80,
     spo2_pct: 98,
     pain_score: null,
-    created_by: "Nurse Anita",
+    created_by: NURSE_ANITA_ID,
     created_at: "2026-07-22T08:00:00Z",
   },
   {
-    id: "2",
-    patient_id: "p1",
+    id: "aa000001-0000-4000-8000-000000000002",
+    patient_id: PATIENT_1_ID,
     encounter_id: null,
-    admission_id: "adm-1",
+    admission_id: ADMISSION_1_ID,
     measured_at: "2026-07-22T12:00:00Z",
     height_cm: null,
     weight_kg: null,
@@ -42,14 +43,14 @@ export const vitals: VitalRecord[] = [
     bp_diastolic: 82,
     spo2_pct: 97,
     pain_score: null,
-    created_by: "Nurse Anita",
+    created_by: NURSE_ANITA_ID,
     created_at: "2026-07-22T12:00:00Z",
   },
   {
-    id: "3",
-    patient_id: "p1",
+    id: "aa000001-0000-4000-8000-000000000003",
+    patient_id: PATIENT_1_ID,
     encounter_id: null,
-    admission_id: "adm-1",
+    admission_id: ADMISSION_1_ID,
     measured_at: "2026-07-22T16:00:00Z",
     height_cm: null,
     weight_kg: null,
@@ -64,7 +65,7 @@ export const vitals: VitalRecord[] = [
     bp_diastolic: 79,
     spo2_pct: 99,
     pain_score: null,
-    created_by: "Nurse Rahul",
+    created_by: NURSE_RAHUL_ID,
     created_at: "2026-07-22T16:00:00Z",
   },
 ];
