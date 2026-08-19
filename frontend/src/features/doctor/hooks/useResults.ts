@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { localOnly } from "../lib/mockMode";
 import {
   createDoctorReview,
   getLabResults,
@@ -141,7 +142,7 @@ export function useResults() {
           prev.map((i) => (i.id === selected.id ? { ...i, review_status: status } : i)),
         );
         setSelected((prev) => (prev ? { ...prev, review_status: status } : prev));
-        toast.success(status === "signed_off" ? "Result signed off" : "Marked as reviewed");
+        toast.success(localOnly(status === "signed_off" ? "Result signed off" : "Marked as reviewed"));
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to update review");
       } finally {

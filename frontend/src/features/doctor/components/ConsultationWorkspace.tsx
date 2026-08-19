@@ -14,7 +14,9 @@ import { ChiefComplaintPanel } from "./ChiefComplaintPanel";
 import { DiagnosesPanel } from "./DiagnosesPanel";
 import { EncounterHeaderPanel } from "./EncounterHeaderPanel";
 import { OrdersPanel } from "./OrdersPanel";
+import { PatientAllergyBanner } from "./PatientAllergyBanner";
 import { SoapNotePanel } from "./SoapNotePanel";
+import { StaleWritePanel } from "./StaleWritePanel";
 import { VitalsPanel } from "./VitalsPanel";
 
 export interface ConsultationWorkspaceProps {
@@ -42,6 +44,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
     soap,
     patchSoap,
     noteStatus,
+    conflict,
     complete,
   } = useConsultation(context);
 
@@ -49,6 +52,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <PatientAllergyBanner patientId={context.patient_id} />
       <EncounterHeaderPanel
         context={context}
         startedAt={encounter.started_at}
@@ -57,6 +61,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
       />
       <ChiefComplaintPanel value={chiefComplaint} onChange={setChiefComplaint} />
       <VitalsPanel encounter={encounter} />
+      {conflict && <StaleWritePanel yours={soap} theirs={conflict} />}
       <SoapNotePanel value={soap} noteStatus={noteStatus} onChange={patchSoap} />
       <DiagnosesPanel encounter={encounter} />
       <OrdersPanel encounter={encounter} />

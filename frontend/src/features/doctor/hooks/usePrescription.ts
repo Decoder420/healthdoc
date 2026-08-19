@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { localOnly } from "../lib/mockMode";
 import { checkAllergies, createPrescription } from "../api";
 import { ALLERGY_OVERRIDE_REASON_MIN, FREQUENCIES_WITHOUT_DURATION } from "../constants";
 import type {
@@ -111,11 +112,16 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
     try {
       await createPrescription({
         encounter_id: encounter.id,
-        patient_id: encounter.patient_id,
         notes: notes.trim() || undefined,
         items: items.map((i) => ({
           medicine_item_id: i.medicine_item_id,
           medicine_name: i.medicine_name,
+        // Only attach the reason to items that actually needed an override.
+        override_reason: alerts.some(
+          (a) => a.kind === "override_required" && a.medicine_name === i.medicine_name,
+        )
+          ? overrideReason.trim()
+          : undefined,
           dosage: i.dosage,
           frequency: i.frequency,
           duration_days: i.duration_days,
@@ -123,13 +129,13 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
           instructions: i.instructions,
         })),
       });
-      toast.success("Prescription saved");
+      toast.success(localOnly("Prescription saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save prescription");
     } finally {
       setSaving(false);
     }
-  }, [encounter, items, notes]);
+  }, [alerts, encounter, items, notes, overrideReason]);
 
   return {
     items,

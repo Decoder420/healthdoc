@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -12,65 +11,63 @@ import { doctorPageSx } from "@/features/doctor/panelSx";
 import { encounterContextFor, mockEncounterContext } from "@/lib/mock";
 import type { EncounterContext } from "@/features/doctor/types";
 
-function ConsultationPageInner() {
-  const searchParams = useSearchParams();
-  const tokenId = searchParams.get("token");
-  const [context, setContext] = useState<EncounterContext | null>(
-    tokenId ? null : mockEncounterContext,
-  );
+/**
+ * The queue token is read from the URL in an effect rather than with
+ * `useSearchParams`.
+ *
+ * `useSearchParams` suspends during prerender, and the Suspense boundary it
+ * requires was leaving this route's subtree unhydrated: the markup arrived from
+ * the server but no effect ever ran and no click did anything — the screen
+ * looked finished and was completely dead. Reading `window.location` after
+ * mount keeps the whole page a normal client tree.
+ */
+export default function Page() {
+  const [context, setContext] = useState<EncounterContext | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const tokenId = new URLSearchParams(window.location.search).get("token");
+
     if (!tokenId) {
       setContext(mockEncounterContext);
       return;
     }
-    let cancelled = false;
+
     void (async () => {
       try {
-        const patient = await getQueueToken(tokenId);
+        const token = await getQueueToken(tokenId);
         if (cancelled) return;
-        if (!patient) {
+        if (!token) {
           setError("Queue token not found.");
           setContext(null);
           return;
         }
         setError(null);
-        setContext(encounterContextFor(patient));
+        setContext(encounterContextFor(token));
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Failed to load encounter context");
         setContext(null);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [tokenId]);
+  }, []);
 
-  if (error) return <Alert severity="error">{error}</Alert>;
-  if (!context) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress size={28} />
-      </Box>
-    );
-  }
-  return <ConsultationWorkspace context={context} />;
-}
-
-export default function Page() {
   return (
     <Box sx={doctorPageSx}>
-      <Suspense
-        fallback={
-          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <CircularProgress size={28} />
-          </Box>
-        }
-      >
-        <ConsultationPageInner />
-      </Suspense>
+      {error ? (
+        <Alert severity="error">{error}</Alert>
+      ) : !context ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : (
+        <ConsultationWorkspace context={context} />
+      )}
     </Box>
   );
 }

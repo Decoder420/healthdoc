@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { localOnly } from "../lib/mockMode";
 import { saveDiagnoses, searchIcd } from "../api";
 import type {
   ActiveEncounter,
@@ -90,7 +91,7 @@ export function useDiagnoses(encounter: ActiveEncounter) {
     }));
     try {
       await saveDiagnoses(payload);
-      toast.success(`${rows.length} diagnosis${rows.length > 1 ? "es" : ""} saved`);
+      toast.success(localOnly(`${rows.length} diagnosis${rows.length > 1 ? "es" : ""} saved`));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save diagnoses");
     } finally {

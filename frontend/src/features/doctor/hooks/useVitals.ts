@@ -3,7 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { localOnly } from "../lib/mockMode";
 import { saveVitals } from "../api";
+import { MOCK_PROVIDER_USER_ID } from "../constants";
 import { computeBmi, computeWhr } from "../lib/formatters";
 import type { ActiveEncounter, VitalsInput } from "../types";
 
@@ -62,6 +64,7 @@ export function useVitals(encounter: ActiveEncounter) {
     setSaving(true);
     // bmi/whr omitted — server computes them on write (never client-supplied).
     const input: VitalsInput = {
+      created_by: MOCK_PROVIDER_USER_ID,
       patient_id: encounter.patient_id,
       encounter_id: encounter.id,
       measured_at: new Date().toISOString(),
@@ -79,7 +82,7 @@ export function useVitals(encounter: ActiveEncounter) {
     };
     try {
       await saveVitals(input);
-      toast.success("Vitals recorded");
+      toast.success(localOnly("Vitals recorded"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to record vitals");
     } finally {

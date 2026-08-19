@@ -1,4 +1,5 @@
 import { mockIcdConcepts, savedDiagnoses, savedVitals } from "@/lib/mock";
+import { StaleWriteError } from "../types";
 import type {
   ActiveEncounter,
   CreateDiagnosisInput,
@@ -7,6 +8,11 @@ import type {
   IcdConcept,
   VitalsInput,
 } from "../types";
+
+/** Stands in for the server's row_version column, keyed by encounter id. */
+const serverRowVersion = new Map<string, number>();
+/** Last SOAP state the "server" accepted, so a conflict can be shown as a diff. */
+const serverSoap = new Map<string, UpdateEncounterInput>();
 
 function delay<T>(value: T, ms = 250): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
@@ -47,10 +53,29 @@ export async function updateEncounter(
   encounter: ActiveEncounter,
   patch: UpdateEncounterInput,
 ): Promise<ActiveEncounter> {
+  // Optimistic locking: the real call sends If-Match with the row_version we
+  // read. If the server has moved on, it answers 409 stale_write and we must
+  // NOT overwrite — someone else's clinical note would be lost silently.
+  const sent = encounter.row_version ?? 1;
+  const current = serverRowVersion.get(encounter.id) ?? sent;
+  if (sent !== current) {
+    throw new StaleWriteError(current, serverSoap.get(encounter.id) ?? {});
+  }
+
+  const nextVersion = current + 1;
+  serverRowVersion.set(encounter.id, nextVersion);
+  serverSoap.set(encounter.id, {
+    subjective: patch.subjective,
+    objective: patch.objective,
+    assessment: patch.assessment,
+    plan: patch.plan,
+  });
+
   const next: ActiveEncounter = {
     ...encounter,
     ...patch,
     note_status: patch.note_status ?? "stored",
+    row_version: nextVersion,
   };
   return delay(next, 300);
 }

@@ -3,30 +3,35 @@
 import { useCallback, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { createOrder } from "../api";
-import type { ActiveEncounter, DraftOrder } from "../types";
+import { placeOrder } from "../api";
+import { localOnly } from "../lib/mockMode";
+import type { ActiveEncounter, DraftOrder, PlacedOrder } from "../types";
 
 export function useOrders(encounter: ActiveEncounter) {
   const [orders, setOrders] = useState<DraftOrder[]>([]);
+  /** What the department gave back — the doctor needs the accession number. */
+  const [placed, setPlaced] = useState<PlacedOrder[]>([]);
   const [adding, setAdding] = useState(false);
 
   const addOrder = useCallback(
     async (draft: Omit<DraftOrder, "tempId">) => {
       setAdding(true);
       try {
-        await createOrder({
+        // Two calls: the order header, then the department detail row.
+        const result = await placeOrder(draft, {
           encounter_id: encounter.id,
           patient_id: encounter.patient_id,
-          ...draft,
         });
-        setOrders((prev) => [
-          ...prev,
-          {
-            tempId: crypto.randomUUID(),
-            ...draft,
-          },
-        ]);
-        toast.success(`${""} ordered`);
+        // Only append after the write came back — never optimistically.
+        setOrders((prev) => [...prev, { tempId: crypto.randomUUID(), ...draft }]);
+        setPlaced((prev) => [...prev, result]);
+        toast.success(
+          localOnly(
+            `${result.item_label} ordered${
+              result.accession_number ? ` · ${result.accession_number}` : ""
+            }`,
+          ),
+        );
         return true;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to place order");
@@ -43,5 +48,5 @@ export function useOrders(encounter: ActiveEncounter) {
     [],
   );
 
-  return { orders, adding, addOrder, removeOrder };
+  return { orders, placed, adding, addOrder, removeOrder };
 }

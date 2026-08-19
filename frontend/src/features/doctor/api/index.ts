@@ -8,7 +8,14 @@ export {
   searchIcd,
   saveDiagnoses,
 } from "./consultation";
-export { suggestOrderNames, createOrder } from "./orders";
+export {
+  suggestOrderNames,
+  createOrder,
+  createLabOrderItem,
+  createRadiologyOrderItem,
+  createProcedure,
+  placeOrder,
+} from "./orders";
 export { searchMedicines, checkAllergies, createPrescription } from "./prescriptions";
 export {
   listResultsWorklist,

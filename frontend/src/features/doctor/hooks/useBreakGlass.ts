@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
+import { localOnly } from "../lib/mockMode";
 import {
   checkRecordAccess,
   requestBreakGlassGrant,
@@ -94,7 +95,7 @@ export function useBreakGlass(patientId: string | null) {
           justification,
         });
         setAccess({ patient_id: patientId, allowed: true, grant: created });
-        toast.success("Emergency access granted — this session is being recorded.");
+        toast.success(localOnly("Emergency access granted — this session is being recorded."));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : "Could not open emergency access.";
@@ -111,7 +112,7 @@ export function useBreakGlass(patientId: string | null) {
     setSubmitting(true);
     try {
       await revokeBreakGlassGrant(grant.id);
-      toast.success("Emergency access ended.");
+      toast.success(localOnly("Emergency access ended."));
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to end emergency access");

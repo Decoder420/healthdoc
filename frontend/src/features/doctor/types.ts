@@ -40,8 +40,11 @@ export type QueuePriority =
  */
 export interface QueueToken {
   id: string;
+  queue_id: string;
+  sequence: number;
   token_display: string;
   visit_id: string;
+  /** Joined, not a queue_tokens column — the patient hangs off the visit. */
   patient_id: string;
   status: QueueTokenStatus;
   priority: QueuePriority;
@@ -104,6 +107,16 @@ export interface Allergy {
   status: AllergyStatus;
   onset_date?: string;
   recorded_by: string;
+  verified_by?: string;
+  verified_at?: string;
+  row_version: number;
+  /**
+   * Server-computed. `is_absolute` is anaphylaxis — no override at any length.
+   * Read these rather than re-deriving from `severity`: the rule for what
+   * blocks prescribing belongs to the server, not to this component.
+   */
+  is_blocking: boolean;
+  is_absolute: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +171,22 @@ export interface CreateEncounterInput {
   started_at: string;
 }
 
+/**
+ * Raised when a PATCH is rejected because someone else saved first
+ * (409 stale_write, schema v3.11 §4A.2). The caller must show the difference
+ * and let the clinician decide — never silently overwrite the other write.
+ */
+export class StaleWriteError extends Error {
+  constructor(
+    public readonly currentRowVersion: number,
+    /** The server's current copy, so the caller can show what differs. */
+    public readonly serverCopy: UpdateEncounterInput,
+  ) {
+    super("This encounter was changed by someone else while you were editing.");
+    this.name = "StaleWriteError";
+  }
+}
+
 /** PATCH /encounters/{id} — mirrors backend EncounterUpdate. */
 export interface UpdateEncounterInput {
   ended_at?: string;
@@ -174,7 +203,10 @@ export interface UpdateEncounterInput {
 
 export interface VitalsInput {
   patient_id: string;
+  /** vitals requires one of encounter_id / admission_id (CHECK constraint). */
   encounter_id: string;
+  /** users.id — a UUID, never a display name. */
+  created_by: string;
   measured_at: string;
   temp_c?: number;
   pulse_bpm?: number;
@@ -236,8 +268,12 @@ export type OrderPriority = "routine" | "urgent" | "stat";
 
 /** radiology_order_items.modality. */
 export type Modality = "xray" | "ct" | "mri" | "usg" | "mammo";
-/** lab_order_items.sample_type — NOT NULL on the table. */
-export type SampleType = "blood" | "serum" | "plasma" | "urine" | "stool" | "swab" | "tissue";
+/**
+ * lab_order_items.sample_type — `varchar(50) NOT NULL`. There is no SampleType
+ * enum in enums.py, so this is free text and the picker only offers suggestions.
+ * Same treatment as `frequency` and `route`.
+ */
+export type SampleType = string;
 /** procedures.setting — works with the OT module off. */
 export type ProcedureSetting = "opd_minor" | "bedside" | "emergency" | "ot";
 
@@ -261,17 +297,42 @@ export interface DraftOrder {
   setting?: ProcedureSetting;
 }
 
+/**
+ * POST /orders — the header only. The department detail row is a SECOND call
+ * (POST /pathology/order-items or /radiology/order-items), which is where the
+ * NOT NULL detail columns live and where the accession number is generated.
+ */
 export interface CreateOrderInput {
   encounter_id: string;
   patient_id: string;
+  created_by: string;
   order_type: OrderType;
   priority: OrderPriority;
-  test_name?: string;
-  sample_type?: SampleType;
-  modality?: Modality;
-  scan_type?: string;
-  procedure_name?: string;
-  setting?: ProcedureSetting;
+}
+
+/** POST /pathology/order-items — mirrors backend LabOrderItemCreate. */
+export interface CreateLabOrderItemInput {
+  order_id: string;
+  test_code?: string;
+  test_name: string;
+  sample_type: SampleType;
+  department_id?: string;
+  estimated_minutes?: number;
+}
+
+/** POST /radiology/order-items — mirrors backend RadiologyOrderItemCreate. */
+export interface CreateRadiologyOrderItemInput {
+  order_id: string;
+  modality: Modality;
+  scan_type: string;
+  machine_id?: string;
+}
+
+/** POST /procedures — procedure_records. */
+export interface CreateProcedureInput {
+  order_id: string;
+  procedure_name: string;
+  setting: ProcedureSetting;
 }
 
 /** What the server returns after placing an order — the doctor needs the numbers. */
@@ -356,6 +417,13 @@ export interface DraftPrescriptionItem {
 export interface PrescriptionItemInput {
   medicine_item_id?: string;
   medicine_name: string;
+  /**
+   * Why this was prescribed despite a recorded allergy. The REQUEST field is
+   * `override_reason` (backend PrescriptionItemCreate); it is persisted to the
+   * column `prescription_items.allergy_override_reason`. Never set for
+   * anaphylaxis — that can never be overridden.
+   */
+  override_reason?: string;
   dosage: string;
   /** varchar — a code from FREQUENCY_OPTIONS, or free text. */
   frequency: string;
@@ -365,9 +433,9 @@ export interface PrescriptionItemInput {
   instructions?: string;
 }
 
+/** POST /orders/prescriptions — no patient_id: the server reads it off the encounter. */
 export interface CreatePrescriptionInput {
   encounter_id: string;
-  patient_id: string;
   notes?: string;
   items: PrescriptionItemInput[];
 }
@@ -424,6 +492,8 @@ export interface LabResult {
   status: ResultStatus;
   result_data: LabResultData;
   remarks?: string;
+  /** Set when this version is an amendment of an earlier one. */
+  amendment_reason?: string;
   created_by: string;
   /** Joined display name for created_by — not a column. */
   created_by_name?: string;
