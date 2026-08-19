@@ -103,6 +103,7 @@ export function AuditEntryDetail({ entry, loading }: Props) {
         <Field label="Resource" value={`${entry.resource_type} / ${entry.resource_id ?? "—"}`} />
         <Field label="User" value={entry.user_display ?? entry.user_id ?? "—"} />
         <Field label="Patient" value={entry.patient_display ?? entry.patient_id ?? "—"} />
+        {entry.ip_address ? <Field label="IP address" value={entry.ip_address} /> : null}
         <Field
           label="entry_hash"
           value={

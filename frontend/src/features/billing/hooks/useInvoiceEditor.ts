@@ -20,12 +20,12 @@ import type {
 
 function schemeCodeFromOption(code: SchemeOptionCode): string | null {
   if (code === "self_pay") return null;
-  if (code === "PM-JAY") return "PM-JAY";
+  if (code === "PMJAY") return "PMJAY";
   return "OTHER";
 }
 
 function optionFromSchemeCode(scheme_code: string | null): SchemeOptionCode {
-  if (scheme_code === "PM-JAY") return "PM-JAY";
+  if (scheme_code === "PMJAY") return "PMJAY";
   if (scheme_code === "OTHER") return "OTHER";
   return "self_pay";
 }

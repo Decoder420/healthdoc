@@ -1,11 +1,20 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import { StatusChip } from "@/components/ui/StatusChip";
+import { toast } from "@/components/ui/toast";
 import { meridian } from "@/styles/theme";
+import { transitionConsentStatus, withdrawConsent } from "../api/consent";
 import { ACCESS_CHANNEL_LABELS, CONSENT_STATUS_LABELS } from "../constants";
 import { formatDate, formatDateTime } from "../lib/formatters";
 import type { ConsentRecord, DataAccessLog } from "../types";
@@ -16,6 +25,7 @@ type Props = {
   loading?: boolean;
   accessRows: DataAccessLog[];
   accessLoading: boolean;
+  onRecordUpdated?: (next: ConsentRecord) => void;
 };
 
 export function ConsentRecordDetail({
@@ -23,7 +33,47 @@ export function ConsentRecordDetail({
   loading,
   accessRows,
   accessLoading,
+  onRecordUpdated,
 }: Props) {
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleWithdraw = useCallback(async () => {
+    if (!record) return;
+    setBusy(true);
+    try {
+      const next = await withdrawConsent(record.id, {
+        withdrawn_by_type: "patient",
+        reason: withdrawReason || null,
+      });
+      toast.success("Consent withdrawn");
+      setWithdrawOpen(false);
+      setWithdrawReason("");
+      onRecordUpdated?.(next);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Withdrawal failed");
+    } finally {
+      setBusy(false);
+    }
+  }, [record, withdrawReason, onRecordUpdated]);
+
+  const handleTransition = useCallback(
+    async (status: "granted" | "denied") => {
+      if (!record) return;
+      setBusy(true);
+      try {
+        const next = await transitionConsentStatus(record.id, { status });
+        toast.success(`Consent ${status}`);
+        onRecordUpdated?.(next);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Transition failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [record, onRecordUpdated],
+  );
   if (loading) {
     return (
       <Typography sx={{ color: meridian.textSecondary, p: 2 }}>Loading consent…</Typography>
@@ -89,7 +139,76 @@ export function ConsentRecordDetail({
             value={formatDateTime(record.status_changed_at)}
           />
         </Box>
+
+        {record.status === "granted" ? (
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            disabled={busy}
+            onClick={() => setWithdrawOpen(true)}
+            sx={{ mt: 1, textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
+          >
+            Withdraw consent
+          </Button>
+        ) : null}
+
+        {record.status === "requested" ? (
+          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              disabled={busy}
+              onClick={() => void handleTransition("granted")}
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
+            >
+              Approve
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              disabled={busy}
+              onClick={() => void handleTransition("denied")}
+              sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
+            >
+              Deny
+            </Button>
+          </Stack>
+        ) : null}
       </Box>
+
+      <Dialog open={withdrawOpen} onClose={() => setWithdrawOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Withdraw consent</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 1.5, fontSize: "0.875rem", color: meridian.textSecondary }}>
+            This will revoke the consent record. The action is logged in the audit trail.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label="Reason (optional)"
+            value={withdrawReason}
+            onChange={(e) => setWithdrawReason(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWithdrawOpen(false)} sx={{ textTransform: "none" }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={busy}
+            onClick={() => void handleWithdraw()}
+            sx={{ textTransform: "none", fontWeight: 600 }}
+          >
+            Confirm withdrawal
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <DataAccessLogPanel
         rows={accessRows}

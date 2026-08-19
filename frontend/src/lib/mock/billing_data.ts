@@ -114,7 +114,7 @@ export const MOCK_INVOICES: InvoiceWithItems[] = [
     status: "draft",
     discount_amount: toMoney(50),
     scheme_adjustment: toMoney(920),
-    scheme_code: "PM-JAY",
+    scheme_code: "PMJAY",
     ...stamp(t1),
     patient: {
       uhid: "UHID-1002",

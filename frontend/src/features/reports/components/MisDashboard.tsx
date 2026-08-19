@@ -5,6 +5,7 @@ import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
@@ -50,7 +51,7 @@ function formatDeltaLabel(diff: number, code: CoreKpiCode): string {
 }
 
 export function MisDashboard() {
-  const { items, loading, error, period, setPeriod } = useKpis("7d");
+  const { items, loading, error, period, setPeriod, customFrom, customTo, setCustomFrom, setCustomTo } = useKpis("7d");
   const [focusCode, setFocusCode] = useState<CoreKpiCode | null>(null);
   const [capabilities, setCapabilities] = useState<FacilityCapabilities | null>(null);
 
@@ -229,6 +230,48 @@ export function MisDashboard() {
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
+            {period === "custom" ? (
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  size="small"
+                  type="date"
+                  label="From"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{
+                    "& .MuiInputBase-root": {
+                      bgcolor: "rgb(255 255 255 / 0.95)",
+                      borderRadius: "10px",
+                      fontSize: "0.8125rem",
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "rgb(255 255 255 / 0.7)",
+                      "&.Mui-focused": { color: "#fff" },
+                    },
+                  }}
+                />
+                <TextField
+                  size="small"
+                  type="date"
+                  label="To"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{
+                    "& .MuiInputBase-root": {
+                      bgcolor: "rgb(255 255 255 / 0.95)",
+                      borderRadius: "10px",
+                      fontSize: "0.8125rem",
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "rgb(255 255 255 / 0.7)",
+                      "&.Mui-focused": { color: "#fff" },
+                    },
+                  }}
+                />
+              </Stack>
+            ) : null}
             <ExportButton
               onExport={handleExport}
               formats={["csv", "xlsx", "pdf"]}

@@ -126,10 +126,14 @@ export function AuditTrailDashboard() {
             query={logs.filters.query ?? ""}
             action={logs.filters.action ?? "all"}
             resourceType={logs.filters.resource_type ?? "all"}
+            from={logs.filters.from ?? ""}
+            to={logs.filters.to ?? ""}
             selectedKey={selectedKey}
             onQueryChange={logs.setQuery}
             onActionChange={logs.setAction}
             onResourceTypeChange={logs.setResourceType}
+            onFromChange={logs.setFrom}
+            onToChange={logs.setTo}
             onSelect={handleSelect}
           />
           <AuditEntryDetail entry={detail.entry} loading={detail.loading} />

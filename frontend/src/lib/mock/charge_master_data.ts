@@ -43,7 +43,7 @@ export const MOCK_CHARGE_MASTER: ChargeMaster[] = [
   row("cm-ipd-bed-day", "IPD-BED-GEN", "General ward bed charges (1 day)", "ipd_stay", 2500),
   row("cm-proc-dressing", "PROC-DRESS", "Wound dressing", "procedure", 350),
   // Scheme-specific PM-JAY rate for CBC (wins when invoice.scheme_code = PM-JAY)
-  row("cm-lab-cbc-pmjay", "LAB-CBC", "Complete Blood Count (CBC) — PM-JAY", "lab", 300, "PM-JAY"),
+  row("cm-lab-cbc-pmjay", "LAB-CBC", "Complete Blood Count (CBC) — PMJAY", "lab", 300, "PMJAY"),
 ];
 
 let chargeStore: ChargeMaster[] = structuredClone(MOCK_CHARGE_MASTER);
