@@ -127,7 +127,7 @@ export function AuditLogListPanel({
               label="From"
               value={from ?? ""}
               onChange={(e) => onFromChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
             <TextField
@@ -136,7 +136,7 @@ export function AuditLogListPanel({
               label="To"
               value={to ?? ""}
               onChange={(e) => onToChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
           </Stack>
