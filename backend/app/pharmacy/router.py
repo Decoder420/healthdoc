@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from app.pharmacy.schemas import (
     DispenseOut,
     ExpiryTrackerResponse,
     MedicineSearchResponse,
+    PharmacyMisReport,
     PrescriptionQueueResponse,
     SubstitutionApprovalRequest,
     GrnCreate,
@@ -32,6 +34,7 @@ from app.pharmacy.schemas import (
 from app.pharmacy.service import (
     approve_substitution,
     create_dispense,
+    get_pharmacy_mis_report,
     get_expiry_tracker,
     get_prescription_queue,
     search_medicines,
@@ -179,6 +182,7 @@ async def create_dispense_endpoint(
     )
     return result
 
+
 @router.post(
     "/dispenses/items/{item_id}/approve",
     response_model=DispenseItemOut,
@@ -201,6 +205,29 @@ async def approve_substitution_endpoint(
         facility_id=current_user.facility_id,
     )
 
+
+@router.get(
+    "/mis",
+    response_model=PharmacyMisReport,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin", "hod")),
+    ],
+)
+async def pharmacy_mis_report(
+    current_user: CurrentDbUser,
+    db: DbSession,
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    expiry_window_days: int = Query(default=30, ge=1, le=365),
+) -> PharmacyMisReport:
+    return await get_pharmacy_mis_report(
+        db,
+        facility_id=current_user.facility_id,
+        date_from=date_from,
+        date_to=date_to,
+        expiry_window_days=expiry_window_days,
+    )
 
 
 _CREATE_GRN_ENDPOINT = "POST /pharmacy/grn"
