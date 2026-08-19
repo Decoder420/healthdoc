@@ -14,13 +14,20 @@ from app.common.redis import department_channel, facility_channel, subscribe
 from app.departments.models import Department
 from app.notifications.models import NotificationHistory
 from app.notifications import service
-from app.notifications.schemas import NotificationHistoryListOut, NotificationHistoryOut
+from app.notifications.schemas import (
+    NotificationHistoryListOut, 
+    NotificationHistoryOut,
+    NotificationPreferenceListOut,
+    NotificationPreferenceOut,
+    NotificationPreferenceSet,
+)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 _STAFF_ROLES = ("doctor", "nurse", "lab_tech", "pharmacist", "radiology_tech", "hod", "admin")
 _HISTORY_ROLES = ("hod", "admin")
+_PREFERENCE_ROLES = ("hod", "admin")
 
  
 @router.get("/ping")
@@ -158,4 +165,39 @@ async def list_notification_history(
         page_size=result["page_size"],
         total=result["total"],
     ).model_dump(mode="json")
- 
+
+
+# ---------------- NOTIFICATION PREFERENCES: LIST (hod/admin) ----------------
+@router.get(
+    "/preferences",
+    dependencies=[Depends(require_roles(*_PREFERENCE_ROLES))],
+)
+async def list_notification_preferences(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    preferences = await service.list_notification_preferences(db, current_db_user.facility_id)
+    return NotificationPreferenceListOut(
+        items=[NotificationPreferenceOut.model_validate(p) for p in preferences]
+    ).model_dump(mode="json")
+
+
+# ---------------- NOTIFICATION PREFERENCES: SET (hod/admin) ----------------
+@router.put(
+    "/preferences",
+    dependencies=[Depends(require_roles(*_PREFERENCE_ROLES))],
+)
+async def set_notification_preference(
+    payload: NotificationPreferenceSet,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    preference = await service.set_notification_preference(
+        db,
+        caller_facility_id=current_db_user.facility_id,
+        role=payload.role,
+        event_type=payload.event_type,
+        is_enabled=payload.is_enabled,
+        caller_user_id=current_db_user.id,
+    )
+    return NotificationPreferenceOut.model_validate(preference).model_dump(mode="json")

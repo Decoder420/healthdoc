@@ -29,3 +29,25 @@ class NotificationHistoryListOut(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class NotificationPreferenceSet(BaseModel):
+    role: str
+    event_type: str
+    is_enabled: bool
+ 
+ 
+class NotificationPreferenceOut(BaseModel):
+    id: uuid.UUID
+    facility_id: uuid.UUID
+    role: str
+    event_type: str
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+ 
+    model_config = ConfigDict(from_attributes=True)
+ 
+ 
+class NotificationPreferenceListOut(BaseModel):
+    items: list[NotificationPreferenceOut]

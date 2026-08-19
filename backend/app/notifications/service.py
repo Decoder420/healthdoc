@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
  
 from app.common.redis import department_channel, facility_channel
-from app.notifications.models import NotificationHistory
+from app.notifications.models import NotificationHistory, NotificationPreference
 from sqlalchemy import desc, select, func
  
  
@@ -162,4 +162,56 @@ async def list_notification_history(
         "page_size": page_size,
         "total": total,
     }
+
+# ---------------- NOTIFICATION PREFERENCES: LIST (hod/admin) ----------------
+async def list_notification_preferences(db: AsyncSession, caller_facility_id: uuid.UUID) -> list[NotificationPreference]:
+    """Only returns explicit overrides for this facility -- absence of a
+    role/event_type combination means it's still at the default
+    (enabled), not that it's missing data."""
+    result = await db.execute(
+        select(NotificationPreference).where(NotificationPreference.facility_id == caller_facility_id)
+    )
+    return list(result.scalars().all())
  
+ 
+# ---------------- NOTIFICATION PREFERENCES: SET (hod/admin) ----------------
+async def set_notification_preference(
+    db: AsyncSession,
+    caller_facility_id: uuid.UUID,
+    role: str,
+    event_type: str,
+    is_enabled: bool,
+    caller_user_id: uuid.UUID,
+) -> NotificationPreference:
+    """Upsert: one row per (facility, role, event_type). Same pattern as
+    facility_modules -- a plain UPDATE if the row already exists, an
+    INSERT if this is the first time this combination has been touched."""
+    existing_result = await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.facility_id == caller_facility_id,
+            NotificationPreference.role == role,
+            NotificationPreference.event_type == event_type,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+ 
+    if existing is not None:
+        existing.is_enabled = is_enabled
+        existing.updated_by = caller_user_id
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+ 
+    preference = NotificationPreference(
+        id=uuid.uuid4(),
+        facility_id=caller_facility_id,
+        role=role,
+        event_type=event_type,
+        is_enabled=is_enabled,
+        created_by=caller_user_id,
+    )
+    db.add(preference)
+    await db.flush()
+    await db.refresh(preference)
+    return preference
+  
