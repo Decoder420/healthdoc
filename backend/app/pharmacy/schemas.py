@@ -1,0 +1,318 @@
+from datetime import date, datetime
+from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+# ---------------------------------------------------------------------------
+# Prescription queue (GET /pharmacy/queue)
+# ---------------------------------------------------------------------------
+
+class PrescriptionQueueItem(BaseModel):
+    prescription_id: UUID
+    patient_id: UUID
+    patient_full_name: str
+    uhid: str | None = None
+    thid: str | None = None
+    visit_id: UUID | None = None
+    encounter_id: UUID
+    prescribed_at: datetime
+    item_count: int
+    dispense_status: str | None = None  # None = never dispensed against yet
+
+
+class PrescriptionQueueResponse(BaseModel):
+    items: list[PrescriptionQueueItem]
+    page: int
+    page_size: int
+    total: int
+
+
+# ---------------------------------------------------------------------------
+# Medicine search (GET /pharmacy/medicines/search)
+# ---------------------------------------------------------------------------
+
+class BatchAvailability(BaseModel):
+    batch_id: UUID
+    batch_number: str
+    expiry_date: str  # ISO date
+    quantity: Decimal
+    stock_location_id: UUID
+    issue_rate_mrp: Decimal | None = None
+
+
+class MedicineSearchResult(BaseModel):
+    item_id: UUID
+    name: str
+    generic_name: str | None = None
+    strength: str | None = None
+    form: str | None = None
+    is_controlled_drug: bool
+    total_available_quantity: Decimal
+    batches: list[BatchAvailability] = Field(
+        default_factory=list,
+        description="FEFO-ordered (earliest expiry first); only quantity > 0 batches",
+    )
+
+
+class MedicineSearchResponse(BaseModel):
+    items: list[MedicineSearchResult]
+
+
+# ---------------------------------------------------------------------------
+# Dispense create (POST /pharmacy/dispenses)
+# ---------------------------------------------------------------------------
+
+class DispenseItemCreate(BaseModel):
+    prescription_item_id: UUID
+    quantity_dispensed: Decimal = Field(gt=0, description="Requested quantity")
+    batch_id: UUID | None = Field(
+        default=None,
+        description="Manual batch pin (W2 behavior). Omit to auto-select via FEFO "
+        "(W3), splitting across batches if needed.",
+    )
+    substitute_item_id: UUID | None = Field(
+        default=None,
+        description="A different inventory_items.id than what was prescribed. "
+        "Requires doctor approval (see POST .../approve) before stock is touched.",
+    )
+    substitute_reason: str | None = None
+    expiry_override: bool = Field(
+        default=False,
+        description="Required (with expiry_override_reason) to dispense an explicitly "
+        "pinned batch that has passed its expiry date. FEFO auto-selection never "
+        "picks an expired batch, so this only applies to manual batch_id pins.",
+    )
+    expiry_override_reason: str | None = Field(
+        default=None,
+        description="Required when expiry_override is true.",
+    )
+    allergy_override_reason: str | None = Field(
+        default=None,
+        description="Required (min 20 chars) to dispense an item matching an active patient allergy. Anaphylaxis-severity matches can never be overridden.",
+    )
+    interaction_override_reason: str | None = Field(
+        default=None,
+        description="Required (min 20 chars) to dispense an item with a known interaction against another item in the same request. Contraindicated-severity pairs can never be overridden.",
+    )
+
+
+class DispenseCreate(BaseModel):
+    prescription_id: UUID
+    items: list[DispenseItemCreate] = Field(min_length=1)
+    allow_partial: bool = Field(
+        default=False,
+        description="If true and available stock < requested for an item, dispense "
+        "whatever is available instead of rejecting the whole request.",
+    )
+
+
+class BatchAllocation(BaseModel):
+    """One (batch, quantity) slice of a possibly FEFO-split item fulfillment."""
+    batch_id: UUID
+    batch_number: str
+    quantity_from_batch: Decimal
+    expiry_date: str
+
+
+class DispenseItemOut(BaseModel):
+    item_row_ids: list[UUID] = Field(
+        description="pharmacy_dispense_items.id for each batch used to fulfill this "
+        "item — more than one if FEFO split across batches. Empty if this is a "
+        "pending substitution (no batch chosen yet)."
+    )
+    prescription_item_id: UUID
+    quantity_prescribed: Decimal | None = None
+    quantity_dispensed: Decimal
+    is_substitute: bool
+    substitute_item_id: UUID | None = None
+    substitute_reason: str | None = None
+    is_partial: bool = Field(description="quantity_dispensed < quantity_prescribed")
+    approval_status: str = Field(
+        default="not_required",
+        description="not_required | pending | approved | rejected — only substituted "
+        "items are ever anything other than not_required",
+    )
+    batches: list[BatchAllocation] = Field(
+        default_factory=list, description="Which batch(es) fulfilled this item, FEFO order"
+    )
+
+
+class DispenseOut(BaseModel):
+    id: UUID
+    prescription_id: UUID
+    visit_id: UUID | None = None
+    status: str
+    dispensed_by: UUID
+    version: int
+    is_current: bool
+    created_at: datetime
+    items: list[DispenseItemOut]
+
+
+# ---------------------------------------------------------------------------
+# Substitution approval (POST /pharmacy/dispenses/{id}/items/{item_id}/approve)
+# ---------------------------------------------------------------------------
+
+class SubstitutionApprovalRequest(BaseModel):
+    approved: bool
+    rejection_reason: str | None = Field(
+        default=None, description="Required if approved=false"
+    )
+# ---------------------------------------------------------------------------
+# Pharmacy MIS report (GET /pharmacy/mis)
+# ---------------------------------------------------------------------------
+
+class PharmacyMisReport(BaseModel):
+    facility_id: UUID
+    period_start: date
+    period_end: date
+
+    prescriptions_total: int
+    dispenses_total: int
+    fill_rate_pct: Decimal = Field(
+        description="dispensed-status dispenses / prescriptions_total; 0 when "
+        "prescriptions_total is 0"
+    )
+    stockout_count: int = Field(
+        description="dispenses with status='out_of_stock' in the period"
+    )
+    substitution_count: int = Field(
+        description="pharmacy_dispense_items rows with is_substitute=true in the period"
+    )
+    substitution_rate_pct: Decimal = Field(
+        description="substitution_count / dispenses_total; 0 when dispenses_total is 0"
+    )
+    avg_turnaround_minutes: Decimal | None = Field(
+        default=None,
+        description="avg minutes between prescription creation and its first dispense "
+        "(version=1) in the period; null when no first-dispenses fall in the period",
+    )
+    expiring_batches_count: int = Field(
+        description="inventory_batches with quantity > 0 expiring within "
+        "expiry_window_days of period_end, at this facility's stock locations - "
+        "a live snapshot, not period-scoped like the fields above"
+    )
+    expiring_stock_value: Decimal = Field(
+        description="sum(quantity * issue_rate_mrp) for those same expiring batches; "
+        "a NULL issue_rate_mrp counts in expiring_batches_count but contributes 0 here"
+    )
+
+
+# -- B6-W5-01: Inventory (GRN, Indent, Adjustment) --------------------------
+
+class GrnItemCreate(BaseModel):
+    item_id: UUID
+    batch_number: str | None = None
+    expiry_date: date | None = None
+    quantity: Decimal
+    unit_price: Decimal | None = None
+
+
+class GrnCreate(BaseModel):
+    supplier_id: UUID
+    invoice_number: str | None = None
+    received_date: date
+    items: list[GrnItemCreate]
+
+
+class GrnItemOut(BaseModel):
+    id: UUID
+    item_id: UUID
+    batch_number: str | None
+    expiry_date: date | None
+    quantity: Decimal
+    unit_price: Decimal | None
+
+
+class GrnOut(BaseModel):
+    id: UUID
+    supplier_id: UUID
+    invoice_number: str | None
+    received_date: date
+    status: str
+    items: list[GrnItemOut]
+
+
+class IndentItemCreate(BaseModel):
+    item_id: UUID
+    quantity_requested: Decimal
+
+
+class IndentCreate(BaseModel):
+    department_id: UUID
+    items: list[IndentItemCreate]
+
+
+class IndentItemOut(BaseModel):
+    id: UUID
+    item_id: UUID
+    quantity_requested: Decimal
+
+
+class IndentOut(BaseModel):
+    id: UUID
+    department_id: UUID
+    status: str
+    approved_by: UUID | None
+    items: list[IndentItemOut]
+
+
+class IndentApprovalRequest(BaseModel):
+    approve: bool
+    reason: str | None = None
+
+
+class ReorderAlertItem(BaseModel):
+    item_id: UUID
+    item_name: str
+    reorder_level: Decimal
+    current_stock: Decimal
+
+
+class ReorderAlertsResponse(BaseModel):
+    items: list[ReorderAlertItem]
+
+
+class AdjustmentCreate(BaseModel):
+    item_id: UUID
+    batch_id: UUID
+    quantity_change: Decimal
+    reason: str
+    first_approver_id: UUID
+
+
+class AdjustmentOut(BaseModel):
+    id: UUID
+    item_id: UUID
+    batch_id: UUID
+    quantity_change: Decimal
+    reason: str
+    first_approver_id: UUID
+    second_approver_id: UUID | None
+    status: str
+
+
+class AdjustmentApprovalRequest(BaseModel):
+    approve: bool
+    reason: str | None = None
+
+
+class GrnVerifyRequest(BaseModel):
+    stock_location_id: UUID
+
+class ExpiringBatch(BaseModel):
+    batch_id: UUID
+    item_id: UUID
+    item_name: str
+    batch_number: str
+    expiry_date: str
+    days_to_expiry: int
+    quantity: Decimal
+    stock_location_id: UUID
+    stock_location_name: str
+
+
+class ExpiryTrackerResponse(BaseModel):
+    items: list[ExpiringBatch]
+    threshold_days: int
