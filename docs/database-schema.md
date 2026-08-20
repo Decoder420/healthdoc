@@ -160,7 +160,11 @@ do not merge out of order.**
 | 0041a | visits_row_version | ALTER visits: row_version | B5 (#383) |
 | 0041b | idempotency_keys_response_body_jsonb | ALTER idempotency_keys: response_body -> jsonb | B5 (#383) |
 | 0041c | lab_order_items_released_status | ALTER lab_order_items: status CHECK gains 'released' | B5 (#383) |
-| 0042 | guardian_verification | ALTER patients: is_minor, guardian_verified, guardian_verification_method | B2 (W3) — moved again as written work took the number; still unwritten |
+| 0042 | guardian_verification | ALTER patients: is_minor, guardian_verified, guardian_verification_method (+ method CHECK) | B2 (W3) — written at last; the ORM had declared these since W3 and no migration created them |
+| 0043 | medication_administration | medication_administration | B3/nursing (#390) — eMAR. One row per administration attempt (given / held / refused) against a prescribed dose; held and refused require a reason. vitals had storage since 0023, eMAR had none. |
+| 0044 | notification_preferences | notification_preferences | B4 (#230) — the per-role half of #230; the history API shipped without it, so nothing could be silenced. Opt-out: absence of a row means enabled. |
+| 0045 | order_checkoff | ALTER orders: accepted_at, accepted_by, completed_at, completed_by, completion_note (+ 3 CHECKs) | B3/nursing (#210) — status recorded THAT an order was done and lost who and when |
+| 0046 | clinical_incidents | clinical_incidents | B3/nursing (#236) — NABH DHS incident register. Distinct from data_breach_notifications (0022a), which is the DPDP/CERT-In data path. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -1220,7 +1224,7 @@ endpoint_url text · is_active boolean NOT NULL DEFAULT true
 ```
 Also in 0022a: `ALTER consent_records ADD consent_manager_id UUID NULL → consent_managers`.
 
-**patients additions** (0038, B2)
+**patients additions** (0042, B2)
 ```
 is_minor boolean NOT NULL DEFAULT false           -- set at registration from dob/age_years
 guardian_verified boolean NOT NULL DEFAULT false
@@ -1228,6 +1232,76 @@ guardian_verification_method varchar(30) NULL     -- aadhaar|digilocker|manual_d
 ```
 Healthcare exemptions to parental-consent rules still require documentation — that is
 what these columns evidence. Guardian name/relationship columns already exist (0006).
+
+0042 adds one CHECK: the method must be one of the three above when set.
+
+**notification_preferences** (0044, B4) `[Blame]` — per-role opt-out
+```
+facility_id UUID NOT NULL → facilities · role varchar(50) NOT NULL
+event_type varchar(50) NOT NULL · enabled boolean NOT NULL DEFAULT true
+UNIQUE (facility_id, role, event_type)
+```
+**Absence of a row means enabled.** A row exists only to record a deliberate decision to
+silence something, and `enabled` stays explicit so re-enabling is an UPDATE with a trail
+rather than a DELETE that erases who decided what.
+
+Opt-out rather than opt-in on purpose: with opt-in, a newly added `event_type` would be
+silently invisible to every role until someone switched it on. A missed `low_stock_alert`
+is an annoyance; a missed `lab_critical_result` is a patient safety event.
+
+`role` and `event_type` are deliberately not CHECK-constrained. Roles come from the
+Keycloak realm and event types from the publishing modules; a CHECK on either would have
+to be hand-synced and would start rejecting valid writes the moment one was added.
+
+**clinical_incidents** (0046, B3/nursing) `[Blame]` — NABH DHS incident register
+```
+facility_id UUID NOT NULL → facilities · department_id/ward_id UUID NULL
+patient_id UUID NULL → patients · admission_id UUID NULL → admissions
+incident_type varchar(50) NOT NULL   -- medication_error|patient_fall|near_miss|...
+severity varchar(30) NOT NULL        -- no_harm|minor|moderate|severe|death
+status varchar(30) NOT NULL DEFAULT 'reported'
+occurred_at / reported_at timestamptz NOT NULL
+description text NOT NULL · immediate_action text NOT NULL
+reported_by UUID NOT NULL → users · reviewed_by/reviewed_at NULL
+root_cause / corrective_action text NULL
+```
+**Not the same thing as `data_breach_notifications` (0022a).** That table is the DPDP /
+CERT-In *data* incident path, with a 6-hour statutory clock and the DPO as owner. A patient
+fall and a leaked record share the word and nothing else: different reporters, reviewers,
+clocks and audiences.
+
+`patient_id` is nullable on purpose — a sharps injury to staff, or equipment found faulty
+before use, is reportable and has no patient. Requiring one would push staff to attribute
+incidents to whoever happened to be nearby.
+
+`severity` is harm that **reached** the patient. `near_miss` is a *type*, not a severity:
+an event that reached a patient and caused no harm is a different fact from one that never
+reached them, and collapsing the two hides the first — the one that says a barrier failed
+late rather than early.
+
+Two CHECKs carry the review: `reviewed_at`/`reviewed_by` move together, and a `closed`
+incident must have a root cause and a corrective action. Closing with neither is how a
+register becomes a filing cabinet nobody learns from. Nothing is ever deleted.
+
+**medication_administration** (0043, B3/nursing) `[Blame]` — eMAR
+```
+prescription_item_id UUID NOT NULL → prescription_items · admission_id UUID NOT NULL → admissions
+patient_id UUID NOT NULL → patients
+scheduled_at timestamptz NULL · administered_at timestamptz NOT NULL DEFAULT now()
+status varchar(30) NOT NULL          -- given|held|refused
+dose_given varchar(100) NULL · reason text NULL · notes text NULL
+CHECK status = 'given' OR reason IS NOT NULL AND length(trim(reason)) > 0
+```
+One row per administration **attempt**, not per scheduled dose: the schedule is derivable
+from the prescription's frequency and duration, and materialising it would put a second
+source of truth beside the prescription. What must be recorded is what a nurse did.
+
+`held` (clinical decision — parameters out of range, procedure pending) and `refused`
+(patient declining) are distinct, and both require a reason. An unexplained missed dose is
+precisely what an adverse-event review cannot reconstruct.
+
+`administered_at` is the clinical time of the act. Derive business dates from it with
+`(administered_at AT TIME ZONE facilities.timezone)::date`, never a bare cast — see #387.
 
 **vitals** (0023, B3/nursing) `[Blame]` — NABH structured capture; one row per measurement set
 ```
