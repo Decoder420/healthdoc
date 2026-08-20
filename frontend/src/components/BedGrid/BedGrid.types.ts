@@ -33,6 +33,26 @@ export interface Bed {
   status: BedStatus;
   /** null when the bed is not occupied. */
   occupant: BedOccupant | null;
+
+  /**
+   * NOT sent per bed by the API — `GET /wards/{ward_id}/beds` is already scoped
+   * to one ward and returns it once, at the top of the response.
+   *
+   * Attached client-side by `flattenBedGrids` when a screen holds beds from
+   * several wards at once (a transfer has to offer a bed on another ward).
+   * Optional so it cannot be mistaken for something the server vouched for.
+   */
+  ward_id?: string;
+}
+
+/**
+ * Flatten several ward responses into one list, stamping each bed with the
+ * ward it came from. The only supported way to get a cross-ward bed list.
+ */
+export function flattenBedGrids(responses: BedGridResponse[]): Bed[] {
+  return responses.flatMap((response) =>
+    response.items.map((bed) => ({ ...bed, ward_id: response.ward_id })),
+  );
 }
 
 export interface BedGridResponse {

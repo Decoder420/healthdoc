@@ -40,9 +40,9 @@ export type Role = (typeof ROLES)[keyof typeof ROLES];
  * shipping two disagreeing ideas of who can log in.
  */
 type Expect<T extends true> = T;
-// Never referenced at runtime — the assertion IS the check. Disabled rather
-// than removed: deleting it to silence the lint would delete the guard.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Never referenced at runtime — the assertion IS the check. The leading
+// underscore is what exempts it from no-unused-vars (see eslint.config.mjs);
+// deleting it to silence a lint would delete the guard.
 type _RolesMatchRealm = Expect<
   [Role] extends [RealmRole] ? ([RealmRole] extends [Role] ? true : false) : false
 >;
