@@ -26,7 +26,7 @@ routine branch synchronization.
 | 3 | Contract matrix / ten invalid calls | **Complete** | Generated matrix reports 17/17 statically discoverable frontend calls in OpenAPI. Unsupported mutations are visibly unavailable instead of silently mocked. |
 | 4 | Replace fixtures for OPD, IPD, Lab, Billing, Pharmacy | **Core entry paths complete; deeper product breadth remains** | Live OPD queue/context, IPD wards/beds/admissions/discharges, Lab worklist, Billing invoice queue, Pharmacy prescription queue. Lab/Billing/Pharmacy HTTP journeys pass. Pharmacy dispense mutation remains deliberately disabled pending its item-detail contract. |
 | 5 | Main DB 0002 → 0046, backup/restore | **Harness complete; real-data run pending** | Synthetic `origin/main` 0002 upgrade, pre/post backup, restore, revision and seed preservation pass. Must rerun with `SOURCE_DUMP=/path/to/sanitized-main.dump`. |
-| 6 | Resolve/replace PR #397 | **Local replacement complete; GitHub operation pending** | PR #397 is an obsolete 319-file/49,514-insertion snapshot forked from July main. Three focused real-Postgres journey tests replace its useful coverage without its duplicate tests, guessed schema or xfail. GitHub CLI credentials are invalid, so it cannot yet be closed or superseded remotely. |
+| 6 | Resolve/replace PR #397 | **Complete** | Conflicting PR #397 was closed as superseded. Mergeable PR #408 replaces it with three focused real-Postgres journey tests and the release gates, without the obsolete snapshot's duplicate tests, guessed schema or xfail. CI is green; review is still required. |
 | 7 | Open staging → main PR | **Blocked by design** | Open only after the real dump rehearsal, replacement PR review, core-role UAT, staging soak and rollback sign-off. |
 
 ## Verification snapshot
@@ -36,6 +36,7 @@ routine branch synchronization.
 | Backend suite against PostgreSQL | **555 passed** in 22.52s |
 | New Lab/Billing/Pharmacy HTTP journeys | **3 passed** |
 | Nurse Keycloak browser gate | **PASS** |
+| PR #408 GitHub CI | **PASS** — backend, frontend and nurse-auth E2E |
 | Deep health through NGINX | **200**; PostgreSQL, MongoDB and Redis all `ok` |
 | Silent-SSO helper | **200**; CSP allows only same-origin framing |
 | Frontend typecheck | **PASS** |
@@ -76,7 +77,7 @@ Therefore:
 - **Core five-journey release candidate:** 7–10 calendar days with a focused
   four-person team and frozen scope.
 - **Requested technical blocker pack:** 1–2 working days remain once the real
-  database dump and GitHub access are supplied.
+  database dump and required reviewer/clinical approvals are supplied.
 - **Whole routed product feature-complete:** approximately 4–6 weeks for one
   strong engineer, or 2–3 weeks for a coordinated four-person team, followed by
   clinical/security UAT. This estimate is medium confidence because detailed
