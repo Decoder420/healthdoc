@@ -63,6 +63,8 @@ from app.auth.deps import AuthUser, require_roles
 from app.billing import service
 from app.billing.schemas import (
     DailyRevenueResponse,
+    TariffCreate,
+    TariffOut,
     InvoiceBuildRequest,
     InvoiceBuildResponse,
     InvoicePreviewResponse,
@@ -276,3 +278,101 @@ async def get_scheme_breakdown(
 ) -> SchemeBreakdownResponse:
     facility_id = await service.facility_id_for_user(db, keycloak_sub=user.sub)
     return await service.get_scheme_breakdown(db, facility_id=facility_id, date_from=date_from, date_to=date_to)
+
+
+# ============================================================ charge_master admin (#287)
+#
+# 0033 created charge_master in July and nothing read or wrote it — pricing.py
+# still carries hardcoded lab/radiology dicts with a comment saying it would
+# query the tariff "once 0033 lands". It landed. #389 made registration its
+# first consumer; these endpoints are how a facility maintains it.
+
+# Tariff changes reprice every future invoice, so this is narrower than
+# _BILLING_ROLES: a receptionist staffs the counter, they do not set prices.
+_TARIFF_ADMIN_ROLES = ("supervisor", "admin")
+
+
+@router.get(
+    "/charge-master",
+    response_model=list[TariffOut],
+    summary="Tariff catalogue for the caller's facility",
+)
+async def list_tariffs(
+    charge_code: str | None = Query(None, description="Filter to one charge_code."),
+    active_only: bool = Query(True, description="Set false to include retired rows."),
+    db: AsyncSession = Depends(get_db),
+    user: AuthUser = Depends(require_roles(*_MIS_ROLES)),
+) -> list[TariffOut]:
+    facility_id = await service.facility_id_for_user(db, keycloak_sub=user.sub)
+    rows = await service.list_charge_master(
+        db, facility_id, charge_code=charge_code, active_only=active_only
+    )
+    return [TariffOut.model_validate(r, from_attributes=True) for r in rows]
+
+
+@router.post(
+    "/charge-master",
+    response_model=TariffOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a tariff, closing the row it supersedes",
+)
+async def create_tariff(
+    payload: TariffCreate,
+    db: AsyncSession = Depends(get_db),
+    user: AuthUser = Depends(require_roles(*_TARIFF_ADMIN_ROLES)),
+) -> TariffOut:
+    """A price change is a NEW ROW, never an edit.
+
+    Editing unit_price in place would silently rewrite what was charged on every
+    invoice already raised against that row — invoice_items.charge_master_id
+    would then point at a tariff that no longer says what the patient paid.
+    """
+    facility_id = await service.facility_id_for_user(db, keycloak_sub=user.sub)
+    actor_id = await service.resolve_actor_user_id(
+        db, keycloak_sub=user.sub, fallback_id=getattr(user, "id", None)
+    )
+    try:
+        tariff_id = await service.create_tariff(
+            db,
+            facility_id=facility_id,
+            charge_code=payload.charge_code,
+            description=payload.description,
+            charge_category=payload.charge_category,
+            unit_price=payload.unit_price,
+            effective_from=payload.effective_from,
+            scheme_code=payload.scheme_code,
+            created_by=actor_id,
+        )
+    except service.TariffOverlap as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "tariff_overlap", "message": str(exc)},
+        ) from exc
+
+    rows = await service.list_charge_master(
+        db, facility_id, charge_code=payload.charge_code, active_only=False
+    )
+    created = next(r for r in rows if r.id == tariff_id)
+    return TariffOut.model_validate(created, from_attributes=True)
+
+
+@router.post(
+    "/charge-master/{tariff_id}/deactivate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Retire a tariff (is_active = false; never deleted)",
+)
+async def deactivate_tariff(
+    tariff_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: AuthUser = Depends(require_roles(*_TARIFF_ADMIN_ROLES)),
+) -> None:
+    """The row is kept: invoice_items.charge_master_id points at it, and a line
+    whose tariff has vanished cannot be explained to a patient or an auditor."""
+    actor_id = await service.resolve_actor_user_id(
+        db, keycloak_sub=user.sub, fallback_id=getattr(user, "id", None)
+    )
+    if not await service.deactivate_tariff(db, tariff_id, updated_by=actor_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="tariff not found or already inactive",
+        )

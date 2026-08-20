@@ -423,6 +423,62 @@ class GuardianVerificationMethod(CheckedEnum):
     MANUAL_DOCUMENT = "manual_document"
 
 
+class MedicationAdministrationStatus(CheckedEnum):
+    """eMAR outcome for one scheduled dose (§3 0043, B3/nursing).
+
+    `held` and `refused` are deliberately distinct: held is a clinical decision
+    by staff (parameters out of range, procedure pending), refused is the
+    patient declining. Both require a reason — an unexplained missed dose is
+    the thing an adverse-event review cannot reconstruct.
+    """
+    GIVEN = "given"
+    HELD = "held"
+    REFUSED = "refused"
+
+
+class ClinicalIncidentType(CheckedEnum):
+    """What kind of clinical incident occurred — §3 0046, NABH DHS.
+
+    Deliberately distinct from data_breach_notifications (0022a), which covers
+    DPDP/CERT-In *data* incidents. A patient fall and a leaked record are both
+    "incidents" and have nothing else in common: different reporters, different
+    review paths, different statutory clocks.
+    """
+    MEDICATION_ERROR = "medication_error"
+    PATIENT_FALL = "patient_fall"
+    PRESSURE_INJURY = "pressure_injury"
+    WRONG_PATIENT = "wrong_patient"
+    WRONG_SITE = "wrong_site"
+    EQUIPMENT_FAILURE = "equipment_failure"
+    NEEDLESTICK = "needlestick"
+    TRANSFUSION_REACTION = "transfusion_reaction"
+    HOSPITAL_ACQUIRED_INFECTION = "hospital_acquired_infection"
+    NEAR_MISS = "near_miss"
+    OTHER = "other"
+
+
+class ClinicalIncidentSeverity(CheckedEnum):
+    """Harm actually reached, not harm risked.
+
+    `near_miss` is a TYPE, not a severity — an event that reached the patient
+    with no harm is a different thing from one that never reached them, and
+    conflating the two hides the first.
+    """
+    NO_HARM = "no_harm"
+    MINOR = "minor"
+    MODERATE = "moderate"
+    SEVERE = "severe"
+    DEATH = "death"
+
+
+class ClinicalIncidentStatus(CheckedEnum):
+    """Reported -> reviewed -> closed. Never deleted."""
+    REPORTED = "reported"
+    UNDER_REVIEW = "under_review"
+    ACTION_TAKEN = "action_taken"
+    CLOSED = "closed"
+
+
 class IntakeOutputType(CheckedEnum):
     INTAKE_ORAL = "intake_oral"
     INTAKE_IV = "intake_iv"
