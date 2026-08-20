@@ -66,17 +66,16 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("now()")),
 
+        # Also the read-path index. Postgres backs a UNIQUE constraint with a
+        # btree on exactly these columns in this order, so it already serves
+        # "is this event_type silenced for this role here?" and the
+        # facility-wide list (facility_id leads). An explicit index on the same
+        # three columns would be a second copy of the same tree, paid for on
+        # every write and never read. Suprita's #396 was right not to add one.
         sa.UniqueConstraint("facility_id", "role", "event_type",
                             name="uq_notification_preferences_scope"),
     )
 
-    # The read path: "is this event_type silenced for this role here?"
-    op.create_index(
-        "ix_notification_preferences_lookup", "notification_preferences",
-        ["facility_id", "role", "event_type"],
-    )
-
 
 def downgrade() -> None:
-    op.drop_index("ix_notification_preferences_lookup", table_name="notification_preferences")
     op.drop_table("notification_preferences")

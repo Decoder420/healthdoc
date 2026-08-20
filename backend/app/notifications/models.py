@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.common.db import Base
@@ -30,9 +30,12 @@ class NotificationPreference(Base, UUIDPk, Timestamps, Blame):
 
     __tablename__ = "notification_preferences"
     __table_args__ = (
+        # Doubles as the lookup index: the unique constraint's btree covers
+        # (facility_id, role, event_type) in that order, which is both the
+        # point read and the facility-wide list. A separate index on the same
+        # columns would be a duplicate tree maintained on every write.
         UniqueConstraint("facility_id", "role", "event_type",
                          name="uq_notification_preferences_scope"),
-        Index("ix_notification_preferences_lookup", "facility_id", "role", "event_type"),
     )
 
     facility_id: Mapped[uuid.UUID] = mapped_column(
