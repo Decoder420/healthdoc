@@ -191,6 +191,55 @@ async def test_fluid_balance_of_an_admission_with_no_records_is_zero(db):
     }
 
 
+async def test_emar_rows_name_their_drug(db):
+    """An eMAR carrying only prescription_item_id cannot say what was given.
+
+    The screen would otherwise have to fetch every prescription item
+    separately — one request per row of the table a nurse reads most.
+    """
+    from app.orders.models import Prescription, PrescriptionItem
+
+    admission_id, patient_id, actor = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    prescription = Prescription(
+        id=uuid.uuid4(), encounter_id=uuid.uuid4(), facility_id=uuid.uuid4(),
+        patient_id=patient_id, created_by=actor,
+    )
+    db.add(prescription)
+    await db.flush()
+
+    item = PrescriptionItem(
+        id=uuid.uuid4(), prescription_id=prescription.id,
+        medicine_name="Amoxicillin 500mg", dosage="500mg", route="oral",
+    )
+    db.add(item)
+    await db.flush()
+
+    await record_administration(
+        db,
+        _emar(admission_id, patient_id, prescription_item_id=item.id),
+        recorded_by=actor,
+    )
+
+    (row,) = await list_administrations(db, admission_id)
+    assert row.medicine_name == "Amoxicillin 500mg"
+    assert row.dosage == "500mg", "the prescribed dose"
+    assert row.route == "oral"
+
+
+async def test_a_dose_survives_a_missing_prescription_item(db):
+    """LEFT join, deliberately. A dose that was actually given must not vanish
+    from the record because the item it referenced is gone — the name goes
+    unknown, the administration stays."""
+    admission_id, patient_id = uuid.uuid4(), uuid.uuid4()
+    await record_administration(
+        db, _emar(admission_id, patient_id), recorded_by=uuid.uuid4())
+
+    (row,) = await list_administrations(db, admission_id)
+    assert row.medicine_name is None
+    assert row.status == "given", "the administration is still on the record"
+
+
 async def test_negative_or_zero_volume_is_rejected():
     for bad in (0, -100):
         with pytest.raises(ValidationError):

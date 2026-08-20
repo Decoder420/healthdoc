@@ -135,6 +135,14 @@ class MedicationAdministrationOut(BaseModel):
     created_by: UUID
     created_at: datetime
 
+    #: Denormalised from prescription_items so an eMAR row can name its drug.
+    #: Nullable because the join is a LEFT join — a dose that was given stays
+    #: on the record even if its prescription item is gone.
+    medicine_name: str | None = None
+    #: What was PRESCRIBED. `dose_given` above is what the nurse recorded.
+    dosage: str | None = None
+    route: str | None = None
+
 
 class IntakeOutputCreate(BaseModel):
     admission_id: UUID
