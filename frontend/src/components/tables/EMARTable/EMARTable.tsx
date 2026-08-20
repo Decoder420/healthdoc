@@ -50,8 +50,12 @@ export default function EMARTable({
                 Scheduled
               </th>
 
+              {/* "Administered at", not "Administered by": the API returns
+                  created_by as a user id, and a raw UUID in a clinical record
+                  is worse than the column not being there. Resolving it to a
+                  name needs a users lookup this endpoint does not do. */}
               <th className="px-4 py-3 text-left">
-                Administered By
+                Administered
               </th>
 
               <th className="px-4 py-3 text-left">

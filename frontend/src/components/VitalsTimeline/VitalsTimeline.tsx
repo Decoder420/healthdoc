@@ -58,8 +58,10 @@ export default function VitalsTimeline({
                 SpO₂
               </th>
 
+              {/* Pain replaces "Recorded By": the API returns created_by as a
+                  user id, and pain_score is a vital this chart was dropping. */}
               <th className="px-4 py-3 text-left">
-                Recorded By
+                Pain
               </th>
             </tr>
           </thead>

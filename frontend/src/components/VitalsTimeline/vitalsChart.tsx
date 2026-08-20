@@ -20,10 +20,14 @@ export type VitalsChartProps = {
 
 type ChartPoint = {
   recordedAt: string;
-  pulse: number;
-  respiratoryRate: number;
-  oxygenSaturation: number;
-  temperature: number;
+  // Nullable throughout: a nurse who took a pulse and SpO2 did not necessarily
+  // take a temperature, and Recharts draws a gap for null. Typed as non-null
+  // before, these would have plotted as zero — a line dropping to 0 °C reads
+  // as a crashing patient rather than a measurement nobody took.
+  pulse: number | null;
+  respiratoryRate: number | null;
+  oxygenSaturation: number | null;
+  temperature: number | null;
   bpSystolic: number | null;
   bpDiastolic: number | null;
 };
@@ -38,16 +42,11 @@ function formatTick(recordedAt: string): string {
   });
 }
 
-function parseBp(bloodPressure: string): {
-  systolic: number | null;
-  diastolic: number | null;
-} {
-  const match = bloodPressure.match(/(\d+)\s*\/\s*(\d+)/);
-  if (!match) return { systolic: null, diastolic: null };
-  return {
-    systolic: Number(match[1]),
-    diastolic: Number(match[2]),
-  };
+/** Decimal columns arrive as strings over JSON; null stays null. */
+function num(value: string | number | null): number | null {
+  if (value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 /**
@@ -75,20 +74,17 @@ export default function VitalsChart({ records }: VitalsChartProps) {
     .slice()
     .sort(
       (a, b) =>
-        new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
+        new Date(a.measured_at).getTime() - new Date(b.measured_at).getTime(),
     )
-    .map((row) => {
-      const bp = parseBp(row.bloodPressure);
-      return {
-        recordedAt: row.recordedAt,
-        pulse: row.pulse,
-        respiratoryRate: row.respiratoryRate,
-        oxygenSaturation: row.oxygenSaturation,
-        temperature: row.temperature,
-        bpSystolic: bp.systolic,
-        bpDiastolic: bp.diastolic,
-      };
-    });
+    .map((row) => ({
+      recordedAt: row.measured_at,
+      pulse: row.pulse_bpm,
+      respiratoryRate: row.resp_rate,
+      oxygenSaturation: row.spo2_pct,
+      temperature: num(row.temp_c),
+      bpSystolic: row.bp_systolic,
+      bpDiastolic: row.bp_diastolic,
+    }));
 
   return (
     <div
