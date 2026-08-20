@@ -12,7 +12,7 @@ export type CoreKpiCode =
   | "sharp_injury_count";
 
 /** UI / API period presets mapped to ?period= (not a DB enum). */
-export type KpiPeriod = "today" | "7d" | "30d";
+export type KpiPeriod = "today" | "7d" | "30d" | "custom";
 
 export type KpiListResponse = {
   items: import("@/types/kpi").KpiSnapshot[];

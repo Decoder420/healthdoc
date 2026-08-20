@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
@@ -16,6 +16,11 @@ export function ConsentDashboard() {
   const list = useConsentRecords({ status: "all" });
   const detail = useConsentDetail(selectedId);
   const access = useDataAccessLogs(selectedId);
+
+  const handleRecordUpdated = useCallback(() => {
+    void list.refresh();
+    if (selectedId) void detail.refresh?.();
+  }, [list, detail, selectedId]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -74,6 +79,7 @@ export function ConsentDashboard() {
           loading={detail.loading}
           accessRows={access.rows}
           accessLoading={access.loading}
+          onRecordUpdated={handleRecordUpdated}
         />
       </Box>
     </Box>

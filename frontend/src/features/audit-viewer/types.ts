@@ -30,6 +30,7 @@ export type AuditLog = {
   patient_id: string | null;
   old_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
+  ip_address: string | null;
   created_at: string;
   entry_hash: string | null;
   /** FE join helpers — not returned by BE */

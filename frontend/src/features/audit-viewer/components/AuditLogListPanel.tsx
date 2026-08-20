@@ -22,10 +22,14 @@ type Props = {
   query: string;
   action: string;
   resourceType: string;
+  from?: string;
+  to?: string;
   selectedKey: string | null;
   onQueryChange: (q: string) => void;
   onActionChange: (a: string) => void;
   onResourceTypeChange: (r: string) => void;
+  onFromChange?: (v: string) => void;
+  onToChange?: (v: string) => void;
   onSelect: (row: AuditLog) => void;
 };
 
@@ -35,10 +39,14 @@ export function AuditLogListPanel({
   query,
   action,
   resourceType,
+  from,
+  to,
   selectedKey,
   onQueryChange,
   onActionChange,
   onResourceTypeChange,
+  onFromChange,
+  onToChange,
   onSelect,
 }: Props) {
   return (
@@ -111,6 +119,28 @@ export function AuditLogListPanel({
             <MenuItem value="audit_logs">audit_logs</MenuItem>
           </TextField>
         </Stack>
+        {onFromChange && onToChange ? (
+          <Stack direction="row" spacing={1}>
+            <TextField
+              size="small"
+              type="date"
+              label="From"
+              value={from ?? ""}
+              onChange={(e) => onFromChange(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="To"
+              value={to ?? ""}
+              onChange={(e) => onToChange(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              fullWidth
+            />
+          </Stack>
+        ) : null}
       </Stack>
 
       <Box sx={{ flex: 1, overflow: "auto", borderTop: `1px solid rgb(0 31 84 / 0.08)` }}>

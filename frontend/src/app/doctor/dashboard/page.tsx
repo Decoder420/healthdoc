@@ -1,7 +1,14 @@
-﻿export default function Page() {
+"use client";
+
+import Box from "@mui/material/Box";
+
+import { DoctorDashboard } from "@/features/doctor";
+import { doctorPageSx } from "@/features/doctor/panelSx";
+
+export default function Page() {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Doctor / Dashboard</h1>
-    </main>
+    <Box sx={doctorPageSx}>
+      <DoctorDashboard />
+    </Box>
   );
 }

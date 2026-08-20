@@ -28,9 +28,9 @@ export type PaymentStatus = "success" | "reversed";
 
 /**
  * UI selector codes. Stored `invoices.scheme_code` is null for self-pay
- * (BE MIS labels that as "self_pay") or "PM-JAY" / other scheme strings.
+ * (BE MIS labels that as "self_pay") or "PMJAY" / other scheme strings.
  */
-export type SchemeOptionCode = "self_pay" | "PM-JAY" | "OTHER";
+export type SchemeOptionCode = "self_pay" | "PMJAY" | "OTHER";
 
 /** Migration 0033 — effective-dated tariff row (never UPDATEd; revise = new row). */
 export type ChargeMaster = {
@@ -40,7 +40,7 @@ export type ChargeMaster = {
   description: string;
   charge_category: ChargeCategory;
   unit_price: Money;
-  /** null = general tariff; "PM-JAY" etc. = scheme rate */
+  /** null = general tariff; "PMJAY" etc. = scheme rate */
   scheme_code: string | null;
   effective_from: string;
   effective_to: string | null;
@@ -229,7 +229,7 @@ export type InvoiceBuildResponse = {
 export type PMJAYEligibilityResponse = {
   patient_id: string;
   visit_id: string;
-  scheme_code: "PM-JAY";
+  scheme_code: "PMJAY";
   eligibility_status: "eligible" | "not_eligible" | "not_determined";
   reason: string;
   is_stub: boolean;

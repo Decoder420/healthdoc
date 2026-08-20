@@ -12,7 +12,11 @@ function delay<T>(value: T, ms = 200): Promise<T> {
  * items[]: {kpi_code, period_start, period_end, value, numerator, denominator}
  * Swap to lib/api.ts when BE exists.
  */
-export async function listKpis(period: KpiPeriod): Promise<KpiListResponse> {
-  const items = filterKpisByPeriod(period);
+export async function listKpis(
+  period: KpiPeriod,
+  from?: string,
+  to?: string,
+): Promise<KpiListResponse> {
+  const items = filterKpisByPeriod(period, from, to);
   return delay({ items });
 }

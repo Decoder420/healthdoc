@@ -69,9 +69,9 @@ export const SCHEME_OPTIONS: {
     description: "Patient pays net amount in full (stored as null; MIS shows self_pay)",
   },
   {
-    code: "PM-JAY",
-    label: "PM-JAY",
-    scheme_code: "PM-JAY",
+    code: "PMJAY",
+    label: "PM-JAY (Ayushman Bharat)",
+    scheme_code: "PMJAY",
     description: "Ayushman Bharat — scheme adjustment applied",
   },
   {

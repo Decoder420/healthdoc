@@ -262,7 +262,7 @@ export async function getPmjayEligibility(
   return delay({
     patient_id: patientId,
     visit_id: visitId,
-    scheme_code: "PM-JAY",
+    scheme_code: "PMJAY",
     eligibility_status: "not_determined",
     reason: "Stub — not a live ABDM check",
     is_stub: true,

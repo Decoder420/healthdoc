@@ -80,13 +80,14 @@ function periodStartBound(period: KpiPeriod): string {
 }
 
 /** Filter kpi_snapshots by period window (period_start within [bound, MOCK_TODAY]). */
-export function filterKpisByPeriod(period: KpiPeriod): KpiSnapshot[] {
-  const start = periodStartBound(period);
+export function filterKpisByPeriod(period: KpiPeriod, from?: string, to?: string): KpiSnapshot[] {
+  const startBound = period === "custom" && from ? from : periodStartBound(period);
+  const endBound = period === "custom" && to ? to : MOCK_TODAY;
   return snapshots.filter(
     (row) =>
       row.facility_id === FACILITY_ID &&
-      row.period_start >= start &&
-      row.period_start <= MOCK_TODAY &&
+      row.period_start >= startBound &&
+      row.period_start <= endBound &&
       (CORE_KPI_CODES as readonly string[]).includes(row.kpi_code),
   );
 }

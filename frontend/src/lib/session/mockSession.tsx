@@ -17,12 +17,14 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
-  BedDouble,
+  ClipboardList,
   FileText,
-  Hospital,
+  FlaskConical,
+  Pill,
   Receipt,
   Settings,
   Shield,
+  Stethoscope,
 } from "lucide-react";
 
 import type { RealmRole } from "@/features/admin/types";
@@ -30,14 +32,14 @@ import { REALM_ROLE_LABELS } from "@/features/admin/constants";
 
 const STORAGE_KEY = "healthdoc.mockRole";
 
-/** Roles you can preview in the shell (F6 + nurse/IPD mock screens). */
+/** Roles you can preview — matches Keycloak realm roles with F2-F6 screens. */
 export const DEMO_ROLES = [
   "receptionist",
+  "doctor",
+  "nurse",
   "supervisor",
   "auditor",
   "admin",
-  "doctor",
-  "nurse",
 ] as const;
 
 export type DemoRole = (typeof DEMO_ROLES)[number];
@@ -51,8 +53,11 @@ export type NavItem = {
 };
 
 const ALL_NAV: NavItem[] = [
-  { href: "/nurse/ward-dashboard", label: "Nurse", icon: BedDouble, area: "clinical" },
-  { href: "/ipd", label: "IPD", icon: Hospital, area: "clinical" },
+  { href: "/doctor/dashboard", label: "Queue", icon: Stethoscope, area: "clinical" },
+  { href: "/doctor/consultation", label: "Consultation", icon: ClipboardList, area: "clinical" },
+  { href: "/doctor/orders", label: "Orders", icon: FlaskConical, area: "clinical" },
+  { href: "/doctor/prescriptions", label: "Prescription", icon: Pill, area: "clinical" },
+  { href: "/doctor/results", label: "Results", icon: BarChart3, area: "clinical" },
   { href: "/billing", label: "Billing", icon: Receipt, area: "front_desk" },
   { href: "/consent", label: "Consent", icon: FileText, area: "clinical" },
   { href: "/reports", label: "Reports (MIS)", icon: BarChart3, area: "finance" },
@@ -60,31 +65,35 @@ const ALL_NAV: NavItem[] = [
   { href: "/admin", label: "Admin", icon: Settings, area: "admin" },
 ];
 
-/** F6 routes follow BE require_roles; nurse/IPD are mock screens on this branch. */
+/**
+ * Matches live BE require_roles per endpoint (§4.5 / §5).
+ * admin = facility config, NOT clinical access.
+ * auditor = audit/integrity + reports.
+ * supervisor = patient records authority (merge/unmerge).
+ */
 const NAV_HREFS_BY_ROLE: Record<DemoRole, readonly string[]> = {
   receptionist: ["/billing", "/consent"],
-  supervisor: ["/billing", "/reports"],
-  auditor: ["/audit-viewer", "/reports"],
-  admin: [
-    "/admin",
-    "/nurse/ward-dashboard",
-    "/ipd",
-    "/billing",
+  doctor: [
+    "/doctor/dashboard",
+    "/doctor/consultation",
+    "/doctor/orders",
+    "/doctor/prescriptions",
+    "/doctor/results",
     "/consent",
-    "/reports",
-    "/audit-viewer",
   ],
-  doctor: ["/consent"],
-  nurse: ["/nurse/ward-dashboard", "/ipd"],
+  nurse: ["/consent"],
+  supervisor: ["/consent", "/reports"],
+  auditor: ["/audit-viewer", "/reports"],
+  admin: ["/admin", "/billing", "/reports", "/audit-viewer"],
 };
 
 const HOME_BY_ROLE: Record<DemoRole, string> = {
   receptionist: "/billing",
-  supervisor: "/billing",
+  doctor: "/doctor/dashboard",
+  nurse: "/consent",
+  supervisor: "/consent",
   auditor: "/audit-viewer",
   admin: "/admin",
-  doctor: "/consent",
-  nurse: "/nurse/ward-dashboard",
 };
 
 const AREA_LABELS: Record<NavItem["area"], string> = {

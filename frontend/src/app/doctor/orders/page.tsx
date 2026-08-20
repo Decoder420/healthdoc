@@ -1,7 +1,15 @@
-﻿export default function Page() {
+"use client";
+
+import Box from "@mui/material/Box";
+
+import { OrdersWorkspace } from "@/features/doctor";
+import { doctorPageSx } from "@/features/doctor/panelSx";
+import { mockEncounterContext } from "@/lib/mock";
+
+export default function Page() {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Doctor / Orders</h1>
-    </main>
+    <Box sx={doctorPageSx}>
+      <OrdersWorkspace context={mockEncounterContext} />
+    </Box>
   );
 }

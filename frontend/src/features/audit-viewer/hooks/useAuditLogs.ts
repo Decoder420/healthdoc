@@ -35,6 +35,8 @@ export function useAuditLogs(initial: AuditLogFilters = { action: "all", resourc
     setQuery: (query: string) => setFilters((f) => ({ ...f, query })),
     setAction: (action: string) => setFilters((f) => ({ ...f, action })),
     setResourceType: (resource_type: string) => setFilters((f) => ({ ...f, resource_type })),
+    setFrom: (from: string) => setFilters((f) => ({ ...f, from: from || undefined })),
+    setTo: (to: string) => setFilters((f) => ({ ...f, to: to || undefined })),
     refresh,
   };
 }
