@@ -1,21 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import MenuItem from "@mui/material/MenuItem";
-import Pagination from "@mui/material/Pagination";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { ApiError } from "@/lib/api";
 import { searchPatients } from "./api";
 import type { PatientSearchField, PatientSearchResponse } from "./types";
@@ -95,107 +80,134 @@ export function PatientSearchScreen() {
   const pageCount = result ? Math.max(1, Math.ceil(result.total / result.page_size)) : 1;
 
   return (
-    <Box component="main" sx={{ p: { xs: 2, md: 4 }, maxWidth: 1100, mx: "auto" }}>
-      <Typography variant="overline" color="text.secondary">
-        Receptionist
-      </Typography>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Patient search
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 3 }}>
+    <main className="patient-search">
+      <p className="text-xs font-medium text-muted-foreground">Receptionist</p>
+      <h1 className="mt-1 text-2xl">Patient search</h1>
+      <p className="mt-2 mb-6 max-w-2xl text-sm text-muted-foreground">
         Search the facility register by UHID, mobile, name, or ABHA. Results stay
         inside your facility; mobile numbers are masked.
-      </Typography>
+      </p>
 
-      <Paper component="form" onSubmit={onSubmit} sx={{ p: 2.5, mb: 3 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems="flex-start">
-          <TextField
-            select
-            label="Search by"
-            value={field}
-            onChange={(e) => setField(e.target.value as PatientSearchField)}
-            sx={{ minWidth: 160 }}
-          >
-            {(Object.keys(FIELD_LABELS) as PatientSearchField[]).map((key) => (
-              <MenuItem key={key} value={key}>
-                {FIELD_LABELS[key]}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label={FIELD_LABELS[field]}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            autoComplete="off"
-            inputProps={{ "aria-label": FIELD_LABELS[field] }}
-          />
-          <Button type="submit" variant="contained" disabled={loading} sx={{ height: 40 }}>
-            {loading ? <CircularProgress size={18} color="inherit" /> : "Search"}
-          </Button>
-        </Stack>
-      </Paper>
+      <form className="surface-card p-4 sm:p-5" onSubmit={onSubmit}>
+        <div className="patient-search__bar">
+          <div>
+            <label className="field-label" htmlFor="patient-search-field">
+              Search by
+            </label>
+            <select
+              id="patient-search-field"
+              className="field-control"
+              value={field}
+              onChange={(e) => setField(e.target.value as PatientSearchField)}
+            >
+              {(Object.keys(FIELD_LABELS) as PatientSearchField[]).map((key) => (
+                <option key={key} value={key}>
+                  {FIELD_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="patient-search-value">
+              {FIELD_LABELS[field]}
+            </label>
+            <input
+              id="patient-search-value"
+              className="field-control"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? "Searching…" : "Search"}
+          </button>
+        </div>
+      </form>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <div
+          className="mt-4 rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
           {error}
-        </Alert>
+        </div>
       )}
 
       {result && (
-        <Paper sx={{ overflow: "hidden" }}>
-          <Box sx={{ px: 2.5, py: 2, borderBottom: 1, borderColor: "divider" }}>
-            <Typography fontWeight={600}>Results</Typography>
-            <Typography variant="body2" color="text.secondary">
+        <section className="surface-card mt-6 overflow-hidden">
+          <div className="border-b border-border px-4 py-3 sm:px-5">
+            <h2 className="text-base">Results</h2>
+            <p className="text-xs text-muted-foreground">
               {result.total} match{result.total === 1 ? "" : "es"}
-            </Typography>
-          </Box>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>UHID</TableCell>
-                <TableCell>Patient</TableCell>
-                <TableCell>Mobile</TableCell>
-                <TableCell>Matched on</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {result.items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 6, color: "text.secondary" }}>
-                    No patients match this search.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                result.items.map((patient) => (
-                  <TableRow key={patient.id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{patient.uhid ?? "—"}</TableCell>
-                    <TableCell>
-                      <Typography fontWeight={500}>{patient.full_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {patient.age_years != null ? `${patient.age_years} yrs` : "Age unknown"}
-                        {" · "}
-                        {patient.sex}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{patient.mobile_masked ?? "—"}</TableCell>
-                    <TableCell>{MATCH_LABELS[patient.matched_on] ?? patient.matched_on}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+            </p>
+          </div>
+          <div className="patient-search__table-wrap">
+            <table className="patient-search__table">
+              <thead>
+                <tr>
+                  <th scope="col">UHID</th>
+                  <th scope="col">Patient</th>
+                  <th scope="col">Mobile</th>
+                  <th scope="col">Matched on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-muted-foreground">
+                      No patients match this search.
+                    </td>
+                  </tr>
+                ) : (
+                  result.items.map((patient) => (
+                    <tr key={patient.id}>
+                      <td className="font-semibold text-primary">
+                        {patient.uhid ?? "—"}
+                      </td>
+                      <td>
+                        <div className="font-medium">{patient.full_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {patient.age_years != null
+                            ? `${patient.age_years} yrs`
+                            : "Age unknown"}
+                          {" · "}
+                          {patient.sex}
+                        </div>
+                      </td>
+                      <td>{patient.mobile_masked ?? "—"}</td>
+                      <td>{MATCH_LABELS[patient.matched_on] ?? patient.matched_on}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
           {result.total > PAGE_SIZE && (
-            <Stack alignItems="center" sx={{ py: 2 }}>
-              <Pagination
-                count={pageCount}
-                page={page}
-                onChange={(_, next) => void runSearch(next)}
-                disabled={loading}
-              />
-            </Stack>
+            <div className="flex justify-center gap-2 py-3">
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={loading || page <= 1}
+                onClick={() => void runSearch(page - 1)}
+              >
+                Previous
+              </button>
+              <span className="self-center text-xs text-muted-foreground">
+                Page {page} of {pageCount}
+              </span>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                disabled={loading || page >= pageCount}
+                onClick={() => void runSearch(page + 1)}
+              >
+                Next
+              </button>
+            </div>
           )}
-        </Paper>
+        </section>
       )}
-    </Box>
+    </main>
   );
 }
