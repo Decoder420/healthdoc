@@ -1,7 +1,7 @@
-﻿export default function Page() {
-  return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Billing</h1>
-    </main>
-  );
+﻿"use client";
+
+import { BillingDashboard } from "@/features/billing";
+
+export default function Page() {
+  return <BillingDashboard />;
 }
