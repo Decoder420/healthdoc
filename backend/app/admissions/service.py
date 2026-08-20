@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,13 +72,6 @@ class TransferDestinationRequired(Exception):
 
 
 _DISCHARGE_NOTIFICATION_TARGETS = ("pharmacy", "billing", "nursing", "lab", "radiology", "patient")
-
-
-async def _active_admission_on_bed(db: AsyncSession, bed_id: UUID) -> Admission | None:
-    result = await db.execute(
-        select(Admission).where(Admission.bed_id == bed_id, Admission.status == "admitted")
-    )
-    return result.scalar_one_or_none()
 
 
 async def admit_patient(
@@ -246,26 +239,52 @@ async def get_ward_bed_grid(db: AsyncSession, ward_id: UUID, caller_facility_id:
     if ward is None or ward.facility_id != caller_facility_id:
         raise WardNotFound(ward_id)
 
-    beds_result = await db.execute(select(Bed).where(Bed.ward_id == ward_id))
-    beds = beds_result.scalars().all()
+    # One query for the whole ward, not one per bed. The first version ran
+    # a per-bed active-admission lookup and a Patient fetch in the loop, so a
+    # 40-bed ward cost 81 round trips -- and this is the screen a nurse
+    # refreshes constantly.
+    #
+    # The admitted-status filter belongs in the ON clause, not WHERE: in WHERE
+    # it would turn the outer join inner and drop every vacant bed, leaving a
+    # grid that shows only occupied beds. That is exactly the kind of bug that
+    # looks right in a one-bed test fixture, which is why
+    # test_ward_bed_grid_lists_every_bed_in_a_mixed_ward exists.
+    #
+    # Safe to join rather than aggregate because uq_admissions_active_bed
+    # (0034) is a partial unique on bed_id WHERE status='admitted' -- at most
+    # one active admission per bed, so no bed can fan out into two rows.
+    rows = await db.execute(
+        select(
+            Bed.id, Bed.bed_number, Bed.status,
+            Admission.id, Admission.patient_id, Admission.admitted_at,
+            Patient.full_name, Patient.uhid,
+        )
+        .select_from(Bed)
+        .outerjoin(
+            Admission,
+            and_(Admission.bed_id == Bed.id, Admission.status == "admitted"),
+        )
+        .outerjoin(Patient, Patient.id == Admission.patient_id)
+        .where(Bed.ward_id == ward_id)
+        .order_by(Bed.bed_number)
+    )
 
     grid = []
-    for bed in beds:
+    for (bed_id, bed_number, bed_status,
+         admission_id, patient_id, admitted_at, full_name, uhid) in rows.all():
         occupant = None
-        admission = await _active_admission_on_bed(db, bed.id)
-        if admission is not None:
-            patient = await db.get(Patient, admission.patient_id)
+        if admission_id is not None:
             occupant = {
-                "admission_id": admission.id,
-                "patient_id": admission.patient_id,
-                "patient_name": patient.full_name if patient else None,
-                "uhid": patient.uhid if patient else None,
-                "admitted_at": admission.admitted_at,
+                "admission_id": admission_id,
+                "patient_id": patient_id,
+                "patient_name": full_name,
+                "uhid": uhid,
+                "admitted_at": admitted_at,
             }
         grid.append({
-            "bed_id": bed.id,
-            "bed_number": bed.bed_number,
-            "status": bed.status,
+            "bed_id": bed_id,
+            "bed_number": bed_number,
+            "status": bed_status,
             "occupant": occupant,
         })
     return grid

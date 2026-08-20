@@ -8,9 +8,10 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, PlainSerializer
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator
 
 from app.common.enums import ChargeCategory, PaymentMode, PaymentStatus
 
@@ -172,3 +173,46 @@ class SchemeBreakdownResponse(BaseModel):
     date_to: date
     lines: list[SchemeBreakdownLine]
     grand_total_net_billed: Money
+
+
+# ============================================================ charge_master admin (#287)
+
+class TariffCreate(BaseModel):
+    """A new tariff row. Never an edit of an existing one — see
+    billing.service.create_tariff for why a price change must be a new row."""
+
+    charge_code: str = Field(..., max_length=30,
+                             description="Stable across price changes, e.g. REGISTRATION, CBC.")
+    description: str = Field(..., min_length=1)
+    charge_category: str = Field(..., description="registration | consultation | lab | radiology "
+                                                  "| pharmacy | procedure | ipd_stay | blood | other")
+    unit_price: Decimal = Field(..., ge=0, decimal_places=2)
+    effective_from: date = Field(..., description="Must be after the current row's effective_from; "
+                                                  "back-dating would change what past invoices resolve to.")
+    scheme_code: str | None = Field(
+        default=None, max_length=30,
+        description="NULL is the general tariff. A scheme rate (PMJAY etc.) wins over it "
+                    "when the invoice carries that scheme_code.",
+    )
+
+    @field_validator("charge_category")
+    @classmethod
+    def _valid_category(cls, v: str) -> str:
+        if v not in ChargeCategory.values():
+            raise ValueError(f"charge_category must be one of: {sorted(ChargeCategory.values())}")
+        return v
+
+
+class TariffOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    facility_id: UUID
+    charge_code: str
+    description: str
+    charge_category: str
+    unit_price: Decimal
+    scheme_code: str | None
+    effective_from: date
+    effective_to: date | None
+    is_active: bool
