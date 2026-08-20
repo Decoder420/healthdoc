@@ -1,19 +1,21 @@
 export type MedicationStatus =
-  | "prescribed"
-  | "partially_dispensed"
-  | "dispensed"
-  | "substituted"
-  | "cancelled";
+  | "Scheduled"
+  | "Administered"
+  | "Missed"
+  | "Held";
 
 export interface MedicationRecord {
   id: string;
-  prescription_id: string;
-  medicine_item_id: string | null;
-  medicine_name: string;
-  dosage: string | null;
-  frequency: string | null;
-  duration_days: number | null;
-  route: string | null;
-  instructions: string | null;
+
+  medicationName: string;
+
+  dosage: string;
+
+  route: string;
+
+  scheduledTime: string;
+
+  administeredBy?: string;
+
   status: MedicationStatus;
 }

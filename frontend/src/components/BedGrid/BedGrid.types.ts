@@ -1,14 +1,13 @@
-export type BedStatus = "vacant" | "occupied" | "reserved" | "maintenance";
+export type BedStatus =
+  | "Occupied"
+  | "Vacant"
+  | "Reserved"
+  | "Cleaning";
 
 export interface Bed {
   id: string;
-  ward_id: string;
-  bed_number: string;
+  bedNumber: string;
+  patientName?: string;
   status: BedStatus;
-}
-
-export interface BedGridProps {
-  beds: Bed[];
-  selectedBedId?: string;
-  onBedClick?: (bed: Bed) => void;
+  wardName?: string;
 }
