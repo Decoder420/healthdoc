@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Silent SSO check</title>
+  </head>
+  <body>
+    <!--
+      Required by keycloak-js `onLoad: "check-sso"` with silentCheckSsoRedirectUri
+      (see src/lib/auth/keycloak.ts). Keycloak loads this page inside a hidden
+      iframe and this script hands the result back to the opener.
+
+      Without this file the iframe 404s, check-sso resolves false, and an
+      already-signed-in user is treated as logged out on every page load.
+
+      Deliberately does nothing else: it must not import the app bundle, and it
+      must not read or store the token — the parent frame keeps it in memory.
+    -->
+    <script>
+      parent.postMessage(location.href, location.origin);
+    </script>
+  </body>
+</html>
