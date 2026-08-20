@@ -53,7 +53,10 @@ class AuthUser(BaseModel):
 async def _get_jwks() -> dict:
     if _jwks_cache["keys"] and time.time() - _jwks_cache["fetched_at"] < JWKS_TTL_SECONDS:
         return _jwks_cache["keys"]
-    url = f"{get_settings().jwt_issuer}/protocol/openid-connect/certs"
+    settings = get_settings()
+    url = settings.jwt_jwks_url or (
+        f"{settings.jwt_issuer}/protocol/openid-connect/certs"
+    )
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.get(url)
         resp.raise_for_status()

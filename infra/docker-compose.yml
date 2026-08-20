@@ -142,9 +142,17 @@ services:
     env_file: ../.env
     volumes:
       - ../frontend:/code
-      - /code/node_modules
+      # Never initialise this from the bind-mounted host directory: on Apple
+      # Silicon that copies Darwin native modules into the Linux container and
+      # makes Tailwind/Next fail at runtime. `nocopy` plus container-side
+      # `npm ci` guarantees packages match the container platform.
+      - type: volume
+        source: frontend-node-modules
+        target: /code/node_modules
+        volume:
+          nocopy: true
       - /code/.next
-    command: ["npm", "run", "dev"]
+    command: ["sh", "-c", "npm ci && npm run dev"]
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
 
@@ -168,3 +176,4 @@ volumes:
   redis-data:
   minio-data:
   orthanc-data:
+  frontend-node-modules:

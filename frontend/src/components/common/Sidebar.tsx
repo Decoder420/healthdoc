@@ -3,9 +3,71 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, Search, ChevronRight } from "lucide-react";
+import {
+  BarChart3,
+  Bed,
+  Building2,
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  FlaskConical,
+  LayoutDashboard,
+  Package,
+  Pill,
+  Radio,
+  Receipt,
+  Search,
+  Shield,
+  Stethoscope,
+  UserRound,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
-import { useMockSession } from "@/lib/session/mockSession";
+import { REALM_ROLE_LABELS } from "@/features/admin/constants";
+import { canRoleAccessPath } from "@/lib/auth/routes";
+import { useAuth } from "@/providers/auth-provider";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  area: "front_desk" | "clinical" | "diagnostics" | "finance" | "audit" | "admin";
+};
+
+const NAV_ITEMS: readonly NavItem[] = [
+  { href: "/receptionist/registration", label: "Registration", icon: UserRound, area: "front_desk" },
+  { href: "/receptionist/patient-search", label: "Patient search", icon: Search, area: "front_desk" },
+  { href: "/receptionist/queue", label: "Queue", icon: Users, area: "front_desk" },
+  { href: "/doctor/dashboard", label: "Doctor queue", icon: Stethoscope, area: "clinical" },
+  { href: "/doctor/consultation", label: "Consultation", icon: ClipboardList, area: "clinical" },
+  { href: "/doctor/orders", label: "Orders", icon: FlaskConical, area: "clinical" },
+  { href: "/doctor/prescriptions", label: "Prescriptions", icon: Pill, area: "clinical" },
+  { href: "/nurse/ward-dashboard", label: "Ward dashboard", icon: Bed, area: "clinical" },
+  { href: "/nurse/emar", label: "eMAR", icon: ClipboardList, area: "clinical" },
+  { href: "/ipd", label: "IPD", icon: Building2, area: "clinical" },
+  { href: "/emergency", label: "Emergency", icon: Stethoscope, area: "clinical" },
+  { href: "/consent", label: "Consent", icon: FileText, area: "clinical" },
+  { href: "/lab", label: "Laboratory", icon: FlaskConical, area: "diagnostics" },
+  { href: "/radiology", label: "Radiology", icon: Radio, area: "diagnostics" },
+  { href: "/pharmacy/prescription-queue", label: "Pharmacy queue", icon: Pill, area: "clinical" },
+  { href: "/pharmacy/dispense", label: "Dispense", icon: Package, area: "clinical" },
+  { href: "/inventory", label: "Inventory", icon: Package, area: "clinical" },
+  { href: "/billing", label: "Billing", icon: Receipt, area: "finance" },
+  { href: "/reports", label: "Reports", icon: BarChart3, area: "finance" },
+  { href: "/audit-viewer", label: "Audit trail", icon: Shield, area: "audit" },
+  { href: "/admin", label: "Administration", icon: LayoutDashboard, area: "admin" },
+];
+
+const AREA_LABELS: Record<NavItem["area"], string> = {
+  front_desk: "Front desk",
+  clinical: "Clinical",
+  diagnostics: "Diagnostics",
+  finance: "Finance / MIS",
+  audit: "Audit",
+  admin: "Facility admin",
+};
 
 interface SidebarProps {
   open: boolean;
@@ -15,23 +77,30 @@ interface SidebarProps {
 export default function Sidebar({ open, setOpen }: SidebarProps) {
   const [query, setQuery] = useState("");
   const pathname = usePathname();
-  const { roleLabel, navItems, areaLabel } = useMockSession();
+  const { user } = useAuth();
+  const roleLabel = user?.role
+    ? (REALM_ROLE_LABELS[user.role] ?? user.role)
+    : "Unassigned";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return navItems.filter((item) => item.label.toLowerCase().includes(q));
-  }, [navItems, query]);
+    return NAV_ITEMS.filter(
+      (item) =>
+        canRoleAccessPath(user?.role ?? null, item.href) &&
+        item.label.toLowerCase().includes(q),
+    );
+  }, [query, user?.role]);
 
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
     for (const item of filtered) {
-      const key = areaLabel(item.area);
+      const key = AREA_LABELS[item.area];
       const list = map.get(key) ?? [];
       list.push(item);
       map.set(key, list);
     }
     return [...map.entries()];
-  }, [filtered, areaLabel]);
+  }, [filtered]);
 
   return (
     <>

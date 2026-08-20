@@ -1,4 +1,4 @@
-export { listQueue, getQueueToken, callNextToken } from "./queue";
+export { listQueue, getQueueToken } from "./queue";
 export { getPatient, getPatientHistory, listAllergies } from "./patients";
 export {
   createEncounter,

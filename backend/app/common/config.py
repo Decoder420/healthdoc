@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     mongo_uri: str = "mongodb://localhost:27017/healthdoc"
     redis_url: str = "redis://localhost:6379/0"
 
-    jwt_issuer: str = "http://keycloak:8080/realms/healthdoc"
+    jwt_issuer: str = "https://localhost/auth/realms/healthdoc"
+    jwt_jwks_url: str | None = None
     oidc_audience: str = "account"
     keycloak_base_url: str = "http://keycloak:8080/auth"
     keycloak_realm: str = "healthdoc"

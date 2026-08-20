@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ROLES, type Role } from "@/config/roles";
 // Capital B: the file is components/ui/Button.tsx. The lowercase import
 // resolved on a case-insensitive macOS filesystem and failed in Linux CI.
@@ -48,11 +48,17 @@ function devUserFor(role: Role): AuthUser {
 
 export function LoginScreen() {
   const searchParams = useSearchParams();
-  const { updateUser } = useAuth();
+  const { updateUser, user, isAuthenticated, isLoading } = useAuth();
   const [role, setRole] = useState<Role>(ROLES.RECEPTIONIST);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const devAuth = isDevAuthEnabled();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.role) {
+      window.location.replace(getDefaultRouteForRole(user.role));
+    }
+  }, [isAuthenticated, isLoading, user?.role]);
 
   function redirectAfterLogin(selectedRole: Role) {
     const redirectTo = searchParams.get("redirect");
@@ -70,12 +76,10 @@ export function LoginScreen() {
     setBusy(true);
     setError(null);
     try {
-      const redirectTo = searchParams.get("redirect");
-      const redirectUri =
-        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
-          ? `${window.location.origin}${redirectTo}`
-          : `${window.location.origin}/`;
-      await loginWithKeycloak(redirectUri);
+      // Always return through the public root route. AuthProvider first restores
+      // the in-memory token and writes the non-secret presence cookie; only then
+      // does the root page enter a protected role workspace.
+      await loginWithKeycloak(`${window.location.origin}/`);
     } catch (err) {
       console.error(err);
       setError("Keycloak sign-in failed. Check KEYCLOAK is running and NEXT_PUBLIC_KEYCLOAK_URL.");

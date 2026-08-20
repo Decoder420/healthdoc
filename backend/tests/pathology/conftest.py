@@ -35,7 +35,7 @@ TEST_FACILITY_ID = uuid.UUID("00000000-0000-0000-0000-0000000000f1")
 
 LAB_TECH = AuthUser(sub=str(uuid.uuid4()), username="tech1", roles=["lab_tech"])
 DOCTOR = AuthUser(sub=str(uuid.uuid4()), username="doc1", roles=["doctor"])
-RADIOLOGIST = AuthUser(sub=str(uuid.uuid4()), username="rad1", roles=["radiologist"])
+RADIOLOGIST = AuthUser(sub=str(uuid.uuid4()), username="rad1", roles=["doctor"])
 RADIOLOGY_TECH = AuthUser(sub=str(uuid.uuid4()), username="radtech1", roles=["radiology_tech"])
 
 

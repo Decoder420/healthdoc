@@ -53,7 +53,9 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
           <tbody>
             {pendingOrders.map((order: Order) => (
               <tr key={order.id} className="border-b border-border last:border-none">
-                <td className="px-4 py-3 text-sm">{order.order_number}</td>
+                <td className="px-4 py-3 text-sm">
+                  {order.order_number ?? order.id.slice(0, 8)}
+                </td>
                 <td className="px-4 py-3 text-sm">{order.patient_name ?? "-"}</td>
                 <td className="px-4 py-3 text-sm capitalize">{order.order_type}</td>
                 <td className="px-4 py-3 text-sm">
@@ -71,7 +73,7 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
                     onClick={() => onCheckOff(order.id)}
                     disabled={order.status !== "placed"}
                   >
-                    Mark completed (local)
+                    Mark completed
                   </button>
                 </td>
               </tr>

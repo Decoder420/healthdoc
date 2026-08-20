@@ -1,4 +1,4 @@
-export type OrderType = "lab" | "radiology" | "pharmacy" | "procedure" | "blood";
+export type OrderType = "lab" | "radiology" | "pharmacy" | "procedure" | "blood" | string;
 export type OrderPriority = "routine" | "urgent" | "stat";
 
 export type OrderStatus =
@@ -10,8 +10,8 @@ export type OrderStatus =
 
 export interface Order {
   id: string;
-  order_number: string;
-  encounter_id: string;
+  order_number?: string;
+  encounter_id: string | null;
   patient_id: string;
   order_type: OrderType;
   priority: OrderPriority;
@@ -24,5 +24,5 @@ export interface Order {
 }
 export interface TaskQueueProps {
   orders: Order[];
-  onCheckOff: (orderId: string) => void;
+  onCheckOff: (orderId: string) => void | Promise<void>;
 }

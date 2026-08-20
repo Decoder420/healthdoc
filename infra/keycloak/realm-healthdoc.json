@@ -134,6 +134,23 @@
       ]
     },
     {
+      "username": "dev.nurse",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Nurse",
+      "email": "dev.nurse@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "nurse"
+      ]
+    },
+    {
       "username": "dev.admin",
       "enabled": true,
       "firstName": "Dev",

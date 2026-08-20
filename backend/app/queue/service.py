@@ -6,21 +6,24 @@ Call-next is automatic: a prescription/order created for a visit is the
 Admin has manual overrides for edge cases only.
 """
 import uuid
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.common.business_date import get_business_date
-from app.common.enums import QueuePriority, QueueTokenStatus, OrderStatus
+from app.common.enums import OrderStatus, QueuePriority, QueueTokenStatus
 from app.common.redis import department_channel, queue_channel
 from app.departments.models import Department, Room
 from app.notifications.models import NotificationHistory
+from app.opd.models import Visit
+from app.pathology.models import LabOrderItem
+from app.patients.models import Patient
 from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange, Roster
 from app.users.models import User
-from app.pathology.models import LabOrderItem
 
 PRIORITY_RANK = {
     QueuePriority.EMERGENCY.value: 0,
@@ -44,6 +47,93 @@ TIER_ALLOWED_ROLES: dict[str, set[str]] = {
 CALLABLE_STATUSES = (QueueTokenStatus.WAITING.value, QueueTokenStatus.RECALLED.value)
 
 _NOT_FOUND = HTTPException(404, "Queue not found")
+
+
+def _patient_age(dob: date | None, age_years: int | None) -> int:
+    if age_years is not None:
+        return age_years
+    if dob is None:
+        return 0
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+async def get_doctor_worklist(
+    db: AsyncSession,
+    caller_user_id: uuid.UUID,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    token_id: uuid.UUID | None = None,
+) -> list[dict]:
+    """Return queue tokens joined to the minimum patient/visit context needed by OPD.
+
+    A doctor only sees queues assigned to their own app user. Admins may inspect
+    the facility worklist, but no caller can cross the facility boundary.
+    """
+    doctor = User.__table__.alias("queue_doctor")
+    query = (
+        select(
+            QueueToken,
+            Visit.patient_id,
+            Patient.full_name,
+            Patient.uhid,
+            Patient.thid,
+            Patient.age_years,
+            Patient.dob,
+            Patient.sex,
+            Queue.doctor_user_id,
+            doctor.c.full_name.label("provider_name"),
+            Department.name.label("department_name"),
+        )
+        .join(Queue, Queue.id == QueueToken.queue_id)
+        .join(Visit, Visit.id == QueueToken.visit_id)
+        .join(Patient, Patient.id == Visit.patient_id)
+        .join(doctor, doctor.c.id == Queue.doctor_user_id)
+        .join(Department, Department.id == Queue.department_id)
+        .where(Queue.facility_id == caller_facility_id)
+        .order_by(QueueToken.priority_rank, QueueToken.created_at)
+    )
+    if "admin" not in caller_roles:
+        query = query.where(Queue.doctor_user_id == caller_user_id)
+    if token_id is not None:
+        query = query.where(QueueToken.id == token_id)
+
+    rows = (await db.execute(query)).all()
+    return [
+        {
+            "id": token.id,
+            "queue_id": token.queue_id,
+            "visit_id": token.visit_id,
+            "sequence": token.sequence,
+            "token_display": token.token_display,
+            "status": token.status,
+            "priority": token.priority,
+            "created_at": token.created_at,
+            "called_at": token.called_at,
+            "completed_at": token.completed_at,
+            "patient_id": patient_id,
+            "full_name": full_name,
+            "uhid": uhid or thid or "—",
+            "age_years": _patient_age(dob, age_years),
+            "sex": sex,
+            "provider_user_id": doctor_user_id,
+            "provider_name": provider_name,
+            "department": department_name,
+        }
+        for (
+            token,
+            patient_id,
+            full_name,
+            uhid,
+            thid,
+            age_years,
+            dob,
+            sex,
+            doctor_user_id,
+            provider_name,
+            department_name,
+        ) in rows
+    ]
 
 
 # ---------------- CALLER CONTEXT RESOLUTION ----------------

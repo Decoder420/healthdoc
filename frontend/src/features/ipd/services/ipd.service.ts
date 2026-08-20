@@ -1,9 +1,9 @@
-import { api } from "@/lib/api"; // same helper pattern as nurse.service.ts — confirm this alias resolves in your app
+import { api, newIdempotencyKey } from "@/lib/api";
 
 import type { AddAdmissionSchema } from "@/features/ipd/AdmissionForm/validation";
 import type { AddDischargeSchema } from "@/features/ipd/DischargeForm/validation";
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
-import type { Bed } from "@/components/BedGrid/BedGrid.types";
+import type { BedGridResponse } from "@/components/BedGrid/BedGrid.types";
 
 export type AdmissionStatus =
   | "admitted"
@@ -37,13 +37,16 @@ export async function admitPatient(data: AddAdmissionSchema) {
   return api<Admission>("/admissions", {
     method: "POST",
     body: JSON.stringify(data),
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
 export async function dischargePatient(data: AddDischargeSchema) {
-  return api<Discharge>("/discharges", {
+  const { admission_id, ...payload } = data;
+  return api<Discharge>(`/admissions/${admission_id}/discharge`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
@@ -51,8 +54,8 @@ export async function getWards() {
   return api<Ward[]>("/wards", { method: "GET" });
 }
 
-export async function getBeds() {
-  return api<Bed[]>("/beds", { method: "GET" });
+export async function getBeds(wardId: string) {
+  return api<BedGridResponse>(`/wards/${wardId}/beds`, { method: "GET" });
 }
 
 export async function getActiveAdmissions() {
@@ -60,5 +63,5 @@ export async function getActiveAdmissions() {
 }
 
 export async function getDischarges() {
-  return api<Discharge[]>("/discharges", { method: "GET" });
+  return api<Discharge[]>("/admissions/discharges", { method: "GET" });
 }
