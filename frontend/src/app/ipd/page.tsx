@@ -102,7 +102,8 @@ export default function IpdPage() {
       <div>
         <h1 className="text-3xl font-bold text-primary">IPD</h1>
         <p className="mt-2 text-muted-foreground">
-          Manage patient admissions, transfers, and discharges.
+          Admit patients, record in-hospital ward/bed transfers, or discharge
+          (including transfer to another facility).
         </p>
       </div>
 
@@ -111,13 +112,13 @@ export default function IpdPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize ${
+            className={`px-4 py-2 text-sm font-medium ${
               tab === t
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground"
             }`}
           >
-            {t}
+            {t === "transfer" ? "Ward transfer" : t === "admit" ? "Admit" : t === "discharge" ? "Discharge" : "Dashboard"}
           </button>
         ))}
       </div>
@@ -186,6 +187,11 @@ export default function IpdPage() {
           </div>
 
           {selectedAdmission && tab === "transfer" && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                In-hospital ward or bed move. To send the patient to another
+                facility, use Discharge with type Transferred to Another Facility.
+              </p>
             <AddPatientMovementForm
               admissionId={selectedAdmission.id}
               currentWardId={selectedAdmission.ward_id}
@@ -203,6 +209,7 @@ export default function IpdPage() {
                 return ok;
               }}
             />
+            </div>
           )}
 
           {selectedAdmission && tab === "discharge" && (

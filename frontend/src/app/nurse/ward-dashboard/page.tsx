@@ -29,10 +29,6 @@ import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
 import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
 import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
 
-import AddNursingNoteForm from "@/features/nurse/components/AddNursingNoteForm";
-import { useAddNursingNote } from "@/features/nurse/hooks/useAddNursingNote";
-import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursingNoteForm/validation";
-
 import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
 import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
 
@@ -67,9 +63,10 @@ import { ADMISSION_STATUS } from "@/lib/data/admissionStatus";
 
 import { Bed } from "@/components/BedGrid/BedGrid.types";
 import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
+import { GENERAL_WARD_ID, NURSE_ANITA_ID } from "@/lib/data/mockIds";
 
 export default function Page() {
-  const [selectedWard, setSelectedWard] = useState("general");
+  const [selectedWard, setSelectedWard] = useState(GENERAL_WARD_ID);
   const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
@@ -95,13 +92,23 @@ export default function Page() {
   const [patientMovements, setPatientMovements] = useState(PATIENT_MOVEMENTS);
   const [procedureRecords, setProcedureRecords] = useState(PROCEDURE_RECORDS);
 
-  const CURRENT_NURSE_ID = "b3f1a2c4-1111-4a5b-9c1d-000000000001";
+  const CURRENT_NURSE_ID = NURSE_ANITA_ID;
 
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
+  // Nursing Note ("note") and Incident Report ("incident") are intentionally
+  // blocked here rather than wired to a form — no published schema/backend
+  // contract exists for either yet (see docs). Medication administration
+  // ("medication") is blocked for the same reason: prescription_items.status
+  // is pharmacy dispense status, not nurse dose administration. "doctor" has
+  // no backing table/endpoint at all.
   const BLOCKED_ACTION_MESSAGES: Record<string, string> = {
     medication:
-      "Medication administration isn't available yet — no per-dose eMAR table exists in the backend schema (only prescription_items.status, which is per-prescription, not per-dose). Flagged for backend confirmation.",
+      "Nurse dose administration (given / held / refused) is blocked until a medication-administration schema and API exist. The table below is prescription / pharmacy dispense status only.",
+    note:
+      "Nursing notes are blocked until a published clinical_notes API contract exists. This action does not submit a note payload.",
+    incident:
+      "Incident reporting is blocked until a nursing incident schema and backend contract exist. DPDP breach / grievance tables must not be reused for this.",
     doctor:
       "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
   };
@@ -164,15 +171,13 @@ export default function Page() {
     setSelectedPatientId(procedureContext?.patientId ?? null);
   };
 
-  // Local-only for now — no backend endpoint is called here yet. `orders`
-  // is [Blame]-tagged (has a generic updated_at), but `completed_at` isn't
-  // a confirmed column in the schema doc. Confirm with backend before
-  // wiring this to a real API call.
+  // Local mock preview only — not a schema-backed nurse completion record.
+  // Only placed -> completed; no invented timestamp is stored on the order.
   const handleCheckOff = (orderId: string) => {
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status: "completed", completed_at: new Date().toISOString() }
+        o.id === orderId && o.status === "placed"
+          ? { ...o, status: "completed" }
           : o
       )
     );
@@ -238,8 +243,6 @@ export default function Page() {
     useAddPatientMovement();
   const { submitProcedureAssistance, isSubmitting: isSubmittingProcedure } =
     useAddProcedureAssistance();
-  const { submitNursingNote, isSubmitting: isSubmittingNursingNote } =
-    useAddNursingNote();
 
   const handleAddHandover = async (
     data: Parameters<typeof submitHandover>[0]
@@ -309,11 +312,6 @@ export default function Page() {
     return ok;
   };
 
-  const handleAddNursingNote = async (data: AddNursingNoteSchema) => {
-    const ok = await submitNursingNote(data);
-    return ok;
-  };
-
   return (
     <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
       {/* Header */}
@@ -321,7 +319,7 @@ export default function Page() {
         <div>
           <h1 className="text-3xl font-bold text-primary">Nurse Dashboard</h1>
           <p className="mt-2 text-muted-foreground">
-            Manage ward beds, patient vitals and medication administration.
+            Manage ward beds, patient vitals, and prescription / dispense status.
           </p>
         </div>
 
@@ -341,12 +339,13 @@ export default function Page() {
       {/* Ward Statistics */}
       <WardStats stats={wardStats} />
 
-      {/* Task Queue (W4) — ward/shift-level, not tied to the selected patient */}
+      {/* Pending doctor orders — ward/shift-level local preview, not a nursing completion audit */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold">Task Queue</h2>
+          <h2 className="text-xl font-semibold">Pending doctor orders</h2>
           <p className="text-sm text-muted-foreground">
-            Pending doctor orders for this shift.
+            Local preview of pending orders for this shift. Marking completed
+            only updates status from placed to completed on this screen.
           </p>
         </div>
 
@@ -493,15 +492,15 @@ export default function Page() {
         />
       </section>
 
-      {/* Medication — prescription_items linked via prescriptions.patient_id,
-          not admission_id. Same "select a patient first" pattern as above. */}
+      {/* Prescription items linked via prescriptions.patient_id — pharmacy
+          dispense status, not nurse dose administration. */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">
-            Medication Administration Record
+            Prescription / Dispense Status
           </h2>
           <p className="text-sm text-muted-foreground">
-            Scheduled and administered medications.
+            Pharmacy prescription item status for the selected patient.
           </p>
         </div>
 
@@ -560,21 +559,6 @@ export default function Page() {
             movedBy={CURRENT_NURSE_ID}
             isSubmitting={isSubmittingPatientMovement}
             onSubmit={handleAddPatientMovement}
-          />
-        )}
-
-        {/* NOTE: assumes QuickActions' action id for "Nursing Note" is
-            "note" — confirm against the actual QuickActions component and
-            adjust this string if it differs. Gated on encounterId +
-            patientId (not selectedAdmissionId) since clinical_notes keys
-            off encounter_id per the schema doc, same as Procedure
-            Assistance above. */}
-        {activeAction === "note" && selectedEncounterId && selectedPatientId && (
-          <AddNursingNoteForm
-            encounterId={selectedEncounterId}
-            patientId={selectedPatientId}
-            isSubmitting={isSubmittingNursingNote}
-            onSubmit={handleAddNursingNote}
           />
         )}
       </section>

@@ -1,21 +1,24 @@
 import type { Discharge } from "@/features/ipd/services/ipd.service";
+import {
+  ADMISSION_OLD_1_ID,
+  ADMISSION_OLD_2_ID,
+  DISCHARGE_1_ID,
+  DISCHARGE_2_ID,
+} from "./mockIds";
 
-// TEMPORARY — mock discharges for local testing of the "Discharges Today"
-// KPI. Table confirmed (discharges, migration 0015). Remove once
-// getDischarges() is wired to the real backend.
 export const MOCK_DISCHARGES: Discharge[] = [
   {
-    id: "dis-1",
-    admission_id: "adm-old-1",
-    discharged_at: new Date().toISOString(), // today — shows up in "Discharges Today"
+    id: DISCHARGE_1_ID,
+    admission_id: ADMISSION_OLD_1_ID,
+    discharged_at: new Date().toISOString(),
     discharge_type: "discharged",
     discharge_summary: "Routine discharge, condition stable.",
     follow_up_date: null,
   },
   {
-    id: "dis-2",
-    admission_id: "adm-old-2",
-    discharged_at: "2026-08-05T11:00:00Z", // not today
+    id: DISCHARGE_2_ID,
+    admission_id: ADMISSION_OLD_2_ID,
+    discharged_at: "2026-08-05T11:00:00Z",
     discharge_type: "discharged",
     discharge_summary: "Recovered, follow-up advised.",
     follow_up_date: "2026-08-20",

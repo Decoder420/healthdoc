@@ -81,8 +81,8 @@ export default function AddPatientMovementForm({
 
   return (
     <FormSection
-      title="Patient Movement"
-      description="Record a ward or bed transfer for the selected patient."
+      title="In-hospital ward / bed transfer"
+      description="Records a patient_movement_log inside this facility. This is not a discharge with type transferred (leaving for another facility)."
     >
       <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div className="grid gap-5 md:grid-cols-2">

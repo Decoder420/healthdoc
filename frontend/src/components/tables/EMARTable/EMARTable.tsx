@@ -22,11 +22,12 @@ export default function EMARTable({
     <div className="surface-card overflow-hidden">
       <div className="border-b border-border px-6 py-4">
         <h2 className="text-lg font-semibold">
-          Medication Administration Record
+          Prescription / Dispense Status
         </h2>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Prescribed medications and status
+          Pharmacy prescription item status (prescribed, dispensed, substituted,
+          cancelled) — not nurse dose administration.
         </p>
       </div>
 
