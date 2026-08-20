@@ -1,0 +1,45 @@
+/* Feature-scoped print styles for the e-Prescription (mirrors billing/receipt-print.css). */
+
+.rx-print {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .rx-print,
+  .rx-print * {
+    visibility: visible;
+  }
+
+  .rx-print {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 24px 32px;
+    color: #000;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+  }
+
+  .rx-print table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+
+  .rx-print th,
+  .rx-print td {
+    border: 1px solid #999;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  .rx-print th {
+    background: #f0f0f0;
+  }
+}

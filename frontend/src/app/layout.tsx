@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { fontVariables } from "@/styles/fonts";
 import { Providers } from "@/components/providers";
+import MainLayout from "@/components/common/MainLayout";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={fontVariables}>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <MainLayout>{children}</MainLayout>
+        </Providers>
       </body>
     </html>
   );
