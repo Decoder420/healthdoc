@@ -15,6 +15,9 @@ from app.common.enums import DispenseStatus, NotificationStatus
 from app.common.redis import publish_event, stock_alert_channel
 from app.pharmacy.interactions import DrugInteractionConflict, check_against_existing
 from app.pharmacy.schemas import (
+    AdjustmentApprovalRequest,
+    AdjustmentCreate,
+    AdjustmentOut,
     BatchAllocation,
     BatchAvailability,
     DispenseCreate,
@@ -22,23 +25,20 @@ from app.pharmacy.schemas import (
     DispenseOut,
     ExpiringBatch,
     ExpiryTrackerResponse,
-    MedicineSearchResult,
-    PrescriptionQueueItem,
-    PrescriptionQueueResponse,
-    SubstitutionApprovalRequest,
     GrnCreate,
     GrnItemOut,
     GrnOut,
     GrnVerifyRequest,
-    IndentCreate,
-    IndentOut,
-    IndentItemOut,
     IndentApprovalRequest,
+    IndentCreate,
+    IndentItemOut,
+    IndentOut,
+    MedicineSearchResult,
+    PrescriptionQueueItem,
+    PrescriptionQueueResponse,
     ReorderAlertItem,
     ReorderAlertsResponse,
-    AdjustmentCreate,
-    AdjustmentOut,
-    AdjustmentApprovalRequest,
+    SubstitutionApprovalRequest,
 )
 
 # ---------------------------------------------------------------------------
@@ -1627,14 +1627,18 @@ async def get_reorder_alerts(
                     ii.id AS item_id,
                     ii.name AS item_name,
                     ii.reorder_level,
-                    COALESCE(SUM(ib.quantity), 0) AS current_stock
+                    COALESCE(SUM(
+                        CASE WHEN sl.id IS NOT NULL THEN ib.quantity ELSE 0 END
+                    ), 0) AS current_stock
                 FROM inventory_items ii
                 LEFT JOIN inventory_batches ib ON ib.item_id = ii.id
                 LEFT JOIN stock_locations sl
                     ON sl.id = ib.stock_location_id AND sl.facility_id = :facility_id
                 WHERE ii.is_active
                 GROUP BY ii.id, ii.name, ii.reorder_level
-                HAVING COALESCE(SUM(ib.quantity), 0) <= ii.reorder_level
+                HAVING COALESCE(SUM(
+                    CASE WHEN sl.id IS NOT NULL THEN ib.quantity ELSE 0 END
+                ), 0) <= ii.reorder_level
                 ORDER BY ii.name
             """),
             {"facility_id": str(facility_id)},

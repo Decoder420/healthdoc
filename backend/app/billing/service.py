@@ -76,6 +76,7 @@ from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from fastapi import HTTPException, status
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -167,7 +168,7 @@ users_t = sa.table("users", sa.column("id"), sa.column("keycloak_sub"), sa.colum
 idempotency_keys_t = sa.table(
     "idempotency_keys",
     sa.column("key"), sa.column("endpoint"), sa.column("request_hash"),
-    sa.column("response_status"), sa.column("response_body"), sa.column("user_id"),
+    sa.column("response_status"), sa.column("response_body", JSONB), sa.column("user_id"),
 )
 
 # facilities.code (varchar(20), e.g. "JPR001") — schema doc §3 0002.

@@ -1,4 +1,4 @@
-import { api } from "../../../../lib/api";
+import { api, newIdempotencyKey } from "../../../../lib/api";
 
 import type { AddVitalsSchema } from "@/features/nurse/components/AddVitalsForm/validation";
 import type { AddPatientMovementSchema } from "@/components/AddPatientMovementForm/validation";
@@ -65,6 +65,17 @@ export interface PatientMovementLog {
   moved_by: string;
 }
 
+export interface AdmissionTransferResult {
+  id: string;
+  visit_id: string;
+  patient_id: string;
+  ward_id: string;
+  bed_id: string;
+  admitted_at: string;
+  reason: string | null;
+  status: string;
+}
+
 export interface ProcedureRecord {
   id: string;
   order_id: string | null;
@@ -97,18 +108,51 @@ export interface NursingNote {
   created_at?: string;
 }
 
+export interface NursingTask {
+  id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  order_type: string;
+  priority: "routine" | "urgent" | "stat";
+  status: "placed" | "accepted" | "in_progress" | "completed" | "cancelled";
+  ordered_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  completion_note: string | null;
+}
+
+export class UnsupportedWorkflowError extends Error {
+  constructor(workflow: string) {
+    super(`${workflow} is disabled until a backend contract is published`);
+    this.name = "UnsupportedWorkflowError";
+  }
+}
+
+export async function getNursingTasks() {
+  return api<NursingTask[]>("/nursing/tasks");
+}
+
+export async function completeNursingTask(orderId: string, note?: string) {
+  return api<NursingTask>(`/nursing/tasks/${orderId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({ note: note ?? null }),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
 export async function addVitals(data: AddVitalsSchema) {
-  return api<Vitals>("/vitals", {
+  return api<Vitals>("/nursing/vitals", {
     method: "POST",
     body: JSON.stringify(data),
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
 export async function addHandover(data: AddHandoverSchema) {
-  return api<NursingHandoverNote>("/nursing/handover-notes", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  void data;
+  throw new UnsupportedWorkflowError("Nursing handover entry");
 }
 
 
@@ -116,26 +160,31 @@ export async function addIntakeOutput(data: AddIntakeOutputSchema) {
   return api<IntakeOutputRecord>("/nursing/intake-output", {
     method: "POST",
     body: JSON.stringify(data),
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
 export async function addPatientMovement(data: AddPatientMovementSchema) {
-  return api<PatientMovementLog>("/nursing/movement", {
+  return api<AdmissionTransferResult>(
+    `/admissions/${data.admission_id}/transfer`,
+    {
     method: "POST",
-    body: JSON.stringify(data),
-  });
+      body: JSON.stringify({
+        to_ward_id: data.to_ward_id,
+        to_bed_id: data.to_bed_id,
+        reason: data.reason ?? null,
+      }),
+      idempotencyKey: newIdempotencyKey(),
+    },
+  );
 }
 
 export async function addProcedureAssistance(data: AddProcedureAssistanceSchema) {
-  return api<ProcedureRecord>("/procedures", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  void data;
+  throw new UnsupportedWorkflowError("Procedure assistance entry");
 }
 
 export async function addNursingNote(data: AddNursingNoteSchema) {
-  return api<NursingNote>("/nursing/notes", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  void data;
+  throw new UnsupportedWorkflowError("Nursing note entry");
 }

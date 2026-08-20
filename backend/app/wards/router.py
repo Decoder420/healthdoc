@@ -1,13 +1,21 @@
 """wards module router — endpoints land here; see this module's GitHub issues."""
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.admissions import service
+from app.admissions.models import Ward
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
 from app.wards.schemas import (
-    BedGridItemOut, BedGridOut, BedMismatchOut, BedOccupantOut, BedReconciliationOut,
+    BedGridItemOut,
+    BedGridOut,
+    BedMismatchOut,
+    BedOccupantOut,
+    BedReconciliationOut,
+    WardOut,
 )
 
 router = APIRouter(prefix="/wards", tags=["wards"])
@@ -19,6 +27,24 @@ _WARD_ROLES = ("doctor", "nurse", "admin")
 @router.get("/ping")
 async def ping() -> dict:
     return {"module": "wards", "status": "ok"}
+
+
+@router.get(
+    "",
+    response_model=list[WardOut],
+    dependencies=[Depends(require_roles(*_WARD_ROLES))],
+)
+async def list_wards(
+    current_db_user: CurrentDbUser,
+    active_only: bool = Query(default=True),
+    db: AsyncSession = Depends(get_db),
+) -> list[WardOut]:
+    query = select(Ward).where(Ward.facility_id == current_db_user.facility_id)
+    if active_only:
+        query = query.where(Ward.is_active.is_(True))
+    query = query.order_by(Ward.name)
+    rows = (await db.execute(query)).scalars().all()
+    return [WardOut.model_validate(row) for row in rows]
 
 
 @router.get(

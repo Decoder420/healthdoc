@@ -18,12 +18,20 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.models import Admission, Bed, Discharge, DischargeNotification, PatientMovementLog, Ward
+from app.admissions.models import (
+    Admission,
+    Bed,
+    Discharge,
+    DischargeNotification,
+    PatientMovementLog,
+    Ward,
+)
 from app.audit.service import write_audit_log
+
 # Reused from billing.service rather than duplicated -- pure auth/identity
 # helper (keycloak_sub -> users.id), not billing-specific. Candidate for
 # a shared module (app/common/ or app/auth/) in a future cleanup PR.
-from app.billing.service import resolve_actor_user_id
+from app.billing.service import resolve_actor_user_id as resolve_actor_user_id
 from app.integrations.abdm.fhir import service as fhir_service
 from app.opd.models import Visit
 from app.patients.models import Patient
@@ -168,6 +176,39 @@ async def transfer_patient(
 
 async def get_admission(db: AsyncSession, admission_id: UUID) -> Admission | None:
     return await db.get(Admission, admission_id)
+
+
+async def list_admissions(
+    db: AsyncSession,
+    *,
+    facility_id: UUID,
+    admission_status: str | None = None,
+) -> list[Admission]:
+    """Facility-scoped IPD list used by the live dashboard."""
+    query = (
+        select(Admission)
+        .join(Ward, Ward.id == Admission.ward_id)
+        .where(Ward.facility_id == facility_id)
+        .order_by(Admission.admitted_at.desc())
+    )
+    if admission_status is not None:
+        query = query.where(Admission.status == admission_status)
+    rows = await db.execute(query)
+    return list(rows.scalars().all())
+
+
+async def list_discharges(
+    db: AsyncSession, *, facility_id: UUID
+) -> list[Discharge]:
+    """Facility-scoped discharge list, newest first."""
+    rows = await db.execute(
+        select(Discharge)
+        .join(Admission, Admission.id == Discharge.admission_id)
+        .join(Ward, Ward.id == Admission.ward_id)
+        .where(Ward.facility_id == facility_id)
+        .order_by(Discharge.discharged_at.desc())
+    )
+    return list(rows.scalars().all())
 
 
 async def discharge_patient(
@@ -327,6 +368,5 @@ async def reconcile_bed_status(db: AsyncSession, facility_id: UUID | None = None
                 "active_admission_id": active_admission.id,
                 "issue": f"bed marked '{bed.status}' but admission {active_admission.id} is active on it",
             })
- 
+
     return mismatches
- 

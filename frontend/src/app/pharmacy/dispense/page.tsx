@@ -1,11 +1,10 @@
 import { ModuleCapabilityGate } from "@/components/common/ModuleCapabilityGate";
+import { PrescriptionQueue } from "@/features/pharmacy/PrescriptionQueue";
 
 function PharmacyDispensePage() {
   return (
     <ModuleCapabilityGate module="pharmacy">
-      <main style={{ padding: "2rem" }}>
-        <h1>Pharmacy / Dispense</h1>
-      </main>
+      <PrescriptionQueue dispenseMode />
     </ModuleCapabilityGate>
   );
 }

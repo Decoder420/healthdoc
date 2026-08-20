@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "../forms/FormSection";
 import SelectField from "../forms/SelectField";
-import DateTimeField from "../forms/DateTimeField";
 import TextAreaField from "../forms/TextAreaField";
 import FormActions from "../forms/FormActions";
 
@@ -20,11 +17,8 @@ import {
 
 export default function AddPatientMovementForm({
   admissionId,
-  currentWardId,
-  currentBedId,
   wards,
   beds,
-  movedBy,
   isSubmitting = false,
   onSubmit,
 }: AddPatientMovementFormProps) {
@@ -41,18 +35,8 @@ export default function AddPatientMovementForm({
     defaultValues: {
       ...DEFAULT_VALUES,
       admission_id: admissionId,
-      from_ward_id: currentWardId,
-      from_bed_id: currentBedId,
-      moved_by: movedBy,
     },
   });
-
-  useEffect(() => {
-    setValue("admission_id", admissionId);
-    setValue("from_ward_id", currentWardId);
-    setValue("from_bed_id", currentBedId);
-    setValue("moved_by", movedBy);
-  }, [admissionId, currentWardId, currentBedId, movedBy, setValue]);
 
   const toWardId = watch("to_ward_id");
 
@@ -65,9 +49,6 @@ export default function AddPatientMovementForm({
     reset({
       ...DEFAULT_VALUES,
       admission_id: admissionId,
-      from_ward_id: currentWardId,
-      from_bed_id: currentBedId,
-      moved_by: movedBy,
     });
   };
 
@@ -114,11 +95,6 @@ export default function AddPatientMovementForm({
             />
           )}
 
-          <DateTimeField
-            label="Movement Time"
-            registration={register("moved_at")}
-            error={errors.moved_at}
-          />
         </div>
 
         <TextAreaField

@@ -59,7 +59,7 @@ RECEPTIONIST = AuthUser(sub="opdj-sub-receptionist-0001", username="opdj-recepti
 DOCTOR = AuthUser(sub="opdj-sub-doctor-0001", username="opdj-doc1", roles=["doctor"])
 NURSE = AuthUser(sub="opdj-sub-nurse-0001", username="opdj-nurse1", roles=["nurse"])
 LAB_TECH = AuthUser(sub="opdj-sub-labtech-0001", username="opdj-tech1", roles=["lab_tech"])
-PATHOLOGIST = AuthUser(sub="opdj-sub-pathologist-0001", username="opdj-patho1", roles=["pathologist"])
+PATHOLOGIST = AuthUser(sub="opdj-sub-pathologist-0001", username="opdj-patho1", roles=["lab_tech"])
 SUPERVISOR = AuthUser(sub="opdj-sub-supervisor-0001", username="opdj-super1", roles=["supervisor"])
 ADMIN = AuthUser(sub="opdj-sub-admin-0001", username="opdj-admin1", roles=["admin"])
 

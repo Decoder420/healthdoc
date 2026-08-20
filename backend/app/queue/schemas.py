@@ -1,6 +1,8 @@
 import uuid
 from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict
+
 from app.common.enums import QueuePriority, Shift
 
 
@@ -70,6 +72,21 @@ class QueueTokenListOut(BaseModel):
     waiting_count: int
     now_serving: str | None
     items: list[QueueTokenListItemOut]
+
+
+class DoctorWorklistItemOut(QueueTokenOut):
+    patient_id: uuid.UUID
+    full_name: str
+    uhid: str
+    age_years: int
+    sex: str
+    provider_user_id: uuid.UUID
+    provider_name: str
+    department: str
+
+
+class DoctorWorklistOut(BaseModel):
+    items: list[DoctorWorklistItemOut]
  
  
 class CompleteAdvanceOut(BaseModel):

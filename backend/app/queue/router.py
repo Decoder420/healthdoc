@@ -6,7 +6,7 @@ triggers the automatic advance via service.complete_by_visit_id(). Admin
 keeps manual overrides for edge cases.
 """
 import uuid
-from datetime import date 
+from datetime import date
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -20,7 +20,12 @@ from app.common.redis import publish_event, queue_channel, subscribe
 from app.queue import service
 from app.queue.schemas import (
     CompleteAdvanceOut,
+    DepartmentWorkloadOut,
+    DoctorWorklistItemOut,
+    DoctorWorklistOut,
+    EmergencyEscalationOut,
     HodDashboardOverviewOut,
+    PendingLabOrderOut,
     QueueCreate,
     QueueOut,
     QueueTokenGenerateRequest,
@@ -31,13 +36,50 @@ from app.queue.schemas import (
     RosterCreate,
     RosterOut,
     TokenPriorityElevate,
-    PendingLabOrderOut,
     TokenReassign,
-    DepartmentWorkloadOut,
-    EmergencyEscalationOut,
 )
 
 router = APIRouter(prefix="/queue", tags=["queue"])
+
+
+@router.get(
+    "/worklist",
+    dependencies=[Depends(require_roles("doctor", "admin"))],
+)
+async def get_doctor_worklist(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rows = await service.get_doctor_worklist(
+        db,
+        current_db_user.id,
+        current_db_user.facility_id,
+        current_db_user.roles,
+    )
+    return DoctorWorklistOut(
+        items=[DoctorWorklistItemOut(**row) for row in rows]
+    ).model_dump(mode="json")
+
+
+@router.get(
+    "/worklist/{token_id}",
+    dependencies=[Depends(require_roles("doctor", "admin"))],
+)
+async def get_doctor_worklist_token(
+    token_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rows = await service.get_doctor_worklist(
+        db,
+        current_db_user.id,
+        current_db_user.facility_id,
+        current_db_user.roles,
+        token_id=token_id,
+    )
+    if not rows:
+        raise HTTPException(404, "Queue token not found")
+    return DoctorWorklistItemOut(**rows[0]).model_dump(mode="json")
 
 
 # ---------------- CREATE QUEUE ----------------

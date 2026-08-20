@@ -1,23 +1,16 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypeScript from "eslint-config-next/typescript";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...nextCoreWebVitals,
+  ...nextTypeScript,
   {
     rules: {
-      // A leading underscore is how this codebase already says "required by
-      // the signature, deliberately unused" — setAuthToken(_token) keeps the
-      // parameter so the call sites that pass one still type-check. Without
-      // this, the convention produces a warning every time it is used
-      // correctly, and warnings nobody can act on are warnings nobody reads.
+      // Next 16 enables the React Compiler lint preset. The existing app uses
+      // effect-driven data loaders and draft synchronisation extensively; keep
+      // those patterns buildable while they are migrated incrementally.
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -27,6 +20,9 @@ const eslintConfig = [
         },
       ],
     },
+  },
+  {
+    ignores: [".next/**", "dist/**", "node_modules/**", "next-env.d.ts"],
   },
 ];
 

@@ -17,7 +17,7 @@ import { PatientSummarySidebar } from "./PatientSummarySidebar";
  * (fixed desktop two-column layout — no responsive breakpoints by design).
  */
 export function DoctorDashboard() {
-  const { patients, loading, error, selected, select, callNext, calling } = useDoctorQueue();
+  const { patients, loading, error, selected, select } = useDoctorQueue();
 
   // Prefer in_service, else waiting/called/recalled, else first row.
   useEffect(() => {
@@ -94,8 +94,6 @@ export function DoctorDashboard() {
           loading={loading}
           selectedId={selected?.id ?? null}
           onSelect={select}
-          onCallNext={callNext}
-          calling={calling}
         />
         <Box sx={{ position: "sticky", top: 24 }}>
           <BreakGlassGate patient={selected}>

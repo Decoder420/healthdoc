@@ -25,13 +25,13 @@ shape transfer_patient() actually returns.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import schemas, service
 from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
-from app.auth.deps import AuthUser, require_roles
+from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.common.db import get_db
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
@@ -71,6 +71,39 @@ async def create_admission(
     except service.BedNotAvailable:
         raise HTTPException(status.HTTP_409_CONFLICT, "Bed is already occupied")
     return schemas.AdmissionOut.model_validate(admission)
+
+
+@router.get(
+    "",
+    response_model=list[schemas.AdmissionOut],
+    dependencies=[Depends(require_roles(*_IPD_ROLES))],
+)
+async def list_admissions(
+    current_db_user: CurrentDbUser,
+    admission_status: str | None = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+) -> list[schemas.AdmissionOut]:
+    rows = await service.list_admissions(
+        db,
+        facility_id=current_db_user.facility_id,
+        admission_status=admission_status,
+    )
+    return [schemas.AdmissionOut.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/discharges",
+    response_model=list[schemas.DischargeOut],
+    dependencies=[Depends(require_roles(*_IPD_ROLES))],
+)
+async def list_discharges(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[schemas.DischargeOut]:
+    rows = await service.list_discharges(
+        db, facility_id=current_db_user.facility_id
+    )
+    return [schemas.DischargeOut.model_validate(row) for row in rows]
 
 
 @router.get("/{admission_id}", response_model=schemas.AdmissionOut)

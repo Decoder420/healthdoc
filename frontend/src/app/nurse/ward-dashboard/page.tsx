@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import WardSelector, {
   WARDS,
@@ -26,9 +26,6 @@ import QuickActions from "@/features/nurse/components/QuickActions";
 import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
 import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
 
-import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
-import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
-
 import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
 import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
 
@@ -37,14 +34,15 @@ import { useAddPatientMovement } from "@/components/AddPatientMovementForm/useAd
 import type { AddPatientMovementSchema } from "@/components/AddPatientMovementForm/validation";
 
 import ProcedureAssistance from "@/features/nurse/components/ProcedureAssistance";
-import AddProcedureAssistanceForm from "@/features/nurse/components/AddProcedureAssistanceForm";
-import { useAddProcedureAssistance } from "@/features/nurse/hooks/useAddProcedureAssistance";
-import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
 import { procedureContextByBedId } from "@/lib/data/procedureContextByBed";
 import { PROCEDURE_RECORDS } from "@/lib/data/procedureAssistance";
 
-import TaskQueue from "@/features/nurse/components/TaskQueue";
-import { orders as initialOrders } from "@/lib/data/orders";
+import TaskQueue, { type Order } from "@/features/nurse/components/TaskQueue";
+import {
+  completeNursingTask,
+  getNursingTasks,
+  type NursingTask,
+} from "@/features/nurse/services/nurse.service";
 
 import { patients } from "@/lib/data/patients";
 import { admissionsByBedId } from "@/lib/data/admissionsByBed";
@@ -62,7 +60,19 @@ import { ADMISSION_STATUS } from "@/lib/data/admissionStatus";
 
 import { Bed } from "@/components/BedGrid/BedGrid.types";
 import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
-import { GENERAL_WARD_ID, NURSE_ANITA_ID } from "@/lib/data/mockIds";
+import { GENERAL_WARD_ID } from "@/lib/data/mockIds";
+
+function toOrder(task: NursingTask): Order {
+  return {
+    id: task.id,
+    encounter_id: task.encounter_id,
+    patient_id: task.patient_id,
+    order_type: task.order_type,
+    priority: task.priority,
+    status: task.status,
+    ordered_at: task.ordered_at,
+  };
+}
 
 export default function Page() {
   const [selectedWard, setSelectedWard] = useState(GENERAL_WARD_ID);
@@ -84,14 +94,35 @@ export default function Page() {
     null
   );
 
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [taskQueueStatus, setTaskQueueStatus] = useState<
+    "loading" | "connected" | "error"
+  >("loading");
 
-  const [handoverNotes, setHandoverNotes] = useState(HANDOVER_NOTES);
+  useEffect(() => {
+    let cancelled = false;
+
+    void getNursingTasks()
+      .then((tasks) => {
+        if (!cancelled) {
+          setOrders(tasks.map(toOrder));
+          setTaskQueueStatus("connected");
+        }
+      })
+      .catch((error) => {
+        console.error("Unable to load nursing tasks", error);
+        if (!cancelled) setTaskQueueStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [handoverNotes] = useState(HANDOVER_NOTES);
   const [intakeOutputRecords, setIntakeOutputRecords] = useState(INTAKE_OUTPUT);
-  const [patientMovements, setPatientMovements] = useState(PATIENT_MOVEMENTS);
-  const [procedureRecords, setProcedureRecords] = useState(PROCEDURE_RECORDS);
-
-  const CURRENT_NURSE_ID = NURSE_ANITA_ID;
+  const [patientMovements] = useState(PATIENT_MOVEMENTS);
+  const [procedureRecords] = useState(PROCEDURE_RECORDS);
 
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
@@ -170,16 +201,18 @@ export default function Page() {
     setSelectedPatientId(procedureContext?.patientId ?? null);
   };
 
-  // Local mock preview only — not a schema-backed nurse completion record.
-  // Only placed -> completed; no invented timestamp is stored on the order.
-  const handleCheckOff = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId && o.status === "placed"
-          ? { ...o, status: "completed" }
-          : o
-      )
-    );
+  const handleCheckOff = async (orderId: string) => {
+    try {
+      const completed = await completeNursingTask(orderId);
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === completed.id ? toOrder(completed) : order
+        )
+      );
+    } catch (error) {
+      console.error("Unable to complete nursing task", error);
+      setTaskQueueStatus("error");
+    }
   };
 
   // Vitals — schema has admission_id directly, so filter the same way as
@@ -232,28 +265,10 @@ export default function Page() {
     : null;
 
   const { submitVitals, isSubmitting } = useAddVitals();
-  const { submitHandover, isSubmitting: isSubmittingHandover } = useAddHandover();
   const { submitIntakeOutput, isSubmitting: isSubmittingIntakeOutput } =
     useAddIntakeOutput();
   const { submitPatientMovement, isSubmitting: isSubmittingPatientMovement } =
     useAddPatientMovement();
-  const { submitProcedureAssistance, isSubmitting: isSubmittingProcedure } =
-    useAddProcedureAssistance();
-
-  const handleAddHandover = async (
-    data: Parameters<typeof submitHandover>[0]
-  ) => {
-    const ok = await submitHandover(data);
-
-    // backend endpoint isn't confirmed yet — still show it locally regardless
-    // of submit success, same as other handlers in this file
-    setHandoverNotes((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() },
-    ]);
-
-    return ok;
-  };
 
   const handleAddIntakeOutput = async (
     data: Parameters<typeof submitIntakeOutput>[0]
@@ -274,38 +289,7 @@ export default function Page() {
   };
 
   const handleAddPatientMovement = async (data: AddPatientMovementSchema) => {
-    const ok = await submitPatientMovement(data);
-
-    setPatientMovements((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), ...data, reason: data.reason ?? null },
-    ]);
-
-    return ok;
-  };
-
-  const handleAddProcedureAssistance = async (
-    data: AddProcedureAssistanceSchema
-  ) => {
-    const ok = await submitProcedureAssistance(data);
-
-    setProcedureRecords((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...data,
-        order_id: null,
-        procedure_code: data.procedure_code ?? null,
-        code_system: data.code_system ?? null,
-        ot_schedule_id: data.ot_schedule_id ?? null,
-        assisted_by: data.assisted_by ?? null,
-        ended_at: data.ended_at ?? null,
-        outcome: data.outcome ?? null,
-        complications: data.complications ?? null,
-      },
-    ]);
-
-    return ok;
+    return submitPatientMovement(data);
   };
 
   return (
@@ -335,15 +319,27 @@ export default function Page() {
       {/* Ward Statistics */}
       <WardStats stats={wardStats} />
 
-      {/* Pending doctor orders — ward/shift-level local preview, not a nursing completion audit */}
+      {/* Pending doctor orders from the authenticated nursing API. */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Pending doctor orders</h2>
           <p className="text-sm text-muted-foreground">
-            Local preview of pending orders for this shift. Marking completed
-            only updates status from placed to completed on this screen.
+            Outstanding doctor orders for this facility. Completion records the
+            authenticated nurse and timestamp in the clinical audit trail.
           </p>
         </div>
+
+        <p
+          data-testid="nursing-api-status"
+          data-status={taskQueueStatus}
+          className={
+            taskQueueStatus === "error" ? "text-sm text-destructive" : "sr-only"
+          }
+        >
+          {taskQueueStatus === "error"
+            ? "Unable to load nursing tasks. Check the API connection and retry."
+            : `Nursing API ${taskQueueStatus}`}
+        </p>
 
         <TaskQueue orders={orders} onCheckOff={handleCheckOff} />
       </section>
@@ -428,11 +424,10 @@ export default function Page() {
         />
 
         {selectedAdmissionId && (
-          <AddHandoverForm
-            admissionId={selectedAdmissionId}
-            isSubmitting={isSubmittingHandover}
-            onSubmit={handleAddHandover}
-          />
+          <p className="surface-card p-4 text-sm text-warning">
+            New handover entries are disabled until the backend publishes a
+            handover write contract. No local-only record will be created.
+          </p>
         )}
       </section>
 
@@ -463,13 +458,10 @@ export default function Page() {
         />
 
         {selectedEncounterId && selectedPatientId && (
-          <AddProcedureAssistanceForm
-            encounterId={selectedEncounterId}
-            patientId={selectedPatientId}
-            assistedBy={CURRENT_NURSE_ID}
-            isSubmitting={isSubmittingProcedure}
-            onSubmit={handleAddProcedureAssistance}
-          />
+          <p className="surface-card p-4 text-sm text-warning">
+            Procedure-assistance entry is disabled until a backend procedure
+            write contract is available. The historical preview remains read-only.
+          </p>
         )}
       </section>
 
@@ -550,11 +542,8 @@ export default function Page() {
         {activeAction === "transfer" && selectedAdmissionId && selectedBed && (
           <AddPatientMovementForm
             admissionId={selectedAdmissionId}
-            currentWardId={selectedBed.ward_id ?? null}
-            currentBedId={selectedBed.bed_id}
             wards={WARDS}
             beds={beds}
-            movedBy={CURRENT_NURSE_ID}
             isSubmitting={isSubmittingPatientMovement}
             onSubmit={handleAddPatientMovement}
           />
