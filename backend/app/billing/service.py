@@ -70,7 +70,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
@@ -199,6 +199,24 @@ billing_counters_t = sa.table(
     sa.column("facility_id"), sa.column("counter_type"),
     sa.column("counter_date"), sa.column("last_value"),
 )
+
+# charge_master (0033) — effective-dated tariff. Table has existed since 0033
+# with no ORM model and no reader; #389 makes registration its first consumer.
+charge_master_t = sa.table(
+    "charge_master",
+    sa.column("id"), sa.column("facility_id"), sa.column("charge_code"),
+    sa.column("charge_category"), sa.column("description"), sa.column("unit_price"),
+    sa.column("scheme_code"), sa.column("effective_from"), sa.column("effective_to"),
+    sa.column("is_active"),
+    # Blame columns. A sa.table projection only knows the columns named here —
+    # writing to one that is missing fails at compile time with "Unconsumed
+    # column names", not at the database.
+    sa.column("created_by"), sa.column("updated_by"),
+)
+
+#: The tariff row every facility must have for registration to price its invoice.
+#: Seeds and facility onboarding both depend on this exact string.
+REGISTRATION_CHARGE_CODE = "REGISTRATION"
 
 # A corrected result still means the work is complete/billable — the
 # correction itself doesn't un-bill the earlier line (that's a
@@ -672,12 +690,25 @@ def check_pmjay_eligibility(patient_id: uuid.UUID, visit_id: uuid.UUID) -> PMJAY
 
 
 async def _allocate_billing_number(
-    db: AsyncSession, facility_id: uuid.UUID, counter_type: str, prefix: str
+    db: AsyncSession,
+    facility_id: uuid.UUID,
+    counter_type: str,
+    prefix: str,
+    *,
+    business_date: date | None = None,
 ) -> str:
     """
-    Gapless RCP-/RFD-<FACILITY>-<YYYYMMDD>-<SEQ5> numbering per schema
+    Gapless INV-/RCP-/RFD-<FACILITY>-<YYYYMMDD>-<SEQ5> numbering per schema
     doc §3 0014 (billing_counters, UNIQUE(facility_id, counter_type,
     counter_date)).
+
+    `business_date` is the caller's already-computed facility-local date. Pass
+    it whenever the caller has one: registration allocates a visit number and an
+    invoice number for the same event, and two independent clock reads can
+    straddle midnight and stamp them with different dates. Omit it and this
+    reads the clock itself, which is correct for standalone receipt and refund
+    numbering. Same rule as opd/visit_number.py — one business_date per request,
+    computed once and threaded through.
 
     The doc's literal instruction is "allocate with SELECT ... FOR
     UPDATE inside the same transaction". I've used INSERT ... ON
@@ -709,7 +740,10 @@ async def _allocate_billing_number(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"facility_id={facility_id} has no matching facilities row.",
         )
-    facility_code, today = row.code, row.business_date
+    # The caller's date wins when supplied — see the docstring on why two
+    # independent reads of "today" must not be allowed to disagree.
+    facility_code = row.code
+    today = business_date if business_date is not None else row.business_date
 
     upsert = (
         pg_insert(billing_counters_t)
@@ -729,6 +763,144 @@ async def _allocate_billing_number(
     sequence = result.scalar_one()
 
     return f"{prefix}-{facility_code}-{today:%Y%m%d}-{sequence:05d}"
+
+
+async def charge_for(
+    db: AsyncSession,
+    facility_id: uuid.UUID,
+    charge_code: str,
+    business_date: date,
+    *,
+    scheme_code: str | None = None,
+) -> sa.Row | None:
+    """The tariff in force for one charge_code at this facility on this date.
+
+    Effective-dated: `effective_from <= date <= effective_to`, with an open
+    `effective_to` meaning "still current". Ordered newest-first so a
+    superseding row wins if two overlap — 0033's ck_charge_master_effective_range
+    guarantees each row is internally sane but not that two cannot overlap.
+
+    **Scheme rates win.** When the invoice carries a scheme_code (PMJAY and
+    friends), a row for that scheme is preferred over the general tariff, and
+    the general tariff (scheme_code IS NULL) is the fallback. Billing a PMJAY
+    patient at the self-pay rate is a reimbursement dispute, so the ordering
+    here is load-bearing rather than cosmetic.
+
+    The date must be the caller's business date, not `now()`. A patient
+    registering at 01:00 IST is registering on today's tariff, and a bare date
+    read here would give them yesterday's.
+    """
+    scheme_match = charge_master_t.c.scheme_code == scheme_code if scheme_code else sa.false()
+
+    result = await db.execute(
+        sa.select(
+            charge_master_t.c.id,
+            charge_master_t.c.unit_price,
+            charge_master_t.c.description,
+            charge_master_t.c.charge_category,
+            charge_master_t.c.scheme_code,
+        )
+        .where(
+            charge_master_t.c.facility_id == facility_id,
+            charge_master_t.c.charge_code == charge_code,
+            charge_master_t.c.is_active.is_(True),
+            charge_master_t.c.effective_from <= business_date,
+            sa.or_(
+                charge_master_t.c.effective_to.is_(None),
+                charge_master_t.c.effective_to >= business_date,
+            ),
+            sa.or_(scheme_match, charge_master_t.c.scheme_code.is_(None)),
+        )
+        # Scheme row first when one exists, then newest effective_from.
+        .order_by(
+            sa.case((charge_master_t.c.scheme_code.isnot(None), 0), else_=1),
+            charge_master_t.c.effective_from.desc(),
+        )
+        .limit(1)
+    )
+    return result.first()
+
+
+async def registration_charge(
+    db: AsyncSession, facility_id: uuid.UUID, business_date: date
+) -> sa.Row | None:
+    """The registration tariff. Thin wrapper over charge_for so #389's call
+    site keeps reading as what it is."""
+    return await charge_for(db, facility_id, REGISTRATION_CHARGE_CODE, business_date)
+
+
+async def create_registration_invoice(
+    db: AsyncSession,
+    *,
+    visit_id: uuid.UUID,
+    patient_id: uuid.UUID,
+    facility_id: uuid.UUID,
+    business_date: date,
+    created_by: uuid.UUID,
+) -> Invoice:
+    """The one invoice per visit that §3 0014 has always promised.
+
+    Called by opd.create_visit inside the registration transaction, so a visit
+    and its invoice are created together or not at all. Everything downstream —
+    preview, build, payment posting, billing MIS — assumes this row exists;
+    `_get_invoice_for_visit` 404s without it. Until #389 nothing created one, so
+    the entire billing chain had no entry point.
+
+    Raises 409 when the facility has no active REGISTRATION tariff. That fails
+    registration, which is deliberate: the alternative is a zero-rupee invoice
+    that looks legitimate and is discovered at month-end reconciliation. A
+    missing tariff is a five-minute configuration fix; a quarter of mispriced
+    invoices is not.
+    """
+    charge = await registration_charge(db, facility_id, business_date)
+    if charge is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "registration_tariff_not_configured",
+                "message": (
+                    f"No active '{REGISTRATION_CHARGE_CODE}' row in charge_master for "
+                    f"facility_id={facility_id} effective {business_date}. Add the tariff "
+                    f"before registering patients at this facility."
+                ),
+            },
+        )
+
+    amount = Decimal(charge.unit_price)
+    invoice_number = await _allocate_billing_number(
+        db, facility_id, "invoice", "INV", business_date=business_date
+    )
+
+    invoice = Invoice(
+        id=uuid.uuid4(),
+        invoice_number=invoice_number,
+        visit_id=visit_id,
+        patient_id=patient_id,
+        facility_id=facility_id,
+        status="draft",
+        gross_amount=amount,
+        discount_amount=Decimal("0"),
+        scheme_adjustment=Decimal("0"),
+        net_amount=amount,
+        created_by=created_by,
+    )
+    db.add(invoice)
+    await db.flush()
+
+    db.add(
+        InvoiceItem(
+            id=uuid.uuid4(),
+            invoice_id=invoice.id,
+            charge_category=charge.charge_category,
+            description=charge.description,
+            quantity=Decimal("1"),
+            unit_price=amount,
+            amount=amount,
+            charge_master_id=charge.id,
+        )
+    )
+    await db.flush()
+    return invoice
 
 
 async def _facility_timezone(db: AsyncSession, facility_id: uuid.UUID) -> str:
@@ -1276,3 +1448,121 @@ async def get_scheme_breakdown(
         facility_id=facility_id, date_from=date_from, date_to=date_to,
         lines=lines, grand_total_net_billed=_money(grand_total),
     )
+
+
+# ============================================================ charge_master admin (#287)
+#
+# The one rule that makes an effective-dated catalogue trustworthy: a price is
+# never edited in place. Changing unit_price on an existing row silently
+# rewrites what was charged on every invoice already raised against it, and
+# invoice_items.charge_master_id then points at a tariff that no longer says
+# what the patient paid. A new price is a NEW ROW, and the old one is closed.
+
+class TariffOverlap(Exception):
+    """A new tariff would start before the current one has been closed."""
+
+
+async def list_charge_master(
+    db: AsyncSession,
+    facility_id: uuid.UUID,
+    *,
+    charge_code: str | None = None,
+    active_only: bool = True,
+) -> list[sa.Row]:
+    stmt = sa.select(charge_master_t).where(charge_master_t.c.facility_id == facility_id)
+    if charge_code is not None:
+        stmt = stmt.where(charge_master_t.c.charge_code == charge_code)
+    if active_only:
+        stmt = stmt.where(charge_master_t.c.is_active.is_(True))
+    result = await db.execute(
+        stmt.order_by(charge_master_t.c.charge_code, charge_master_t.c.effective_from.desc())
+    )
+    return list(result.all())
+
+
+async def create_tariff(
+    db: AsyncSession,
+    *,
+    facility_id: uuid.UUID,
+    charge_code: str,
+    description: str,
+    charge_category: str,
+    unit_price: Decimal,
+    effective_from: date,
+    scheme_code: str | None = None,
+    created_by: uuid.UUID,
+) -> uuid.UUID:
+    """Add a tariff row, closing whatever it supersedes.
+
+    If an open row already exists for the same (facility, code, scheme), it is
+    closed the day before this one starts rather than left overlapping — two
+    open rows would make charge_for()'s answer depend on ordering, and the
+    older price would still be reachable.
+
+    Rejects an effective_from that is not after the current row's start:
+    back-dating a price change would alter what past invoices resolve to.
+    """
+    current = await db.execute(
+        sa.select(charge_master_t.c.id, charge_master_t.c.effective_from)
+        .where(
+            charge_master_t.c.facility_id == facility_id,
+            charge_master_t.c.charge_code == charge_code,
+            charge_master_t.c.scheme_code.is_(scheme_code)
+            if scheme_code is None else charge_master_t.c.scheme_code == scheme_code,
+            charge_master_t.c.is_active.is_(True),
+            charge_master_t.c.effective_to.is_(None),
+        )
+        .order_by(charge_master_t.c.effective_from.desc())
+        .limit(1)
+    )
+    open_row = current.first()
+
+    if open_row is not None:
+        if effective_from <= open_row.effective_from:
+            raise TariffOverlap(
+                f"effective_from {effective_from} is not after the current tariff's "
+                f"{open_row.effective_from}; back-dating would change what invoices "
+                f"already raised resolve to"
+            )
+        await db.execute(
+            sa.update(charge_master_t)
+            .where(charge_master_t.c.id == open_row.id)
+            .values(effective_to=effective_from - timedelta(days=1), updated_by=created_by)
+        )
+
+    new_id = uuid.uuid4()
+    await db.execute(
+        sa.insert(charge_master_t).values(
+            id=new_id,
+            facility_id=facility_id,
+            charge_code=charge_code,
+            description=description,
+            charge_category=charge_category,
+            unit_price=unit_price,
+            scheme_code=scheme_code,
+            effective_from=effective_from,
+            effective_to=None,
+            is_active=True,
+            created_by=created_by,
+        )
+    )
+    await db.flush()
+    return new_id
+
+
+async def deactivate_tariff(
+    db: AsyncSession, tariff_id: uuid.UUID, *, updated_by: uuid.UUID
+) -> bool:
+    """Retire a tariff. Sets is_active = false; never deletes.
+
+    The row stays because invoice_items.charge_master_id points at it, and a
+    line whose tariff has vanished cannot be explained to a patient or an
+    auditor.
+    """
+    result = await db.execute(
+        sa.update(charge_master_t)
+        .where(charge_master_t.c.id == tariff_id, charge_master_t.c.is_active.is_(True))
+        .values(is_active=False, updated_by=updated_by)
+    )
+    await db.flush()
+    return result.rowcount > 0

@@ -14,7 +14,10 @@ from app.common.redis import department_channel, facility_channel, subscribe
 from app.departments.models import Department
 from app.notifications.models import NotificationHistory
 from app.notifications import service
-from app.notifications.schemas import NotificationHistoryListOut, NotificationHistoryOut
+from app.notifications.schemas import (
+    NotificationHistoryListOut, NotificationHistoryOut,
+    NotificationPreferenceOut, NotificationPreferenceSet,
+)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -159,3 +162,61 @@ async def list_notification_history(
         total=result["total"],
     ).model_dump(mode="json")
  
+
+# ============================================================ per-role preferences (#230)
+#
+# #230 shipped the history API; preferences never existed, so every notification
+# reached everyone entitled to it with no way to silence a category for a role.
+#
+# Reads are open to any staff role (you may see what is configured for you);
+# writes are admin/hod only, because silencing an event type for a whole role at
+# a facility is a decision with clinical consequences.
+
+@router.get(
+    "/preferences",
+    response_model=list[NotificationPreferenceOut],
+    dependencies=[Depends(require_roles(*_STAFF_ROLES))],
+)
+async def list_notification_preferences(
+    current_db_user: CurrentDbUser,
+    role: str | None = Query(default=None, description="Filter to one role."),
+    db: AsyncSession = Depends(get_db),
+) -> list[NotificationPreferenceOut]:
+    """What is silenced at the caller's facility.
+
+    Only rows that exist are returned, and a row exists only where someone made
+    a deliberate decision — anything absent is enabled.
+    """
+    rows = await service.list_preferences(
+        db, facility_id=current_db_user.facility_id, role=role)
+    return [NotificationPreferenceOut.model_validate(r) for r in rows]
+
+
+@router.put(
+    "/preferences",
+    response_model=NotificationPreferenceOut,
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def set_notification_preference(
+    payload: NotificationPreferenceSet,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> NotificationPreferenceOut:
+    """Silence or re-enable one event_type for one role at the caller's facility.
+
+    PUT rather than POST: the unique key is (facility, role, event_type), so
+    this is idempotent by construction — sending the same decision twice leaves
+    the same single row.
+
+    Scoped to the caller's own facility. An admin at one hospital must not be
+    able to silence critical alerts at another.
+    """
+    pref = await service.set_preference(
+        db,
+        facility_id=current_db_user.facility_id,
+        role=payload.role,
+        event_type=payload.event_type,
+        enabled=payload.enabled,
+        actor_id=current_db_user.id,
+    )
+    return NotificationPreferenceOut.model_validate(pref)

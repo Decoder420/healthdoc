@@ -45,11 +45,35 @@ class Order(Base, UUIDPk, Timestamps, Blame):
     status = Column(String(50), nullable=False, server_default=OrderStatus.PLACED.value)
     ordered_at = Column(DateTime(timezone=True), nullable=False)
 
+    # 0045 — check-off evidence. status alone recorded THAT an order was done
+    # and lost who and when, which is what #210's nurse task queue needs. Serves
+    # every fulfilment path, not just nursing: a lab tech accepting a sample is
+    # the same transition.
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    accepted_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"),
+                         nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    completed_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"),
+                          nullable=True)
+    completion_note = Column(Text, nullable=True)
+
     __table_args__ = (
         CheckConstraint(OrderType.sql_check("order_type"), name="order_type"),
         CheckConstraint(OrderPriority.sql_check("priority"), name="priority"),
         CheckConstraint(OrderStatus.sql_check("status"), name="status"),
+        # Both halves or neither: a timestamp with no actor cannot be
+        # attributed, an actor with no timestamp cannot be sequenced.
+        CheckConstraint("(accepted_at IS NULL) = (accepted_by IS NULL)",
+                        name="accepted_pair"),
+        CheckConstraint("(completed_at IS NULL) = (completed_by IS NULL)",
+                        name="completed_pair"),
+        # status and evidence must agree — otherwise a "completed" order with no
+        # completion record is representable, which is the state #210 cannot
+        # render.
+        CheckConstraint("status <> 'completed' OR completed_at IS NOT NULL",
+                        name="completed_has_evidence"),
         Index("ix_orders_order_type_status", "order_type", "status"),
+        Index("ix_orders_status_completed_at", "status", "completed_at"),
         Index("ix_orders_patient_id", "patient_id"),
         Index("ix_orders_encounter_id", "encounter_id"),
     )

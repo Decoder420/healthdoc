@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
  
 from app.common.redis import department_channel, facility_channel
-from app.notifications.models import NotificationHistory
+from app.notifications.models import NotificationHistory, NotificationPreference
 from sqlalchemy import desc, select, func
  
  
@@ -127,7 +127,16 @@ async def list_notification_history(
     page: int,
     page_size: int,
     sort: str,
+    for_role: str | None = None,
 ) -> dict:
+    """History for one facility.
+
+    `for_role` applies that role's per-role preferences (#230): anything the
+    role has silenced is excluded from both the page and the total, so the
+    count matches what the caller can actually see. Omit it to read the
+    unfiltered history — an admin auditing what was published needs the real
+    list, not their own filtered view.
+    """
     if page_size > _MAX_PAGE_SIZE:
         raise HTTPException(422, f"page_size cannot exceed {_MAX_PAGE_SIZE}")
  
@@ -150,6 +159,14 @@ async def list_notification_history(
     if event_type is not None:
         query = query.where(NotificationHistory.event_type == event_type)
         count_query = count_query.where(NotificationHistory.event_type == event_type)
+
+    if for_role is not None:
+        # One query for the whole set rather than a lookup per row.
+        silenced = await silenced_event_types(
+            db, facility_id=caller_facility_id, role=for_role)
+        if silenced:
+            query = query.where(NotificationHistory.event_type.notin_(silenced))
+            count_query = count_query.where(NotificationHistory.event_type.notin_(silenced))
  
     total = (await db.execute(count_query)).scalar_one()
  
@@ -163,3 +180,97 @@ async def list_notification_history(
         "total": total,
     }
  
+
+# ============================================================ per-role preferences (#230)
+
+async def is_enabled(
+    db: AsyncSession, *, facility_id: uuid.UUID, role: str, event_type: str
+) -> bool:
+    """Is this event_type delivered to this role at this facility?
+
+    True unless a row explicitly says otherwise. Opt-out, not opt-in — a new
+    event_type must not be silently invisible to everyone until someone
+    remembers to switch it on. A missed low_stock_alert is an annoyance; a
+    missed lab_critical_result is a patient safety event.
+    """
+    result = await db.execute(
+        select(NotificationPreference.enabled).where(
+            NotificationPreference.facility_id == facility_id,
+            NotificationPreference.role == role,
+            NotificationPreference.event_type == event_type,
+        )
+    )
+    row = result.scalar_one_or_none()
+    return True if row is None else bool(row)
+
+
+async def silenced_event_types(
+    db: AsyncSession, *, facility_id: uuid.UUID, role: str
+) -> set[str]:
+    """Everything this role has turned off here.
+
+    One query, so a list endpoint can filter a page of history without going
+    back to the database per row.
+    """
+    result = await db.execute(
+        select(NotificationPreference.event_type).where(
+            NotificationPreference.facility_id == facility_id,
+            NotificationPreference.role == role,
+            NotificationPreference.enabled.is_(False),
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def list_preferences(
+    db: AsyncSession, *, facility_id: uuid.UUID, role: str | None = None
+) -> list[NotificationPreference]:
+    stmt = select(NotificationPreference).where(
+        NotificationPreference.facility_id == facility_id)
+    if role is not None:
+        stmt = stmt.where(NotificationPreference.role == role)
+    result = await db.execute(
+        stmt.order_by(NotificationPreference.role, NotificationPreference.event_type))
+    return list(result.scalars().all())
+
+
+async def set_preference(
+    db: AsyncSession,
+    *,
+    facility_id: uuid.UUID,
+    role: str,
+    event_type: str,
+    enabled: bool,
+    actor_id: uuid.UUID,
+) -> NotificationPreference:
+    """Upsert one (facility, role, event_type) decision.
+
+    Re-enabling UPDATEs the row rather than deleting it, so the record of the
+    earlier decision — and who made it — survives.
+    """
+    existing = await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.facility_id == facility_id,
+            NotificationPreference.role == role,
+            NotificationPreference.event_type == event_type,
+        )
+    )
+    pref = existing.scalar_one_or_none()
+
+    if pref is None:
+        pref = NotificationPreference(
+            id=uuid.uuid4(),
+            facility_id=facility_id,
+            role=role,
+            event_type=event_type,
+            enabled=enabled,
+            created_by=actor_id,
+        )
+        db.add(pref)
+    else:
+        pref.enabled = enabled
+        pref.updated_by = actor_id
+
+    await db.flush()
+    await db.refresh(pref)
+    return pref
