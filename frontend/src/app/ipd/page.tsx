@@ -176,7 +176,7 @@ export default function IpdPage() {
             >
               <option value="">Select…</option>
               {admissions.map((a) => {
-                const bed = beds.find((b) => b.id === a.bed_id);
+                const bed = beds.find((b) => b.bed_id === a.bed_id);
                 return (
                   <option key={a.id} value={a.id}>
                     {a.patient_id} — Bed {bed?.bed_number ?? a.bed_id}

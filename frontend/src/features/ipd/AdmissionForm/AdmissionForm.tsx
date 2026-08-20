@@ -105,7 +105,7 @@ export default function AdmissionForm({
             <BedGrid
               beds={vacantBedsInWard}
               selectedBedId={bedId}
-              onBedClick={(bed) => setValue("bed_id", bed.id)}
+              onBedClick={(bed) => setValue("bed_id", bed.bed_id)}
             />
           )}
 

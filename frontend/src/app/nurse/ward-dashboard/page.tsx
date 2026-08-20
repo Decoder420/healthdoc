@@ -8,7 +8,7 @@ import WardSelector, {
 
 import BedGrid from "@/components/BedGrid";
 import VitalsTimeline from "@/components/VitalsTimeline";
-import VitalsChart from "@/components/VitalsTimeline/VitalsChart";
+import { VitalsChart } from "@/components/VitalsTimeline";
 
 import EMARTable from "@/components/tables/EMARTable";
 
@@ -52,7 +52,6 @@ import { admissionsByBedId } from "@/lib/data/admissionsByBed";
 import { beds } from "@/lib/data/beds";
 import { vitals } from "@/lib/data/vitals";
 import { medications } from "@/lib/data/medications";
-import { PRESCRIPTIONS } from "@/lib/data/prescriptions";
 import { MOCK_DISCHARGES } from "@/lib/data/mockDischarges";
 import type { WardStat } from "@/features/nurse/components/WardStats/WardStats.types";
 
@@ -160,13 +159,13 @@ export default function Page() {
   const handleBedClick = (bed: Bed) => {
     setSelectedBed(bed);
 
-    const patient = patients[bed.id];
+    const patient = patients[bed.bed_id];
     setSelectedPatient(patient ?? null);
 
-    const admissionId = admissionsByBedId[bed.id] ?? null;
+    const admissionId = admissionsByBedId[bed.bed_id] ?? null;
     setSelectedAdmissionId(admissionId);
 
-    const procedureContext = procedureContextByBedId[bed.id] ?? null;
+    const procedureContext = procedureContextByBedId[bed.bed_id] ?? null;
     setSelectedEncounterId(procedureContext?.encounterId ?? null);
     setSelectedPatientId(procedureContext?.patientId ?? null);
   };
@@ -212,18 +211,15 @@ export default function Page() {
       )
     : [];
 
-  // Medications — prescription_items don't carry patient_id directly; they
-  // link through prescription_id → prescriptions.patient_id.
-  const patientPrescriptionIds = selectedPatientId
-    ? PRESCRIPTIONS.filter((rx) => rx.patient_id === selectedPatientId).map(
-        (rx) => rx.id
-      )
-    : [];
-
-  const patientMedications = selectedPatientId
-    ? medications.filter((m) =>
-        patientPrescriptionIds.includes(m.prescription_id)
-      )
+  // eMAR rows are medication_administration (0043), scoped to the ADMISSION,
+  // matching GET /nursing/admissions/{admission_id}/medication-administrations.
+  //
+  // This previously filtered prescription_items by the patient's prescriptions
+  // and fed those to EMARTable. A prescription says what was ordered; an eMAR
+  // says what reached the patient. Showing the first in place of the second
+  // means the ward cannot tell whether the 14:00 dose was actually given.
+  const patientMedications = selectedAdmissionId
+    ? medications.filter((m) => m.admission_id === selectedAdmissionId)
     : [];
 
   // admissions.status is a single column — no history/log table is
@@ -363,7 +359,7 @@ export default function Page() {
 
         <BedGrid
           beds={filteredBeds}
-          selectedBedId={selectedBed?.id}
+          selectedBedId={selectedBed?.bed_id}
           onBedClick={handleBedClick}
         />
       </section>
@@ -549,11 +545,13 @@ export default function Page() {
           />
         )}
 
+        {/* ward_id is attached client-side by flattenBedGrids, so it is
+            optional on Bed — normalise the undefined the API never sends. */}
         {activeAction === "transfer" && selectedAdmissionId && selectedBed && (
           <AddPatientMovementForm
             admissionId={selectedAdmissionId}
-            currentWardId={selectedBed.ward_id}
-            currentBedId={selectedBed.id}
+            currentWardId={selectedBed.ward_id ?? null}
+            currentBedId={selectedBed.bed_id}
             wards={WARDS}
             beds={beds}
             movedBy={CURRENT_NURSE_ID}

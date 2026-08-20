@@ -10,10 +10,10 @@ function resolveWardName(
 
 function resolveBedNumber(
   bedId: string | null,
-  beds?: { id: string; bed_number: string }[]
+  beds?: { bed_id: string; bed_number: string }[]
 ): string {
   if (!bedId) return "-";
-  return beds?.find((b) => b.id === bedId)?.bed_number ?? bedId;
+  return beds?.find((b) => b.bed_id === bedId)?.bed_number ?? bedId;
 }
 
 export default function PatientMovement({

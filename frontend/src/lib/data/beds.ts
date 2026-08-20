@@ -12,33 +12,38 @@ import {
 
 export const beds: Bed[] = [
   {
-    id: BED_B101_ID,
+    bed_id: BED_B101_ID,
     ward_id: GENERAL_WARD_ID,
     bed_number: "B-101",
     status: "occupied",
+    occupant: null,
   },
   {
-    id: BED_B102_ID,
+    bed_id: BED_B102_ID,
     ward_id: GENERAL_WARD_ID,
     bed_number: "B-102",
     status: "vacant",
+    occupant: null,
   },
   {
-    id: BED_I201_ID,
+    bed_id: BED_I201_ID,
     ward_id: ICU_WARD_ID,
     bed_number: "I-201",
     status: "occupied",
+    occupant: null,
   },
   {
-    id: BED_I202_ID,
+    bed_id: BED_I202_ID,
     ward_id: ICU_WARD_ID,
     bed_number: "I-202",
     status: "vacant",
+    occupant: null,
   },
   {
-    id: BED_C301_ID,
+    bed_id: BED_C301_ID,
     ward_id: CCU_WARD_ID,
     bed_number: "C-301",
     status: "occupied",
+    occupant: null,
   },
 ];

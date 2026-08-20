@@ -107,7 +107,7 @@ export default function AddPatientMovementForm({
               label="Destination Bed"
               options={destinationBeds.map((bed) => ({
                 label: bed.bed_number,
-                value: bed.id,
+                value: bed.bed_id,
               }))}
               registration={register("to_bed_id")}
               error={errors.to_bed_id}

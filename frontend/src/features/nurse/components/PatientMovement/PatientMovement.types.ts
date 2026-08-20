@@ -14,7 +14,7 @@ export interface PatientMovementRecord {
 }
 
 export interface BedRef {
-  id: string;
+  bed_id: string;
   bed_number: string;
 }
 export interface PatientMovementProps {
