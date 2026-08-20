@@ -3,9 +3,12 @@ the ward bed grid. Tested directly against the service layer, no
 HTTP/JWT needed.
 """
 import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from app.admissions import service
 from app.admissions.models import Admission, Bed, Ward
@@ -161,3 +164,87 @@ async def test_ward_bed_grid_rejects_wrong_facility(db):
 
     with pytest.raises(service.WardNotFound):
         await service.get_ward_bed_grid(db, ward_id, other_facility_id)
+
+
+async def _make_ward_with_beds(db, facility_id, bed_numbers):
+    ward_id = uuid.uuid4()
+    db.add(Ward(id=ward_id, name="Test Ward", facility_id=facility_id))
+    bed_ids = []
+    for bed_number in bed_numbers:
+        bed_id = uuid.uuid4()
+        db.add(Bed(id=bed_id, ward_id=ward_id, bed_number=bed_number, status="vacant"))
+        bed_ids.append(bed_id)
+    await db.flush()
+    return ward_id, bed_ids
+
+
+@contextmanager
+def _count_queries():
+    """Every statement any engine executes inside the block.
+
+    Listens on the Engine class rather than one bound engine so it works
+    unchanged on SQLite and on Postgres — SQLAlchemy's async layer is a
+    greenlet wrapper over the sync engine, so before_cursor_execute still
+    fires.
+    """
+    statements = []
+
+    def _on_execute(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", _on_execute)
+    try:
+        yield statements
+    finally:
+        event.remove(Engine, "before_cursor_execute", _on_execute)
+
+
+async def test_ward_bed_grid_lists_every_bed_in_a_mixed_ward(db):
+    """The join that finds occupants must not hide the empty beds.
+
+    Both grid tests above use a one-bed ward, so a query that dropped vacant
+    beds — an inner join, or the admitted-status filter in WHERE where it
+    belongs in ON — passed them both. A bed board that shows only occupied beds
+    is worse than no bed board: it tells the ward it is full.
+    """
+    facility_id = await _make_facility(db)
+    ward_id, bed_ids = await _make_ward_with_beds(db, facility_id, ["B1", "B2", "B3"])
+
+    patient_id = await _make_patient(db, facility_id)
+    visit_id = await _make_visit(db, patient_id, facility_id)
+    await service.admit_patient(
+        db, visit_id=visit_id, ward_id=ward_id, bed_id=bed_ids[1], created_by=uuid.uuid4(),
+    )
+
+    grid = await service.get_ward_bed_grid(db, ward_id, facility_id)
+
+    assert [row["bed_number"] for row in grid] == ["B1", "B2", "B3"], \
+        "every bed appears, in a stable order"
+    occupied = [row for row in grid if row["occupant"] is not None]
+    assert len(occupied) == 1
+    assert occupied[0]["bed_id"] == bed_ids[1]
+    assert occupied[0]["occupant"]["patient_name"] == "Test Patient"
+
+
+async def test_ward_bed_grid_cost_does_not_grow_with_the_ward(db):
+    """Pins the absence of the N+1, not a specific query count.
+
+    The first version ran an admission lookup and a patient fetch per bed, so a
+    40-bed ward cost 81 round trips on the screen a nurse refreshes most. A
+    hardcoded expected count would break on unrelated session bookkeeping;
+    what actually matters is that a six-times-larger ward costs the same.
+    """
+    facility_id = await _make_facility(db)
+    small_ward, _ = await _make_ward_with_beds(db, facility_id, ["B1", "B2"])
+    big_ward, _ = await _make_ward_with_beds(
+        db, facility_id, [f"C{i:02d}" for i in range(1, 13)])
+
+    with _count_queries() as small:
+        await service.get_ward_bed_grid(db, small_ward, facility_id)
+    with _count_queries() as big:
+        await service.get_ward_bed_grid(db, big_ward, facility_id)
+
+    assert len(big) == len(small), (
+        f"grid cost scales with bed count: 2 beds took {len(small)} queries, "
+        f"12 beds took {len(big)}"
+    )

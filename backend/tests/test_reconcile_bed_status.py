@@ -118,3 +118,55 @@ async def test_reconcile_full_sweep_when_no_facility_given(db):
 
     mismatches = await service.reconcile_bed_status(db)
     assert len(mismatches) == 2
+
+
+# ---------------------------------------------------------------- the endpoint
+
+#: router.routes carries the mounted path, prefix included.
+RECONCILIATION_PATH = "/wards/beds/reconciliation"
+BED_GRID_PATH = "/wards/{ward_id}/beds"
+
+
+def _reconciliation_route():
+    from app.wards.router import router
+
+    for route in router.routes:
+        if getattr(route, "path", None) == RECONCILIATION_PATH:
+            return route
+    raise AssertionError("reconciliation endpoint is not mounted")
+
+
+async def test_reconciliation_is_exposed_read_only():
+    """The service existed with no way to call it, so drift could be detected
+    only by someone who happened to run it in a shell."""
+    route = _reconciliation_route()
+
+    assert route.methods == {"GET"}, "reporting drift is a read; repair is a human decision"
+
+
+def _allowed_roles(route) -> set[str]:
+    """require_roles(*allowed) closes over the role tuple; read it back."""
+    for dependency in route.dependant.dependencies:
+        for cell in getattr(dependency.call, "__closure__", None) or ():
+            value = cell.cell_contents
+            if isinstance(value, tuple) and value and all(isinstance(r, str) for r in value):
+                return set(value)
+    raise AssertionError("route carries no require_roles dependency")
+
+
+async def test_reconciliation_is_admin_only():
+    """Narrower than the bed grid next to it. The grid is a nurse's working
+    view of one ward; this sweeps every ward in the facility and is read as an
+    integrity report, so it stays with the people who act on one."""
+    assert _allowed_roles(_reconciliation_route()) == {"admin"}
+
+
+async def test_reconciliation_is_declared_before_the_ward_grid():
+    """FastAPI matches routes in declaration order. /{ward_id}/beds cannot
+    swallow /beds/reconciliation while ward_id is a UUID, but it would the day
+    ward keys became strings — and that failure is a 422 on an admin tool
+    nobody is watching."""
+    from app.wards.router import router
+
+    paths = [getattr(r, "path", None) for r in router.routes]
+    assert paths.index(RECONCILIATION_PATH) < paths.index(BED_GRID_PATH)

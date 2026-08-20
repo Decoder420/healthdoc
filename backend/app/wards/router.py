@@ -6,7 +6,9 @@ import uuid
 from app.admissions import service
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
-from app.wards.schemas import BedGridItemOut, BedGridOut, BedOccupantOut
+from app.wards.schemas import (
+    BedGridItemOut, BedGridOut, BedMismatchOut, BedOccupantOut, BedReconciliationOut,
+)
 
 router = APIRouter(prefix="/wards", tags=["wards"])
 
@@ -17,6 +19,34 @@ _WARD_ROLES = ("doctor", "nurse", "admin")
 @router.get("/ping")
 async def ping() -> dict:
     return {"module": "wards", "status": "ok"}
+
+
+@router.get(
+    "/beds/reconciliation",
+    response_model=BedReconciliationOut,
+    dependencies=[Depends(require_roles("admin"))],
+)
+async def get_bed_reconciliation(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> BedReconciliationOut:
+    """Where beds.status and the admissions table disagree, for this facility.
+
+    Declared before /{ward_id}/beds on purpose: FastAPI matches in declaration
+    order, and although "beds" would fail UUID parsing today, a future change
+    to a string ward key would silently shadow this route.
+
+    Always scoped to the caller's facility. reconcile_bed_status() accepts
+    facility_id=None for a full cross-facility sweep, but that stays available
+    to the maintenance job only — an HTTP surface that returns another
+    facility's bed board is a tenancy leak, not an admin convenience.
+    """
+    mismatches = await service.reconcile_bed_status(db, current_db_user.facility_id)
+    return BedReconciliationOut(
+        facility_id=current_db_user.facility_id,
+        mismatch_count=len(mismatches),
+        mismatches=[BedMismatchOut(**m) for m in mismatches],
+    )
 
 
 @router.get(
