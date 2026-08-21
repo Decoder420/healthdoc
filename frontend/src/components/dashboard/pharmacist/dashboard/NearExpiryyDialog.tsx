@@ -9,25 +9,27 @@ import {
   Chip,
 } from "@mui/material";
 
-import { useRouter } from "next/navigation";
+
 
 import { nearExpiryData } from "@/features/pharmacy/data/dashboardData";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+    onViewExpiry: () => void;
+
 }
 
 export default function NearExpiryyDialog({
   open,
   onClose,
+   onViewExpiry,
 }: Props) {
-  const router = useRouter();
+
 
   const handleViewExpiryTracker = () => {
-    onClose();
 
-    router.push("/inventory/audit/stock-ledger");
+    onViewExpiry();
   };
 
   return (

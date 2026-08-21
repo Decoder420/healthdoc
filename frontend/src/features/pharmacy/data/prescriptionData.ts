@@ -9,7 +9,7 @@ export interface PharmacyPrescription {
   queueNumber: string;
   patient: PatientInfo;
   medicines: DispenseMedicine[];
-}
+} 
 
 /*
  * Paracetamol batches

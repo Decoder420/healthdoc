@@ -38,46 +38,32 @@ export default function WarningCenter() {
   return (
     <>
       <div className="surface-card p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[#001F54]">
             Warning Center
           </h2>
         </div>
 
-        <WarningCards {...({ onAction: handleAction } as any)} />
+        <WarningCards />
       </div>
 
       <InteractionDialog
         open={interactionOpen}
         onClose={() => setInteractionOpen(false)}
-        {...({
-          onReview: () => {
-            setInteractionOpen(false);
-            router.push("/pharmacy/prescription-queue");
-          },
-        } as any)}
       />
 
       <NearExpiryDialog
         open={expiryOpen}
         onClose={() => setExpiryOpen(false)}
-        {...({
-          onViewExpiry: () => {
-            setExpiryOpen(false);
-            router.push("/inventory/audit/stock-ledger");
-          },
-        } as any)}
+        onViewExpiry={() => {
+          setExpiryOpen(false);
+          router.push("/inventory/audit/stock-ledger");
+        }}
       />
 
       <LowStockDialog
         open={stockOpen}
         onClose={() => setStockOpen(false)}
-        {...({
-          onViewStock: () => {
-            setStockOpen(false);
-            router.push("/inventory/stock-list");
-          },
-        } as any)}
       />
     </>
   );

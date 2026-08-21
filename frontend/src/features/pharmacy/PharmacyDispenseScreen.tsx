@@ -71,17 +71,17 @@ export function PharmacyDispenseScreen() {
   const [rows, setRows] = useState<DispenseMedicine[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  /*
-   * ============================================================
-   * FIND PRESCRIPTION
-   * ============================================================
-   */
+ 
 
   const prescription = useMemo(() => {
     if (!prescriptionId) {
       return null;
     }
-
+ /*
+   * ============================================================
+   * FIND PRESCRIPTION
+   * ============================================================
+   */
     return (
       pharmacyPrescriptions.find(
         (item) => item.id === prescriptionId

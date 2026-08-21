@@ -19,9 +19,6 @@ import type { IndentRequest } from "./types/indent";
 export default function IndentRequestScreen() {
   const { user } = useAuth();
 
-  // IMPORTANT:
-  // Start with empty data so server and client render
-  // the same HTML during hydration.
   const [indents, setIndents] = useState<IndentRequest[]>([]);
 
   const [openCreate, setOpenCreate] = useState(false);
@@ -31,25 +28,16 @@ export default function IndentRequestScreen() {
   const [selectedIndent, setSelectedIndent] =
     useState<IndentRequest | null>(null);
 
-  /*
-   * Load localStorage data only on the client.
-   */
   useEffect(() => {
     const data = getIndentRequests();
     setIndents(data);
   }, []);
 
-  /*
-   * View indent
-   */
   const handleView = (indent: IndentRequest) => {
     setSelectedIndent(indent);
     setViewOpen(true);
   };
 
-  /*
-   * Create indent
-   */
   const handleCreateIndent = ({
     indent,
     indentItems,
@@ -68,10 +56,8 @@ export default function IndentRequestScreen() {
       indentItems,
     };
 
-    // Save to localStorage
     addIndentRequest(completeIndent);
 
-    // Update screen immediately
     setIndents((prev) => [
       completeIndent,
       ...prev,
@@ -80,9 +66,6 @@ export default function IndentRequestScreen() {
     setOpenCreate(false);
   };
 
-  /*
-   * Approve indent
-   */
   const handleApprove = (indent: IndentRequest) => {
     const updatedIndent: IndentRequest = {
       ...indent,
@@ -106,7 +89,6 @@ export default function IndentRequestScreen() {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
@@ -136,10 +118,8 @@ export default function IndentRequestScreen() {
         </button>
       </div>
 
-      {/* Stats */}
       <IndentStats indents={indents} />
 
-      {/* Table */}
       <section>
         <div className="surface-card overflow-hidden p-5">
           <IndentTable
@@ -150,14 +130,12 @@ export default function IndentRequestScreen() {
         </div>
       </section>
 
-      {/* Create Indent */}
       <CreateIndentDialog
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         onSave={handleCreateIndent}
       />
 
-      {/* View Indent */}
       <IndentViewDialog
         open={viewOpen}
         indent={selectedIndent}
@@ -166,6 +144,7 @@ export default function IndentRequestScreen() {
           setSelectedIndent(null);
         }}
       />
+
     </div>
   );
 }

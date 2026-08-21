@@ -6,14 +6,6 @@ import { Plus, Trash2, X } from "lucide-react";
 
 import { inventoryItems } from "@/features/inventory/data/indentData";
 
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  onSave?: (data: {
-    indent: Record<string, unknown>;
-    indentItems: IndentItem[];
-  }) => void;
-}
 
 interface IndentItem {
   id: string;
@@ -21,6 +13,27 @@ interface IndentItem {
   itemName: string;
   availableStock: number;
   quantity: number;
+}
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  onSave?: (data: {
+    indent: {
+      id: string;
+      requestNumber: string;
+      departmentId: string;
+      departmentName: string;
+      requestedBy: string;
+      priority: string;
+      status: string;
+      items: number;
+      totalQuantity: number;
+      createdAt: string;
+      remarks: string;
+    };
+    indentItems: IndentItem[];
+  }) => void;
 }
 
 const DEPARTMENTS = [
@@ -158,7 +171,7 @@ export default function CreateIndentDialog({
   }, [open]);
 
   const filteredItems = useMemo(
-    () => inventoryItems.filter((item) => item.department === department),
+    () => inventoryItems.filter((item) => item.departmentName === department),
     [department],
   );
 

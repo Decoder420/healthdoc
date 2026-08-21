@@ -1,8 +1,15 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
 import type { Role } from "@/config/roles";
 import { ROLES } from "@/config/roles";
+
 import {
   type AuthUser,
   getAuthToken,
@@ -24,9 +31,16 @@ const AuthContext = createContext<AuthContextValue>({
   updateUser: () => undefined,
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [user, setUser] =
+    useState<AuthUser | null>(null);
+
+  const [isLoading, setIsLoading] =
+    useState(true);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -40,6 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: "Priya Nair",
         email: "priya.nair@hospital.com",
         role: ROLES.RECEPTIONIST,
+
+        // Reception user is not department-bound
+        departmentId: undefined,
+        departmentName: undefined,
       });
     }
 
@@ -48,7 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function updateUser(nextUser: AuthUser) {
     setUser(nextUser);
-    setAuthSession(nextUser, getAuthToken() || "dev-token");
+
+    setAuthSession(
+      nextUser,
+      getAuthToken() || "dev-token",
+    );
   }
 
   return (
@@ -71,5 +93,6 @@ export function useAuth() {
 
 export function useUserRole(): Role | null {
   const { user } = useAuth();
+
   return user?.role ?? null;
 }

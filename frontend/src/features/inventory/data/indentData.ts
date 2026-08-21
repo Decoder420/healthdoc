@@ -160,63 +160,66 @@ export const getIndentRequestById = (
  */
 export const inventoryItems = [
   {
-    id: "ITEM001",
-    name: "X-Ray Film",
-    department: "Radiology",
-    stock: 120,
+    id: "ITEM-001",
+    name: "Paracetamol 500mg",
+    stock: 40,
+    departmentId: "PHARMACY",
+    departmentName: "Pharmacy",
   },
+
   {
-    id: "ITEM002",
-    name: "Contrast Media",
-    department: "Radiology",
-    stock: 35,
+    id: "ITEM-002",
+    name: "Amoxicillin 500mg",
+    stock: 25,
+    departmentId: "PHARMACY",
+    departmentName: "Pharmacy",
   },
+
   {
-    id: "ITEM003",
+    id: "ITEM-003",
+    name: "Cetirizine 10mg",
+    stock: 50,
+    departmentId: "PHARMACY",
+    departmentName: "Pharmacy",
+  },
+
+  {
+    id: "ITEM-004",
+    name: "CBC Reagent",
+    stock: 30,
+    departmentId: "LABORATORY",
+    departmentName: "Laboratory",
+  },
+
+  {
+    id: "ITEM-005",
     name: "Blood Collection Tube",
-    department: "Laboratory",
-    stock: 250,
+    stock: 100,
+    departmentId: "LABORATORY",
+    departmentName: "Laboratory",
   },
+
   {
-    id: "ITEM004",
-    name: "Microscope Slides",
-    department: "Laboratory",
-    stock: 180,
+    id: "ITEM-006",
+    name: "X-Ray Film",
+    stock: 20,
+    departmentId: "RADIOLOGY",
+    departmentName: "Radiology",
   },
+
   {
-    id: "ITEM005",
-    name: "Surgical Gloves",
-    department: "Operation Theatre",
-    stock: 500,
+    id: "ITEM-007",
+    name: "Ultrasound Gel",
+    stock: 15,
+    departmentId: "RADIOLOGY",
+    departmentName: "Radiology",
   },
+
   {
-    id: "ITEM006",
-    name: "Syringes",
-    department: "Emergency",
-    stock: 320,
-  },
-  {
-    id: "ITEM007",
-    name: "Paracetamol 500 mg",
-    department: "Pharmacy",
-    stock: 120,
-  },
-  {
-    id: "ITEM008",
-    name: "Amoxicillin 250 mg",
-    department: "Pharmacy",
-    stock: 5,
-  },
-  {
-    id: "ITEM009",
-     name: "Pantoprazole 40 mg",
-    department: "Pharmacy",
-    stock: 85,
-  },
-  {
-    id: "ITEM010",
-    name: "Vitamin D3",
-    department: "Pharmacy",
-    stock: 10,
+    id: "ITEM-008",
+    name: "Emergency IV Set",
+    stock: 45,
+    departmentId: "EMERGENCY",
+    departmentName: "Emergency",
   },
 ];

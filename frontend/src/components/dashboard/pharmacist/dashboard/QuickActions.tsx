@@ -10,15 +10,15 @@ import {
 const actions = [
   {
     title: "Dispense",
-    description: "Dispense medicines from prescriptions",
+    description: "View dispensed medicines and history",
     icon: Pill,
-    route: "/pharmacy/prescription-queue",
+    route: "/pharmacy/dispense-history",
   },
   {
     title: "Create Indent",
     description: "Request medicines from inventory",
     icon: ClipboardPlus,
-    route: "/inventory/departments/IndentRequests",
+    route: "/pharmacy/QuickActions/indent-requests",
   },
   {
     title: "Stock Adjustment",
