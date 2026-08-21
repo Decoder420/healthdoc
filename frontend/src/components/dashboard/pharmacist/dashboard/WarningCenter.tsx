@@ -31,6 +31,7 @@ export default function WarningCenter() {
         break;
 
       default:
+        console.warn("Unknown warning type:", title);
         break;
     }
   };
@@ -44,14 +45,17 @@ export default function WarningCenter() {
           </h2>
         </div>
 
-        <WarningCards />
+        {/* Pass the action handler */}
+        <WarningCards onAction={handleAction} />
       </div>
 
+      {/* Drug Interaction Dialog */}
       <InteractionDialog
         open={interactionOpen}
         onClose={() => setInteractionOpen(false)}
       />
 
+      {/* Near Expiry Dialog */}
       <NearExpiryDialog
         open={expiryOpen}
         onClose={() => setExpiryOpen(false)}
@@ -61,6 +65,7 @@ export default function WarningCenter() {
         }}
       />
 
+      {/* Low Stock Dialog */}
       <LowStockDialog
         open={stockOpen}
         onClose={() => setStockOpen(false)}

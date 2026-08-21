@@ -26,7 +26,7 @@ export default function LowStockDialog({
 
   const handleCreateIndent = () => {
     onClose();
-    router.push("/inventory/departments/indent");
+    router.push("/pharmacy/QuickActions/indent-requests");
   };
 
   return (

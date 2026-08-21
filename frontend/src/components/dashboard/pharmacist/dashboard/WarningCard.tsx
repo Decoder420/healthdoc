@@ -2,15 +2,14 @@
 
 import { ChevronRight } from "lucide-react";
 import { warningData } from "@/features/pharmacy/data/dashboardData";
-import { useRouter } from "next/navigation";
 
-export default function WarningCards() {
-  const router = useRouter();
+interface WarningCardsProps {
+  onAction: (title: string) => void;
+}
 
-  const handleClick = (type: string) => {
-    router.push(`/pharmacy/warnings?type=${type}`);
-  };
-
+export default function WarningCards({
+  onAction,
+}: WarningCardsProps) {
   return (
     <div className="space-y-4">
       {warningData.map((warning) => {
@@ -19,7 +18,7 @@ export default function WarningCards() {
         return (
           <div
             key={warning.id}
-            className="flex items-center justify-between rounded-xl border border-gray-200 p-4 hover:bg-gray-50 transition"
+            className="flex items-center justify-between rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50"
           >
             <div className="flex items-start gap-4">
               <div
@@ -46,7 +45,8 @@ export default function WarningCards() {
             </div>
 
             <button
-              onClick={() => handleClick(warning.type)}
+              type="button"
+              onClick={() => onAction(warning.title)}
               className="flex items-center gap-1 text-sm font-medium text-[#001F54] hover:underline"
             >
               View details
