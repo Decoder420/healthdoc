@@ -48,8 +48,15 @@ export class ApiError extends Error {
 }
 
 export interface ApiOptions extends RequestInit {
-  /** Required on creating POSTs (schema §4A.1) — a retry must not create a duplicate. */
-  idempotencyKey?: string;
+  /**
+   * Required on creating POSTs (schema §4A.1) — a retry must not create a
+   * duplicate.
+   *
+   * Pass `null` for a POST that creates nothing (a search, for instance, which
+   * is a POST only so identifiers stay out of the URL). That is a deliberate
+   * "no key needed" and is not warned about; omitting it entirely still is.
+   */
+  idempotencyKey?: string | null;
   /** row_version for optimistic concurrency on PATCH (schema §4A.2). */
   ifMatch?: string | number;
 }
@@ -58,8 +65,10 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
   const { idempotencyKey, ifMatch, ...rest } = init;
   const method = (rest.method ?? "GET").toUpperCase();
 
-  if (method === "POST" && !idempotencyKey) {
-    // Fail loudly in dev so it is caught before a duplicate payment reaches production.
+  if (method === "POST" && idempotencyKey === undefined) {
+    // Fail loudly in dev so it is caught before a duplicate payment reaches
+    // production. `null` is an explicit opt-out and stays quiet — a warning
+    // that fires on every search is a warning nobody reads.
     console.warn(`[api] POST ${path} without an Idempotency-Key (schema §4A.1)`);
   }
 

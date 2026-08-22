@@ -1,0 +1,205 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
+import { ApiError, newIdempotencyKey } from "@/lib/api";
+
+import { registerPatient } from "./api";
+import type { Patient, PatientCreate } from "./types";
+
+const SEXES = ["male", "female", "other"] as const;
+
+type AgeMode = "dob" | "age";
+
+export function RegistrationForm({ onRegistered }: { onRegistered?: (p: Patient) => void }) {
+  const [fullName, setFullName] = useState("");
+  const [sex, setSex] = useState<string>("");
+  const [ageMode, setAgeMode] = useState<AgeMode>("dob");
+  const [dob, setDob] = useState("");
+  const [ageYears, setAgeYears] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [abha, setAbha] = useState("");
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [registered, setRegistered] = useState<Patient | null>(null);
+
+  /**
+   * Generated once when the form mounts, not per submit.
+   *
+   * That is what makes the retry safe: a double-click, or a network drop after
+   * the server has committed, replays the stored response and returns the same
+   * patient with the same UHID. A key generated per submit would defeat the
+   * whole mechanism and hand the second click a second chart.
+   */
+  const idempotencyKey = useMemo(() => newIdempotencyKey(), []);
+
+  const ageProvided = ageMode === "dob" ? dob !== "" : ageYears !== "";
+  const canSubmit = fullName.trim() !== "" && sex !== "" && ageProvided && !busy;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!canSubmit) return;
+
+    const payload: PatientCreate = {
+      full_name: fullName.trim(),
+      sex,
+      // Exactly one, matching the server's `_dob_or_age_required`. Sending both
+      // would let a typed age silently disagree with a date of birth.
+      ...(ageMode === "dob"
+        ? { dob, age_years: null }
+        : { dob: null, age_years: Number(ageYears) }),
+      mobile: mobile.trim() || null,
+      abha_number: abha.trim() || null,
+    };
+
+    setBusy(true);
+    setError(null);
+    try {
+      const patient = await registerPatient(payload, idempotencyKey);
+      setRegistered(patient);
+      onRegistered?.(patient);
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : "Registration failed. Do not retry from a new form — reload this page first.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (registered) {
+    return (
+      <div className="surface-card space-y-4 p-8 text-center">
+        <p className="text-sm text-muted-foreground">Registered</p>
+        <p className="font-mono text-3xl font-bold">{registered.uhid ?? registered.thid}</p>
+        <p className="text-lg font-medium">{registered.full_name}</p>
+        <p className="text-sm text-muted-foreground">
+          {registered.sex}
+          {registered.age_years !== null ? ` · ${registered.age_years}y` : ""}
+        </p>
+        <button
+          type="button"
+          // Full reload, deliberately: the next patient needs a NEW idempotency
+          // key. Resetting the fields in place would reuse this one and the
+          // server would replay the previous registration.
+          onClick={() => window.location.reload()}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
+        >
+          Register another patient
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="surface-card space-y-5 p-6">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm sm:col-span-2">
+          <span className="text-muted-foreground">Full name *</span>
+          <input
+            required
+            className="w-full rounded-md border border-border px-3 py-2"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
+        </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="text-muted-foreground">Sex *</span>
+          <select
+            required
+            className="w-full rounded-md border border-border px-3 py-2"
+            value={sex}
+            onChange={(e) => setSex(e.target.value)}
+          >
+            <option value="">Select…</option>
+            {SEXES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="space-y-1 text-sm">
+          <span className="text-muted-foreground">Age *</span>
+          <div className="flex gap-2">
+            <select
+              className="rounded-md border border-border px-2 py-2"
+              value={ageMode}
+              onChange={(e) => setAgeMode(e.target.value as AgeMode)}
+            >
+              <option value="dob">Date of birth</option>
+              <option value="age">Age in years</option>
+            </select>
+
+            {/* Either, never both. Many patients at a district hospital do not
+                know a date of birth, which is why the server accepts an age —
+                but a recorded DOB and a recorded age that disagree are worse
+                than one honest value. */}
+            {ageMode === "dob" ? (
+              <input
+                type="date"
+                className="flex-1 rounded-md border border-border px-3 py-2"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+              />
+            ) : (
+              <input
+                type="number"
+                min={0}
+                max={130}
+                className="flex-1 rounded-md border border-border px-3 py-2"
+                value={ageYears}
+                onChange={(e) => setAgeYears(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
+
+        <label className="space-y-1 text-sm">
+          <span className="text-muted-foreground">Mobile</span>
+          <input
+            className="w-full rounded-md border border-border px-3 py-2"
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="text-muted-foreground">ABHA number</span>
+          <input
+            className="w-full rounded-md border border-border px-3 py-2"
+            value={abha}
+            onChange={(e) => setAbha(e.target.value)}
+          />
+        </label>
+      </div>
+
+      {/* Aadhaar is accepted by the API and not collected here. It is not needed
+          to register a patient, and a field on a shared counter screen invites
+          collecting it by default — which is the opposite of data minimisation
+          under the DPDP Act. Add it only behind a stated purpose. */}
+
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+      >
+        {busy ? "Registering…" : "Register patient"}
+      </button>
+    </form>
+  );
+}
+
+export default RegistrationForm;
