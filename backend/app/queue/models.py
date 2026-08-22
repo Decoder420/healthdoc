@@ -1,6 +1,7 @@
 import uuid
+import sqlalchemy as sa
 from datetime import datetime, date
-from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, UniqueConstraint, func, Integer, SmallInteger, Text
+from sqlalchemy import String, Boolean, Date, DateTime, ForeignKey, UniqueConstraint, func, Integer, SmallInteger, Text, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.common.db import Base
@@ -61,6 +62,24 @@ class QueueToken(Base, UUIDPk, Timestamps):
     __tablename__ = "queue_tokens"
     __table_args__ = (
         UniqueConstraint("queue_id", "sequence", name="uq_queue_token_sequence"),
+
+        # At most one LIVE token per visit. A patient cannot be waiting in two
+        # queues at once, and two live tokens for one visit is how a person gets
+        # called twice or vanishes from the board when one is completed.
+        #
+        # 'transferred' belongs in the excluded set alongside the other terminal
+        # statuses. reassign_token marks the old token transferred and creates a
+        # new one for the same visit — the transferred row is a permanent
+        # historical record, not a queue position, and the patient is
+        # represented by the new token. Leaving it out of this list made every
+        # reassignment violate the index.
+        Index(
+            "uq_queue_tokens_one_live_per_visit", "visit_id", unique=True,
+            sqlite_where=sa.text(
+                "status NOT IN ('completed','cancelled','no_show','transferred')"),
+            postgresql_where=sa.text(
+                "status NOT IN ('completed','cancelled','no_show','transferred')"),
+        ),
     )
     __audit_resource_type__ = "queue_tokens"
     __audit_facility_id_field__ = "facility_id"
