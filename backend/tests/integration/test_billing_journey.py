@@ -44,14 +44,16 @@ async def _seed_billing_journey(patient_id: str) -> tuple[uuid.UUID, uuid.UUID]:
         await engine.dispose()
 
 
-async def _issue_invoice(invoice_id: uuid.UUID) -> None:
+async def _row_version(invoice_id: uuid.UUID) -> int:
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
-        async with engine.begin() as connection:
-            await connection.execute(
-                sa.text("UPDATE invoices SET status='issued' WHERE id=:invoice_id"),
-                {"invoice_id": invoice_id},
-            )
+        async with engine.connect() as connection:
+            return (
+                await connection.execute(
+                    sa.text("SELECT row_version FROM invoices WHERE id=:invoice_id"),
+                    {"invoice_id": invoice_id},
+                )
+            ).scalar_one()
     finally:
         await engine.dispose()
 
@@ -81,7 +83,20 @@ def test_invoice_build_payment_replay_and_refund(client_as, seeded_patient_id):
     assert response.status_code == 200, response.text
     assert response.json()["data"]["gross_amount"] == "300.00"
 
-    asyncio.run(_issue_invoice(invoice_id))
+    # Was: asyncio.run(_issue_invoice(invoice_id)) — a raw
+    # "UPDATE invoices SET status='issued'" against its own engine, because no
+    # endpoint could do it. That single line was the reason this test passed
+    # while the product could not take a payment at all: build produces
+    # 'draft', record_payment requires 'issued', and nothing in the
+    # application bridged them. The journey now goes through the real
+    # endpoint, so the gap cannot reopen unnoticed.
+    issued = clerk.post(
+        f"/api/v1/billing/invoices/{invoice_id}/issue",
+        headers={"If-Match": str(asyncio.run(_row_version(invoice_id)))},
+    )
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["data"]["status"] == "issued"
+
     idempotency_key = f"payment-{uuid.uuid4()}"
     payment_request = {"amount": "300.00", "mode": "cash", "currency": "INR"}
     response = clerk.post(

@@ -266,6 +266,82 @@ async def get_pmjay_eligibility(
     return service.check_pmjay_eligibility(patient_id=patient_id, visit_id=visit_id)
 
 
+@router.post(
+    "/invoices/{invoice_id}/issue",
+    response_model=InvoiceListItemOut,
+    status_code=status.HTTP_200_OK,
+    summary="Issue a draft invoice, making it payable and freezing its amounts",
+)
+async def issue_invoice(
+    invoice_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+    if_match: str | None = Header(None, alias="If-Match"),
+    user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
+    _actor: AuditActor = Depends(get_current_actor_dependency),
+) -> InvoiceListItemOut:
+    """The missing half of the billing journey.
+
+    build -> **issue** -> pay. Without this step `record_payment` rejects every
+    invoice the application builds, because build creates 'draft' and payment
+    requires 'issued'. See service.issue_invoice for how that stayed hidden.
+
+    If-Match carries the row_version read from the invoice. It is required, not
+    optional: issuing freezes the amounts, and a stale client would freeze an
+    invoice that is missing a charge line appended since it loaded.
+    """
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
+
+    if if_match is None:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "code": "if_match_required",
+                "message": "If-Match: <row_version> is required to issue an invoice",
+            },
+        )
+    try:
+        expected_row_version = int(if_match)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "invalid_if_match",
+                "message": "If-Match must be an integer row_version",
+            },
+        )
+
+    actor_id = await service.resolve_actor_user_id(
+        db, keycloak_sub=user.sub, fallback_id=current_db_user.id
+    )
+    invoice = await service.issue_invoice(
+        db,
+        invoice_id=invoice_id,
+        updated_by=actor_id,
+        expected_row_version=expected_row_version,
+    )
+    await db.commit()
+    await db.refresh(invoice)
+
+    patient = await db.get(Patient, invoice.patient_id)
+    return InvoiceListItemOut(
+        id=invoice.id,
+        invoice_number=invoice.invoice_number,
+        visit_id=invoice.visit_id,
+        patient_id=invoice.patient_id,
+        patient_full_name=patient.full_name if patient else "",
+        # Same fallback chain as list_invoices above — a THID-only patient has
+        # no UHID, and the two must not disagree between the list and this row.
+        patient_identifier=(patient.uhid or patient.thid or "—") if patient else "—",
+        status=invoice.status,
+        gross_amount=invoice.gross_amount,
+        net_amount=invoice.net_amount,
+        scheme_code=invoice.scheme_code,
+        row_version=invoice.row_version,
+        created_at=invoice.created_at,
+    )
+
+
 # ---------------------------------------------------------------------
 # Payments / refunds — B7-W3-01 (#188). Keyed by invoice_id/payment_id
 # per schema doc §4.4's contract table, not visit_id like the two
