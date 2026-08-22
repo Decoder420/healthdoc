@@ -1,3 +1,4 @@
+import { MOCK_FACILITY_ID } from "@/lib/mock/facility";
 import type {
   Paginated,
   User,
@@ -70,7 +71,10 @@ export async function createUser(payload: UserCreateInput): Promise<User> {
     employee_id: payload.employee_id ?? null,
     registration_number: payload.registration_number ?? null,
     qualification: payload.qualification ?? null,
-    facility_id: payload.facility_id,
+    // Still fixture-backed (P1.1). The real POST /users assigns the caller's
+    // facility server-side; this store has no caller, so it records the
+    // placeholder rather than pretending to know.
+    facility_id: MOCK_FACILITY_ID,
     department_id: payload.department_id ?? null,
     is_active: true,
     created_at: t,

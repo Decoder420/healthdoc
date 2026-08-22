@@ -16,8 +16,9 @@ import Link from "next/link";
 
 import { toast } from "@/components/ui/toast";
 import { meridian } from "@/styles/theme";
+import { useCurrentUser } from "@/features/session/useCurrentUser";
 import { createUser } from "../api";
-import { FACILITY_ID, REALM_ROLES, REALM_ROLE_LABELS } from "../constants";
+import { REALM_ROLES, REALM_ROLE_LABELS } from "../constants";
 import type { RealmRole, User } from "../types";
 
 type Props = {
@@ -48,6 +49,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function CreateUserModal({ open, onClose, onCreated }: Props) {
+  const { user: currentUser } = useCurrentUser();
   const [busy, setBusy] = useState(false);
   const [username, setUsername] = useState("");
   const [full_name, setFullName] = useState("");
@@ -100,7 +102,10 @@ export function CreateUserModal({ open, onClose, onCreated }: Props) {
         employee_id: employee_id.trim() || null,
         registration_number: registration_number.trim() || null,
         qualification: qualification.trim() || null,
-        facility_id: FACILITY_ID,
+        // No facility_id. The account is created at the authenticated admin's
+        // facility, derived from their token. POST /users refuses a body value
+        // that disagrees (403), and the value sent here used to be a hardcoded
+        // mock constant — so this submitted a foreign facility on every call.
         roles,
         temporary_password,
       });
@@ -365,7 +370,9 @@ export function CreateUserModal({ open, onClose, onCreated }: Props) {
             fontFamily: "var(--font-ibm-plex-mono), monospace",
           }}
         >
-          facility_id {FACILITY_ID}
+          {currentUser
+            ? `${currentUser.facility.name} · ${currentUser.facility.code}`
+            : "Facility resolved from your account on submit"}
         </Typography>
       </DialogContent>
 

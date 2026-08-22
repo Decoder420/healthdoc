@@ -120,6 +120,13 @@ def _include(module_path: str, *, optional_name: str | None = None) -> None:
     app.include_router(module.router, prefix=settings.api_prefix)
 
 
+# Registered BEFORE the MODULES loop, and the order is load-bearing.
+# app.users.router declares GET /users/{user_id}; whichever of the two is
+# included first wins the match for "/users/me". Registered after, "me" is
+# parsed as a UUID and the endpoint 422s — a failure that reads like a
+# validation bug rather than a routing one. Keep this above the loop.
+_include("app.users.me")
+
 for name in MODULES:
     _include(f"app.{name}.router", optional_name=name)
 

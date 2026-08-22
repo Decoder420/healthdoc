@@ -62,7 +62,10 @@ export type UserCreateInput = {
   employee_id?: string | null;
   registration_number?: string | null;
   qualification?: string | null;
-  facility_id: string;
+  // No facility_id. The account is created at the authenticated admin's own
+  // facility, derived server-side from the token; POST /users refuses a body
+  // value that disagrees with 403. This field used to be required here, and
+  // the only caller filled it from a hardcoded mock constant.
   department_id?: string | null;
   roles: RealmRole[];
   temporary_password: string;

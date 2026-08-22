@@ -213,7 +213,37 @@ clinical-owner sign-off**, not code.
 
 ### P1 — product completion
 
-1. Retire the 27 fixture importers (Doctor, Billing, Admin, Consent/Audit, Reports).
+1. **Retire the 27 fixture importers** (Doctor 8, Billing 6, Admin 5,
+   Consent/Audit 4, Reports 2, 2 shared).
+
+   The prerequisite is now built. Five of those modules re-exported
+   `FACILITY_ID = MOCK_FACILITY_ID` because **nothing on the wire told the
+   browser which facility it was in** — there was no `/me` endpoint and no
+   session claim. That constant was not merely cosmetic: `CreateUserModal` and
+   `CreateAccountRequestModal` *sent* it as `facility_id` in the request body.
+   Since `POST /users` now refuses a disagreeing body `facility_id` with 403,
+   both screens would have failed on every submission the moment they were
+   wired to the real API — a mock that was concealing a broken contract rather
+   than standing in for a working one.
+
+   `GET /users/me` now returns the caller's id, username, full name, token
+   roles and facility (id, code, name, timezone). Deliberately narrow — no
+   email, mobile, employee_id or registration_number — since every role reads
+   it. `useCurrentUser()` consumes it with **no fallback**: a screen that
+   cannot identify its facility renders blank rather than a plausible wrong
+   name, because the facility label is what a user checks to confirm they are
+   looking at their own hospital's data.
+
+   Route ordering is load-bearing and guarded by a test: `/users/me` must be
+   registered before `app.users.router`'s `GET /users/{user_id}`, or "me" is
+   parsed as a UUID and the endpoint 422s. `app/users/me.py` is a separate
+   router because `/users` is admin-gated at the APIRouter level and `/me` must
+   be readable by every role.
+
+   Done so far: `facility_id` removed from `UserCreateInput` and both admin
+   write paths; contract matrix 51 -> **52/52**. Remaining: the 13
+   `features/*/api/*.ts` mock modules, which reimplement filtering and
+   pagination client-side and need real endpoints rather than a type change.
 2. Inventory workflows — backend mutations exist; the frontend shows only alerts.
 3. ABDM delivery monitoring — needs sandbox credentials.
 4. Radiology — backend contracts exist, the route is unbuilt.
