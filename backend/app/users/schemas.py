@@ -13,7 +13,10 @@ class UserCreate(BaseModel):
     employee_id: str | None = None
     registration_number: str | None = None
     qualification: str | None = None
-    facility_id: uuid.UUID
+    #: Ignored — the account is created at the authenticated admin's facility.
+    #: Optional rather than removed so existing callers keep validating; the
+    #: router refuses a value that disagrees with the caller's own facility.
+    facility_id: uuid.UUID | None = None
     roles: list[str] = Field(default_factory=list, description="Keycloak realm roles")
     temporary_password: str = Field(min_length=8)
 
