@@ -1,0 +1,16 @@
+{
+  "_comment": "Real routes confirmed from /api/v1/openapi.json on 2026-08-20. No 'auth' block: Keycloak's healthdoc-frontend client has directAccessGrantsEnabled=false and healthdoc-backend is bearerOnly, so this script cannot authenticate as-is without editing realm-healthdoc.json, which is out of scope here. Scenarios below are limited to unauthenticated /ping and /health endpoints as a result — this proves the server survives 50 concurrent connections, not that the 5 clinical journeys hold up under load. Note that gap explicitly in the PR.",
+  "base_url": "http://localhost:8000",
+  "scenarios": [
+    { "name": "health",              "method": "GET", "path": "/api/v1/health", "weight": 4 },
+    { "name": "health_deep",         "method": "GET", "path": "/api/v1/health/deep", "weight": 2 },
+    { "name": "patients_ping",       "method": "GET", "path": "/api/v1/patients/ping", "weight": 3 },
+    { "name": "orders_ping",         "method": "GET", "path": "/api/v1/admissions/ping", "weight": 2 },
+    { "name": "pharmacy_ping",       "method": "GET", "path": "/api/v1/pharmacy/ping", "weight": 2 },
+    { "name": "billing_ping",        "method": "GET", "path": "/api/v1/billing/ping", "weight": 2 },
+    { "name": "pathology_ping",      "method": "GET", "path": "/api/v1/pathology/ping", "weight": 2 },
+    { "name": "radiology_ping",      "method": "GET", "path": "/api/v1/radiology/ping", "weight": 2 },
+    { "name": "consent_ping",        "method": "GET", "path": "/api/v1/consent/ping", "weight": 1 },
+    { "name": "notifications_ping",  "method": "GET", "path": "/api/v1/notifications/ping", "weight": 1 }
+  ]
+}

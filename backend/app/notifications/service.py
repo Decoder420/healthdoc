@@ -181,7 +181,7 @@ async def list_notification_history(
     }
  
 
-# ============================================================ per-role preferences (#230)
+# --------------------- Per-role preferences ---------------------
 
 async def is_enabled(
     db: AsyncSession, *, facility_id: uuid.UUID, role: str, event_type: str
@@ -202,6 +202,28 @@ async def is_enabled(
     )
     row = result.scalar_one_or_none()
     return True if row is None else bool(row)
+
+
+# ---------------- NEW FOR #400: publish-path preference gate ----------------
+async def is_enabled_for_any_roles(
+    db: AsyncSession, *, facility_id: uuid.UUID, roles: list[str], event_type: str
+) -> bool:
+    """Is this event_type delivered to a caller holding these roles?
+ 
+    A caller can hold more than one role (Keycloak realm roles, not a single
+    column here). Suppress only if *every* role they hold has silenced this
+    event_type -- showing it is the safe default, matching is_enabled's
+    opt-out philosophy: a missed lab_critical_result is worse than one shown
+    to someone who, in one of their other roles, still wants to see it.
+ 
+    One query per role rather than a single IN-query, since roles is small
+    (realm role lists are a handful of entries, not hundreds) and this keeps
+    the same is_enabled() as the single source of truth for the check.
+    """
+    for role in roles:
+        if await is_enabled(db, facility_id=facility_id, role=role, event_type=event_type):
+            return True
+    return False
 
 
 async def silenced_event_types(

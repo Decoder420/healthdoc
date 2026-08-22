@@ -41,7 +41,30 @@ VISIT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-visit")
 ADMISSION_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-admission")
 
 
+#: Environments this script will run in. It writes a fabricated patient, an
+#: admission and vitals — rows indistinguishable from real clinical records once
+#: they are in the table. The dev.nurse dependency below already makes it fail
+#: in a real deployment, but that is an accident of fixtures, not a decision.
+#: This is the decision.
+_ALLOWED_ENVIRONMENTS = {"dev", "demo", "local", "test"}
+
+
+def _refuse_outside_demo() -> None:
+    from app.common.config import get_settings
+
+    environment = (get_settings().environment or "").lower()
+    if environment in _ALLOWED_ENVIRONMENTS:
+        return
+    raise SystemExit(
+        f"Refusing to seed demo data: environment is '{environment}', not one of "
+        f"{sorted(_ALLOWED_ENVIRONMENTS)}. This script writes a fabricated patient "
+        f"and clinical observations; running it against a real database would put "
+        f"invented vitals in a chart nobody can tell apart from a real one."
+    )
+
+
 async def seed() -> None:
+    _refuse_outside_demo()
     async with SessionLocal() as session, session.begin():
         nurse = (
             await session.execute(select(User).where(User.username == "dev.nurse"))

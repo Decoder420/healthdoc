@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
  
 from app.auth.deps import CurrentDbUser, require_roles
-from app.common.db import get_db
+from app.common.db import SessionLocal, get_db
 from app.common.redis import department_channel, facility_channel, subscribe
 from app.departments.models import Department
 from app.notifications.models import NotificationHistory
@@ -50,6 +50,37 @@ async def _catch_up_department_events(
     result = await db.execute(query)
     return list(result.scalars().all())
  
+
+ # ---------------- Publish-path preference gate ----------------
+async def _filter_by_preferences(
+    db: AsyncSession, *, facility_id: uuid.UUID, roles: list[str], rows: list[NotificationHistory]
+) -> list[NotificationHistory]:
+    """Drop rows silenced for every role the caller holds (#400).
+ 
+    Reconnect catch-up is a one-shot batch computed before streaming starts,
+    so it's fine to do this with the request's own db session -- unlike the
+    live loop below, nothing here is held open for the life of the SSE
+    connection.
+    """
+    if not roles:
+        return rows
+    silenced_per_role = [
+        await service.silenced_event_types(db, facility_id=facility_id, role=role)
+        for role in roles
+    ]
+    suppressed = set.intersection(*silenced_per_role)  # silenced by every role -> suppress
+    if not suppressed:
+        return rows
+    return [row for row in rows if row.event_type not in suppressed]
+ 
+ 
+async def _event_visible(*, facility_id: uuid.UUID, roles: list[str], event_type: str) -> bool:
+    """Live-path preference check, always up to date."""
+    async with SessionLocal() as short_session:
+        return await service.is_enabled_for_any_roles(
+            short_session, facility_id=facility_id, roles=roles, event_type=event_type
+        )
+ 
  
 # ---------------- STAFF ALERTS: DEPARTMENT-SCOPED SSE STREAM ----------------
 @router.get(
@@ -74,7 +105,13 @@ async def department_notification_stream(
         raise HTTPException(404, "Department not found")
 
     missed = await _catch_up_department_events(db, department_id, last_event_id)
+    # don't replay events silenced for every role the caller holds.
+    missed = await _filter_by_preferences(
+        db, facility_id=current_db_user.facility_id, roles=current_db_user.roles, rows=missed
+    )
     channel = department_channel(department_id)
+    facility_id = current_db_user.facility_id
+    roles = current_db_user.roles
  
     async def event_stream():
         for row in missed:
@@ -88,6 +125,11 @@ async def department_notification_stream(
                 if message is None:
                     continue
                 event = json.loads(message["data"])
+                # gate live events the same way as catch-up.
+                if not await _event_visible(
+                    facility_id=facility_id, roles=roles, event_type=event["event_type"]
+                ):
+                    continue
                 event_id = datetime.now(timezone.utc).isoformat()
                 yield _format_sse(event_id, event["event_type"], event["payload"])
  
@@ -114,7 +156,8 @@ async def facility_notification_stream(
         raise HTTPException(404, "Facility not found")
  
     channel = facility_channel(facility_id)
- 
+    roles = current_db_user.roles
+
     async def event_stream():
         async with subscribe(channel) as pubsub:
             while True:
@@ -122,6 +165,11 @@ async def facility_notification_stream(
                     break
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message is None:
+                    continue
+                event = json.loads(message["data"])
+                if not await _event_visible(
+                    facility_id=facility_id, roles=roles, event_type=event["event_type"]
+                ):
                     continue
                 yield f"data: {message['data']}\n\n"
  
@@ -163,7 +211,7 @@ async def list_notification_history(
     ).model_dump(mode="json")
  
 
-# ============================================================ per-role preferences (#230)
+# ------------------------Per-role preferences --------------------
 #
 # #230 shipped the history API; preferences never existed, so every notification
 # reached everyone entitled to it with no way to silence a category for a role.
