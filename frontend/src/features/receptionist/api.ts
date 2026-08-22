@@ -5,6 +5,12 @@ import type {
   PatientCreate,
   PatientSearchRequest,
   PatientSearchResponse,
+  QueueSummary,
+  QueueToken,
+  QueueTokenCreate,
+  QueueTokenList,
+  Visit,
+  VisitCreate,
 } from "./types";
 
 /**
@@ -39,5 +45,46 @@ export function searchPatients(
     // access log.
     body: JSON.stringify({ page: 1, page_size: 20, ...criteria }),
     idempotencyKey: null, // creates nothing
+  });
+}
+
+/**
+ * Open a visit.
+ *
+ * The registration invoice is raised inside the same server transaction (#389),
+ * so this one call is what puts the patient into the billing chain. A retry
+ * replays rather than opening a second visit — which would mean a second
+ * registration fee.
+ */
+export function createVisit(
+  payload: VisitCreate,
+  idempotencyKey: string,
+): Promise<Visit> {
+  return api<Visit>("/visits", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    idempotencyKey,
+  });
+}
+
+/** Today's queues at the caller's facility, shortest first. */
+export function listQueues(): Promise<QueueSummary[]> {
+  return api<QueueSummary[]>("/queue/queues");
+}
+
+/** Tokens for one queue, with the current now_serving. */
+export function listQueueTokens(queueId: string): Promise<QueueTokenList> {
+  return api<QueueTokenList>(`/queue/queues/${queueId}/tokens`);
+}
+
+/** Issue a token against a visit. Retry-safe for the same reason as the visit. */
+export function issueToken(
+  payload: QueueTokenCreate,
+  idempotencyKey: string,
+): Promise<QueueToken> {
+  return api<QueueToken>("/queue/tokens", {
+    method: "POST",
+    body: JSON.stringify({ priority: "normal", ...payload }),
+    idempotencyKey,
   });
 }

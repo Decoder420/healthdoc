@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ApiError, newIdempotencyKey } from "@/lib/api";
 
 import { registerPatient } from "./api";
+import { StartVisit } from "./StartVisit";
 import type { Patient, PatientCreate } from "./types";
 
 const SEXES = ["male", "female", "other"] as const;
@@ -72,24 +73,33 @@ export function RegistrationForm({ onRegistered }: { onRegistered?: (p: Patient)
 
   if (registered) {
     return (
-      <div className="surface-card space-y-4 p-8 text-center">
-        <p className="text-sm text-muted-foreground">Registered</p>
-        <p className="font-mono text-3xl font-bold">{registered.uhid ?? registered.thid}</p>
-        <p className="text-lg font-medium">{registered.full_name}</p>
-        <p className="text-sm text-muted-foreground">
-          {registered.sex}
-          {registered.age_years !== null ? ` · ${registered.age_years}y` : ""}
-        </p>
-        <button
-          type="button"
-          // Full reload, deliberately: the next patient needs a NEW idempotency
-          // key. Resetting the fields in place would reuse this one and the
-          // server would replay the previous registration.
-          onClick={() => window.location.reload()}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white"
-        >
-          Register another patient
-        </button>
+      <div className="space-y-6">
+        <div className="surface-card space-y-2 p-8 text-center">
+          <p className="text-sm text-muted-foreground">Registered</p>
+          <p className="font-mono text-3xl font-bold">{registered.uhid ?? registered.thid}</p>
+          <p className="text-lg font-medium">{registered.full_name}</p>
+          <p className="text-sm text-muted-foreground">
+            {registered.sex}
+            {registered.age_years !== null ? ` · ${registered.age_years}y` : ""}
+          </p>
+        </div>
+
+        {/* A UHID on its own does nothing for the patient standing at the desk.
+            The visit is what starts billing; the token is what gets them seen. */}
+        <StartVisit patient={registered} />
+
+        <div className="text-center">
+          <button
+            type="button"
+            // Full reload, deliberately: the next patient needs NEW idempotency
+            // keys. Resetting in place would reuse them and the server would
+            // replay this registration, visit and token.
+            onClick={() => window.location.reload()}
+            className="text-sm underline"
+          >
+            Register another patient
+          </button>
+        </div>
       </div>
     );
   }

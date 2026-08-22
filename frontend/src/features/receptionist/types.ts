@@ -87,3 +87,79 @@ export const MATCH_LABELS: Record<string, string> = {
 export function isIdentityMatch(matchedOn: string): boolean {
   return ["aadhaar", "abha", "uhid"].includes(matchedOn);
 }
+
+/* ------------------------------------------------------------------ visits */
+
+/**
+ * POST /visits. `Idempotency-Key` mandatory.
+ *
+ * facility_id and created_by are deliberately absent: the server takes both
+ * from the token and refuses a body facility_id that disagrees. Sending them
+ * would be sending values the server ignores at best and rejects at worst.
+ */
+export interface VisitCreate {
+  patient_id: string;
+  visit_type: "opd" | "ipd" | "emergency" | "teleconsult";
+  visit_date: string;
+  department_id?: string | null;
+}
+
+export interface Visit {
+  id: string;
+  visit_number: string;
+  patient_id: string;
+  facility_id: string;
+  department_id: string | null;
+  visit_type: string;
+  status: string;
+  visit_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/* ------------------------------------------------------------------ queues */
+
+/** GET /queue/queues — today's queues at the caller's facility. */
+export interface QueueSummary {
+  id: string;
+  department_id: string;
+  doctor_user_id: string;
+  doctor_name: string | null;
+  room_id: string | null;
+  room_number: string | null;
+  display_label: string | null;
+  service_date: string;
+  is_open: boolean;
+  waiting_count: number;
+  now_serving: string | null;
+}
+
+export interface QueueTokenCreate {
+  queue_id: string;
+  visit_id: string;
+  priority?: string;
+}
+
+export interface QueueToken {
+  id: string;
+  queue_id: string;
+  visit_id: string | null;
+  sequence: number;
+  token_display: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  called_at: string | null;
+  completed_at: string | null;
+}
+
+export interface QueueTokenListItem extends QueueToken {
+  doctor_name: string;
+  room_number: string | null;
+}
+
+export interface QueueTokenList {
+  waiting_count: number;
+  now_serving: string | null;
+  items: QueueTokenListItem[];
+}
