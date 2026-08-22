@@ -71,6 +71,16 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://healthdoc:healthdoc@localhost:5432/healthdoc_test
       REDIS_URL: redis://localhost:6379/0
 
+      # Read by backend/scripts/backup/*.sh (#244). CI has no .env — secrets are
+      # not committed — so the scripts take their configuration from the
+      # environment, the same way a deployed container does. Must match the
+      # postgres service above.
+      POSTGRES_USER: healthdoc
+      POSTGRES_PASSWORD: healthdoc
+      POSTGRES_DB: healthdoc_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+
       # Must match the MINIO_ROOT_USER/PASSWORD on the service above.
       MINIO_ENDPOINT: localhost:9000
       MINIO_ROOT_USER: healthdoc
@@ -95,6 +105,21 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
+
+      # pg_dump/pg_restore for the backup/restore tests (#244). Pinned to 16 to
+      # match the postgres service: pg_dump refuses to run against a server
+      # newer than itself, and the runner's bundled client trails the image.
+      # Without this the backup test either fails on a version mismatch or,
+      # worse, silently exercises a client nobody deploys with.
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sed -i 's|deb |deb [signed-by=/usr/share/keyrings/pgdg.gpg] |' /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          pg_dump --version
 
       # requirements-dev.txt already -r's requirements.txt and pins the test
       # toolchain. The old form hand-listed `ruff pytest pytest-asyncio`

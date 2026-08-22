@@ -16,7 +16,6 @@ mongo-data/
 minio-data/
 .vscode/
 .reviews/
-.vscode/
 
 # Local working material — PR dumps, issue exports, one-off notes. Kept next
 # to the project so it is not scattered across the filesystem, but never
@@ -39,3 +38,8 @@ test_output.txt
 .project-intelligence/
 graphify-out/
 AGENTS.md
+
+# Generated database backups (backup_postgres.sh, #244).
+# Root-anchored: a bare `backups/` would also ignore any nested directory of
+# that name anywhere in the tree.
+/backups/
