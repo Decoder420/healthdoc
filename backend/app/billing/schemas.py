@@ -121,6 +121,67 @@ class PaymentOut(BaseModel):
     collected_at: str
 
 
+class InvoiceLineOut(BaseModel):
+    """One invoice_items row. No created_by/updated_by: InvoiceItem is
+    `(UUIDPk, Base)` — it carries neither the Blame nor the Timestamps mixin,
+    and migration 0014 gives it only created_at. Authorship lives on the
+    invoice, not the line."""
+
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    charge_category: str
+    reference_type: str | None
+    reference_id: uuid.UUID | None
+    description: str
+    quantity: Decimal
+    unit_price: Money
+    amount: Money
+    created_at: datetime
+
+
+class InvoiceDetailOut(BaseModel):
+    """One invoice with its charge lines, its receipts, and what is still owed.
+
+    Three frontend mocks stood in for this — getInvoice, listPayments and
+    getInvoiceBalance — and none had a backend. They are one endpoint because
+    they are one screen: a clerk looking at an invoice needs the lines, what has
+    been received against it, and the remaining balance together, and computing
+    the balance in the browser from two separate calls invites the two halves to
+    disagree mid-payment.
+
+    `balance_due` is net_amount - (successful payments - refunds), computed
+    server-side by the same helper record_payment uses to decide whether the
+    invoice is now partially_paid or paid. There is deliberately no second
+    implementation of that arithmetic.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    invoice_number: str
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    patient_full_name: str
+    patient_identifier: str
+    facility_id: uuid.UUID
+    status: str
+    gross_amount: Money
+    discount_amount: Money
+    scheme_adjustment: Money
+    net_amount: Money
+    scheme_code: str | None
+    row_version: int
+    created_at: datetime
+
+    lines: list[InvoiceLineOut]
+    payments: list[PaymentOut]
+    total_paid: Money
+    total_refunded: Money
+    balance_due: Money
+
+
+
 # Refunds — reversal ledger. Core module per schema doc v3.13 (not toggleable — see router.py).
 
 class RefundCreate(BaseModel):

@@ -52,6 +52,7 @@ pulled in locally.
 """
 
 import uuid
+from decimal import Decimal
 from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -62,11 +63,13 @@ from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
 from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.billing import service
-from app.billing.models import Invoice
+from app.billing.models import Invoice, InvoiceItem, Payment
 from app.billing.schemas import (
     DailyRevenueResponse,
     InvoiceBuildRequest,
     InvoiceBuildResponse,
+    InvoiceDetailOut,
+    InvoiceLineOut,
     InvoiceListItemOut,
     InvoiceListOut,
     InvoicePreviewResponse,
@@ -264,6 +267,103 @@ async def get_pmjay_eligibility(
     _user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
 ) -> PMJAYEligibilityResponse:
     return service.check_pmjay_eligibility(patient_id=patient_id, visit_id=visit_id)
+
+
+@router.get(
+    "/invoices/{invoice_id}",
+    response_model=InvoiceDetailOut,
+    dependencies=[Depends(require_roles(*_BILLING_ROLES))],
+    summary="One invoice with its charge lines, receipts and remaining balance",
+)
+async def get_invoice(
+    invoice_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceDetailOut:
+    """Replaces three frontend mocks that had no backend at all — getInvoice,
+    listPayments and getInvoiceBalance.
+
+    One endpoint rather than three because it is one screen, and because a
+    balance assembled in the browser from separate calls can show a total that
+    never existed at any single moment.
+
+    Declared before /invoices/{invoice_id}/issue is irrelevant to matching —
+    the paths differ — but note it must stay below the literal /invoices route.
+    """
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
+
+    row = (
+        await db.execute(
+            select(Invoice, Patient.full_name, Patient.uhid, Patient.thid)
+            .join(Patient, Patient.id == Invoice.patient_id)
+            .where(Invoice.id == invoice_id)
+        )
+    ).one_or_none()
+    if row is None:
+        # _assert_invoice_in_facility already passed, so this is a patient row
+        # that vanished — not a scoping failure.
+        raise HTTPException(status_code=404, detail={"code": "invoice_not_found"})
+    invoice, patient_full_name, uhid, thid = row
+
+    lines = (
+        (
+            await db.execute(
+                select(InvoiceItem)
+                .where(InvoiceItem.invoice_id == invoice_id)
+                .order_by(InvoiceItem.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    payments = (
+        (
+            await db.execute(
+                select(Payment)
+                .where(Payment.invoice_id == invoice_id)
+                .order_by(Payment.collected_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    # The same helper record_payment uses to decide partially_paid vs paid.
+    # Deliberately not reimplemented here: two versions of this arithmetic
+    # would eventually disagree, and the one on screen is the one a patient is
+    # asked to settle.
+    total_paid, total_refunded = await service._payment_totals_for_invoice(db, invoice_id)
+    balance_due = Decimal(invoice.net_amount) - (total_paid - total_refunded)
+
+    return InvoiceDetailOut(
+        id=invoice.id,
+        invoice_number=invoice.invoice_number,
+        visit_id=invoice.visit_id,
+        patient_id=invoice.patient_id,
+        patient_full_name=patient_full_name,
+        patient_identifier=uhid or thid or "—",
+        facility_id=invoice.facility_id,
+        status=invoice.status,
+        gross_amount=invoice.gross_amount,
+        discount_amount=invoice.discount_amount,
+        scheme_adjustment=invoice.scheme_adjustment,
+        net_amount=invoice.net_amount,
+        scheme_code=invoice.scheme_code,
+        row_version=invoice.row_version,
+        created_at=invoice.created_at,
+        lines=[InvoiceLineOut.model_validate(line) for line in lines],
+        payments=[
+            PaymentOut(
+                id=p.id, receipt_number=p.receipt_number, invoice_id=p.invoice_id,
+                amount=p.amount, currency=p.currency, mode=p.mode, status=p.status,
+                collected_at=p.collected_at.isoformat(),
+            )
+            for p in payments
+        ],
+        total_paid=total_paid,
+        total_refunded=total_refunded,
+        balance_due=balance_due,
+    )
 
 
 @router.post(

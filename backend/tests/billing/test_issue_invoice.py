@@ -193,6 +193,63 @@ async def test_issuing_is_scoped_to_one_facility(db, facility, other_facility, u
     assert caught.value.status_code == 404
 
 
+async def test_invoice_detail_reports_lines_and_a_zero_payment_balance(db, draft_invoice, user):
+    """GET /billing/invoices/{id} replaces three mocks that had no backend:
+    getInvoice, listPayments and getInvoiceBalance."""
+    from app.billing.router import get_invoice
+
+    await _add_line(db, draft_invoice)
+
+    class _Caller:
+        def __init__(self, facility_id):
+            self.facility_id = facility_id
+            self.id = user
+            self.roles = ["receptionist"]
+
+    facility_id = (
+        await db.execute(
+            sa.text("SELECT facility_id FROM invoices WHERE id = :id"),
+            {"id": draft_invoice},
+        )
+    ).scalar_one()
+
+    detail = await get_invoice(draft_invoice, _Caller(facility_id), db=db)
+
+    assert len(detail.lines) == 1
+    assert detail.lines[0].description == "OPD consultation"
+    assert detail.payments == []
+    assert detail.total_paid == 0
+    assert detail.total_refunded == 0
+    assert detail.balance_due == detail.net_amount, (
+        "with nothing collected, the balance is the whole invoice"
+    )
+
+
+async def test_invoice_detail_is_facility_scoped(db, facility, other_facility, user):
+    from app.billing.router import get_invoice
+    from tests.billing.conftest import seed_patient, seed_user, seed_visit
+
+    their_user = await seed_user(db, facility_id=other_facility)
+    their_patient = await seed_patient(db, facility_id=other_facility)
+    their_visit = await seed_visit(
+        db, facility_id=other_facility, patient_id=their_patient,
+    )
+    their_invoice = await seed_draft_invoice(
+        db, facility_id=other_facility, patient_id=their_patient,
+        visit_id=their_visit, created_by=their_user,
+    )
+
+    class _Caller:
+        facility_id = facility
+        id = user
+        roles = ["receptionist"]
+
+    with pytest.raises(HTTPException) as caught:
+        await get_invoice(their_invoice, _Caller(), db=db)
+
+    assert caught.value.status_code == 404
+
+
 async def test_a_missing_invoice_is_404(db, user):
     with pytest.raises(HTTPException) as caught:
         await service.issue_invoice(
