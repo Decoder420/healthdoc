@@ -4,13 +4,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.common.enums import Sex
 
 
 class EmergencyPatientCreate(BaseModel):
     full_name: str | None = None      # often unknown at arrival
     sex: str
-    age_years: int | None = None      # clinician's visual estimate if DOB unknown
+    age_years: int | None = Field(default=None, ge=0, le=150)
     mobile: str | None = None
     # facility_id removed from payload (blocker 3 equivalent) — sourced from
     # current_db_user.facility_id in the router so a nurse at facility A
@@ -20,6 +22,8 @@ class EmergencyPatientCreate(BaseModel):
     def _age_estimate_required(self) -> "EmergencyPatientCreate":
         if self.age_years is None:
             raise ValueError("age_years (estimate) is required when dob is unknown")
+        if self.sex not in Sex.values():
+            raise ValueError(f"sex must be one of: {', '.join(sorted(Sex.values()))}")
         return self
 
 

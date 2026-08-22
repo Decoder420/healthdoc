@@ -1,5 +1,6 @@
 import { MEDICATION_STATUS_STYLES } from "./constants";
 import { MedicationRecord, MEDICATION_STATUS_LABELS } from "./EMARTable.types";
+import { formatDateTime } from "@/lib/api";
 
 type MedicationRowProps = {
   medication: MedicationRecord;
@@ -7,7 +8,7 @@ type MedicationRowProps = {
 
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString();
+  return formatDateTime(iso);
 }
 
 export default function MedicationRow({ medication }: MedicationRowProps) {

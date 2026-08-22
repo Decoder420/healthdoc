@@ -61,9 +61,12 @@ async def pharmacy_seed(db_session: AsyncSession) -> dict[str, uuid.UUID]:
     prescription_id = uuid.uuid4()
     prescription_item_id = uuid.uuid4()
     medicine_id = uuid.uuid4()
+    substitute_medicine_id = uuid.uuid4()
     location_id = uuid.uuid4()
     early_batch_id = uuid.uuid4()
     late_batch_id = uuid.uuid4()
+    substitute_early_batch_id = uuid.uuid4()
+    substitute_late_batch_id = uuid.uuid4()
 
     await db_session.execute(text("""
         INSERT INTO facilities (id, code, name, state_code, timezone)
@@ -104,8 +107,10 @@ async def pharmacy_seed(db_session: AsyncSession) -> dict[str, uuid.UUID]:
              "patient_id": patient_id, "created_by": doctor_id})
     await db_session.execute(text("""
         INSERT INTO inventory_items (id, name, generic_name, strength, form, item_type)
-        VALUES (:id, 'Test Paracetamol', 'Paracetamol', '500mg', 'tablet', 'medicine')
-    """), {"id": medicine_id})
+        VALUES
+            (:id, 'Test Paracetamol', 'Paracetamol', '500mg', 'tablet', 'medicine'),
+            (:substitute_id, 'Test Acetaminophen', 'Acetaminophen', '500mg', 'tablet', 'medicine')
+    """), {"id": medicine_id, "substitute_id": substitute_medicine_id})
     await db_session.execute(text("""
         INSERT INTO prescription_items (id, prescription_id, medicine_item_id, medicine_name)
         VALUES (:id, :prescription_id, :medicine_id, 'Test Paracetamol')
@@ -119,16 +124,26 @@ async def pharmacy_seed(db_session: AsyncSession) -> dict[str, uuid.UUID]:
             (id, item_id, batch_number, expiry_date, quantity, stock_location_id)
         VALUES
             (:early, :item, 'EARLY', :early_expiry, 6, :location),
-            (:late, :item, 'LATE', :late_expiry, 20, :location)
+            (:late, :item, 'LATE', :late_expiry, 20, :location),
+            (:sub_early, :substitute_item, 'SUB-EARLY', :sub_early_expiry, 6, :location),
+            (:sub_late, :substitute_item, 'SUB-LATE', :sub_late_expiry, 20, :location)
     """), {"early": early_batch_id, "late": late_batch_id, "item": medicine_id,
+             "sub_early": substitute_early_batch_id, "sub_late": substitute_late_batch_id,
+             "substitute_item": substitute_medicine_id,
              "early_expiry": date.today() + timedelta(days=10),
-             "late_expiry": date.today() + timedelta(days=100), "location": location_id})
+             "late_expiry": date.today() + timedelta(days=100),
+             "sub_early_expiry": date.today() + timedelta(days=200),
+             "sub_late_expiry": date.today() + timedelta(days=300),
+             "location": location_id})
     await db_session.flush()
     return {
         "facility_id": facility_id, "department_id": department_id, "pharmacist_id": pharmacist_id,
         "doctor_id": doctor_id, "patient_id": patient_id, "encounter_id": encounter_id,
         "prescription_id": prescription_id, "prescription_item_id": prescription_item_id,
-        "medicine_id": medicine_id, "early_batch_id": early_batch_id, "late_batch_id": late_batch_id,
+        "medicine_id": medicine_id, "substitute_medicine_id": substitute_medicine_id,
+        "early_batch_id": early_batch_id, "late_batch_id": late_batch_id,
+        "substitute_early_batch_id": substitute_early_batch_id,
+        "substitute_late_batch_id": substitute_late_batch_id,
     }
 
 

@@ -90,13 +90,18 @@ async def admit_patient(
     created_by: UUID,
     reason: str | None = None,
     admitted_at: datetime | None = None,
+    facility_id: UUID | None = None,
 ) -> Admission:
     visit = await db.get(Visit, visit_id)
-    if visit is None:
+    if visit is None or (facility_id is not None and visit.facility_id != facility_id):
         raise VisitNotFound(visit_id)
 
+    ward = await db.get(Ward, ward_id)
+    if ward is None or (facility_id is not None and ward.facility_id != facility_id):
+        raise WardNotFound(ward_id)
+
     bed = await db.get(Bed, bed_id)
-    if bed is None:
+    if bed is None or bed.ward_id != ward_id:
         raise BedNotFound(bed_id)
     if bed.status not in ("vacant", "reserved"):
         raise BedNotAvailable(bed_id)
@@ -131,12 +136,16 @@ async def transfer_patient(
     to_bed_id: UUID,
     moved_by: UUID,
     reason: str | None = None,
+    facility_id: UUID | None = None,
 ) -> Admission:
     if admission.status != "admitted":
         raise AdmissionNotActive(admission.id, admission.status)
 
+    to_ward = await db.get(Ward, to_ward_id)
+    if to_ward is None or (facility_id is not None and to_ward.facility_id != facility_id):
+        raise WardNotFound(to_ward_id)
     to_bed = await db.get(Bed, to_bed_id)
-    if to_bed is None:
+    if to_bed is None or to_bed.ward_id != to_ward_id:
         raise BedNotFound(to_bed_id)
     if to_bed.status not in ("vacant", "reserved"):
         raise BedNotAvailable(to_bed_id)
@@ -174,8 +183,19 @@ async def transfer_patient(
     return admission
 
 
-async def get_admission(db: AsyncSession, admission_id: UUID) -> Admission | None:
-    return await db.get(Admission, admission_id)
+async def get_admission(
+    db: AsyncSession,
+    admission_id: UUID,
+    facility_id: UUID | None = None,
+) -> Admission | None:
+    if facility_id is None:
+        return await db.get(Admission, admission_id)
+    result = await db.execute(
+        select(Admission)
+        .join(Ward, Ward.id == Admission.ward_id)
+        .where(Admission.id == admission_id, Ward.facility_id == facility_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def list_admissions(

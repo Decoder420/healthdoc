@@ -179,8 +179,15 @@ async def create_prescription(
     return prescription, warnings
 
 
-async def get_prescription(db: AsyncSession, prescription_id: UUID) -> Prescription | None:
-    result = await db.execute(select(Prescription).where(Prescription.id == prescription_id))
+async def get_prescription(
+    db: AsyncSession,
+    prescription_id: UUID,
+    facility_id: UUID | None = None,
+) -> Prescription | None:
+    statement = select(Prescription).where(Prescription.id == prescription_id)
+    if facility_id is not None:
+        statement = statement.where(Prescription.facility_id == facility_id)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

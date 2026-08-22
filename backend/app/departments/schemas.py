@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict
 class DepartmentCreate(BaseModel):
     name: str
     code: str
-    facility_id: uuid.UUID
 
 
 class DepartmentOut(BaseModel):

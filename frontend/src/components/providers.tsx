@@ -7,6 +7,7 @@ import GlobalStyles from "@mui/material/GlobalStyles";
 import { muiTheme } from "@/styles/theme";
 import { Toaster } from "@/components/ui/Toaster";
 import { AuthProvider } from "@/providers/auth-provider";
+import { CriticalAlertListener } from "@/features/lab/CriticalAlertListener";
 
 const LAYER_ORDER = "@layer theme, base, mui, components, utilities;";
 
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <AuthProvider>
+          <CriticalAlertListener />
           {children}
           <Toaster />
         </AuthProvider>
