@@ -15,7 +15,7 @@ from app.common.idempotency import (
 from app.patients.models import Patient
 from app.patients.schemas import (
     MergeActionRequest, MergeLogOut, MergeRequestCreate,
-    PatientCreate, PatientOut,
+    PatientCreate, PatientDetailOut, PatientOut,
     PatientSearchRequest, PatientSearchResponse, PatientSearchResult,
     PatientUpdate,
 )
@@ -312,6 +312,73 @@ from app.consent.models import DataAccessLog
 from app.patients.history_service import get_patient_history
 
 _HISTORY_ROLES = ("doctor", "nurse", "receptionist", "admin")
+
+
+@router.get(
+    "/{patient_id}",
+    response_model=PatientDetailOut,
+    dependencies=[
+        Depends(
+            log_patient_data_access(
+                resource_type="patients",
+                purpose_code="clinical_review",
+                access_channel=AccessChannel.API.value,
+                consent_required=False,
+            )
+        ),
+        Depends(require_roles(*_HISTORY_ROLES)),
+    ],
+    summary="One patient record by id — the header every clinical screen opens with",
+)
+async def get_patient_endpoint(
+    patient_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> PatientDetailOut:
+    """This did not exist.
+
+    A patient could be created, searched, updated, and have their history,
+    consents, ABHA and access-history read — but the record itself could not be
+    fetched by id. Every clinical screen opens with "load this patient", and
+    `PATCH /patients/{id}` implies an edit form that has to populate from
+    somewhere. The frontend's `getPatient` mock was standing in for it.
+
+    Declared *below* the /{patient_id}/... sub-routes in this file but that is
+    not what decides matching — FastAPI matches on the full path, and
+    "/{patient_id}" cannot capture "/{patient_id}/history". The literal
+    "/ping", "/search" and "/merge" routes are the ones that must stay above
+    this, and they do.
+
+    consent_required=False, unlike /history: this returns the demographic
+    header a clinician needs to confirm they have the right person in front of
+    them, not the clinical record. The access is still logged. If that framing
+    is wrong it is a policy decision, not a code one — flag it.
+    """
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.deleted_at is not None:
+        raise HTTPException(404, {"code": "patient_not_found"})
+    if patient.facility_id != current_db_user.facility_id:
+        # 404 not 403 — 403 confirms the id exists, which enumerates another
+        # facility's patients.
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    # §3 0006 merge repointing rule: every patient read resolves the merge
+    # pointer, the same as /history above. A caller holding a pre-merge id must
+    # land on the surviving record rather than a tombstone, or they will chart
+    # against a patient that no longer accumulates data.
+    merged_from_id: uuid.UUID | None = None
+    if patient.status == "merged" and patient.merged_into_patient_id:
+        merged_from_id = patient.id
+        canonical = await db.get(Patient, patient.merged_into_patient_id)
+        if canonical is None or canonical.deleted_at is not None:
+            raise HTTPException(404, {"code": "patient_not_found"})
+        if canonical.facility_id != current_db_user.facility_id:
+            raise HTTPException(404, {"code": "patient_not_found"})
+        patient = canonical
+
+    detail = PatientDetailOut.model_validate(patient)
+    detail.merged_from_patient_id = merged_from_id
+    return detail
 
 
 @router.get(
