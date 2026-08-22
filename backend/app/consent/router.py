@@ -211,6 +211,7 @@ async def withdraw_consent(
                 consent_required=False,
             )
         ),
+        Depends(require_roles("patient")),
     ],
     summary="[#228] Patient views their own consent records (self-service portal)",
 )

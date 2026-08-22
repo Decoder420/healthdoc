@@ -90,6 +90,7 @@ async def create_visit(
     facility_code: str,
     facility_timezone: str,
     created_by: UUID,
+    facility_id: UUID,
 ) -> Visit:
     """
     Creates a new visit in 'registered' status. Allocates its own
@@ -99,12 +100,16 @@ async def create_visit(
     separate clock reads.
     """
     business_date = _business_date(facility_timezone)
-    seq = await visit_number.next_visit_sequence(db, payload.facility_id, business_date)
+    # facility_id is the caller's, resolved from their token by the router --
+    # never payload.facility_id. A receptionist at facility A must not be able
+    # to open a visit (and its registration invoice) at facility B, which is
+    # the same rule POST /patients already documents.
+    seq = await visit_number.next_visit_sequence(db, facility_id, business_date)
 
     visit = Visit(
         visit_number=_format_visit_number(facility_code, business_date, seq),
         patient_id=payload.patient_id,
-        facility_id=payload.facility_id,
+        facility_id=facility_id,
         department_id=payload.department_id,
         visit_type=payload.visit_type,
         status="registered",

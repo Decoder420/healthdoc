@@ -25,20 +25,17 @@ else's work" and that work has landed):
 """
 import asyncio
 import json
-import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from statistics import mean, median
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import write_audit_log
-from app.auth.deps import CurrentDbUser, get_current_db_user, get_current_user, require_roles
+from app.auth.deps import CurrentDbUser, require_roles
 from app.common.accession import LAB, allocate_accession_number
 from app.common.db import get_db
 from app.orders.models import Order
@@ -66,14 +63,17 @@ async def _get_scoped_lab_item(
     db: AsyncSession,
     item_id: uuid.UUID,
     facility_id: uuid.UUID,
+    *,
+    for_update: bool = False,
 ) -> LabOrderItem:
-    item = (
-        await db.execute(
-            select(LabOrderItem)
-            .join(Order, Order.id == LabOrderItem.order_id)
-            .where(LabOrderItem.id == item_id, Order.facility_id == facility_id)
-        )
-    ).scalar_one_or_none()
+    statement = (
+        select(LabOrderItem)
+        .join(Order, Order.id == LabOrderItem.order_id)
+        .where(LabOrderItem.id == item_id, Order.facility_id == facility_id)
+    )
+    if for_update:
+        statement = statement.with_for_update(of=LabOrderItem)
+    item = (await db.execute(statement)).scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=404, detail="Lab order item not found")
     return item
@@ -144,7 +144,9 @@ async def collect_sample(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    item = await _get_scoped_lab_item(db, item_id, current_db_user.facility_id)
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
 
     if item.status != "placed":
         raise HTTPException(status_code=409, detail="Sample already collected for this item")
@@ -240,6 +242,15 @@ def _check_critical(result_data: dict) -> list[str]:
         value = result_data.get(field)
         if value is None:
             continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "invalid_result_value",
+                    "field": field,
+                    "message": "Critical-threshold fields must contain a number",
+                },
+            )
         if value < limits["low"] or value > limits["high"]:
             flagged.append(field)
     return flagged
@@ -258,7 +269,31 @@ async def enter_result(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    item = await _get_scoped_lab_item(db, item_id, current_db_user.facility_id)
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
+    if item.status != "in_progress":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "sample_not_ready_for_result",
+                "current_status": item.status,
+            },
+        )
+
+    existing = (
+        await db.execute(
+            select(LabResult).where(
+                LabResult.lab_order_item_id == item_id,
+                LabResult.is_current.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "result_already_exists", "result_id": str(existing.id)},
+        )
 
     result = LabResult(
         lab_order_item_id=item_id,
@@ -298,7 +333,9 @@ async def verify_result(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    item = await _get_scoped_lab_item(db, item_id, current_db_user.facility_id)
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
     current = (await db.execute(
         select(LabResult)
         .where(LabResult.lab_order_item_id == item_id, LabResult.is_current.is_(True))
@@ -352,7 +389,9 @@ async def amend_result(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    await _get_scoped_lab_item(db, item_id, current_db_user.facility_id)
+    await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
     current = (await db.execute(
         select(LabResult)
         .where(LabResult.lab_order_item_id == item_id, LabResult.is_current.is_(True))
@@ -563,7 +602,7 @@ async def _publish_critical_alert(db: AsyncSession, item: LabOrderItem,
 @router.get("/critical-alerts/stream")
 async def critical_alerts_stream(
     current_db_user: CurrentDbUser,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_roles("doctor")),
 
 ):
     # NOTE: key must be str(users.id) to match _publish_critical_alert's

@@ -112,6 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isKeycloakConfigured() && !isDevAuthEnabled()) {
       await logoutFromKeycloak();
     } else {
+      // A full document load, not router.push — on sign-out the point is to
+      // discard every in-memory value, and a client-side navigation keeps the
+      // React tree (and anything a screen is still holding) alive. The lint
+      // rule optimises for navigation speed, which is the wrong trade here.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
     }
   }

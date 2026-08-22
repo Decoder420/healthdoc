@@ -15,8 +15,14 @@ from pydantic import BaseModel, Field
 
 class VisitCreate(BaseModel):
     patient_id: UUID
-    created_by: UUID
-    facility_id: UUID
+
+    #: Ignored. Both are taken from the authenticated user's token — see the
+    #: router. Kept optional rather than removed so existing callers that still
+    #: send them do not start failing validation; the router rejects a
+    #: facility_id that disagrees with the caller's own.
+    created_by: UUID | None = None
+    facility_id: UUID | None = None
+
     department_id: UUID | None = None
     visit_type: str = Field(
         ..., description="opd | ipd | emergency | teleconsult"

@@ -111,9 +111,13 @@ export function LoginScreen() {
               type="button"
               onClick={() => void handleKeycloakLogin()}
               className="w-full"
-              disabled={busy}
+              disabled={busy || isLoading}
             >
-              {busy ? "Redirecting…" : "Sign in with Keycloak"}
+              {isLoading
+                ? "Preparing sign-in…"
+                : busy
+                  ? "Redirecting…"
+                  : "Sign in with Keycloak"}
             </Button>
             {error && (
               <p className="text-sm text-red-600" role="alert">

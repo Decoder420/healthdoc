@@ -68,7 +68,24 @@ async def create_visit(
     if cached is not None:
         return cached.response_body
 
-    facility_code, facility_timezone = await _get_facility_code_and_timezone(db, payload.facility_id)
+    # The caller's facility, from their token — never payload.facility_id.
+    # POST /patients already documents this rule; /visits had the same hole
+    # open, and a visit carries a registration invoice with it, so the body
+    # value could open a billable record at another facility.
+    #
+    # A disagreeing body value is refused rather than quietly ignored: silently
+    # accepting it would leave no trace of an attempted cross-facility write.
+    facility_id = current_db_user.facility_id
+    if payload.facility_id is not None and payload.facility_id != facility_id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "facility_mismatch",
+                "message": "facility_id must match the authenticated user's facility",
+            },
+        )
+
+    facility_code, facility_timezone = await _get_facility_code_and_timezone(db, facility_id)
 
     visit = await service.create_visit(
         db=db,
@@ -76,6 +93,7 @@ async def create_visit(
         facility_code=facility_code,
         facility_timezone=facility_timezone,
         created_by=current_db_user.id,
+        facility_id=facility_id,
     )
     await db.commit()
 
