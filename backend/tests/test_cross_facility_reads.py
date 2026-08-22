@@ -32,7 +32,7 @@ from app.opd.models import Encounter, Visit
 from app.orders import router as orders_router
 from app.orders.models import Order
 from app.patients.models import Patient
-from app.users.models import Facility
+from app.users.models import Facility, User
 
 pytestmark = pytest.mark.asyncio
 
@@ -179,3 +179,101 @@ async def test_encounter_at_another_facility_is_neither_readable_nor_writable(db
 
     await db.refresh(encounter)
     assert encounter.subjective is None, "the note must be untouched"
+
+
+
+async def _user(db, facility_id) -> User:
+    """patient_merge_log.requested_by is a real FK to users.id."""
+    user = User(
+        id=uuid.uuid4(), keycloak_sub=f"sub-{uuid.uuid4().hex[:12]}",
+        username=f"u{uuid.uuid4().hex[:8]}", full_name="Actor",
+        facility_id=facility_id,
+    )
+    db.add(user)
+    await db.flush()
+    return user
+
+
+# ---------------------------------------------------------------- patient merge
+
+async def _patient(db, facility_id) -> Patient:
+    patient = Patient(
+        id=uuid.uuid4(), uhid=f"UH{uuid.uuid4().hex[:8]}", full_name="Merge Subject",
+        sex="female", age_years=33, identity_path="demographics_only",
+        identity_status="verified", facility_id=facility_id, created_by=uuid.uuid4(),
+    )
+    db.add(patient)
+    await db.flush()
+    return patient
+
+
+async def test_a_merge_cannot_be_requested_across_facilities(db):
+    """A merge repoints every child row. Splicing one hospital's patient into
+    another's is not an edit anyone can cleanly undo afterwards."""
+    from app.patients.service import request_merge
+
+    ours, theirs = await _facility(db), await _facility(db)
+    mine = await _patient(db, ours.id)
+    stranger = await _patient(db, theirs.id)
+
+    with pytest.raises(ValueError, match="not found"):
+        await request_merge(
+            db,
+            source_patient_id=stranger.id,
+            target_patient_id=mine.id,
+            source_type="duplicate_uhid",
+            reason="not mine to merge",
+            requested_by=uuid.uuid4(),
+            caller_facility_id=ours.id,
+        )
+
+
+async def test_both_sides_of_a_merge_must_be_ours(db):
+    """Neither direction: ours-into-theirs is the same splice as
+    theirs-into-ours."""
+    from app.patients.service import request_merge
+
+    ours, theirs = await _facility(db), await _facility(db)
+    mine = await _patient(db, ours.id)
+    stranger = await _patient(db, theirs.id)
+
+    with pytest.raises(ValueError, match="not found"):
+        await request_merge(
+            db,
+            source_patient_id=mine.id,
+            target_patient_id=stranger.id,
+            source_type="duplicate_uhid",
+            reason="still not mine",
+            requested_by=uuid.uuid4(),
+            caller_facility_id=ours.id,
+        )
+
+
+async def test_another_facilitys_merge_cannot_be_approved(db):
+    """Maker-checker only means something if both parties belong to the
+    hospital whose records are being merged."""
+    from app.patients.models import PatientMergeLog
+    from app.patients.service import approve_merge
+
+    ours, theirs = await _facility(db), await _facility(db)
+    source = await _patient(db, theirs.id)
+    target = await _patient(db, theirs.id)
+    requester = await _user(db, theirs.id)
+
+    # Inserted directly rather than through request_merge: what is under test
+    # is approve_merge's scope, and request_merge is already covered above.
+    merge_log = PatientMergeLog(
+        id=uuid.uuid4(), source_type="duplicate_uhid",
+        source_patient_id=source.id, target_patient_id=target.id,
+        requested_by=requester.id, status="pending",
+        reason="their own merge, correctly raised",
+        before_snapshot={"source": {}, "target": {}},
+    )
+    db.add(merge_log)
+    await db.flush()
+
+    with pytest.raises(ValueError, match="not found"):
+        await approve_merge(
+            db, merge_log_id=merge_log.id, approved_by=uuid.uuid4(),
+            caller_facility_id=ours.id,
+        )

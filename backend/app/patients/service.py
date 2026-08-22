@@ -431,6 +431,7 @@ async def request_merge(
     *,
     source_patient_id: uuid.UUID,
     target_patient_id: uuid.UUID,
+    caller_facility_id: uuid.UUID | None = None,
     source_type: str,
     reason: str | None,
     requested_by: uuid.UUID,
@@ -442,6 +443,19 @@ async def request_merge(
 
     source = await db.get(Patient, source_patient_id)
     target = await db.get(Patient, target_patient_id)
+
+    # Both records must belong to the caller's facility. Without this an admin
+    # could merge two of another hospital's patients, or splice one of theirs
+    # into one of ours — and a merge repoints every child row, so it is not an
+    # edit anyone can cleanly undo afterwards.
+    #
+    # The same "not found" message as a genuinely missing id, deliberately: a
+    # distinct error would confirm that a patient exists at another facility.
+    if caller_facility_id is not None:
+        if source is not None and source.facility_id != caller_facility_id:
+            source = None
+        if target is not None and target.facility_id != caller_facility_id:
+            target = None
     if not source or not target:
         raise ValueError("source or target patient not found")
 
@@ -512,6 +526,7 @@ async def approve_merge(
     *,
     merge_log_id: uuid.UUID,
     approved_by: uuid.UUID,
+    caller_facility_id: uuid.UUID | None = None,
 ) -> "PatientMergeLog":
     from app.patients.models import PatientMergeLog
     from datetime import datetime, timezone
@@ -533,6 +548,16 @@ async def approve_merge(
 
     source = await db.get(Patient, merge_log.source_patient_id)
     target = await db.get(Patient, merge_log.target_patient_id)
+
+    # patient_merge_log carries no facility_id, so the scope comes through the
+    # patients. An admin at another facility must not be able to approve this:
+    # maker-checker only means anything if both parties belong to the hospital
+    # whose records are being merged.
+    if caller_facility_id is not None and (
+        source is None or source.facility_id != caller_facility_id
+        or target is None or target.facility_id != caller_facility_id
+    ):
+        raise ValueError("merge request not found")
 
     # Blocker 6: reject merging into a patient that is itself already a
     # merge tombstone. Without this, A->B then B->C leaves A pointing at a
@@ -869,12 +894,20 @@ async def reject_merge(
     merge_log_id: uuid.UUID,
     rejected_by: uuid.UUID,
     reason: str | None,
+    caller_facility_id: uuid.UUID | None = None,
 ) -> "PatientMergeLog":
     from app.patients.models import PatientMergeLog
 
     merge_log = await db.get(PatientMergeLog, merge_log_id)
     if not merge_log:
         raise ValueError("merge request not found")
+
+    # Same scope as approve: rejecting another facility's merge request is a
+    # decision on their record, recorded against our user.
+    if caller_facility_id is not None:
+        source = await db.get(Patient, merge_log.source_patient_id)
+        if source is None or source.facility_id != caller_facility_id:
+            raise ValueError("merge request not found")
     if merge_log.status != "pending":
         raise ValueError(f"merge request is not pending (status={merge_log.status})")
     if merge_log.requested_by == rejected_by:

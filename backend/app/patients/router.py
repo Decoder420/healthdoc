@@ -250,6 +250,7 @@ async def request_patient_merge(
             source_type=payload.source_type,
             reason=payload.reason,
             requested_by=current_db_user.id,
+            caller_facility_id=current_db_user.facility_id,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -266,7 +267,10 @@ async def approve_patient_merge(
     db: AsyncSession = Depends(get_db),
 ) -> MergeLogOut:
     try:
-        return await approve_merge(db, merge_log_id=merge_id, approved_by=current_db_user.id)
+        return await approve_merge(
+            db, merge_log_id=merge_id, approved_by=current_db_user.id,
+            caller_facility_id=current_db_user.facility_id,
+        )
     except ValueError as e:
         if str(e) == "self_approval_not_allowed":
             raise HTTPException(409, {"code": "self_approval_not_allowed"})
@@ -288,6 +292,7 @@ async def reject_patient_merge(
         return await reject_merge(
             db, merge_log_id=merge_id,
             rejected_by=current_db_user.id, reason=payload.reason,
+            caller_facility_id=current_db_user.facility_id,
         )
     except ValueError as e:
         if str(e) == "self_approval_not_allowed":
