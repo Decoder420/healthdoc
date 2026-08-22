@@ -178,8 +178,33 @@ SQLite cannot see: partial unique indexes, `INET`/`JSONB` behaviour, `sqlstate`
 on `IntegrityError`, real concurrency, or timezone-dependent date arithmetic. A
 constraint test that passes only on SQLite has proved nothing.
 
-**Watch a new test fail before trusting it.** Revert the fix, confirm the test
-goes red, restore. This has caught two tests in this repo that guarded nothing.
+### `make test-pg` does not make the `db` fixture PostgreSQL
+
+This catches people. The shared `db` fixture in `tests/conftest.py` is **always**
+in-memory SQLite. `make test-pg` only puts a real `DATABASE_URL` where tests can
+find it — a test that needs Postgres has to open its own engine, the way
+`tests/test_admissions_concurrency.py` and `tests/opd/test_visit_facility_scope.py`
+do.
+
+A test that skips itself on `db.bind.dialect.name != "postgresql"` therefore
+skips **everywhere**, in both suites, forever — while the run still reports a
+tidy `skipped` and the file looks like coverage. That is worse than not writing
+it.
+
+### Watch a new test fail, and read *why* it failed
+
+Reverting the fix and confirming the test goes red is not enough. Three separate
+times in this repo a guard went red for the wrong reason:
+
+- the `#387` boundary test passed with the fix reverted, because local Postgres
+  runs IST and the bug only appears under UTC;
+- a `-s ours` merge reported clean while silently dropping a fix;
+- `test_visit_facility_scope` first failed on a duplicate `visit_number` — the
+  residue of the previous passing run — rather than on the behaviour under test,
+  because the facility code was hardcoded instead of generated per run.
+
+In each case the signal said "working" while the mechanism underneath was wrong.
+Read the assertion message, not the colour.
 
 ---
 

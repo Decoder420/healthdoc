@@ -1,4 +1,5 @@
 import { VitalRecord } from "./VitalsTimeline.types";
+import { formatDateTime } from "@/lib/api";
 
 type VitalRowProps = {
   record: VitalRecord;
@@ -20,7 +21,7 @@ export default function VitalRow({ record }: VitalRowProps) {
   return (
     <tr className="border-b border-border last:border-none">
       <td className="px-4 py-3 text-sm">
-        {new Date(record.measured_at).toLocaleString()}
+        {formatDateTime(record.measured_at)}
       </td>
 
       {/* Celsius — temp_c, validated 20–45 by the API. */}

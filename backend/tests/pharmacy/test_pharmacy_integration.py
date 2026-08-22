@@ -12,6 +12,7 @@ from app.pharmacy.schemas import DispenseCreate, DispenseItemCreate, Substitutio
 from app.pharmacy.service import (
     approve_substitution,
     create_dispense,
+    get_pending_substitutions,
     get_prescription_queue,
     search_medicines,
 )
@@ -120,7 +121,7 @@ async def test_substitution_approval_debits_split_batches_and_recomputes_status(
             items=[DispenseItemCreate(
                 prescription_item_id=pharmacy_seed["prescription_item_id"],
                 quantity_dispensed=Decimal("10"),
-                substitute_item_id=pharmacy_seed["medicine_id"],
+                substitute_item_id=pharmacy_seed["substitute_medicine_id"],
                 substitute_reason="Test substitution approval",
             )],
         ),
@@ -141,8 +142,8 @@ async def test_substitution_approval_debits_split_batches_and_recomputes_status(
 
     assert approved.quantity_dispensed == Decimal("10")
     assert len(approved.batches) == 2
-    assert approved.batches[0].batch_id == pharmacy_seed["early_batch_id"]
-    assert approved.batches[1].batch_id == pharmacy_seed["late_batch_id"]
+    assert approved.batches[0].batch_id == pharmacy_seed["substitute_early_batch_id"]
+    assert approved.batches[1].batch_id == pharmacy_seed["substitute_late_batch_id"]
     assert approved.approval_status == "approved"
     status = (await db_session.execute(text(
         "SELECT status FROM pharmacy_dispenses WHERE id = :id"
@@ -163,7 +164,7 @@ async def test_substitution_notification_is_persisted(db_session, pharmacy_seed)
             items=[DispenseItemCreate(
                 prescription_item_id=pharmacy_seed["prescription_item_id"],
                 quantity_dispensed=Decimal("5"),
-                substitute_item_id=pharmacy_seed["medicine_id"],
+                substitute_item_id=pharmacy_seed["substitute_medicine_id"],
                 substitute_reason="Test substitution",
             )],
         ),
@@ -174,3 +175,82 @@ async def test_substitution_notification_is_persisted(db_session, pharmacy_seed)
         "SELECT count(*) FROM notification_history WHERE event_type = 'pharmacy_substitution'"
     ))).scalar_one()
     assert notification_count == 1
+
+
+@pytest.mark.asyncio
+async def test_dispense_rejects_cross_facility_prescription(db_session, pharmacy_seed):
+    with pytest.raises(HTTPException) as exc_info:
+        await create_dispense(
+            db_session,
+            DispenseCreate(
+                prescription_id=pharmacy_seed["prescription_id"],
+                items=[DispenseItemCreate(
+                    prescription_item_id=pharmacy_seed["prescription_item_id"],
+                    quantity_dispensed=Decimal("1"),
+                )],
+            ),
+            current_user_id=pharmacy_seed["pharmacist_id"],
+            facility_id=pharmacy_seed["patient_id"],
+        )
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_dispense_rejects_batch_for_another_medicine(db_session, pharmacy_seed):
+    with pytest.raises(HTTPException) as exc_info:
+        await create_dispense(
+            db_session,
+            DispenseCreate(
+                prescription_id=pharmacy_seed["prescription_id"],
+                items=[DispenseItemCreate(
+                    prescription_item_id=pharmacy_seed["prescription_item_id"],
+                    quantity_dispensed=Decimal("1"),
+                    batch_id=pharmacy_seed["substitute_early_batch_id"],
+                )],
+            ),
+            current_user_id=pharmacy_seed["pharmacist_id"],
+            facility_id=pharmacy_seed["facility_id"],
+        )
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pending_substitutions_are_limited_to_ordering_doctor(
+    db_session, pharmacy_seed, monkeypatch
+):
+    async def suppress_unavailable_notification(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        pharmacy_service, "_notify_substitution_stakeholders", suppress_unavailable_notification
+    )
+    pending = await create_dispense(
+        db_session,
+        DispenseCreate(
+            prescription_id=pharmacy_seed["prescription_id"],
+            items=[DispenseItemCreate(
+                prescription_item_id=pharmacy_seed["prescription_item_id"],
+                quantity_dispensed=Decimal("5"),
+                substitute_item_id=pharmacy_seed["substitute_medicine_id"],
+                substitute_reason="Equivalent medicine requested after stock review",
+            )],
+        ),
+        current_user_id=pharmacy_seed["pharmacist_id"],
+        facility_id=pharmacy_seed["facility_id"],
+    )
+
+    own = await get_pending_substitutions(
+        db_session,
+        facility_id=pharmacy_seed["facility_id"],
+        doctor_user_id=pharmacy_seed["doctor_id"],
+    )
+    other = await get_pending_substitutions(
+        db_session,
+        facility_id=pharmacy_seed["facility_id"],
+        doctor_user_id=pharmacy_seed["pharmacist_id"],
+    )
+
+    assert own.total == 1
+    assert own.items[0].dispense_id == pending.id
+    assert own.items[0].substitute_medicine_name == "Test Acetaminophen"
+    assert other.total == 0

@@ -47,8 +47,15 @@ async def create_department(
     return dept
 
 
-async def get_department(db: AsyncSession, department_id: uuid.UUID) -> Department:
-    dept = await db.get(Department, department_id)
+async def get_department(
+    db: AsyncSession,
+    department_id: uuid.UUID,
+    facility_id: uuid.UUID | None = None,
+) -> Department:
+    statement = select(Department).where(Department.id == department_id)
+    if facility_id is not None:
+        statement = statement.where(Department.facility_id == facility_id)
+    dept = (await db.execute(statement)).scalar_one_or_none()
     if dept is None:
         raise HTTPException(404, "Department not found")
     return dept
@@ -85,8 +92,9 @@ async def update_department(
     name: str | None,
     code: str | None,
     is_active: bool | None,
+    facility_id: uuid.UUID | None = None,
 ) -> Department:
-    dept = await get_department(db, department_id)
+    dept = await get_department(db, department_id, facility_id)
 
     if code is not None and code != dept.code:
         existing = (
@@ -114,8 +122,13 @@ async def update_department(
 # ROOMS
 # --------------------------------------------------------------------------- #
 
-async def create_room(db: AsyncSession, department_id: uuid.UUID, room_number: str) -> Room:
-    dept = await get_department(db, department_id)  # 404s if department doesn't exist
+async def create_room(
+    db: AsyncSession,
+    department_id: uuid.UUID,
+    room_number: str,
+    facility_id: uuid.UUID | None = None,
+) -> Room:
+    dept = await get_department(db, department_id, facility_id)
 
     existing = (
         await db.execute(
@@ -142,8 +155,15 @@ async def create_room(db: AsyncSession, department_id: uuid.UUID, room_number: s
     return room
 
 
-async def get_room(db: AsyncSession, room_id: uuid.UUID) -> Room:
-    room = await db.get(Room, room_id)
+async def get_room(
+    db: AsyncSession,
+    room_id: uuid.UUID,
+    facility_id: uuid.UUID | None = None,
+) -> Room:
+    statement = select(Room).join(Department).where(Room.id == room_id)
+    if facility_id is not None:
+        statement = statement.where(Department.facility_id == facility_id)
+    room = (await db.execute(statement)).scalar_one_or_none()
     if room is None:
         raise HTTPException(404, "Room not found")
     return room
@@ -155,12 +175,16 @@ async def list_rooms(
     is_active: bool | None,
     page: int,
     page_size: int,
+    facility_id: uuid.UUID | None = None,
 ) -> tuple[list[Room], int]:
     page = max(page, 1)
     page_size = _clamp_page_size(page_size)
 
     q = select(Room)
     count_q = select(func.count()).select_from(Room)
+    if facility_id is not None:
+        q = q.join(Department).where(Department.facility_id == facility_id)
+        count_q = count_q.join(Department).where(Department.facility_id == facility_id)
     if department_id is not None:
         q = q.where(Room.department_id == department_id)
         count_q = count_q.where(Room.department_id == department_id)
@@ -179,8 +203,9 @@ async def update_room(
     room_id: uuid.UUID,
     room_number: str | None,
     is_active: bool | None,
+    facility_id: uuid.UUID | None = None,
 ) -> Room:
-    room = await get_room(db, room_id)
+    room = await get_room(db, room_id, facility_id)
 
     if room_number is not None and room_number != room.room_number:
         existing = (

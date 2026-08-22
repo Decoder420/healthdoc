@@ -6,23 +6,30 @@ triggers the automatic advance via service.complete_by_visit_id(). Admin
 keeps manual overrides for edge cases.
 """
 import uuid
-from datetime import date 
+from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.deps import AuditActor, get_current_actor_dependency
 from app.auth.deps import CurrentDbUser, CurrentUser, require_roles
+from app.common.business_date import get_business_date
 from app.common.db import get_db
 from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.common.redis import publish_event, queue_channel, subscribe
 from app.queue import service
 from app.queue.schemas import (
     CompleteAdvanceOut,
+    DepartmentWorkloadOut,
+    DoctorWorklistItemOut,
+    DoctorWorklistOut,
+    EmergencyEscalationOut,
     HodDashboardOverviewOut,
+    PendingLabOrderOut,
     QueueCreate,
     QueueOut,
+    QueueSummaryOut,
     QueueTokenGenerateRequest,
     QueueTokenListItemOut,
     QueueTokenListOut,
@@ -31,13 +38,50 @@ from app.queue.schemas import (
     RosterCreate,
     RosterOut,
     TokenPriorityElevate,
-    PendingLabOrderOut,
     TokenReassign,
-    DepartmentWorkloadOut,
-    EmergencyEscalationOut,
 )
 
 router = APIRouter(prefix="/queue", tags=["queue"])
+
+
+@router.get(
+    "/worklist",
+    dependencies=[Depends(require_roles("doctor", "admin"))],
+)
+async def get_doctor_worklist(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rows = await service.get_doctor_worklist(
+        db,
+        current_db_user.id,
+        current_db_user.facility_id,
+        current_db_user.roles,
+    )
+    return DoctorWorklistOut(
+        items=[DoctorWorklistItemOut(**row) for row in rows]
+    ).model_dump(mode="json")
+
+
+@router.get(
+    "/worklist/{token_id}",
+    dependencies=[Depends(require_roles("doctor", "admin"))],
+)
+async def get_doctor_worklist_token(
+    token_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rows = await service.get_doctor_worklist(
+        db,
+        current_db_user.id,
+        current_db_user.facility_id,
+        current_db_user.roles,
+        token_id=token_id,
+    )
+    if not rows:
+        raise HTTPException(404, "Queue token not found")
+    return DoctorWorklistItemOut(**rows[0]).model_dump(mode="json")
 
 
 # ---------------- CREATE QUEUE ----------------
@@ -63,6 +107,38 @@ async def create_queue(
         caller_facility_id=caller_facility_id,
     )
     return QueueOut.model_validate(queue).model_dump(mode="json")
+
+
+@router.get(
+    "/queues",
+    dependencies=[Depends(require_roles("receptionist", "nurse", "doctor", "hod", "admin"))],
+)
+async def list_queues(
+    current_db_user: CurrentDbUser,
+    service_date: date | None = Query(
+        default=None,
+        description="Defaults to the facility's business date, not the server's.",
+    ),
+    open_only: bool = Query(default=True),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Today's queues at the caller's facility.
+
+    POST /queue/tokens takes a queue_id and nothing returned one: /worklist is
+    a doctor's own list and doctor/admin-only. A receptionist could not issue a
+    token from a screen because there was no way to discover a queue to issue it
+    into.
+
+    The default date is the FACILITY's business date via get_business_date, not
+    date.today() on the server. A queue opened at 09:00 IST belongs to the
+    facility's day; a UTC server would show it under yesterday for the first
+    five and a half hours of every morning.
+    """
+    business_date = service_date or await get_business_date(db, current_db_user.facility_id)
+    rows = await service.list_queues(
+        db, current_db_user.facility_id, business_date, open_only=open_only
+    )
+    return [QueueSummaryOut(**row).model_dump(mode="json") for row in rows]
 
 
 # ---------------- CREATE TOKEN ----------------

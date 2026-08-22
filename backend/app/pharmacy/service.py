@@ -15,6 +15,9 @@ from app.common.enums import DispenseStatus, NotificationStatus
 from app.common.redis import publish_event, stock_alert_channel
 from app.pharmacy.interactions import DrugInteractionConflict, check_against_existing
 from app.pharmacy.schemas import (
+    AdjustmentApprovalRequest,
+    AdjustmentCreate,
+    AdjustmentOut,
     BatchAllocation,
     BatchAvailability,
     DispenseCreate,
@@ -22,23 +25,22 @@ from app.pharmacy.schemas import (
     DispenseOut,
     ExpiringBatch,
     ExpiryTrackerResponse,
-    MedicineSearchResult,
-    PrescriptionQueueItem,
-    PrescriptionQueueResponse,
-    SubstitutionApprovalRequest,
     GrnCreate,
     GrnItemOut,
     GrnOut,
     GrnVerifyRequest,
-    IndentCreate,
-    IndentOut,
-    IndentItemOut,
     IndentApprovalRequest,
+    IndentCreate,
+    IndentItemOut,
+    IndentOut,
+    MedicineSearchResult,
+    PendingSubstitutionOut,
+    PendingSubstitutionResponse,
+    PrescriptionQueueItem,
+    PrescriptionQueueResponse,
     ReorderAlertItem,
     ReorderAlertsResponse,
-    AdjustmentCreate,
-    AdjustmentOut,
-    AdjustmentApprovalRequest,
+    SubstitutionApprovalRequest,
 )
 
 # ---------------------------------------------------------------------------
@@ -393,36 +395,64 @@ async def create_dispense(
     
     presc_row = (
         await db.execute(
-            text("SELECT id, patient_id, encounter_id FROM prescriptions WHERE id = :id"),
-            {"id": str(payload.prescription_id)},
+            text("""
+                SELECT id, patient_id, encounter_id
+                FROM prescriptions
+                WHERE id = :id AND facility_id = :facility_id
+            """),
+            {"id": str(payload.prescription_id), "facility_id": str(facility_id)},
         )
     ).mappings().first()
     if presc_row is None:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
     _checked_ingredient_codes: list[str] = []
+    prescribed_item_ids: dict[UUID, UUID] = {}
     for item in payload.items:
-        target_item_id = item.substitute_item_id
-        if target_item_id is None:
-            row = (
+        prescribed_row = (
+            await db.execute(
+                text("""
+                    SELECT pi.medicine_item_id, ii.ingredient_code
+                    FROM prescription_items pi
+                    LEFT JOIN inventory_items ii ON ii.id = pi.medicine_item_id
+                    WHERE pi.id = :item_id AND pi.prescription_id = :prescription_id
+                """),
+                {
+                    "item_id": str(item.prescription_item_id),
+                    "prescription_id": str(payload.prescription_id),
+                },
+            )
+        ).mappings().first()
+        if prescribed_row is None or prescribed_row["medicine_item_id"] is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "prescription_item_mismatch",
+                    "prescription_item_id": str(item.prescription_item_id),
+                },
+            )
+        prescribed_item_ids[item.prescription_item_id] = prescribed_row["medicine_item_id"]
+
+        ingredient_code = prescribed_row["ingredient_code"]
+        if item.substitute_item_id is not None:
+            if item.substitute_item_id == prescribed_row["medicine_item_id"]:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "substitute_matches_prescribed_item"},
+                )
+            substitute_row = (
                 await db.execute(
                     text("""
-                        SELECT ii.ingredient_code
-                        FROM prescription_items pi
-                        JOIN inventory_items ii ON ii.id = pi.medicine_item_id
-                        WHERE pi.id = :id
+                        SELECT ingredient_code
+                        FROM inventory_items
+                        WHERE id = :id AND item_type = 'medicine' AND is_active
                     """),
-                    {"id": str(item.prescription_item_id)},
+                    {"id": str(item.substitute_item_id)},
                 )
             ).mappings().first()
-        else:
-            row = (
-                await db.execute(
-                    text("SELECT ingredient_code FROM inventory_items WHERE id = :id"),
-                    {"id": str(target_item_id)},
-                )
-            ).mappings().first()
-        ingredient_code = row["ingredient_code"] if row else None
+            if substitute_row is None:
+                raise HTTPException(status_code=404, detail="Substitute medicine not found")
+            ingredient_code = substitute_row["ingredient_code"]
 
         try:
             await check_prescription_item(
@@ -500,10 +530,16 @@ async def create_dispense(
                         FROM inventory_batches ib
                         JOIN stock_locations sl ON sl.id = ib.stock_location_id
                         JOIN facilities fac ON fac.id = sl.facility_id
-                        WHERE ib.id = :id AND sl.facility_id = :facility_id
+                        WHERE ib.id = :id
+                          AND ib.item_id = :medicine_item_id
+                          AND sl.facility_id = :facility_id
                         FOR UPDATE OF ib
                     """),
-                    {"id": str(item.batch_id), "facility_id": str(facility_id)},
+                    {
+                        "id": str(item.batch_id),
+                        "medicine_item_id": str(prescribed_item_ids[item.prescription_item_id]),
+                        "facility_id": str(facility_id),
+                    },
                 )
             ).mappings().first()
             if batch is None:
@@ -546,7 +582,7 @@ async def create_dispense(
             reserved_by_batch[str(item.batch_id)] = already_reserved + allocated_qty
         else:
             
-            medicine_item_id = await _resolve_medicine_item_id(db, item.prescription_item_id)
+            medicine_item_id = prescribed_item_ids[item.prescription_item_id]
             allocations, short = await _fefo_allocate(
                 db, item_id=medicine_item_id, facility_id=facility_id,
                 quantity_needed=item.quantity_dispensed,
@@ -801,9 +837,17 @@ async def approve_substitution(
                        pdi.approval_status, pd.prescription_id
                 FROM pharmacy_dispense_items pdi
                 JOIN pharmacy_dispenses pd ON pd.id = pdi.dispense_id
+                JOIN prescriptions p ON p.id = pd.prescription_id
+                JOIN encounters e ON e.id = p.encounter_id
                 WHERE pdi.id = :id
+                  AND p.facility_id = :facility_id
+                  AND e.provider_user_id = :approving_user_id
             """),
-            {"id": str(item_row_id)},
+            {
+                "id": str(item_row_id),
+                "facility_id": str(facility_id),
+                "approving_user_id": str(approving_user_id),
+            },
         )
     ).mappings().first()
     if item_row is None:
@@ -960,6 +1004,54 @@ async def approve_substitution(
         approval_status="approved",
         batches=batches_out,
     )
+
+
+async def get_pending_substitutions(
+    db: AsyncSession,
+    *,
+    facility_id: UUID,
+    doctor_user_id: UUID,
+) -> PendingSubstitutionResponse:
+    rows = (
+        await db.execute(
+            text("""
+                SELECT
+                    pdi.id AS item_id,
+                    pd.id AS dispense_id,
+                    pd.prescription_id,
+                    pdi.prescription_item_id,
+                    p.patient_id,
+                    pt.full_name AS patient_full_name,
+                    pt.uhid,
+                    pi.medicine_name AS prescribed_medicine_name,
+                    pdi.substitute_item_id,
+                    si.name AS substitute_medicine_name,
+                    si.strength AS substitute_strength,
+                    si.form AS substitute_form,
+                    pdi.quantity_prescribed AS quantity_requested,
+                    pdi.substitute_reason,
+                    pdi.created_at AS requested_at
+                FROM pharmacy_dispense_items pdi
+                JOIN pharmacy_dispenses pd ON pd.id = pdi.dispense_id
+                JOIN prescriptions p ON p.id = pd.prescription_id
+                JOIN encounters e ON e.id = p.encounter_id
+                JOIN patients pt ON pt.id = p.patient_id
+                JOIN prescription_items pi ON pi.id = pdi.prescription_item_id
+                JOIN inventory_items si ON si.id = pdi.substitute_item_id
+                WHERE pdi.approval_status = 'pending'
+                  AND pd.is_current
+                  AND p.facility_id = :facility_id
+                  AND e.provider_user_id = :doctor_user_id
+                ORDER BY pdi.created_at ASC
+            """),
+            {
+                "facility_id": str(facility_id),
+                "doctor_user_id": str(doctor_user_id),
+            },
+        )
+    ).mappings().all()
+    items = [PendingSubstitutionOut(**dict(row)) for row in rows]
+    return PendingSubstitutionResponse(items=items, total=len(items))
 
 
 async def _recompute_dispense_status(db: AsyncSession, dispense_id: str) -> None:
@@ -1627,14 +1719,18 @@ async def get_reorder_alerts(
                     ii.id AS item_id,
                     ii.name AS item_name,
                     ii.reorder_level,
-                    COALESCE(SUM(ib.quantity), 0) AS current_stock
+                    COALESCE(SUM(
+                        CASE WHEN sl.id IS NOT NULL THEN ib.quantity ELSE 0 END
+                    ), 0) AS current_stock
                 FROM inventory_items ii
                 LEFT JOIN inventory_batches ib ON ib.item_id = ii.id
                 LEFT JOIN stock_locations sl
                     ON sl.id = ib.stock_location_id AND sl.facility_id = :facility_id
                 WHERE ii.is_active
                 GROUP BY ii.id, ii.name, ii.reorder_level
-                HAVING COALESCE(SUM(ib.quantity), 0) <= ii.reorder_level
+                HAVING COALESCE(SUM(
+                    CASE WHEN sl.id IS NOT NULL THEN ib.quantity ELSE 0 END
+                ), 0) <= ii.reorder_level
                 ORDER BY ii.name
             """),
             {"facility_id": str(facility_id)},

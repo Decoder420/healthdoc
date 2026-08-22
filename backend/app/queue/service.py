@@ -6,21 +6,24 @@ Call-next is automatic: a prescription/order created for a visit is the
 Admin has manual overrides for edge cases only.
 """
 import uuid
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.common.business_date import get_business_date
-from app.common.enums import QueuePriority, QueueTokenStatus, OrderStatus
+from app.common.enums import OrderStatus, QueuePriority, QueueTokenStatus
 from app.common.redis import department_channel, queue_channel
 from app.departments.models import Department, Room
 from app.notifications.models import NotificationHistory
+from app.opd.models import Visit
+from app.pathology.models import LabOrderItem
+from app.patients.models import Patient
 from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange, Roster
 from app.users.models import User
-from app.pathology.models import LabOrderItem
 
 PRIORITY_RANK = {
     QueuePriority.EMERGENCY.value: 0,
@@ -44,6 +47,93 @@ TIER_ALLOWED_ROLES: dict[str, set[str]] = {
 CALLABLE_STATUSES = (QueueTokenStatus.WAITING.value, QueueTokenStatus.RECALLED.value)
 
 _NOT_FOUND = HTTPException(404, "Queue not found")
+
+
+def _patient_age(dob: date | None, age_years: int | None) -> int:
+    if age_years is not None:
+        return age_years
+    if dob is None:
+        return 0
+    today = date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+async def get_doctor_worklist(
+    db: AsyncSession,
+    caller_user_id: uuid.UUID,
+    caller_facility_id: uuid.UUID,
+    caller_roles: list[str],
+    token_id: uuid.UUID | None = None,
+) -> list[dict]:
+    """Return queue tokens joined to the minimum patient/visit context needed by OPD.
+
+    A doctor only sees queues assigned to their own app user. Admins may inspect
+    the facility worklist, but no caller can cross the facility boundary.
+    """
+    doctor = User.__table__.alias("queue_doctor")
+    query = (
+        select(
+            QueueToken,
+            Visit.patient_id,
+            Patient.full_name,
+            Patient.uhid,
+            Patient.thid,
+            Patient.age_years,
+            Patient.dob,
+            Patient.sex,
+            Queue.doctor_user_id,
+            doctor.c.full_name.label("provider_name"),
+            Department.name.label("department_name"),
+        )
+        .join(Queue, Queue.id == QueueToken.queue_id)
+        .join(Visit, Visit.id == QueueToken.visit_id)
+        .join(Patient, Patient.id == Visit.patient_id)
+        .join(doctor, doctor.c.id == Queue.doctor_user_id)
+        .join(Department, Department.id == Queue.department_id)
+        .where(Queue.facility_id == caller_facility_id)
+        .order_by(QueueToken.priority_rank, QueueToken.created_at)
+    )
+    if "admin" not in caller_roles:
+        query = query.where(Queue.doctor_user_id == caller_user_id)
+    if token_id is not None:
+        query = query.where(QueueToken.id == token_id)
+
+    rows = (await db.execute(query)).all()
+    return [
+        {
+            "id": token.id,
+            "queue_id": token.queue_id,
+            "visit_id": token.visit_id,
+            "sequence": token.sequence,
+            "token_display": token.token_display,
+            "status": token.status,
+            "priority": token.priority,
+            "created_at": token.created_at,
+            "called_at": token.called_at,
+            "completed_at": token.completed_at,
+            "patient_id": patient_id,
+            "full_name": full_name,
+            "uhid": uhid or thid or "—",
+            "age_years": _patient_age(dob, age_years),
+            "sex": sex,
+            "provider_user_id": doctor_user_id,
+            "provider_name": provider_name,
+            "department": department_name,
+        }
+        for (
+            token,
+            patient_id,
+            full_name,
+            uhid,
+            thid,
+            age_years,
+            dob,
+            sex,
+            doctor_user_id,
+            provider_name,
+            department_name,
+        ) in rows
+    ]
 
 
 # ---------------- CALLER CONTEXT RESOLUTION ----------------
@@ -455,6 +545,96 @@ async def elevate_priority(
 
 
 # ---------------- LIST QUEUE TOKENS ----------------
+async def list_queues(
+    db: AsyncSession,
+    caller_facility_id: uuid.UUID,
+    service_date: date,
+    *,
+    open_only: bool = True,
+) -> list[dict]:
+    """Today's queues at the caller's facility, with enough to choose one.
+
+    POST /queue/tokens needs a queue_id and nothing let a receptionist discover
+    one: /worklist is a doctor's own list and doctor/admin-only, and creating a
+    queue is not the same as finding today's. So the token could only be issued
+    by someone who already knew a UUID — which meant, in practice, that it could
+    not be issued from a screen at all.
+
+    Scoped to the caller's facility, and to one service_date: queues are unique
+    per (department, doctor, service_date), so without the date filter a
+    reception screen would offer yesterday's rows alongside today's.
+
+    `waiting_count` is included because it is the number that decides which
+    queue a walk-in should join, and asking the client to fetch tokens per
+    queue to work it out would be a request per doctor on every page load.
+    """
+    stmt = select(Queue).where(
+        Queue.facility_id == caller_facility_id,
+        Queue.service_date == service_date,
+    )
+    if open_only:
+        stmt = stmt.where(Queue.is_open.is_(True))
+
+    queues = (await db.execute(stmt)).scalars().all()
+    if not queues:
+        return []
+
+    # Resolved in two queries rather than two per queue — this is the first
+    # screen of the day for the whole front desk.
+    doctor_ids = {q.doctor_user_id for q in queues}
+    room_ids = {q.room_id for q in queues if q.room_id}
+
+    doctors = {
+        u.id: u for u in (
+            await db.execute(select(User).where(User.id.in_(doctor_ids)))
+        ).scalars().all()
+    }
+    rooms = {
+        r.id: r for r in (
+            await db.execute(select(Room).where(Room.id.in_(room_ids)))
+        ).scalars().all()
+    } if room_ids else {}
+
+    counts_result = await db.execute(
+        select(QueueToken.queue_id, func.count())
+        .where(
+            QueueToken.queue_id.in_([q.id for q in queues]),
+            QueueToken.status.in_(list(CALLABLE_STATUSES)),
+        )
+        .group_by(QueueToken.queue_id)
+    )
+    waiting_by_queue = dict(counts_result.all())
+
+    now_serving_ids = [q.now_serving_token_id for q in queues if q.now_serving_token_id]
+    now_serving_by_id: dict[uuid.UUID, str] = {}
+    if now_serving_ids:
+        now_serving_by_id = {
+            t.id: t.token_display for t in (
+                await db.execute(select(QueueToken).where(QueueToken.id.in_(now_serving_ids)))
+            ).scalars().all()
+        }
+
+    rows = [
+        {
+            "id": q.id,
+            "department_id": q.department_id,
+            "doctor_user_id": q.doctor_user_id,
+            "doctor_name": doctors[q.doctor_user_id].full_name if q.doctor_user_id in doctors else None,
+            "room_id": q.room_id,
+            "room_number": rooms[q.room_id].room_number if q.room_id in rooms else None,
+            "display_label": q.display_label,
+            "service_date": q.service_date,
+            "is_open": q.is_open,
+            "waiting_count": waiting_by_queue.get(q.id, 0),
+            "now_serving": now_serving_by_id.get(q.now_serving_token_id) if q.now_serving_token_id else None,
+        }
+        for q in queues
+    ]
+    # Shortest queue first — the order a receptionist reads it in.
+    rows.sort(key=lambda r: (r["waiting_count"], r["doctor_name"] or ""))
+    return rows
+
+
 async def list_queue_tokens(
     db: AsyncSession,
     queue_id: uuid.UUID,

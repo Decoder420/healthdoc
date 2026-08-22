@@ -1,18 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Menu, Bell, User, Search } from "lucide-react";
+import { Menu, Bell, LogOut, User, Search } from "lucide-react";
 import { meridian } from "@/styles/theme";
-import { DEMO_ROLES, homeForRole, useMockSession } from "@/lib/session/mockSession";
 import { REALM_ROLE_LABELS } from "@/features/admin/constants";
+import { useAuth } from "@/providers/auth-provider";
 
 interface NavbarProps {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function Navbar({ setOpen }: NavbarProps) {
-  const router = useRouter();
-  const { role, roleLabel, setRole } = useMockSession();
+  const { user, logout } = useAuth();
+  const roleLabel = user?.role
+    ? (REALM_ROLE_LABELS[user.role] ?? user.role)
+    : "Unassigned";
 
   return (
     <header
@@ -63,31 +64,6 @@ export default function Navbar({ setOpen }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-4" style={{ color: meridian.textSecondary }}>
-        <label className="hidden sm:flex items-center gap-2 text-xs">
-          <span style={{ color: meridian.textSecondary }}>Role</span>
-          <select
-            value={role}
-            onChange={(e) => {
-              const next = e.target.value as (typeof DEMO_ROLES)[number];
-              setRole(next);
-              router.push(homeForRole(next));
-            }}
-            className="rounded-[10px] border px-2 py-1.5 text-sm font-medium outline-none"
-            style={{
-              borderColor: meridian.border,
-              backgroundColor: meridian.muted,
-              color: meridian.textPrimary,
-            }}
-            aria-label="Preview Keycloak role"
-          >
-            {DEMO_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {REALM_ROLE_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <Bell className="cursor-pointer" size={20} />
 
         <div className="flex items-center gap-2">
@@ -99,13 +75,22 @@ export default function Navbar({ setOpen }: NavbarProps) {
           </div>
           <div>
             <p className="font-medium" style={{ color: meridian.textPrimary }}>
-              {roleLabel}
+              {user?.name || roleLabel}
             </p>
             <p className="text-xs" style={{ color: meridian.textSecondary }}>
-              Mock session
+              {roleLabel}
             </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="rounded-lg p-2 transition-colors hover:bg-slate-100"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut size={18} />
+        </button>
       </div>
     </header>
   );

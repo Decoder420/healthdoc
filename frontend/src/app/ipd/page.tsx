@@ -1,12 +1,12 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import AdmissionForm from "@/features/ipd/AdmissionForm";
 import DischargeForm from "@/features/ipd/DischargeForm";
 import AddPatientMovementForm from "@/components/AddPatientMovementForm";
 
-import { useAddAdmission, useAddDischarge, useCurrentUser } from "@/features/ipd/hooks";
+import { useAddAdmission, useAddDischarge } from "@/features/ipd/hooks";
 import { useAddPatientMovement } from "@/components/AddPatientMovementForm";
 import {
   getWards,
@@ -20,17 +20,7 @@ import { MODULE_LABELS } from "@/features/ipd/DischargeForm/constants";
 import type { TargetModule } from "@/features/ipd/DischargeForm/DischargeForm.types";
 
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
-import type { Bed } from "@/components/BedGrid/BedGrid.types";
-
-// TEMPORARY — mock data for local testing while backend endpoints aren't
-// live yet. Adjust these import paths to wherever your mock files actually
-// live, then flip USE_MOCK_DATA to false once /wards, /beds, /admissions
-// are real. Remove this whole block (and MOCK_ADMISSIONS) when done.
-import { beds as MOCK_BEDS } from "@/lib/data/beds";
-import { WARDS as MOCK_WARDS } from "@/lib/data/wardSelector";
-import { MOCK_ADMISSIONS } from "@/lib/data/mockAdmissions";
-import { MOCK_DISCHARGES } from "@/lib/data/mockDischarges";
-const USE_MOCK_DATA = true;
+import { flattenBedGrids, type Bed } from "@/components/BedGrid/BedGrid.types";
 
 // Static preview: all modules always get notified on discharge, all start
 // 'queued' (discharge_notifications default, migration 0026). No
@@ -49,37 +39,34 @@ export default function IpdPage() {
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [discharges, setDischarges] = useState<Discharge[]>([]);
   const [selectedAdmissionId, setSelectedAdmissionId] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const { submitAdmission, isSubmitting: isAdmitting } = useAddAdmission();
   const { submitDischarge, isSubmitting: isDischarging } = useAddDischarge();
   const { submitPatientMovement, isSubmitting: isTransferring } = useAddPatientMovement();
-  const { userId } = useCurrentUser(); // stub until auth/session wiring exists
+  const loadData = useCallback(async () => {
+    try {
+      setLoadError(null);
+      const wardsRes = await getWards();
+      const [bedGrids, admissionsRes, dischargesRes] = await Promise.all([
+        Promise.all(wardsRes.map((ward) => getBeds(ward.id))),
+        getActiveAdmissions(),
+        getDischarges(),
+      ]);
 
-  const loadData = async () => {
-    if (USE_MOCK_DATA) {
-      setWards(MOCK_WARDS as unknown as Ward[]);
-      setBeds(MOCK_BEDS as unknown as Bed[]);
-      setAdmissions(MOCK_ADMISSIONS);
-      setDischarges(MOCK_DISCHARGES);
-      return;
+      setWards(wardsRes);
+      setBeds(flattenBedGrids(bedGrids));
+      setAdmissions(admissionsRes);
+      setDischarges(dischargesRes);
+    } catch (error) {
+      console.error("Unable to load IPD data", error);
+      setLoadError("Unable to load live IPD data. Check the API connection and retry.");
     }
-
-    const [wardsRes, bedsRes, admissionsRes, dischargesRes] = await Promise.all([
-      getWards(),
-      getBeds(),
-      getActiveAdmissions(),
-      getDischarges(),
-    ]);
-    // adjust unwrapping (e.g. `.data`) to match your api() helper's actual return shape
-    setWards(wardsRes as unknown as Ward[]);
-    setBeds(bedsRes as unknown as Bed[]);
-    setAdmissions(admissionsRes as unknown as Admission[]);
-    setDischarges(dischargesRes as unknown as Discharge[]);
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   const selectedAdmission = admissions.find((a) => a.id === selectedAdmissionId);
 
@@ -122,6 +109,12 @@ export default function IpdPage() {
           </button>
         ))}
       </div>
+
+      {loadError && (
+        <div className="surface-card border border-destructive p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
 
       {tab === "dashboard" && (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -194,11 +187,8 @@ export default function IpdPage() {
               </p>
             <AddPatientMovementForm
               admissionId={selectedAdmission.id}
-              currentWardId={selectedAdmission.ward_id}
-              currentBedId={selectedAdmission.bed_id}
               wards={wards}
               beds={beds}
-              movedBy={userId} // stub — swap to real auth id when available
               isSubmitting={isTransferring}
               onSubmit={async (data) => {
                 const ok = await submitPatientMovement(data);

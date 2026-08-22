@@ -8,7 +8,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { ConsultationWorkspace } from "@/features/doctor";
 import { getQueueToken } from "@/features/doctor/api";
 import { doctorPageSx } from "@/features/doctor/panelSx";
-import { encounterContextFor, mockEncounterContext } from "@/lib/mock";
 import type { EncounterContext } from "@/features/doctor/types";
 
 /**
@@ -30,7 +29,8 @@ export default function Page() {
     const tokenId = new URLSearchParams(window.location.search).get("token");
 
     if (!tokenId) {
-      setContext(mockEncounterContext);
+      setError("Open a patient from the live OPD queue to start a consultation.");
+      setContext(null);
       return;
     }
 
@@ -44,7 +44,18 @@ export default function Page() {
           return;
         }
         setError(null);
-        setContext(encounterContextFor(token));
+        setContext({
+          visit_id: token.visit_id,
+          patient_id: token.patient_id,
+          patient_name: token.full_name,
+          uhid: token.uhid,
+          age_years: token.age_years,
+          sex: token.sex,
+          provider_user_id: token.provider_user_id ?? "",
+          provider_name: token.provider_name ?? "Assigned doctor",
+          department: token.department ?? "OPD",
+          token_display: token.token_display,
+        });
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Failed to load encounter context");

@@ -14,8 +14,10 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions.models import Admission, Ward
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
 from app.nursing import incidents, service
@@ -25,6 +27,9 @@ from app.nursing.schemas import (
     MedicationAdministrationCreate, MedicationAdministrationOut,
     OrderCompleteRequest, OrderTaskOut, VitalsCreate, VitalsOut,
 )
+from app.opd.models import Encounter, Visit
+from app.orders.models import Order, Prescription, PrescriptionItem
+from app.patients.models import Patient
 
 router = APIRouter(prefix="/nursing", tags=["nursing"])
 
@@ -32,6 +37,94 @@ router = APIRouter(prefix="/nursing", tags=["nursing"])
 #: facility the doctor often takes the observation themselves.
 _RECORD_ROLES = ("nurse", "doctor", "admin")
 _READ_ROLES = ("nurse", "doctor", "pharmacist", "admin")
+
+
+async def _require_patient_scope(
+    db: AsyncSession, patient_id: UUID, facility_id: UUID
+) -> None:
+    exists = (
+        await db.execute(
+            select(Patient.id).where(
+                Patient.id == patient_id,
+                Patient.facility_id == facility_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Patient not found")
+
+
+async def _require_admission_scope(
+    db: AsyncSession,
+    admission_id: UUID,
+    facility_id: UUID,
+    *,
+    patient_id: UUID | None = None,
+) -> None:
+    statement = (
+        select(Admission.id)
+        .join(Ward, Ward.id == Admission.ward_id)
+        .where(Admission.id == admission_id, Ward.facility_id == facility_id)
+    )
+    if patient_id is not None:
+        statement = statement.where(Admission.patient_id == patient_id)
+    exists = (await db.execute(statement)).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Admission not found")
+
+
+async def _require_encounter_scope(
+    db: AsyncSession,
+    encounter_id: UUID,
+    patient_id: UUID,
+    facility_id: UUID,
+) -> None:
+    exists = (
+        await db.execute(
+            select(Encounter.id)
+            .join(Visit, Visit.id == Encounter.visit_id)
+            .where(
+                Encounter.id == encounter_id,
+                Encounter.facility_id == facility_id,
+                Visit.patient_id == patient_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Encounter not found")
+
+
+async def _require_prescription_item_for_patient(
+    db: AsyncSession,
+    prescription_item_id: UUID,
+    patient_id: UUID,
+    facility_id: UUID,
+) -> None:
+    exists = (
+        await db.execute(
+            select(PrescriptionItem.id)
+            .join(Prescription, Prescription.id == PrescriptionItem.prescription_id)
+            .where(
+                PrescriptionItem.id == prescription_item_id,
+                Prescription.patient_id == patient_id,
+                Prescription.facility_id == facility_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Prescription item not found")
+
+
+async def _require_order_scope(
+    db: AsyncSession, order_id: UUID, facility_id: UUID
+) -> None:
+    exists = (
+        await db.execute(
+            select(Order.id).where(Order.id == order_id, Order.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "order_not_found")
 
 
 @router.get("/ping")
@@ -50,6 +143,21 @@ async def create_vitals(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> VitalsOut:
+    await _require_patient_scope(db, payload.patient_id, current_db_user.facility_id)
+    if payload.admission_id is not None:
+        await _require_admission_scope(
+            db,
+            payload.admission_id,
+            current_db_user.facility_id,
+            patient_id=payload.patient_id,
+        )
+    if payload.encounter_id is not None:
+        await _require_encounter_scope(
+            db,
+            payload.encounter_id,
+            payload.patient_id,
+            current_db_user.facility_id,
+        )
     vitals = await service.record_vitals(db, payload, recorded_by=current_db_user.id)
     return VitalsOut.model_validate(vitals)
 
@@ -72,6 +180,7 @@ async def get_patient_vitals(
     patient who was seen then admitted has both. Filtering by one would drop
     half the trend.
     """
+    await _require_patient_scope(db, patient_id, current_db_user.facility_id)
     rows = await service.list_vitals(db, patient_id, since=since, until=until)
     return [VitalsOut.model_validate(r) for r in rows]
 
@@ -92,6 +201,19 @@ async def create_medication_administration(
     Restricted to nurses: administration is theirs to record, and the eMAR is
     read in an adverse-event review as a statement of who did what.
     """
+    await _require_patient_scope(db, payload.patient_id, current_db_user.facility_id)
+    await _require_admission_scope(
+        db,
+        payload.admission_id,
+        current_db_user.facility_id,
+        patient_id=payload.patient_id,
+    )
+    await _require_prescription_item_for_patient(
+        db,
+        payload.prescription_item_id,
+        payload.patient_id,
+        current_db_user.facility_id,
+    )
     record = await service.record_administration(db, payload, recorded_by=current_db_user.id)
     return MedicationAdministrationOut.model_validate(record)
 
@@ -106,6 +228,7 @@ async def get_admission_emar(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> list[MedicationAdministrationOut]:
+    await _require_admission_scope(db, admission_id, current_db_user.facility_id)
     rows = await service.list_administrations(db, admission_id)
     return [MedicationAdministrationOut.model_validate(r) for r in rows]
 
@@ -121,6 +244,7 @@ async def create_intake_output(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> IntakeOutputOut:
+    await _require_admission_scope(db, payload.admission_id, current_db_user.facility_id)
     record = await service.record_intake_output(db, payload, recorded_by=current_db_user.id)
     return IntakeOutputOut.model_validate(record)
 
@@ -135,6 +259,7 @@ async def get_fluid_balance(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> FluidBalanceOut:
+    await _require_admission_scope(db, admission_id, current_db_user.facility_id)
     return FluidBalanceOut(**await service.fluid_balance(db, admission_id))
 
 
@@ -156,7 +281,14 @@ async def list_pending_tasks(
     Outstanding is placed / accepted / in_progress. Cancelled orders are not
     tasks; completed ones carry their check-off evidence.
     """
-    rows = await service.pending_orders(db, patient_id=patient_id, order_type=order_type)
+    if patient_id is not None:
+        await _require_patient_scope(db, patient_id, current_db_user.facility_id)
+    rows = await service.pending_orders(
+        db,
+        facility_id=current_db_user.facility_id,
+        patient_id=patient_id,
+        order_type=order_type,
+    )
     return [OrderTaskOut.model_validate(r) for r in rows]
 
 
@@ -172,6 +304,7 @@ async def accept_task(
 ) -> OrderTaskOut:
     """Take ownership. Idempotent — re-accepting keeps the first acceptance,
     because that is the one that says when the ward picked the order up."""
+    await _require_order_scope(db, order_id, current_db_user.facility_id)
     try:
         order = await service.accept_order(db, order_id, accepted_by=current_db_user.id)
     except service.OrderNotFound:
@@ -196,6 +329,7 @@ async def complete_task(
     actor would destroy the only record that matters in a dispute about when
     something was actually done.
     """
+    await _require_order_scope(db, order_id, current_db_user.facility_id)
     try:
         order = await service.complete_order(
             db, order_id, completed_by=current_db_user.id, note=payload.note)

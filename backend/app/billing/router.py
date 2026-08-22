@@ -55,18 +55,20 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
-from app.auth.deps import AuthUser, require_roles
+from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.billing import service
+from app.billing.models import Invoice
 from app.billing.schemas import (
     DailyRevenueResponse,
-    TariffCreate,
-    TariffOut,
     InvoiceBuildRequest,
     InvoiceBuildResponse,
+    InvoiceListItemOut,
+    InvoiceListOut,
     InvoicePreviewResponse,
     PaymentCreate,
     PaymentOut,
@@ -75,8 +77,11 @@ from app.billing.schemas import (
     RefundCreate,
     RefundOut,
     SchemeBreakdownResponse,
+    TariffCreate,
+    TariffOut,
 )
 from app.common.db import get_db
+from app.patients.models import Patient
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -103,6 +108,53 @@ def _require_idempotency_key(idempotency_key: str | None) -> str:
 @router.get("/ping")
 async def ping() -> dict:
     return {"module": "billing", "status": "stub"}
+
+
+@router.get(
+    "/invoices",
+    response_model=InvoiceListOut,
+    dependencies=[Depends(require_roles(*_BILLING_ROLES))],
+)
+async def list_invoices(
+    current_db_user: CurrentDbUser,
+    status_filter: str | None = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceListOut:
+    filters = [Invoice.facility_id == current_db_user.facility_id]
+    if status_filter:
+        filters.append(Invoice.status == status_filter)
+
+    total = (
+        await db.execute(select(func.count()).select_from(Invoice).where(*filters))
+    ).scalar_one()
+    result = await db.execute(
+        select(Invoice, Patient.full_name, Patient.uhid, Patient.thid)
+        .join(Patient, Patient.id == Invoice.patient_id)
+        .where(*filters)
+        .order_by(Invoice.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    items = [
+        InvoiceListItemOut(
+            id=invoice.id,
+            invoice_number=invoice.invoice_number,
+            visit_id=invoice.visit_id,
+            patient_id=invoice.patient_id,
+            patient_full_name=patient_full_name,
+            patient_identifier=uhid or thid or "—",
+            status=invoice.status,
+            gross_amount=invoice.gross_amount,
+            net_amount=invoice.net_amount,
+            scheme_code=invoice.scheme_code,
+            row_version=invoice.row_version,
+            created_at=invoice.created_at,
+        )
+        for invoice, patient_full_name, uhid, thid in result.all()
+    ]
+    return InvoiceListOut(items=items, page=page, page_size=page_size, total=total)
 
 
 @router.get(

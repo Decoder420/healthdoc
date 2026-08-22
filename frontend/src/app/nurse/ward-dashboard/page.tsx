@@ -1,565 +1,450 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
-
-import WardSelector, {
-  WARDS,
-} from "@/features/nurse/components/WardSelector";
-
-import BedGrid from "@/components/BedGrid";
-import VitalsTimeline from "@/components/VitalsTimeline";
-import { VitalsChart } from "@/components/VitalsTimeline";
-
-import EMARTable from "@/components/tables/EMARTable";
-
-import WardStats from "@/features/nurse/components/WardStats";
-import PatientDetails from "@/features/nurse/components/PatientDetails";
-
-import IntakeOutput from "@/features/nurse/components/IntakeOutput";
-import HandoverNotes from "@/features/nurse/components/HandoverNotes";
-import PatientMovement from "@/features/nurse/components/PatientMovement";
-
-import AdmissionStatus from "@/features/nurse/components/AdmissionStatus";
-
-import QuickActions from "@/features/nurse/components/QuickActions";
-
-import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
-import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
-
-import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
-import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
-
-import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
-import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddPatientMovementForm from "@/components/AddPatientMovementForm";
 import { useAddPatientMovement } from "@/components/AddPatientMovementForm/useAddPatientMovement";
-import type { AddPatientMovementSchema } from "@/components/AddPatientMovementForm/validation";
+import BedGrid from "@/components/BedGrid";
+import { flattenBedGrids, type Bed } from "@/components/BedGrid/BedGrid.types";
+import EMARTable from "@/components/tables/EMARTable";
+import type { MedicationRecord } from "@/components/tables/EMARTable/EMARTable.types";
+import VitalsTimeline, { VitalsChart } from "@/components/VitalsTimeline";
+import type { VitalRecord } from "@/components/VitalsTimeline/VitalsTimeline.types";
+import type {
+  Discharge,
+  DischargeSummary,
+} from "@/features/ipd/services/ipd.service";
+import {
+  getActiveAdmissions,
+  getBeds,
+  getDischarges,
+  getWards,
+} from "@/features/ipd/services/ipd.service";
+import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
+import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
+import TaskQueue, { type Order } from "@/features/nurse/components/TaskQueue";
+import WardSelector from "@/features/nurse/components/WardSelector";
+import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
+import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
+import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
+import {
+  completeNursingTask,
+  getAdmissionFluidBalance,
+  getAdmissionMedicationAdministrations,
+  getAdmissionSummary,
+  getNursingTasks,
+  getPatientVitals,
+  type FluidBalance,
+  type NursingTask,
+} from "@/features/nurse/services/nurse.service";
+import { formatDateTime } from "@/lib/api";
 
-import ProcedureAssistance from "@/features/nurse/components/ProcedureAssistance";
-import AddProcedureAssistanceForm from "@/features/nurse/components/AddProcedureAssistanceForm";
-import { useAddProcedureAssistance } from "@/features/nurse/hooks/useAddProcedureAssistance";
-import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
-import { procedureContextByBedId } from "@/lib/data/procedureContextByBed";
-import { PROCEDURE_RECORDS } from "@/lib/data/procedureAssistance";
+type PatientAction = "vitals" | "fluid" | "transfer" | null;
 
-import TaskQueue from "@/features/nurse/components/TaskQueue";
-import { orders as initialOrders } from "@/lib/data/orders";
+function toOrder(task: NursingTask): Order {
+  return {
+    id: task.id,
+    encounter_id: task.encounter_id,
+    patient_id: task.patient_id,
+    order_type: task.order_type,
+    priority: task.priority,
+    status: task.status,
+    ordered_at: task.ordered_at,
+  };
+}
 
-import { patients } from "@/lib/data/patients";
-import { admissionsByBedId } from "@/lib/data/admissionsByBed";
-
-import { beds } from "@/lib/data/beds";
-import { vitals } from "@/lib/data/vitals";
-import { medications } from "@/lib/data/medications";
-import { MOCK_DISCHARGES } from "@/lib/data/mockDischarges";
-import type { WardStat } from "@/features/nurse/components/WardStats/WardStats.types";
-
-import { INTAKE_OUTPUT } from "@/lib/data/intakeOutput";
-import { HANDOVER_NOTES } from "@/lib/data/handover";
-import { PATIENT_MOVEMENTS } from "@/lib/data/patientMovements";
-import { ADMISSION_STATUS } from "@/lib/data/admissionStatus";
-
-import { Bed } from "@/components/BedGrid/BedGrid.types";
-import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
-import { GENERAL_WARD_ID, NURSE_ANITA_ID } from "@/lib/data/mockIds";
+function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
+  return (
+    <div className="surface-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
 
 export default function Page() {
-  const [selectedWard, setSelectedWard] = useState(GENERAL_WARD_ID);
-  const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [allBeds, setAllBeds] = useState<Bed[]>([]);
+  const [selectedWard, setSelectedWard] = useState("");
+  const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+  const [discharges, setDischarges] = useState<Discharge[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [taskQueueStatus, setTaskQueueStatus] = useState<
+    "loading" | "connected" | "error"
+  >("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(
-    null
-  );
+  const [vitals, setVitals] = useState<VitalRecord[]>([]);
+  const [fluidBalance, setFluidBalance] = useState<FluidBalance | null>(null);
+  const [medications, setMedications] = useState<MedicationRecord[]>([]);
+  const [summary, setSummary] = useState<DischargeSummary | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<PatientAction>(null);
 
-  // procedure_records is keyed by encounter_id + patient_id, not admission_id —
-  // a separate mock lookup from admissionsByBedId. medications (prescription_items)
-  // follow the same pattern: they only link to a patient through
-  // prescriptions.patient_id, not admission_id.
-  const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(
-    null
-  );
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
-    null
-  );
-
-  const [orders, setOrders] = useState(initialOrders);
-
-  const [handoverNotes, setHandoverNotes] = useState(HANDOVER_NOTES);
-  const [intakeOutputRecords, setIntakeOutputRecords] = useState(INTAKE_OUTPUT);
-  const [patientMovements, setPatientMovements] = useState(PATIENT_MOVEMENTS);
-  const [procedureRecords, setProcedureRecords] = useState(PROCEDURE_RECORDS);
-
-  const CURRENT_NURSE_ID = NURSE_ANITA_ID;
-
-  const [activeAction, setActiveAction] = useState<string | null>(null);
-
-  // Nursing Note ("note") and Incident Report ("incident") are intentionally
-  // blocked here rather than wired to a form — no published schema/backend
-  // contract exists for either yet (see docs). Medication administration
-  // ("medication") is blocked for the same reason: prescription_items.status
-  // is pharmacy dispense status, not nurse dose administration. "doctor" has
-  // no backing table/endpoint at all.
-  const BLOCKED_ACTION_MESSAGES: Record<string, string> = {
-    medication:
-      "Nurse dose administration (given / held / refused) is blocked until a medication-administration schema and API exist. The table below is prescription / pharmacy dispense status only.",
-    note:
-      "Nursing notes are blocked until a published clinical_notes API contract exists. This action does not submit a note payload.",
-    incident:
-      "Incident reporting is blocked until a nursing incident schema and backend contract exist. DPDP breach / grievance tables must not be reused for this.",
-    doctor:
-      "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
-  };
-
-  const handleWardChange = (wardId: string) => {
-    setSelectedWard(wardId);
-    // Changing ward should clear the previously selected bed/patient —
-    // otherwise stale records from the old ward's bed keep showing.
-    setSelectedBed(null);
-    setSelectedPatient(null);
-    setSelectedAdmissionId(null);
-    setSelectedEncounterId(null);
-    setSelectedPatientId(null);
-  };
-
-  const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
-
-  // "Critical Patients" removed — no criticality concept exists anywhere in
-  // the schema (patients/vitals/admissions have no such flag). Occupied/
-  // Available are scoped to the selected ward (same beds as the Ward
-  // Overview grid below); Discharges Today is hospital-wide, computed the
-  // same way as the IPD dashboard KPI.
-  const today = new Date().toDateString();
-  const dischargesTodayCount = MOCK_DISCHARGES.filter(
-    (d) => new Date(d.discharged_at).toDateString() === today
-  ).length;
-
-  const wardStats: WardStat[] = [
-    {
-      id: "occupied",
-      title: "Occupied Beds",
-      value: filteredBeds.filter((b) => b.status === "occupied").length,
-      description: "Patients currently admitted",
-    },
-    {
-      id: "available",
-      title: "Available Beds",
-      value: filteredBeds.filter((b) => b.status === "vacant").length,
-      description: "Ready for admission",
-    },
-    {
-      id: "discharge",
-      title: "Discharges Today",
-      value: dischargesTodayCount,
-      description: "Planned discharges",
-    },
-  ];
-
-  const handleBedClick = (bed: Bed) => {
-    setSelectedBed(bed);
-
-    const patient = patients[bed.bed_id];
-    setSelectedPatient(patient ?? null);
-
-    const admissionId = admissionsByBedId[bed.bed_id] ?? null;
-    setSelectedAdmissionId(admissionId);
-
-    const procedureContext = procedureContextByBedId[bed.bed_id] ?? null;
-    setSelectedEncounterId(procedureContext?.encounterId ?? null);
-    setSelectedPatientId(procedureContext?.patientId ?? null);
-  };
-
-  // Local mock preview only — not a schema-backed nurse completion record.
-  // Only placed -> completed; no invented timestamp is stored on the order.
-  const handleCheckOff = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId && o.status === "placed"
-          ? { ...o, status: "completed" }
-          : o
-      )
-    );
-  };
-
-  // Vitals — schema has admission_id directly, so filter the same way as
-  // IntakeOutput/HandoverNotes/PatientMovement.
-  const admissionVitals = selectedAdmissionId
-    ? vitals.filter((v) => v.admission_id === selectedAdmissionId)
-    : [];
-
-  const admissionIntakeOutput = selectedAdmissionId
-    ? intakeOutputRecords.filter(
-        (record) => record.admission_id === selectedAdmissionId
-      )
-    : [];
-
-  const admissionHandoverNotes = selectedAdmissionId
-    ? handoverNotes.filter((note) => note.admission_id === selectedAdmissionId)
-    : [];
-
-  const admissionMovements = selectedAdmissionId
-    ? patientMovements.filter(
-        (record) => record.admission_id === selectedAdmissionId
-      )
-    : [];
-
-  // Filtered by patient_id — procedure_records does not have admission_id.
-  const patientProcedureRecords = selectedPatientId
-    ? procedureRecords.filter(
-        (record) => record.patient_id === selectedPatientId
-      )
-    : [];
-
-  // eMAR rows are medication_administration (0043), scoped to the ADMISSION,
-  // matching GET /nursing/admissions/{admission_id}/medication-administrations.
-  //
-  // This previously filtered prescription_items by the patient's prescriptions
-  // and fed those to EMARTable. A prescription says what was ordered; an eMAR
-  // says what reached the patient. Showing the first in place of the second
-  // means the ward cannot tell whether the 14:00 dose was actually given.
-  const patientMedications = selectedAdmissionId
-    ? medications.filter((m) => m.admission_id === selectedAdmissionId)
-    : [];
-
-  // admissions.status is a single column — no history/log table is
-  // confirmed in the schema, so this finds the one current status,
-  // not a list of past changes.
-  const admissionStatusRecord = selectedAdmissionId
-    ? ADMISSION_STATUS.find(
-        (record) => record.admission_id === selectedAdmissionId
-      ) ?? null
-    : null;
-
-  const { submitVitals, isSubmitting } = useAddVitals();
-  const { submitHandover, isSubmitting: isSubmittingHandover } = useAddHandover();
-  const { submitIntakeOutput, isSubmitting: isSubmittingIntakeOutput } =
-    useAddIntakeOutput();
-  const { submitPatientMovement, isSubmitting: isSubmittingPatientMovement } =
+  const { submitVitals, isSubmitting: isSubmittingVitals } = useAddVitals();
+  const { submitIntakeOutput, isSubmitting: isSubmittingFluid } = useAddIntakeOutput();
+  const { submitPatientMovement, isSubmitting: isSubmittingTransfer } =
     useAddPatientMovement();
-  const { submitProcedureAssistance, isSubmitting: isSubmittingProcedure } =
-    useAddProcedureAssistance();
 
-  const handleAddHandover = async (
-    data: Parameters<typeof submitHandover>[0]
-  ) => {
-    const ok = await submitHandover(data);
+  const loadBase = useCallback(async () => {
+    setLoadError(null);
+    setTaskQueueStatus("loading");
+    try {
+      const wardRows = await getWards();
+      const [bedGrids, admissionRows, dischargeRows, taskRows] = await Promise.all([
+        Promise.all(wardRows.map((ward) => getBeds(ward.id))),
+        getActiveAdmissions(),
+        getDischarges(),
+        getNursingTasks(),
+      ]);
+      void admissionRows;
+      setWards(wardRows);
+      setAllBeds(flattenBedGrids(bedGrids));
+      setDischarges(dischargeRows);
+      setOrders(taskRows.map(toOrder));
+      setSelectedWard((current) =>
+        wardRows.some((ward) => ward.id === current) ? current : (wardRows[0]?.id ?? ""),
+      );
+      setTaskQueueStatus("connected");
+    } catch (reason) {
+      console.error("Unable to load live ward data", reason);
+      setLoadError("Unable to load live ward data. Check the API connection and retry.");
+      setTaskQueueStatus("error");
+    }
+  }, []);
 
-    // backend endpoint isn't confirmed yet — still show it locally regardless
-    // of submit success, same as other handlers in this file
-    setHandoverNotes((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() },
+  useEffect(() => {
+    void loadBase();
+  }, [loadBase]);
+
+  const selectedBed = useMemo(
+    () => allBeds.find((bed) => bed.bed_id === selectedBedId) ?? null,
+    [allBeds, selectedBedId],
+  );
+  const occupant = selectedBed?.occupant ?? null;
+  const wardBeds = allBeds.filter((bed) => bed.ward_id === selectedWard);
+
+  const loadPatientDetail = useCallback(async (bed: Bed | null) => {
+    if (!bed?.occupant) {
+      setVitals([]);
+      setFluidBalance(null);
+      setMedications([]);
+      setSummary(null);
+      setDetailError(null);
+      return;
+    }
+    setDetailLoading(true);
+    setDetailError(null);
+    const [vitalsResult, fluidResult, emarResult, summaryResult] = await Promise.allSettled([
+      getPatientVitals(bed.occupant.patient_id),
+      getAdmissionFluidBalance(bed.occupant.admission_id),
+      getAdmissionMedicationAdministrations(bed.occupant.admission_id),
+      getAdmissionSummary(bed.occupant.admission_id),
     ]);
+    setVitals(vitalsResult.status === "fulfilled" ? vitalsResult.value : []);
+    setFluidBalance(fluidResult.status === "fulfilled" ? fluidResult.value : null);
+    setMedications(emarResult.status === "fulfilled" ? emarResult.value : []);
+    setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+    if ([vitalsResult, fluidResult, emarResult, summaryResult].some((entry) => entry.status === "rejected")) {
+      setDetailError("Some live patient panels could not be loaded. Retry before acting on this chart.");
+    }
+    setDetailLoading(false);
+  }, []);
 
-    return ok;
-  };
+  useEffect(() => {
+    void loadPatientDetail(selectedBed);
+  }, [loadPatientDetail, selectedBed]);
 
-  const handleAddIntakeOutput = async (
-    data: Parameters<typeof submitIntakeOutput>[0]
-  ) => {
-    const ok = await submitIntakeOutput(data);
+  function changeWard(wardId: string) {
+    setSelectedWard(wardId);
+    setSelectedBedId(null);
+    setActiveAction(null);
+  }
 
-    setIntakeOutputRecords((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...data,
-        notes: data.notes ?? null,
-        created_at: new Date().toISOString(),
-      },
-    ]);
+  function selectBed(bed: Bed) {
+    setSelectedBedId(bed.bed_id);
+    setActiveAction(null);
+  }
 
-    return ok;
-  };
+  async function checkOff(orderId: string) {
+    try {
+      const completed = await completeNursingTask(orderId);
+      setOrders((current) =>
+        current.map((order) => (order.id === completed.id ? toOrder(completed) : order)),
+      );
+    } catch (reason) {
+      console.error("Unable to complete nursing task", reason);
+      setTaskQueueStatus("error");
+    }
+  }
 
-  const handleAddPatientMovement = async (data: AddPatientMovementSchema) => {
-    const ok = await submitPatientMovement(data);
+  const today = new Date().toDateString();
+  const dischargesToday = discharges.filter(
+    (discharge) => new Date(discharge.discharged_at).toDateString() === today,
+  ).length;
+  const patientOrders = occupant
+    ? orders.filter((order) => order.patient_id === occupant.patient_id)
+    : [];
 
-    setPatientMovements((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), ...data, reason: data.reason ?? null },
-    ]);
-
-    return ok;
-  };
-
-  const handleAddProcedureAssistance = async (
-    data: AddProcedureAssistanceSchema
-  ) => {
-    const ok = await submitProcedureAssistance(data);
-
-    setProcedureRecords((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...data,
-        order_id: null,
-        procedure_code: data.procedure_code ?? null,
-        code_system: data.code_system ?? null,
-        ot_schedule_id: data.ot_schedule_id ?? null,
-        assisted_by: data.assisted_by ?? null,
-        ended_at: data.ended_at ?? null,
-        outcome: data.outcome ?? null,
-        complications: data.complications ?? null,
-      },
-    ]);
-
-    return ok;
-  };
+  const wardName = (wardId: string | null) =>
+    wards.find((ward) => ward.id === wardId)?.name ?? (wardId ? wardId.slice(0, 8) : "—");
+  const bedName = (bedId: string | null) =>
+    allBeds.find((bed) => bed.bed_id === bedId)?.bed_number ?? (bedId ? bedId.slice(0, 8) : "—");
 
   return (
     <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
-      {/* Header */}
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Nurse Dashboard</h1>
+          <h1 className="text-3xl font-bold text-primary">Nurse ward dashboard</h1>
           <p className="mt-2 text-muted-foreground">
-            Manage ward beds, patient vitals, and prescription / dispense status.
+            Live bed occupancy, observations, fluid balance, eMAR and outstanding orders.
           </p>
         </div>
-
-        <div className="surface-card px-4 py-3">
-          <p className="text-xs text-muted-foreground">Current Shift</p>
-          <p className="mt-1 font-semibold">Morning Shift</p>
-        </div>
+        <button type="button" onClick={() => void loadBase()} className="text-sm underline">
+          Refresh ward
+        </button>
       </section>
 
-      {/* Ward Selector */}
-      <WardSelector
-        wards={WARDS}
-        selectedWard={selectedWard}
-        onChange={handleWardChange}
-      />
+      {loadError ? (
+        <p role="alert" className="rounded-md bg-danger-muted p-4 text-sm text-danger">
+          {loadError}
+        </p>
+      ) : null}
 
-      {/* Ward Statistics */}
-      <WardStats stats={wardStats} />
+      {wards.length > 0 ? (
+        <WardSelector wards={wards} selectedWard={selectedWard} onChange={changeWard} />
+      ) : (
+        <div className="surface-card p-6 text-sm text-muted-foreground">Loading wards…</div>
+      )}
 
-      {/* Pending doctor orders — ward/shift-level local preview, not a nursing completion audit */}
+      <section className="grid gap-4 sm:grid-cols-3">
+        <Metric
+          label="Occupied beds"
+          value={wardBeds.filter((bed) => bed.status === "occupied").length}
+          detail="Live admissions in this ward"
+        />
+        <Metric
+          label="Vacant beds"
+          value={wardBeds.filter((bed) => bed.status === "vacant").length}
+          detail="Available now"
+        />
+        <Metric label="Discharges today" value={dischargesToday} detail="Facility-wide" />
+      </section>
+
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Pending doctor orders</h2>
           <p className="text-sm text-muted-foreground">
-            Local preview of pending orders for this shift. Marking completed
-            only updates status from placed to completed on this screen.
+            Completing an order records the authenticated nurse and completion time.
           </p>
         </div>
-
-        <TaskQueue orders={orders} onCheckOff={handleCheckOff} />
+        <p
+          data-testid="nursing-api-status"
+          data-status={taskQueueStatus}
+          className={taskQueueStatus === "error" ? "text-sm text-danger" : "sr-only"}
+        >
+          {taskQueueStatus === "error"
+            ? "Unable to load nursing tasks. Check the API connection and retry."
+            : `Nursing API ${taskQueueStatus}`}
+        </p>
+        <TaskQueue orders={orders} onCheckOff={checkOff} />
       </section>
 
-      {/* Bed Grid */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-semibold">Ward Overview</h2>
+          <h2 className="text-xl font-semibold">Ward overview</h2>
           <p className="text-sm text-muted-foreground">
-            Current bed occupancy for the selected ward.
+            Occupants come directly from the active admission attached to each bed.
           </p>
         </div>
-
-        <BedGrid
-          beds={filteredBeds}
-          selectedBedId={selectedBed?.bed_id}
-          onBedClick={handleBedClick}
-        />
+        <BedGrid beds={wardBeds} selectedBedId={selectedBedId} onBedClick={selectBed} />
       </section>
 
-      {/* Patient Details */}
-      <PatientDetails patient={selectedPatient} />
-
-      {/* Vitals Timeline */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Vitals Timeline</h2>
-          <p className="text-sm text-muted-foreground">
-            Latest patient vital recordings.
-          </p>
-        </div>
-
-        {!selectedAdmissionId ? (
-          <div className="surface-card p-6">
-            <p className="text-sm text-muted-foreground">
-              Select a bed to view vitals.
-            </p>
-          </div>
-        ) : (
-          <>
-            <VitalsTimeline records={admissionVitals} />
-            <VitalsChart records={admissionVitals} />
-          </>
-        )}
-      </section>
-
-      {/* Intake Output */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Intake / Output</h2>
-          <p className="text-sm text-muted-foreground">
-            Fluid intake and output records for the selected patient.
-          </p>
-        </div>
-
-        <IntakeOutput
-          admissionId={selectedAdmissionId}
-          records={admissionIntakeOutput}
-        />
-
-        {selectedAdmissionId && (
-          <AddIntakeOutputForm
-            admissionId={selectedAdmissionId}
-            isSubmitting={isSubmittingIntakeOutput}
-            onSubmit={handleAddIntakeOutput}
-          />
-        )}
-      </section>
-
-      {/* Handover Notes */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Handover Notes</h2>
-          <p className="text-sm text-muted-foreground">
-            Shift handover details for the selected patient.
-          </p>
-        </div>
-
-        <HandoverNotes
-          admissionId={selectedAdmissionId}
-          notes={admissionHandoverNotes}
-        />
-
-        {selectedAdmissionId && (
-          <AddHandoverForm
-            admissionId={selectedAdmissionId}
-            isSubmitting={isSubmittingHandover}
-            onSubmit={handleAddHandover}
-          />
-        )}
-      </section>
-
-      {/* Patient Movement */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Patient Movement</h2>
-          <p className="text-sm text-muted-foreground">
-            Movement history for the selected patient.
-          </p>
-        </div>
-
-        <PatientMovement
-          admissionId={selectedAdmissionId}
-          records={admissionMovements}
-          wards={WARDS}
-          beds={beds}
-        />
-        {/* Use "Transfer" in Quick Actions below to record a new movement. */}
-      </section>
-
-      {/* Procedure Assistance — keyed by encounter_id + patient_id, not
-          admission_id (see procedure_records schema). */}
-      <section className="space-y-4">
-        <ProcedureAssistance
-          patientId={selectedPatientId}
-          records={patientProcedureRecords}
-        />
-
-        {selectedEncounterId && selectedPatientId && (
-          <AddProcedureAssistanceForm
-            encounterId={selectedEncounterId}
-            patientId={selectedPatientId}
-            assistedBy={CURRENT_NURSE_ID}
-            isSubmitting={isSubmittingProcedure}
-            onSubmit={handleAddProcedureAssistance}
-          />
-        )}
-      </section>
-
-      {/* Admission Status */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Admission Status</h2>
-          <p className="text-sm text-muted-foreground">
-            Admission workflow for the selected patient.
-          </p>
-        </div>
-
-        <AdmissionStatus
-          admissionId={selectedAdmissionId}
-          record={admissionStatusRecord}
-        />
-      </section>
-
-      {/* Prescription items linked via prescriptions.patient_id — pharmacy
-          dispense status, not nurse dose administration. */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">
-            Prescription / Dispense Status
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Pharmacy prescription item status for the selected patient.
-          </p>
-        </div>
-
-        {!selectedPatientId ? (
-          <div className="surface-card p-6">
-            <p className="text-sm text-muted-foreground">
-              Select a bed to view medications.
-            </p>
-          </div>
-        ) : (
-          <EMARTable medications={patientMedications} />
-        )}
-      </section>
-
-      {/* Quick Actions */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold">Quick Actions</h2>
-          <p className="text-sm text-muted-foreground">
-            Frequently used nursing actions.
-          </p>
-        </div>
-
-        <QuickActions onAction={(actionId) => setActiveAction(actionId)} />
-
-        {activeAction && !selectedAdmissionId && (
-          <div className="surface-card p-4 text-sm text-muted-foreground">
-            Select a bed/patient first before using this action.
-          </div>
-        )}
-
-        {activeAction &&
-          selectedAdmissionId &&
-          BLOCKED_ACTION_MESSAGES[activeAction] && (
-            <div className="surface-card p-4 text-sm text-warning">
-              {BLOCKED_ACTION_MESSAGES[activeAction]}
+      {!selectedBed ? (
+        <section className="surface-card p-6 text-sm text-muted-foreground">
+          Select a bed to open its live clinical panels.
+        </section>
+      ) : !occupant ? (
+        <section className="surface-card p-6 text-sm text-muted-foreground">
+          Bed {selectedBed.bed_number} has no active occupant.
+        </section>
+      ) : (
+        <>
+          <section className="surface-card space-y-3 p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">{occupant.patient_name ?? "Unnamed patient"}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {occupant.uhid ?? occupant.patient_id} · Bed {selectedBed.bed_number}
+                </p>
+              </div>
+              <span className="rounded-full bg-info-muted px-3 py-1 text-sm text-info">
+                Admitted {formatDateTime(occupant.admitted_at)}
+              </span>
             </div>
-          )}
+            <p className="text-xs text-muted-foreground">
+              Admission <span className="font-mono">{occupant.admission_id}</span>
+            </p>
+          </section>
 
-        {activeAction === "vitals" && selectedAdmissionId && (
-          <AddVitalsForm
-            patientId={selectedPatient?.id ?? ""}
-            admissionId={selectedAdmissionId}
-            isSubmitting={isSubmitting}
-            onSubmit={submitVitals}
-          />
-        )}
+          {detailLoading ? <p className="text-sm text-muted-foreground">Loading patient chart…</p> : null}
+          {detailError ? (
+            <p role="alert" className="rounded-md bg-danger-muted p-4 text-sm text-danger">
+              {detailError}
+            </p>
+          ) : null}
 
-        {/* ward_id is attached client-side by flattenBedGrids, so it is
-            optional on Bed — normalise the undefined the API never sends. */}
-        {activeAction === "transfer" && selectedAdmissionId && selectedBed && (
-          <AddPatientMovementForm
-            admissionId={selectedAdmissionId}
-            currentWardId={selectedBed.ward_id ?? null}
-            currentBedId={selectedBed.bed_id}
-            wards={WARDS}
-            beds={beds}
-            movedBy={CURRENT_NURSE_ID}
-            isSubmitting={isSubmittingPatientMovement}
-            onSubmit={handleAddPatientMovement}
-          />
-        )}
-      </section>
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Vitals</h2>
+                <p className="text-sm text-muted-foreground">All recorded observations for this patient.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "vitals" ? null : "vitals")}
+              >
+                Record vitals
+              </button>
+            </div>
+            <VitalsTimeline records={vitals} />
+            <VitalsChart records={vitals} />
+            {activeAction === "vitals" ? (
+              <AddVitalsForm
+                patientId={occupant.patient_id}
+                admissionId={occupant.admission_id}
+                isSubmitting={isSubmittingVitals}
+                onSubmit={async (data) => {
+                  const ok = await submitVitals(data);
+                  if (ok) {
+                    setVitals(await getPatientVitals(occupant.patient_id));
+                    setActiveAction(null);
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Fluid balance</h2>
+                <p className="text-sm text-muted-foreground">Running admission totals from recorded intake/output.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "fluid" ? null : "fluid")}
+              >
+                Add intake/output
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Metric label="Intake" value={fluidBalance?.total_intake_ml ?? 0} detail="mL" />
+              <Metric label="Output" value={fluidBalance?.total_output_ml ?? 0} detail="mL" />
+              <Metric label="Net" value={fluidBalance?.net_ml ?? 0} detail="mL" />
+            </div>
+            {activeAction === "fluid" ? (
+              <AddIntakeOutputForm
+                admissionId={occupant.admission_id}
+                isSubmitting={isSubmittingFluid}
+                onSubmit={async (data) => {
+                  const ok = await submitIntakeOutput(data);
+                  if (ok) {
+                    setFluidBalance(await getAdmissionFluidBalance(occupant.admission_id));
+                    setActiveAction(null);
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">eMAR</h2>
+                <p className="text-sm text-muted-foreground">Recorded doses for this admission only.</p>
+              </div>
+              <Link href="/nurse/emar" className="text-sm underline">
+                Open full eMAR
+              </Link>
+            </div>
+            <EMARTable medications={medications} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Movement history</h2>
+                <p className="text-sm text-muted-foreground">Audited ward and bed changes for this admission.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "transfer" ? null : "transfer")}
+              >
+                Transfer patient
+              </button>
+            </div>
+            <div className="surface-card p-5">
+              {summary?.movements.length ? (
+                <ol className="space-y-3 text-sm">
+                  {summary.movements.map((movement) => (
+                    <li key={movement.id} className="border-b border-border pb-3 last:border-none last:pb-0">
+                      <strong>{wardName(movement.to_ward_id)} · Bed {bedName(movement.to_bed_id)}</strong>
+                      <span className="ml-2 text-muted-foreground">{formatDateTime(movement.moved_at)}</span>
+                      {movement.from_ward_id ? (
+                        <span className="mt-1 block text-muted-foreground">
+                          From {wardName(movement.from_ward_id)} · Bed {bedName(movement.from_bed_id)}
+                        </span>
+                      ) : null}
+                      {movement.reason ? <span className="mt-1 block">{movement.reason}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">No transfers recorded for this admission.</p>
+              )}
+            </div>
+            {activeAction === "transfer" ? (
+              <AddPatientMovementForm
+                admissionId={occupant.admission_id}
+                wards={wards}
+                beds={allBeds}
+                isSubmitting={isSubmittingTransfer}
+                onSubmit={async (data) => {
+                  const ok = await submitPatientMovement(data);
+                  if (ok) {
+                    setSelectedBedId(null);
+                    setActiveAction(null);
+                    await loadBase();
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">Outstanding orders for this patient</h2>
+            <TaskQueue orders={patientOrders} onCheckOff={checkOff} />
+          </section>
+
+          <section className="surface-card border border-warning p-5 text-sm">
+            <h2 className="font-semibold">Handover and procedure assistance</h2>
+            <p className="mt-2 text-muted-foreground">
+              These panels are intentionally unavailable: the backend has no published read/write
+              contract for them. No TypeScript fixture is shown as clinical history.
+            </p>
+          </section>
+        </>
+      )}
     </main>
   );
 }
