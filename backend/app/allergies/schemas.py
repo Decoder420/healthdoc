@@ -10,6 +10,7 @@ and the code drift apart, which spec_check.py exists to catch.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -53,6 +54,24 @@ class AllergyCreate(BaseModel):
         if v not in AllergySeverity.values():
             raise ValueError(f"severity must be one of: {_one_of(AllergySeverity)}")
         return v
+
+
+class AllergyCheckOut(BaseModel):
+    """The verdict for one prescribed item.
+
+    Four states, not three, because "clear" and "uncheckable" must never be
+    collapsed. service.check_prescription_item returns None for both — no match,
+    and no ingredient_code to match on — and its docstring is explicit that the
+    caller has to tell them apart: an uncoded item is "we could not check", not
+    "we checked and it is safe". Collapsing them turns a missing code into a
+    reassurance.
+    """
+
+    kind: Literal["clear", "block", "override_required", "uncheckable"]
+    medicine_name: str
+    #: The matched allergy. Null for clear and uncheckable.
+    allergy: AllergyOut | None = None
+    message: str
 
 
 class AllergyStatusUpdate(BaseModel):

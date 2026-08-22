@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status as http_sta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.allergies import service
-from app.allergies.schemas import AllergyCreate, AllergyOut, AllergyStatusUpdate
+from app.allergies.schemas import AllergyCheckOut, AllergyCreate, AllergyOut, AllergyStatusUpdate
 from app.allergies.service import AllergyVersionConflict
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
@@ -55,6 +55,97 @@ async def _scoped_allergy(db: AsyncSession, allergy_id: UUID, facility_id: UUID)
         raise HTTPException(http_status.HTTP_404_NOT_FOUND, "allergy_not_found")
     return allergy
 
+
+
+@router.get(
+    "/patients/{patient_id}/check",
+    response_model=AllergyCheckOut,
+    dependencies=[Depends(require_roles("doctor", "pharmacist", "admin"))],
+    summary="Pre-flight allergy check for one prescribed item (does not write)",
+)
+async def check_patient_allergy(
+    patient_id: UUID,
+    current_db_user: CurrentDbUser,
+    ingredient_code: str | None = Query(
+        default=None,
+        description="The item's ingredient code. Absent means the check CANNOT run — "
+                    "that is reported as 'uncheckable', never as 'clear'.",
+    ),
+    medicine_name: str = Query(default="", description="For the message text only."),
+    db: AsyncSession = Depends(get_db),
+) -> AllergyCheckOut:
+    """Answer the prescribing screen's "can I prescribe this?" before it submits.
+
+    Enforcement already lives on POST /orders/prescriptions, which raises
+    AllergyConflict -> 409. This endpoint does not replace that and deliberately
+    writes nothing; it exists so the warning a clinician sees is produced by the
+    same matcher that will decide the write.
+
+    Before this, the browser reimplemented the match: it filtered the allergy
+    list client-side and blocked on `severity === "anaphylaxis"` while the
+    server blocks on `is_absolute`. Those two agree today — is_absolute is a
+    derived property returning exactly that comparison — but they were two
+    independent statements of one safety rule, and the one on screen is what a
+    clinician acts on.
+
+    The three outcomes mirror service.check_prescription_item, including the
+    distinction its docstring insists on: an item with no ingredient_code is
+    'unknown', not 'clear'. The service returns None for both because it cannot
+    block on a guess, and says the caller must tell the clinician the check
+    could not be performed. This endpoint is that caller.
+    """
+    await _assert_patient_in_facility(db, patient_id, current_db_user.facility_id)
+
+    if not ingredient_code:
+        return AllergyCheckOut(
+            kind="uncheckable",
+            medicine_name=medicine_name,
+            allergy=None,
+            message=(
+                "No ingredient code on this item — the allergy check could not be "
+                "performed. Confirm with the patient before prescribing."
+            ),
+        )
+
+    try:
+        # override_reason is deliberately not accepted here. This is a read: a
+        # clinician's written justification belongs on the write that records
+        # it, not on a screen refresh that could be repeated silently.
+        await service.check_prescription_item(
+            db,
+            patient_id=patient_id,
+            ingredient_code=ingredient_code,
+            override_reason=None,
+        )
+    except service.AllergyConflict as conflict:
+        allergy = conflict.allergy
+        if conflict.absolute:
+            return AllergyCheckOut(
+                kind="block",
+                medicine_name=medicine_name,
+                allergy=AllergyOut.model_validate(allergy),
+                message=(
+                    f"Anaphylaxis to {allergy.substance_text}. "
+                    "This cannot be prescribed or overridden."
+                ),
+            )
+        return AllergyCheckOut(
+            kind="override_required",
+            medicine_name=medicine_name,
+            allergy=AllergyOut.model_validate(allergy),
+            message=(
+                f"{allergy.substance_text} ({allergy.severity}): "
+                f"{allergy.reaction or 'no reaction recorded'}. "
+                "A written reason is required to proceed."
+            ),
+        )
+
+    return AllergyCheckOut(
+        kind="clear",
+        medicine_name=medicine_name,
+        allergy=None,
+        message="No active coded allergy matches this item.",
+    )
 
 
 @router.get(

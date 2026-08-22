@@ -77,12 +77,21 @@ export interface Patient {
   photo_file_id?: string;
 }
 
-/** A prior visit as returned by GET /patients/{id}/history. */
+/**
+ * A prior visit, projected from GET /patients/{id}/history.
+ *
+ * `department` was removed when this was retired from fixtures: the history
+ * endpoint does not return it and the visits table does not carry a department
+ * — the fixture had invented the field, so every value shown for it was made
+ * up. Add it back only alongside a real column and a real projection.
+ *
+ * `diagnoses` is empty for roles below the "full" history tier (nurse,
+ * receptionist). That is a role boundary, not missing data.
+ */
 export interface PatientHistoryEntry {
   visit_id: string;
   visit_number: string;
   visit_date: string;
-  department: string;
   diagnoses: string[];
 }
 

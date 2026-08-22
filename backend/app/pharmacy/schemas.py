@@ -45,6 +45,9 @@ class MedicineSearchResult(BaseModel):
     item_id: UUID
     name: str
     generic_name: str | None = None
+    #: The key the allergy check matches on. Null means the check cannot run
+    #: for this item — reported as 'uncheckable', never as 'clear'.
+    ingredient_code: str | None = None
     strength: str | None = None
     form: str | None = None
     is_controlled_drug: bool
