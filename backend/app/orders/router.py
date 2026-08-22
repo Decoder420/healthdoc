@@ -39,7 +39,9 @@ async def create_order(payload: OrderCreate, current_db_user: CurrentDbUser,
 async def get_order(order_id: UUID, current_db_user: CurrentDbUser,
                      db: AsyncSession = Depends(get_db)) -> OrderOut:
     order = await service.get_order(db, order_id)
-    if order is None:
+    # orders.facility_id has existed since 0022 and nothing was reading it here.
+    # 404 rather than 403 — 403 confirms the id exists.
+    if order is None or order.facility_id != current_db_user.facility_id:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="order_not_found")
     return OrderOut.model_validate(order)
 
