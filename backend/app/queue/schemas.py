@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.common.enums import QueuePriority, Shift
+from decimal import Decimal
 
 
 class QueueCreate(BaseModel):
@@ -195,3 +196,15 @@ class EmergencyEscalationOut(BaseModel):
     doctor_name: str | None
     created_at: datetime
  
+
+class PendingApprovalItemOut(BaseModel):
+    item_id: uuid.UUID
+    item_name: str | None
+    quantity_requested: Decimal
+ 
+ 
+class PendingApprovalOut(BaseModel):
+    indent_id: uuid.UUID
+    department_id: uuid.UUID
+    created_at: datetime
+    items: list[PendingApprovalItemOut]
