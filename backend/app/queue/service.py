@@ -24,6 +24,9 @@ from app.pathology.models import LabOrderItem
 from app.patients.models import Patient
 from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange, Roster
 from app.users.models import User
+from app.pathology.models import LabOrderItem
+from app.pharmacy.models import Indent, IndentItem
+from app.inventory.models import InventoryItem
 
 PRIORITY_RANK = {
     QueuePriority.EMERGENCY.value: 0,
@@ -1196,3 +1199,49 @@ async def get_emergency_escalations(
         })
     return escalations
  
+# ---------------- HOD DASHBOARD: PENDING APPROVALS (indents) ----------------
+async def get_pending_approvals(
+    db: AsyncSession,
+    department_id: uuid.UUID,
+    caller_facility_id: uuid.UUID,
+) -> list[dict]:
+    """"Pending approvals" maps to indent approval per the HOD role
+    table -- an indent still in status='requested' is waiting on a
+    HOD/admin decision. Includes the requested items so the HOD can see
+    what's actually being asked for, not just that something is
+    pending."""
+    department = await db.get(Department, department_id)
+    if department is None or department.facility_id != caller_facility_id:
+        raise HTTPException(404, "Department not found")
+ 
+    indents_result = await db.execute(
+        select(Indent).where(
+            Indent.department_id == department_id,
+            Indent.status == "requested",
+        )
+    )
+    indents = indents_result.scalars().all()
+ 
+    approvals = []
+    for indent in indents:
+        items_result = await db.execute(
+            select(IndentItem).where(IndentItem.indent_id == indent.id)
+        )
+        items = items_result.scalars().all()
+ 
+        item_details = []
+        for item in items:
+            inventory_item = await db.get(InventoryItem, item.item_id)
+            item_details.append({
+                "item_id": item.item_id,
+                "item_name": inventory_item.name if inventory_item else None,
+                "quantity_requested": item.quantity_requested,
+            })
+ 
+        approvals.append({
+            "indent_id": indent.id,
+            "department_id": indent.department_id,
+            "created_at": indent.created_at,
+            "items": item_details,
+        })
+    return approvals

@@ -39,6 +39,9 @@ from app.queue.schemas import (
     RosterOut,
     TokenPriorityElevate,
     TokenReassign,
+    DepartmentWorkloadOut,
+    EmergencyEscalationOut,
+    PendingApprovalOut,
 )
 
 router = APIRouter(prefix="/queue", tags=["queue"])
@@ -538,3 +541,17 @@ async def get_emergency_escalations(
 ) -> dict:
     escalations = await service.get_emergency_escalations(db, department_id, current_db_user.facility_id)
     return {"items": [EmergencyEscalationOut(**item).model_dump(mode="json") for item in escalations]}
+
+
+# ---------------- HOD DASHBOARD: PENDING APPROVALS ----------------
+@router.get(
+    "/hod-dashboard/{department_id}/pending-approvals",
+    dependencies=[Depends(require_roles("hod", "admin"))],
+)
+async def get_pending_approvals(
+    department_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    approvals = await service.get_pending_approvals(db, department_id, current_db_user.facility_id)
+    return {"items": [PendingApprovalOut(**item).model_dump(mode="json") for item in approvals]}
