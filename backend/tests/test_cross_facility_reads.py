@@ -20,11 +20,14 @@ facility boundary, not the role dependency, which FastAPI applies at the router.
 """
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.encounters import router as encounters_router
 from app.opd import router as opd_router
@@ -318,3 +321,149 @@ async def test_another_facilitys_incident_cannot_be_reviewed(db):
             db, incident.id, status="under_review", reviewed_by=uuid.uuid4(),
             caller_facility_id=ours.id,
         )
+
+
+# ---------------------------------------------------------------- radiology
+
+async def _radiology_item(db, facility_id):
+    """radiology_order_items has no facility_id of its own — it reaches one
+    through order_id -> orders.facility_id, which is why every handler in that
+    module was able to skip the comparison without it looking wrong."""
+    from app.radiology.models import RadiologyOrderItem
+
+    visit = await _visit(db, facility_id)
+    order = Order(
+        id=uuid.uuid4(), order_number=f"ORD-{uuid.uuid4().hex[:10]}",
+        encounter_id=uuid.uuid4(), patient_id=visit.patient_id,
+        facility_id=facility_id, order_type="radiology", priority="routine",
+        status="placed", ordered_at=datetime.now(timezone.utc),
+        created_by=uuid.uuid4(),
+    )
+    db.add(order)
+    await db.flush()
+
+    item = RadiologyOrderItem(
+        id=uuid.uuid4(), order_id=order.id,
+        accession_number=f"RAD{uuid.uuid4().hex[:10]}",
+        modality="ct", scan_type="CT head plain", status="scanned",
+        created_by=uuid.uuid4(),
+    )
+    db.add(item)
+    await db.flush()
+    return item
+
+
+async def test_radiology_worklist_lists_only_our_own_scans(db):
+    """The list had no join and no role dependency: every radiology item in the
+    deployment, paged, filterable by status, to any authenticated account."""
+    from app.radiology import router as radiology_router
+
+    ours, theirs = await _facility(db), await _facility(db)
+    mine = await _radiology_item(db, ours.id)
+    await _radiology_item(db, theirs.id)
+
+    listing = await radiology_router.list_radiology_order_items(
+        _Caller(ours.id), page=1, page_size=100, status=None, db=db,
+    )
+
+    returned = {row.id for row in listing.items}
+    assert returned == {mine.id}
+    assert listing.total == 1, "the count must be scoped too, not just the page"
+
+
+async def test_another_facilitys_scan_cannot_be_signed_off(db):
+    """A signed radiology report is the version a clinician acts on. Without
+    the scope this writes one against another hospital's scan, attributed to a
+    doctor who never saw the images."""
+    from app.radiology import router as radiology_router
+    from app.radiology.models import RadiologyReport
+    from app.radiology.schemas import RadiologyReportSignOff
+
+    ours, theirs = await _facility(db), await _facility(db)
+    stranger = await _radiology_item(db, theirs.id)
+
+    draft = RadiologyReport(
+        id=uuid.uuid4(), radiology_order_item_id=stranger.id, version=1,
+        is_current=True, findings="Their radiologist's findings.",
+        impression="Their impression.", status="preliminary",
+        created_by=uuid.uuid4(),
+    )
+    db.add(draft)
+    await db.flush()
+
+    # Deliberately tolerant of *how* an unscoped sign-off fails. Verified
+    # against the un-fixed code, it does not raise HTTPException at all: it
+    # runs the whole transition and then trips on a refresh, several statements
+    # after their report has already been superseded. Asserting on the
+    # exception type would have made this test go red for that incidental
+    # reason rather than for the write it is meant to catch. What is asserted
+    # is the surviving state.
+    with contextlib.suppress(HTTPException, SQLAlchemyError):
+        await radiology_router.sign_off_radiology_report(
+            _Caller(ours.id), stranger.id,
+            RadiologyReportSignOff(findings="Signed by the wrong hospital",
+                                   impression="Signed by the wrong hospital"),
+            db=db,
+        )
+
+    surviving = (await db.execute(
+        select(RadiologyReport)
+        .where(RadiologyReport.radiology_order_item_id == stranger.id)
+    )).scalars().all()
+
+    assert len(surviving) == 1, "no second version may have been written"
+    assert surviving[0].is_current is True, "their report must still be current"
+    assert surviving[0].status == "preliminary", "it must not have been finalised"
+    assert surviving[0].findings == "Their radiologist's findings."
+
+
+async def test_another_facilitys_fhir_bundle_is_not_readable(db):
+    """The bundle carries patient demographics alongside findings and
+    impression. This route had no role dependency either."""
+    from app.radiology import router as radiology_router
+    from app.radiology.models import RadiologyReport
+
+    ours, theirs = await _facility(db), await _facility(db)
+    stranger = await _radiology_item(db, theirs.id)
+
+    # A signed report has to exist, or the un-fixed code stops at "no report
+    # yet" (409) and the test would pass for a reason unrelated to scoping.
+    db.add(RadiologyReport(
+        id=uuid.uuid4(), radiology_order_item_id=stranger.id, version=1,
+        is_current=True, findings="Their findings.", impression="Their impression.",
+        status="final", created_by=uuid.uuid4(),
+    ))
+    await db.flush()
+
+    with pytest.raises(HTTPException) as caught:
+        await radiology_router.get_fhir_bundle(_Caller(ours.id), stranger.id, db=db)
+
+    assert caught.value.status_code == 404
+
+
+async def test_a_scan_cannot_be_attached_to_another_facilitys_order(db):
+    """The accession number is allocated from the caller's counter, so this
+    would stamp our sequence onto their order.
+
+    Verification note: unlike the other three, removing the facility predicate
+    does not make this fail on its assertion. Control runs past the boundary
+    into allocate_accession_number and dies there on SQLite, which has no
+    `timezone` function for the business-date expression. That still
+    demonstrates the hole — reaching the allocator at all is the bug — but the
+    404 below is only properly exercised by the fixed code. Do not read a green
+    run here as proof on its own.
+    """
+    from app.radiology import router as radiology_router
+    from app.radiology.schemas import RadiologyOrderItemCreate
+
+    ours, theirs = await _facility(db), await _facility(db)
+    stranger = await _radiology_item(db, theirs.id)
+
+    with pytest.raises(HTTPException) as caught:
+        await radiology_router.create_radiology_order_item(
+            _Caller(ours.id),
+            RadiologyOrderItemCreate(modality="ct", scan_type="CT head plain"),
+            order_id=stranger.order_id, db=db,
+        )
+
+    assert caught.value.status_code == 404

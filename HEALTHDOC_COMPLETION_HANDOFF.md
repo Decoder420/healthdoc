@@ -145,10 +145,64 @@ patient binding exists; the portal is deliberately fail-closed. Needs a forward
 migration after 0047, `/patients/me` endpoints, and an approved
 guardian/dependent policy — **the policy itself is an external input**.
 
-**P0.4 Facility and role isolation audit.** `users` is done and tested. Patients,
-Departments, Admissions, Nursing, Orders, Pharmacy, Pathology, Billing, Consent,
-Audit, ABDM and Radiology have **not** been audited. Given that `users` was
-broken in five distinct ways and `/visits` in one more, assume nothing.
+**P0.4 Facility and role isolation audit — endpoint sweep complete.**
+
+Every module has now been read. Fixed and covered by tests, each verified to
+fail against the un-fixed code: `users` (five ways), `/visits`, `orders`,
+`encounters`, patient merge, `billing` (visits, invoices, payments, tariffs),
+`allergies`, nursing incident review, and `radiology`.
+
+Confirmed clean without changes: pharmacy, files, emergency, security_audit,
+notifications, inventory, wards, reports, blood_bank, ot, registration, outbox,
+consent, audit, admissions, departments. Pathology's
+`GET /critical-alerts/stream` was flagged by the scan and is **clean on
+inspection** — it keys subscribers by `users.id` and publishes only to the
+ordering doctor, so the scope is implicit. `queue_display_stream` is the
+deliberate public wall board.
+
+**Radiology was the worst module found, and the scan under-reported it.** The
+flag was one endpoint; the reality was all six. `radiology_order_items` has no
+`facility_id` column — it reaches one only through `order_id -> orders.facility_id`
+— so every handler used a bare `db.get()` and compared nothing:
+
+- `GET /order-items` returned every radiology item in the deployment, paged and
+  filterable by status, and carried **no role dependency** — a worklist of every
+  hospital's scans with accession numbers, to any authenticated account.
+- `GET /order-items/{id}/fhir-bundle` also had **no role dependency**, and
+  returns a FHIR DiagnosticReport: patient demographics, findings and impression
+  in one document, by id.
+- `PUT .../reports/sign-off` wrote a **final, signed** report — the version a
+  clinician acts on — against another hospital's scan.
+- `POST /order-items` attached a scan to another facility's order and allocated
+  the accession from *our* counter, putting our sequence on their order.
+- `PUT .../scan-complete` and `POST .../reports` were unscoped on the same
+  pattern.
+
+The audit trail made it worse rather than better: `_write_audit_log` stamps
+`facility_id=current_db_user.facility_id`, so a cross-facility write filed
+itself under the caller's facility. The row that should have exposed the act
+recorded it against the wrong hospital.
+
+**Lesson for the remaining audit work:** a grep for handlers that never mention
+`facility_id` under-counts whenever the table has no `facility_id` of its own.
+Radiology and allergies both hid behind that. Reaching facility through a join
+is the case worth reading by hand.
+
+**Role-dependency sweep: done, no further holes.** Because two radiology routes
+had no role gate at all, every router was scanned for handlers lacking
+`require_roles`. Fourteen matched; all fourteen resolve:
+
+- Six in `users` are a false positive — the gate is on the `APIRouter`
+  (`dependencies=[Depends(require_roles("admin"))]`), not the handler.
+- `queue_display_stream` is the deliberate public wall board.
+- The remaining seven (departments, rooms, consent purposes, facility
+  capabilities, pathology result history) require authentication and are
+  facility-scoped through `CurrentDbUser`; the departments ones carry a comment
+  explaining that dropdowns across many modules need them open to any
+  authenticated user.
+
+If this scan is repeated, note that a handler-level regex misses router-level
+dependencies and will report `users` as ungated when it is not.
 
 **P0.5 Browser gates for every release role.** Only nurse exists; nine to go.
 Receptionist and pharmacist became testable on 22 August — before that, their
