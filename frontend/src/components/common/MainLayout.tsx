@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { canRoleAccessPath, getDefaultRouteForRole } from "@/lib/auth/routes";
+import { canRoleAccessPath, getDefaultRouteForRole, isPublicPath } from "@/lib/auth/routes";
 import { useAuth } from "@/providers/auth-provider";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
@@ -16,13 +16,16 @@ export default function MainLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const isPublic = pathname === "/login";
+  const isPublic = isPublicPath(pathname);
   const allowed = pathname === "/" || canRoleAccessPath(user?.role ?? null, pathname);
 
   useEffect(() => {
     if (isLoading) return;
     if (isPublic) {
-      if (isAuthenticated && user?.role) {
+      // Only /login bounces an authenticated user onward. The wall display is
+      // a destination in its own right — a nurse who opens it to check the
+      // board should see the board, not be redirected to their workspace.
+      if (pathname === "/login" && isAuthenticated && user?.role) {
         router.replace(getDefaultRouteForRole(user.role));
       }
       return;

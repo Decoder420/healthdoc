@@ -1,5 +1,6 @@
 FROM node:22-alpine AS dev
 WORKDIR /code
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
@@ -8,6 +9,7 @@ CMD ["npm", "run", "dev"]
 
 FROM node:22-alpine AS build
 WORKDIR /code
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .

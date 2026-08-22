@@ -1,4 +1,3 @@
-import { displayUserName } from "@/lib/data/userDisplay";
 import { HandoverNotesProps } from "./HandoverNotes.types";
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -6,6 +5,10 @@ const SHIFT_LABELS: Record<string, string> = {
   evening: "Evening",
   night: "Night",
 };
+
+function actorId(value?: string): string {
+  return value ? value.slice(0, 8) : "Unknown";
+}
 
 export default function HandoverNotes({
   admissionId,
@@ -58,12 +61,12 @@ export default function HandoverNotes({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground">Handed Over By</p>
-                <p className="font-medium">{displayUserName(note.created_by)}</p>
+                <p className="font-mono text-sm">{actorId(note.created_by)}</p>
               </div>
 
               <div>
                 <p className="text-xs text-muted-foreground">Handed Over To</p>
-                <p className="font-medium">{displayUserName(note.handed_over_to)}</p>
+                <p className="font-mono text-sm">{actorId(note.handed_over_to)}</p>
               </div>
             </div>
 

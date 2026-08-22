@@ -44,6 +44,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/doctor/consultation", label: "Consultation", icon: ClipboardList, area: "clinical" },
   { href: "/doctor/orders", label: "Orders", icon: FlaskConical, area: "clinical" },
   { href: "/doctor/prescriptions", label: "Prescriptions", icon: Pill, area: "clinical" },
+  { href: "/doctor/pharmacy-approvals", label: "Pharmacy approvals", icon: Pill, area: "clinical" },
   { href: "/nurse/ward-dashboard", label: "Ward dashboard", icon: Bed, area: "clinical" },
   { href: "/nurse/emar", label: "eMAR", icon: ClipboardList, area: "clinical" },
   { href: "/ipd", label: "IPD", icon: Building2, area: "clinical" },
@@ -58,6 +59,8 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/reports", label: "Reports", icon: BarChart3, area: "finance" },
   { href: "/audit-viewer", label: "Audit trail", icon: Shield, area: "audit" },
   { href: "/admin", label: "Administration", icon: LayoutDashboard, area: "admin" },
+  { href: "/admin/departments", label: "Departments & rooms", icon: Building2, area: "admin" },
+  { href: "/admin/abdm-sync", label: "ABDM identity links", icon: Shield, area: "admin" },
 ];
 
 const AREA_LABELS: Record<NavItem["area"], string> = {

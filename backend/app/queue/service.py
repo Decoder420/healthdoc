@@ -545,6 +545,96 @@ async def elevate_priority(
 
 
 # ---------------- LIST QUEUE TOKENS ----------------
+async def list_queues(
+    db: AsyncSession,
+    caller_facility_id: uuid.UUID,
+    service_date: date,
+    *,
+    open_only: bool = True,
+) -> list[dict]:
+    """Today's queues at the caller's facility, with enough to choose one.
+
+    POST /queue/tokens needs a queue_id and nothing let a receptionist discover
+    one: /worklist is a doctor's own list and doctor/admin-only, and creating a
+    queue is not the same as finding today's. So the token could only be issued
+    by someone who already knew a UUID — which meant, in practice, that it could
+    not be issued from a screen at all.
+
+    Scoped to the caller's facility, and to one service_date: queues are unique
+    per (department, doctor, service_date), so without the date filter a
+    reception screen would offer yesterday's rows alongside today's.
+
+    `waiting_count` is included because it is the number that decides which
+    queue a walk-in should join, and asking the client to fetch tokens per
+    queue to work it out would be a request per doctor on every page load.
+    """
+    stmt = select(Queue).where(
+        Queue.facility_id == caller_facility_id,
+        Queue.service_date == service_date,
+    )
+    if open_only:
+        stmt = stmt.where(Queue.is_open.is_(True))
+
+    queues = (await db.execute(stmt)).scalars().all()
+    if not queues:
+        return []
+
+    # Resolved in two queries rather than two per queue — this is the first
+    # screen of the day for the whole front desk.
+    doctor_ids = {q.doctor_user_id for q in queues}
+    room_ids = {q.room_id for q in queues if q.room_id}
+
+    doctors = {
+        u.id: u for u in (
+            await db.execute(select(User).where(User.id.in_(doctor_ids)))
+        ).scalars().all()
+    }
+    rooms = {
+        r.id: r for r in (
+            await db.execute(select(Room).where(Room.id.in_(room_ids)))
+        ).scalars().all()
+    } if room_ids else {}
+
+    counts_result = await db.execute(
+        select(QueueToken.queue_id, func.count())
+        .where(
+            QueueToken.queue_id.in_([q.id for q in queues]),
+            QueueToken.status.in_(list(CALLABLE_STATUSES)),
+        )
+        .group_by(QueueToken.queue_id)
+    )
+    waiting_by_queue = dict(counts_result.all())
+
+    now_serving_ids = [q.now_serving_token_id for q in queues if q.now_serving_token_id]
+    now_serving_by_id: dict[uuid.UUID, str] = {}
+    if now_serving_ids:
+        now_serving_by_id = {
+            t.id: t.token_display for t in (
+                await db.execute(select(QueueToken).where(QueueToken.id.in_(now_serving_ids)))
+            ).scalars().all()
+        }
+
+    rows = [
+        {
+            "id": q.id,
+            "department_id": q.department_id,
+            "doctor_user_id": q.doctor_user_id,
+            "doctor_name": doctors[q.doctor_user_id].full_name if q.doctor_user_id in doctors else None,
+            "room_id": q.room_id,
+            "room_number": rooms[q.room_id].room_number if q.room_id in rooms else None,
+            "display_label": q.display_label,
+            "service_date": q.service_date,
+            "is_open": q.is_open,
+            "waiting_count": waiting_by_queue.get(q.id, 0),
+            "now_serving": now_serving_by_id.get(q.now_serving_token_id) if q.now_serving_token_id else None,
+        }
+        for q in queues
+    ]
+    # Shortest queue first — the order a receptionist reads it in.
+    rows.sort(key=lambda r: (r["waiting_count"], r["doctor_name"] or ""))
+    return rows
+
+
 async def list_queue_tokens(
     db: AsyncSession,
     queue_id: uuid.UUID,

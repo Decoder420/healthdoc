@@ -51,6 +51,24 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
 };
 
 /**
+ * Paths served without a session, listed once so the edge middleware and the
+ * client layout cannot disagree about them.
+ *
+ * `/queue-display` is the OPD waiting-room wall screen. It has no login by
+ * design — the backend's SSE endpoint is unauthenticated for the same reason,
+ * and its payload carries only token, doctor name and room, never a patient
+ * identifier. Requiring a session here would mean a shared credential taped to
+ * a TV in a public corridor, which is worse than no credential at all.
+ */
+const PUBLIC_PREFIXES: readonly string[] = ["/login", "/queue-display"];
+
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/**
  * `null` means the token carried no role we have a workspace for. Send them to
  * the root rather than into a workspace they cannot use — see
  * mapKeycloakRolesToAppRole for why guessing is worse than admitting it.
@@ -62,7 +80,11 @@ export function getDefaultRouteForRole(role: Role | null): string {
 export function canRoleAccessPath(role: Role | null, pathname: string): boolean {
   if (!role) return false;
   if (pathname === "/") return true;
-  return ROUTE_PREFIXES[role].some(
+  if (isPublicPath(pathname)) return true;
+  // Defensive: the middleware reads the role from a cookie, which is not
+  // typed at runtime. An unrecognised value must deny, not throw on an
+  // undefined prefix list.
+  return (ROUTE_PREFIXES[role] ?? []).some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }

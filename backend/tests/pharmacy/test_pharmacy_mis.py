@@ -134,7 +134,7 @@ async def test_substitution_counts_toward_substitution_rate(db_session, pharmacy
             items=[DispenseItemCreate(
                 prescription_item_id=pharmacy_seed["prescription_item_id"],
                 quantity_dispensed=Decimal("5"),
-                substitute_item_id=pharmacy_seed["medicine_id"],
+                substitute_item_id=pharmacy_seed["substitute_medicine_id"],
                 substitute_reason="MIS test substitution",
             )],
         ),

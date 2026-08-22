@@ -6,6 +6,9 @@ import type { AddHandoverSchema } from "@/features/nurse/components/AddHandoverF
 import type { AddIntakeOutputSchema } from "@/features/nurse/components/AddIntakeOutputForm/validation";
 import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
 import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursingNoteForm/validation";
+import type { VitalRecord } from "@/components/VitalsTimeline/VitalsTimeline.types";
+import type { MedicationRecord } from "@/components/tables/EMARTable/EMARTable.types";
+import type { DischargeSummary } from "@/features/ipd/services/ipd.service";
 
 export interface Vitals {
   id: string;
@@ -76,6 +79,13 @@ export interface AdmissionTransferResult {
   status: string;
 }
 
+export interface FluidBalance {
+  admission_id: string;
+  total_intake_ml: number;
+  total_output_ml: number;
+  net_ml: number;
+}
+
 export interface ProcedureRecord {
   id: string;
   order_id: string | null;
@@ -130,8 +140,31 @@ export class UnsupportedWorkflowError extends Error {
   }
 }
 
-export async function getNursingTasks() {
+export async function getNursingTasks(patientId?: string) {
+  if (patientId) {
+    return api<NursingTask[]>(
+      `/nursing/tasks?patient_id=${encodeURIComponent(patientId)}`,
+    );
+  }
   return api<NursingTask[]>("/nursing/tasks");
+}
+
+export async function getPatientVitals(patientId: string) {
+  return api<VitalRecord[]>(`/nursing/patients/${patientId}/vitals`);
+}
+
+export async function getAdmissionFluidBalance(admissionId: string) {
+  return api<FluidBalance>(`/nursing/admissions/${admissionId}/fluid-balance`);
+}
+
+export async function getAdmissionMedicationAdministrations(admissionId: string) {
+  return api<MedicationRecord[]>(
+    `/nursing/admissions/${admissionId}/medication-administrations`,
+  );
+}
+
+export async function getAdmissionSummary(admissionId: string) {
+  return api<DischargeSummary>(`/admissions/${admissionId}/discharge-summary`);
 }
 
 export async function completeNursingTask(orderId: string, note?: string) {
