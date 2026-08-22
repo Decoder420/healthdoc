@@ -91,11 +91,20 @@ fi
 
 # Create the target DB if it doesn't already exist (needed for the
 # throwaway-restore-target pattern the header comment recommends).
-DB_EXISTS=$(run_pg psql -U "$POSTGRES_USER" -tAc \
+# -d is explicit on both maintenance queries. psql defaults to a database
+# named after the connecting user, so `psql -U healthdoc` silently targets a
+# database called "healthdoc" — which happens to exist on a developer's machine
+# and does not in CI (healthdoc_test) or on a server whose database is named
+# anything else. The maintenance database is the right target here anyway:
+# CREATE DATABASE cannot run from inside the database being created.
+MAINTENANCE_DB="${POSTGRES_MAINTENANCE_DB:-postgres}"
+
+DB_EXISTS=$(run_pg psql -U "$POSTGRES_USER" -d "$MAINTENANCE_DB" -tAc \
     "SELECT 1 FROM pg_database WHERE datname='$TARGET_DB'")
 if [ "$DB_EXISTS" != "1" ]; then
     echo "Creating database '$TARGET_DB' ..."
-    run_pg psql -U "$POSTGRES_USER" -c "CREATE DATABASE \"$TARGET_DB\";"
+    run_pg psql -U "$POSTGRES_USER" -d "$MAINTENANCE_DB" \
+        -c "CREATE DATABASE \"$TARGET_DB\";"
 fi
 
 echo "Restoring '$DUMP_FILE' into '$TARGET_DB' ..."
