@@ -135,7 +135,7 @@ async def test_deactivate_retires_without_deleting(db, ids):
     facility_id, actor = ids
     tariff_id = await _tariff(db, facility_id, actor)
 
-    assert await service.deactivate_tariff(db, tariff_id, updated_by=actor) is True
+    assert await service.deactivate_tariff(db, tariff_id, updated_by=actor, facility_id=facility_id) is True
     assert await service.charge_for(db, facility_id, "CBC", JUN) is None
 
     row = (await db.execute(
@@ -147,15 +147,34 @@ async def test_deactivate_retires_without_deleting(db, ids):
 async def test_deactivating_twice_reports_no_change(db, ids):
     facility_id, actor = ids
     tariff_id = await _tariff(db, facility_id, actor)
-    await service.deactivate_tariff(db, tariff_id, updated_by=actor)
+    await service.deactivate_tariff(db, tariff_id, updated_by=actor, facility_id=facility_id)
 
-    assert await service.deactivate_tariff(db, tariff_id, updated_by=actor) is False
+    assert await service.deactivate_tariff(db, tariff_id, updated_by=actor, facility_id=facility_id) is False
 
 
 async def test_listing_hides_retired_rows_unless_asked(db, ids):
     facility_id, actor = ids
     tariff_id = await _tariff(db, facility_id, actor)
-    await service.deactivate_tariff(db, tariff_id, updated_by=actor)
+    await service.deactivate_tariff(db, tariff_id, updated_by=actor, facility_id=facility_id)
 
     assert await service.list_charge_master(db, facility_id) == []
     assert len(await service.list_charge_master(db, facility_id, active_only=False)) == 1
+
+
+async def test_a_tariff_at_another_facility_cannot_be_retired(db, ids):
+    """P0.4. Retiring another facility's REGISTRATION row stops that hospital
+    registering patients at all — create_registration_invoice refuses rather
+    than raising a zero-rupee invoice — so this is a cross-facility denial of
+    service through a single admin endpoint."""
+    facility_id, actor = ids
+    other_facility = uuid.uuid4()
+    tariff_id = await _tariff(db, facility_id, actor)
+
+    retired = await service.deactivate_tariff(
+        db, tariff_id, updated_by=actor, facility_id=other_facility
+    )
+
+    assert retired is False, "an admin elsewhere must not be able to retire this tariff"
+    assert await service.charge_for(db, facility_id, "CBC", JUN) is not None, (
+        "the tariff must still price invoices at its own facility"
+    )

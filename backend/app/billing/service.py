@@ -1552,17 +1552,27 @@ async def create_tariff(
 
 
 async def deactivate_tariff(
-    db: AsyncSession, tariff_id: uuid.UUID, *, updated_by: uuid.UUID
+    db: AsyncSession, tariff_id: uuid.UUID, *, updated_by: uuid.UUID, facility_id: uuid.UUID
 ) -> bool:
     """Retire a tariff. Sets is_active = false; never deletes.
 
     The row stays because invoice_items.charge_master_id points at it, and a
     line whose tariff has vanished cannot be explained to a patient or an
     auditor.
+
+    facility_id is required, not optional. Without it an admin could retire
+    another facility's tariff — and retiring their REGISTRATION row stops that
+    hospital registering patients at all, because create_registration_invoice
+    refuses rather than raising a zero-rupee invoice. A cross-facility denial
+    of service through a single admin endpoint.
     """
     result = await db.execute(
         sa.update(charge_master_t)
-        .where(charge_master_t.c.id == tariff_id, charge_master_t.c.is_active.is_(True))
+        .where(
+            charge_master_t.c.id == tariff_id,
+            charge_master_t.c.facility_id == facility_id,
+            charge_master_t.c.is_active.is_(True),
+        )
         .values(is_active=False, updated_by=updated_by)
     )
     await db.flush()

@@ -110,6 +110,59 @@ async def ping() -> dict:
     return {"module": "billing", "status": "stub"}
 
 
+# ---------------------------------------------------------------------
+# Facility scoping (P0.4)
+#
+# list_invoices scopes correctly because it was written after CurrentDbUser
+# existed. The by-id endpoints below predate it and compared nothing: a clerk
+# at facility A could preview and BUILD an invoice for another facility's
+# visit, record a PAYMENT against another facility's invoice, and record a
+# REFUND against another facility's payment. The last two move money.
+#
+# 404 rather than 403 — 403 confirms the id exists, which is enough to
+# enumerate another facility's invoices and payments.
+# ---------------------------------------------------------------------
+
+_NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
+
+
+async def _assert_visit_in_facility(db: AsyncSession, visit_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    from app.opd.models import Visit
+
+    found = (
+        await db.execute(
+            select(Visit.id).where(Visit.id == visit_id, Visit.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
+
+
+async def _assert_invoice_in_facility(db: AsyncSession, invoice_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    found = (
+        await db.execute(
+            select(Invoice.id).where(Invoice.id == invoice_id, Invoice.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
+
+
+async def _assert_payment_in_facility(db: AsyncSession, payment_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    """payments has no facility_id — it is reached through its invoice."""
+    from app.billing.models import Payment
+
+    found = (
+        await db.execute(
+            select(Payment.id)
+            .join(Invoice, Invoice.id == Payment.invoice_id)
+            .where(Payment.id == payment_id, Invoice.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
+
+
 @router.get(
     "/invoices",
     response_model=InvoiceListOut,
@@ -164,9 +217,11 @@ async def list_invoices(
 )
 async def preview_visit_invoice(
     visit_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     _user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
 ) -> InvoicePreviewResponse:
+    await _assert_visit_in_facility(db, visit_id, current_db_user.facility_id)
     return await service.preview_invoice(db, visit_id)
 
 
@@ -178,11 +233,13 @@ async def preview_visit_invoice(
 )
 async def build_visit_invoice(
     visit_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     body: InvoiceBuildRequest = InvoiceBuildRequest(),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> InvoiceBuildResponse:
+    await _assert_visit_in_facility(db, visit_id, current_db_user.facility_id)
     # §4A.1 lists "orders" but not invoices/invoice_items explicitly —
     # not adding Idempotency-Key enforcement here until that's confirmed
     # with whoever owns the reliability contract. Flag for review.
@@ -225,11 +282,13 @@ async def get_pmjay_eligibility(
 async def record_invoice_payment(
     invoice_id: uuid.UUID,
     body: PaymentCreate,
+    current_db_user: CurrentDbUser,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> PaymentOut:
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
     key = _require_idempotency_key(idempotency_key)
     endpoint = "POST /billing/invoices/{invoice_id}/payments"
     request_body = {"invoice_id": str(invoice_id), **body.model_dump(mode="json")}
@@ -257,11 +316,13 @@ async def record_invoice_payment(
 async def record_payment_refund(
     payment_id: uuid.UUID,
     body: RefundCreate,
+    current_db_user: CurrentDbUser,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_REFUND_APPROVAL_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> RefundOut:
+    await _assert_payment_in_facility(db, payment_id, current_db_user.facility_id)
     key = _require_idempotency_key(idempotency_key)
     endpoint = "POST /billing/payments/{payment_id}/refunds"
     request_body = {"payment_id": str(payment_id), **body.model_dump(mode="json")}
@@ -415,6 +476,7 @@ async def create_tariff(
 )
 async def deactivate_tariff(
     tariff_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_TARIFF_ADMIN_ROLES)),
 ) -> None:
@@ -423,7 +485,9 @@ async def deactivate_tariff(
     actor_id = await service.resolve_actor_user_id(
         db, keycloak_sub=user.sub, fallback_id=getattr(user, "id", None)
     )
-    if not await service.deactivate_tariff(db, tariff_id, updated_by=actor_id):
+    if not await service.deactivate_tariff(
+        db, tariff_id, updated_by=actor_id, facility_id=current_db_user.facility_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="tariff not found or already inactive",
