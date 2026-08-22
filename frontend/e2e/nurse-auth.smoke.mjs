@@ -60,10 +60,15 @@ try {
     timeout: 30_000,
   });
 
-  const signInButton = await page.waitForSelector("button", { timeout: 15_000 });
+  // SSR renders before AuthProvider's silent-SSO initialization finishes. Wait
+  // for React to hydrate and enable the button so this cannot become an inert
+  // pre-hydration click on a fast browser.
+  const signInButton = await page.waitForSelector("button:not([disabled])", {
+    timeout: 30_000,
+  });
   const clicked = await page.evaluate(() => {
     const button = [...document.querySelectorAll("button")].find((candidate) =>
-      candidate.textContent?.includes("Sign in with Keycloak"),
+      !candidate.disabled && candidate.textContent?.includes("Sign in with Keycloak"),
     );
     button?.click();
     return Boolean(button);
@@ -82,11 +87,12 @@ try {
 
   await page.waitForFunction(
     () => window.location.pathname === "/nurse/ward-dashboard",
-    { timeout: 30_000 },
+    // A clean Next dev container may compile this route on first access.
+    { timeout: 60_000 },
   );
   await page.waitForSelector(
     '[data-testid="nursing-api-status"][data-status="connected"]',
-    { timeout: 30_000 },
+    { timeout: 60_000 },
   );
 
   const silentSsoStatus = await page.evaluate(async () => {

@@ -63,6 +63,13 @@ def test_lab_order_to_critical_alert_and_dual_verification(client_as):
     assert response.status_code == 201, response.text
     assert response.json()["data"]["status"] == "preliminary"
 
+    duplicate = client.post(
+        f"/api/v1/pathology/order-items/{item_id}/results",
+        json={"result_data": {"hemoglobin_g_dl": 8.1}},
+    )
+    assert duplicate.status_code == 409, duplicate.text
+    assert duplicate.json()["error"]["message"]["code"] == "sample_not_ready_for_result"
+
     # Maker-checker: the same authenticated app user cannot verify their own result.
     response = client.put(f"/api/v1/pathology/order-items/{item_id}/results/verify", json={})
     assert response.status_code == 403, response.text

@@ -50,7 +50,7 @@ class LabOrderItemListOut(BaseModel):
 
 class LabResultCreate(BaseModel):
     """Body for POST /pathology/order-items/{item_id}/results (technician entry)."""
-    result_data: dict
+    result_data: dict = Field(min_length=1)
     remarks: str | None = None
 
 

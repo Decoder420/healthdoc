@@ -85,7 +85,9 @@ async def create_prescription(payload: PrescriptionCreate, current_db_user: Curr
             dependencies=[Depends(require_roles("doctor", "nurse", "pharmacist", "admin"))])
 async def get_prescription(prescription_id: UUID, current_db_user: CurrentDbUser,
                             db: AsyncSession = Depends(get_db)) -> PrescriptionOut:
-    prescription = await service.get_prescription(db, prescription_id)
+    prescription = await service.get_prescription(
+        db, prescription_id, current_db_user.facility_id
+    )
     if prescription is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="prescription_not_found")
     items = await service.get_prescription_items(db, prescription_id)

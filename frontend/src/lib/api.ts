@@ -7,7 +7,7 @@
 // Keycloak on reload (silent SSO) and refreshed by lib/auth.ts.
 // Never add a storage write here without Tech Lead sign-off.
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
 let accessToken: string | null = null;
 
@@ -23,8 +23,24 @@ export function getAccessToken(): string | null {
 export interface Envelope<T> {
   success: boolean;
   data: T | null;
-  error: { code: number; message: string } | null;
+  error: { code: number; message: unknown } | null;
   meta: { request_id?: string };
+}
+
+function errorMessage(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value === "object") {
+    const detail = (value as { detail?: unknown }).detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    const nestedMessage = (value as { message?: unknown }).message;
+    if (typeof nestedMessage === "string" && nestedMessage.trim()) return nestedMessage;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Request failed";
+    }
+  }
+  return "Request failed";
 }
 
 export class ApiError extends Error {
@@ -72,7 +88,7 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
     console.warn(`[api] POST ${path} without an Idempotency-Key (schema §4A.1)`);
   }
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers: {
       "Content-Type": "application/json",
@@ -93,9 +109,9 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
   if (!body.success || body.error) {
     throw new ApiError(
       body.error?.code ?? res.status,
-      body.error?.message ?? "Request failed",
+      errorMessage(body.error?.message),
       body.meta?.request_id,
-      body.error,
+      body.error?.message ?? body.error,
     );
   }
   return body.data as T;

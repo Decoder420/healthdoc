@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Prescription queue (GET /pharmacy/queue)
@@ -96,6 +96,14 @@ class DispenseItemCreate(BaseModel):
         description="Required (min 20 chars) to dispense an item with a known interaction against another item in the same request. Contraindicated-severity pairs can never be overridden.",
     )
 
+    @model_validator(mode="after")
+    def validate_substitution(self) -> "DispenseItemCreate":
+        if self.substitute_item_id is not None and not (self.substitute_reason or "").strip():
+            raise ValueError("substitute_reason is required when substitute_item_id is provided")
+        if self.expiry_override and not (self.expiry_override_reason or "").strip():
+            raise ValueError("expiry_override_reason is required when expiry_override is true")
+        return self
+
 
 class DispenseCreate(BaseModel):
     prescription_id: UUID
@@ -105,6 +113,13 @@ class DispenseCreate(BaseModel):
         description="If true and available stock < requested for an item, dispense "
         "whatever is available instead of rejecting the whole request.",
     )
+
+    @model_validator(mode="after")
+    def reject_duplicate_prescription_items(self) -> "DispenseCreate":
+        item_ids = [item.prescription_item_id for item in self.items]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError("Each prescription item may appear only once in a dispense")
+        return self
 
 
 class BatchAllocation(BaseModel):
@@ -159,6 +174,35 @@ class SubstitutionApprovalRequest(BaseModel):
     rejection_reason: str | None = Field(
         default=None, description="Required if approved=false"
     )
+
+    @model_validator(mode="after")
+    def validate_rejection_reason(self) -> "SubstitutionApprovalRequest":
+        if not self.approved and not (self.rejection_reason or "").strip():
+            raise ValueError("rejection_reason is required when rejecting a substitution")
+        return self
+
+
+class PendingSubstitutionOut(BaseModel):
+    item_id: UUID
+    dispense_id: UUID
+    prescription_id: UUID
+    prescription_item_id: UUID
+    patient_id: UUID
+    patient_full_name: str
+    uhid: str | None = None
+    prescribed_medicine_name: str
+    substitute_item_id: UUID
+    substitute_medicine_name: str
+    substitute_strength: str | None = None
+    substitute_form: str | None = None
+    quantity_requested: Decimal
+    substitute_reason: str
+    requested_at: datetime
+
+
+class PendingSubstitutionResponse(BaseModel):
+    items: list[PendingSubstitutionOut]
+    total: int
 # ---------------------------------------------------------------------------
 # Pharmacy MIS report (GET /pharmacy/mis)
 # ---------------------------------------------------------------------------

@@ -33,6 +33,23 @@ export interface Discharge {
   follow_up_date?: string | null;
 }
 
+export interface Movement {
+  id: string;
+  admission_id: string;
+  from_ward_id: string | null;
+  from_bed_id: string | null;
+  to_ward_id: string;
+  to_bed_id: string;
+  moved_at: string;
+  reason: string | null;
+}
+
+export interface DischargeSummary {
+  admission: Admission;
+  discharge: Discharge | null;
+  movements: Movement[];
+}
+
 export async function admitPatient(data: AddAdmissionSchema) {
   return api<Admission>("/admissions", {
     method: "POST",

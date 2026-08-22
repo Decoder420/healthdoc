@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, formatDateTime } from "@/lib/api";
 import EMARTable from "@/components/tables/EMARTable";
 import type { MedicationRecord } from "@/components/tables/EMARTable";
 
@@ -100,7 +100,7 @@ export default function Page() {
           >
             {admissions.map((admission) => (
               <option key={admission.id} value={admission.id}>
-                {new Date(admission.admitted_at).toLocaleDateString()} ·{" "}
+                {formatDateTime(admission.admitted_at)} ·{" "}
                 {admission.reason ?? "admission"}
               </option>
             ))}

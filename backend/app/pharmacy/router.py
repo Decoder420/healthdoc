@@ -18,6 +18,7 @@ from app.pharmacy.schemas import (
     ExpiryTrackerResponse,
     MedicineSearchResponse,
     PharmacyMisReport,
+    PendingSubstitutionResponse,
     PrescriptionQueueResponse,
     SubstitutionApprovalRequest,
     GrnCreate,
@@ -37,6 +38,7 @@ from app.pharmacy.service import (
     get_pharmacy_mis_report,
     get_expiry_tracker,
     get_prescription_queue,
+    get_pending_substitutions,
     search_medicines,
     create_grn,
     verify_grn,
@@ -181,6 +183,25 @@ async def create_dispense_endpoint(
         db, idempotency_key, _CREATE_DISPENSE_ENDPOINT, 201, response_body, current_user.id
     )
     return result
+
+
+@router.get(
+    "/substitutions/pending",
+    response_model=PendingSubstitutionResponse,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("doctor")),
+    ],
+)
+async def pending_substitutions_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+) -> PendingSubstitutionResponse:
+    return await get_pending_substitutions(
+        db,
+        facility_id=current_user.facility_id,
+        doctor_user_id=current_user.id,
+    )
 
 
 @router.post(
