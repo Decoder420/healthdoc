@@ -165,6 +165,7 @@ do not merge out of order.**
 | 0044 | notification_preferences | notification_preferences | B4 (#230) — the per-role half of #230; the history API shipped without it, so nothing could be silenced. Opt-out: absence of a row means enabled. |
 | 0045 | order_checkoff | ALTER orders: accepted_at, accepted_by, completed_at, completed_by, completion_note (+ 3 CHECKs) | B3/nursing (#210) — status recorded THAT an order was done and lost who and when |
 | 0046 | clinical_incidents | clinical_incidents | B3/nursing (#236) — NABH DHS incident register. Distinct from data_breach_notifications (0022a), which is the DPDP/CERT-In data path. |
+| 0047 | queue_token_transferred_not_live | ALTER queue_tokens: uq_queue_tokens_one_live_per_visit predicate gains 'transferred' | B4 (#407) — 0009's predicate counted a transferred token as still live, so every reassign_token() collided with its own historical row against PostgreSQL. Invisible until the ORM declared the index, because the SQLite test DB is built from ORM metadata. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
