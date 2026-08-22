@@ -258,6 +258,7 @@ class OrderAlreadyCompleted(Exception):
 async def pending_orders(
     db: AsyncSession,
     *,
+    facility_id: uuid.UUID | None = None,
     patient_id: uuid.UUID | None = None,
     order_type: str | None = None,
 ) -> list[Order]:
@@ -272,6 +273,8 @@ async def pending_orders(
         OrderStatus.IN_PROGRESS.value,
     )
     stmt = select(Order).where(Order.status.in_(open_statuses))
+    if facility_id is not None:
+        stmt = stmt.where(Order.facility_id == facility_id)
     if patient_id is not None:
         stmt = stmt.where(Order.patient_id == patient_id)
     if order_type is not None:

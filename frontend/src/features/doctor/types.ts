@@ -56,6 +56,9 @@ export interface QueueToken {
   uhid: string;
   age_years: number;
   sex: Sex;
+  provider_user_id?: string;
+  provider_name?: string;
+  department?: string;
 }
 
 // ---------------------------------------------------------------------------

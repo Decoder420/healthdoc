@@ -88,6 +88,7 @@ const RULES = [
     msg: "Optional-module screen: confirm it is gated by /facility/capabilities and handles 409 module_disabled.",
     ref: "schema §Module toggle behavior rule 6",
     once: true,
+    needsAbsent: /ModuleCapabilityGate/,
   },
   {
     rule: "MISSING-IDEMPOTENCY",

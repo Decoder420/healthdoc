@@ -6,10 +6,10 @@ billing MIS (#189). Merge into existing schemas.py, don't replace it.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID
 from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator
 
@@ -19,6 +19,28 @@ from app.common.enums import ChargeCategory, PaymentMode, PaymentStatus
 # "amount as string (JSON floats corrupt paise)". quantity is not money —
 # stays plain Decimal.
 Money = Annotated[Decimal, PlainSerializer(lambda v: str(v), return_type=str, when_used="json")]
+
+
+class InvoiceListItemOut(BaseModel):
+    id: uuid.UUID
+    invoice_number: str
+    visit_id: uuid.UUID
+    patient_id: uuid.UUID
+    patient_full_name: str
+    patient_identifier: str
+    status: str
+    gross_amount: Money
+    net_amount: Money
+    scheme_code: str | None
+    row_version: int
+    created_at: datetime
+
+
+class InvoiceListOut(BaseModel):
+    items: list[InvoiceListItemOut]
+    page: int
+    page_size: int
+    total: int
 
 
 class ChargeLine(BaseModel):

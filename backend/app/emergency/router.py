@@ -39,7 +39,7 @@ async def ping() -> dict:
     "/patients",
     status_code=201,
     response_model=EmergencyPatientOut,
-    dependencies=[Depends(require_roles("receptionist", "admin", "nurse"))],
+    dependencies=[Depends(require_roles("emergency", "receptionist", "admin", "nurse"))],
 )
 async def register_emergency_patient(
     payload: EmergencyPatientCreate,

@@ -141,10 +141,11 @@ services:
       target: dev
     env_file: ../.env
     volumes:
-      - ../frontend:/code
-      - /code/node_modules
+      # Keep the image's Linux dependencies and manifests isolated from the
+      # host. Only application files that need hot reload are bind-mounted.
+      - ../frontend/src:/code/src
+      - ../frontend/public:/code/public
       - /code/.next
-    command: ["npm", "run", "dev"]
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
 

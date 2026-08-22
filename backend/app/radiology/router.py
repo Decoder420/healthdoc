@@ -8,21 +8,26 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.audit.service import write_audit_log
+from app.auth.deps import CurrentDbUser, get_current_db_user, get_current_user, require_roles
 from app.common.accession import RADIOLOGY, allocate_accession_number
 from app.common.db import get_db
-from app.auth.deps import get_current_user, require_roles, get_current_db_user, CurrentDbUser
 from app.radiology.fhir import build_diagnostic_report_bundle
-from app.radiology.schemas import (
-    RadiologyOrderItemCreate, RadiologyOrderItemOut, ScheduleRequest,
-    ScanCompletionRequest,
-    RadiologyOrderItemListOut, RadiologyReportCreate, RadiologyReportSignOff,
-    RadiologyReportOut,
-)
 from app.radiology.models import RadiologyOrderItem, RadiologyReport
+from app.radiology.schemas import (
+    RadiologyOrderItemCreate,
+    RadiologyOrderItemListOut,
+    RadiologyOrderItemOut,
+    RadiologyReportCreate,
+    RadiologyReportOut,
+    RadiologyReportSignOff,
+    ScanCompletionRequest,
+    ScheduleRequest,
+)
 
 router = APIRouter(prefix="/radiology", tags=["radiology"])
 
@@ -128,7 +133,7 @@ async def draft_radiology_report(
     item_id: uuid.UUID,
     payload: RadiologyReportCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("radiologist")),
+    current_user=Depends(require_roles("doctor")),
 
 ):
     item = await db.get(RadiologyOrderItem, item_id)
@@ -164,7 +169,7 @@ async def sign_off_radiology_report(
     item_id: uuid.UUID,
     payload: RadiologyReportSignOff,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("radiologist")),
+    current_user=Depends(require_roles("doctor")),
 
 ):
     current = (await db.execute(

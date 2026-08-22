@@ -1,6 +1,8 @@
 import uuid
 from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict
+
 from app.common.enums import QueuePriority, Shift
 
 
@@ -59,6 +61,28 @@ class TokenPriorityElevate(BaseModel):
     reason: str
 
 
+class QueueSummaryOut(BaseModel):
+    """One selectable queue for the reception desk.
+
+    Carries doctor_name, room_number and waiting_count because those are what a
+    receptionist chooses on — a bare queue id is not a choice anyone can make.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    department_id: uuid.UUID
+    doctor_user_id: uuid.UUID
+    doctor_name: str | None
+    room_id: uuid.UUID | None
+    room_number: str | None
+    display_label: str | None
+    service_date: date
+    is_open: bool
+    waiting_count: int
+    now_serving: str | None
+
+
 class QueueTokenListItemOut(QueueTokenOut):
     doctor_name: str
     room_number: str | None
@@ -70,6 +94,21 @@ class QueueTokenListOut(BaseModel):
     waiting_count: int
     now_serving: str | None
     items: list[QueueTokenListItemOut]
+
+
+class DoctorWorklistItemOut(QueueTokenOut):
+    patient_id: uuid.UUID
+    full_name: str
+    uhid: str
+    age_years: int
+    sex: str
+    provider_user_id: uuid.UUID
+    provider_name: str
+    department: str
+
+
+class DoctorWorklistOut(BaseModel):
+    items: list[DoctorWorklistItemOut]
  
  
 class CompleteAdvanceOut(BaseModel):

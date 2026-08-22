@@ -433,8 +433,8 @@ async def get_patient_access_history(
 
 @router.get(
     "/{patient_id}/abha",
-    dependencies=[Depends(require_roles("auditor", "admin", "doctor", "patient"))],
-    summary="[#228] Patient portal — view own ABHA linking data",
+    dependencies=[Depends(require_roles("auditor", "admin", "doctor"))],
+    summary="View a patient's ABHA linking data (staff audit)",
 )
 async def get_patient_abha(
     patient_id: uuid.UUID,
@@ -448,9 +448,9 @@ async def get_patient_abha(
     abha_number is returned as-is per schema §7: "plaintext by design,
     it is a health ID, never a key".
 
-    Role gate: auditor/admin/doctor for staff audit; 'patient' role for
-    the portal self-service path. Patient-self auth (ABHA OTP flow) is a
-    B1 concern — this endpoint is wired for the role once that lands.
+    This route accepts a patient ID, so it is staff-only. Portal access must
+    use a self endpoint whose patient ID comes from an authenticated
+    account-to-patient binding; that binding is not in the current schema.
     """
     patient = await db.get(Patient, patient_id)
     if patient is None or patient.deleted_at is not None:
@@ -494,9 +494,9 @@ from app.consent.schemas import ConsentRecordOut
                 consent_required=False,
             )
         ),
-        Depends(require_roles("auditor", "admin", "doctor", "patient")),
+        Depends(require_roles("auditor", "admin", "doctor")),
     ],
-    summary="[#228] Patient portal — view own consent records",
+    summary="View a patient's consent records (staff audit)",
 )
 async def get_patient_consents(
     patient_id: uuid.UUID,
@@ -509,8 +509,8 @@ async def get_patient_consents(
     (consent_required=False) — same ruling as consent/router.py's
     existing /patients/{id}/records endpoint.
 
-    Role gate mirrors the ABHA endpoint: staff roles for audit,
-    'patient' role for self-service once B1 lands portal auth.
+    This patient-ID route is staff-only. A portal caller must never be able to
+    select a patient ID from the URL.
     """
     patient = await db.get(Patient, patient_id)
     if patient is None or patient.deleted_at is not None:
