@@ -277,3 +277,44 @@ async def test_another_facilitys_merge_cannot_be_approved(db):
             db, merge_log_id=merge_log.id, approved_by=uuid.uuid4(),
             caller_facility_id=ours.id,
         )
+
+
+# ---------------------------------------------------------------- allergies + incidents
+
+async def test_another_facilitys_allergy_register_is_not_readable(db):
+    """The prescribing gate reads this register on every save, and an allergy
+    marked refuted by someone who never saw the patient is the failure 0032's
+    status enum exists to prevent."""
+    from app.allergies import router as allergies_router
+
+    ours, theirs = await _facility(db), await _facility(db)
+    stranger = await _patient(db, theirs.id)
+
+    with pytest.raises(HTTPException) as caught:
+        await allergies_router.list_patient_allergies(
+            stranger.id, _Caller(ours.id), include_inactive=False, db=db,
+        )
+
+    assert caught.value.status_code == 404
+
+
+async def test_another_facilitys_incident_cannot_be_reviewed(db):
+    """Closing an incident demands a root cause and a corrective action, so a
+    cross-facility close records our words against their register."""
+    from app.nursing.incidents import IncidentNotFound, report_incident, review_incident
+
+    ours, theirs = await _facility(db), await _facility(db)
+
+    incident = await report_incident(
+        db, facility_id=theirs.id, reported_by=uuid.uuid4(),
+        incident_type="patient_fall", severity="minor",
+        occurred_at=datetime.now(timezone.utc),
+        description="Their incident, their register.",
+        immediate_action="Assessed by their staff.",
+    )
+
+    with pytest.raises(IncidentNotFound):
+        await review_incident(
+            db, incident.id, status="under_review", reviewed_by=uuid.uuid4(),
+            caller_facility_id=ours.id,
+        )

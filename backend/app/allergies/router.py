@@ -25,6 +25,38 @@ from app.common.db import get_db
 router = APIRouter(prefix="/allergies", tags=["allergies"])
 
 
+async def _assert_patient_in_facility(db: AsyncSession, patient_id: UUID, facility_id: UUID) -> None:
+    """The allergies table has no facility_id — scope comes through the patient.
+
+    Without this, any clinician could read, add to or overturn another
+    hospital's allergy register. An allergy marked `refuted` by someone who
+    never saw the patient is the specific failure 0032's status enum exists to
+    prevent, and the prescribing gate reads this register on every save.
+
+    404, not 403 — 403 confirms the patient exists.
+    """
+    from app.patients.models import Patient
+
+    patient = await db.get(Patient, patient_id)
+    if patient is None or patient.facility_id != facility_id:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "patient_not_found")
+
+
+async def _scoped_allergy(db: AsyncSession, allergy_id: UUID, facility_id: UUID):
+    """One allergy, or 404 — resolved through its patient's facility."""
+    from app.allergies.models import Allergy
+    from app.patients.models import Patient
+
+    allergy = await db.get(Allergy, allergy_id)
+    if allergy is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "allergy_not_found")
+    patient = await db.get(Patient, allergy.patient_id)
+    if patient is None or patient.facility_id != facility_id:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "allergy_not_found")
+    return allergy
+
+
+
 @router.get(
     "/patients/{patient_id}",
     response_model=list[AllergyOut],
@@ -40,6 +72,7 @@ async def list_patient_allergies(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> list[AllergyOut]:
+    await _assert_patient_in_facility(db, patient_id, current_db_user.facility_id)
     rows = await service.list_allergies(db, patient_id, include_inactive=include_inactive)
     return [AllergyOut.model_validate(r) for r in rows]
 
@@ -55,6 +88,7 @@ async def create_allergy(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> AllergyOut:
+    await _assert_patient_in_facility(db, payload.patient_id, current_db_user.facility_id)
     allergy = await service.record_allergy(db, payload, recorded_by=current_db_user.id)
     return AllergyOut.model_validate(allergy)
 
@@ -70,6 +104,7 @@ async def update_allergy_status(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> AllergyOut:
+    await _scoped_allergy(db, allergy_id, current_db_user.facility_id)
     try:
         allergy = await service.set_status(
             db,
@@ -106,6 +141,7 @@ async def verify_allergy(
     reports, but verification is a clinical judgement and is what downstream
     reviewers will read as such.
     """
+    await _scoped_allergy(db, allergy_id, current_db_user.facility_id)
     allergy = await service.verify_allergy(db, allergy_id, verified_by=current_db_user.id)
     if allergy is None:
         raise HTTPException(

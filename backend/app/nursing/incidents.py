@@ -136,6 +136,7 @@ async def review_incident(
     reviewed_by: uuid.UUID,
     root_cause: str | None = None,
     corrective_action: str | None = None,
+    caller_facility_id: uuid.UUID | None = None,
 ) -> ClinicalIncident:
     """Advance an incident through review.
 
@@ -146,6 +147,14 @@ async def review_incident(
     """
     incident = await db.get(ClinicalIncident, incident_id)
     if incident is None:
+        raise IncidentNotFound(incident_id)
+    # My own omission when this was written: the register is listed per facility
+    # but the review path fetched by id and compared nothing, so a HOD could
+    # close another hospital's incident — and closing demands a root cause and
+    # corrective action, which would then be recorded against their register in
+    # our words. Same not-found as a missing id; a distinct error would confirm
+    # the incident exists.
+    if caller_facility_id is not None and incident.facility_id != caller_facility_id:
         raise IncidentNotFound(incident_id)
 
     if status == ClinicalIncidentStatus.CLOSED.value:
