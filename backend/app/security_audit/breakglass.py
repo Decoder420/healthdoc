@@ -113,7 +113,7 @@ async def break_glass(payload: BreakGlassRequest,
             "justification_logged": True}
 
 
-@router.get("/expired-unreviewed", dependencies=[Depends(require_roles("auditor", "dpo", "admin"))])
+@router.get("/expired-unreviewed", dependencies=[Depends(require_roles("auditor", "admin"))])
 async def expired_unreviewed_grants(
     user: Annotated[AuthUser, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),

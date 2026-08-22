@@ -1,7 +1,18 @@
 """wards module schemas."""
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel
+
+
+class WardOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    department_id: uuid.UUID | None
+    facility_id: uuid.UUID
+    is_active: bool
+
+    model_config = {"from_attributes": True}
 
 
 class BedOccupantOut(BaseModel):

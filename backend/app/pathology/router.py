@@ -25,29 +25,58 @@ else's work" and that work has landed):
 """
 import asyncio
 import json
-import os
 import uuid
-from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 from statistics import mean, median
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.exc import IntegrityError
 
-from app.common.accession import LAB, allocate_accession_number
 from app.audit.service import write_audit_log
+from app.auth.deps import CurrentDbUser, require_roles
+from app.common.accession import LAB, allocate_accession_number
 from app.common.db import get_db
-from app.auth.deps import get_current_user, require_roles, get_current_db_user, CurrentDbUser
+from app.orders.models import Order
 from app.pathology.models import LabOrderItem, LabResult
 from app.pathology.schemas import (
-    LabOrderItemCreate, LabOrderItemOut, SampleCollectionRequest, LabOrderItemListOut,
-    LabResultCreate, LabResultVerify, LabResultOut,
-    LabResultAmend, LabResultHistoryOut,
-    LabMISSummaryOut, TATByTestOut, StatusCountOut, PanicFrequencyOut,
+    LabMISSummaryOut,
+    LabOrderItemCreate,
+    LabOrderItemListOut,
+    LabOrderItemOut,
+    LabResultAmend,
+    LabResultCreate,
+    LabResultHistoryOut,
+    LabResultOut,
+    LabResultVerify,
+    PanicFrequencyOut,
+    SampleCollectionRequest,
+    StatusCountOut,
+    TATByTestOut,
 )
+
 router = APIRouter(prefix="/pathology", tags=["pathology"])
+
+
+async def _get_scoped_lab_item(
+    db: AsyncSession,
+    item_id: uuid.UUID,
+    facility_id: uuid.UUID,
+    *,
+    for_update: bool = False,
+) -> LabOrderItem:
+    statement = (
+        select(LabOrderItem)
+        .join(Order, Order.id == LabOrderItem.order_id)
+        .where(LabOrderItem.id == item_id, Order.facility_id == facility_id)
+    )
+    if for_update:
+        statement = statement.with_for_update(of=LabOrderItem)
+    item = (await db.execute(statement)).scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Lab order item not found")
+    return item
 
 @router.get("/ping")
 async def ping() -> dict:
@@ -69,15 +98,9 @@ async def create_lab_order_item(
     current_user=Depends(require_roles("doctor", "lab_tech")),
 
 ):
-    try:
-        from app.orders.models import Order
-    except ImportError:
-        Order = None
-
-    if Order is not None:
-        order = await db.get(Order, order_id)
-        if order is None:
-            raise HTTPException(status_code=404, detail="Order not found")
+    order = await db.get(Order, order_id)
+    if order is None or order.facility_id != current_db_user.facility_id:
+        raise HTTPException(status_code=404, detail="Order not found")
 
     # One allocation, no retry loop. accession_counters (0020a) hands out the
     # number atomically, so there is no collision to retry against — the loop
@@ -121,9 +144,9 @@ async def collect_sample(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    item = await db.get(LabOrderItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Lab order item not found")
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
 
     if item.status != "placed":
         raise HTTPException(status_code=409, detail="Sample already collected for this item")
@@ -149,15 +172,20 @@ async def collect_sample(
 @router.get(
     "/order-items",
     response_model=LabOrderItemListOut,
+    dependencies=[Depends(require_roles("lab_tech", "doctor", "admin"))],
 )
 async def list_lab_order_items(
+    current_db_user: CurrentDbUser,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
 ):
-    query = select(LabOrderItem)
+    query = (
+        select(LabOrderItem)
+        .join(Order, Order.id == LabOrderItem.order_id)
+        .where(Order.facility_id == current_db_user.facility_id)
+    )
     if status:
         query = query.where(LabOrderItem.status == status)
 
@@ -201,7 +229,7 @@ async def _write_audit_log(db: AsyncSession, *, table_name: str, row_id: uuid.UU
         user_id=actor_id,
     )
 
-# --- #184: result entry (technician) + dual-verify pathologist approval ---
+# --- #184: result entry + dual verification by a different lab professional ---
 
 CRITICAL_THRESHOLDS = {
     "hemoglobin_g_dl": {"low": 7.0, "high": 20.0},
@@ -214,6 +242,15 @@ def _check_critical(result_data: dict) -> list[str]:
         value = result_data.get(field)
         if value is None:
             continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "invalid_result_value",
+                    "field": field,
+                    "message": "Critical-threshold fields must contain a number",
+                },
+            )
         if value < limits["low"] or value > limits["high"]:
             flagged.append(field)
     return flagged
@@ -232,9 +269,31 @@ async def enter_result(
     current_user=Depends(require_roles("lab_tech")),
 
 ):
-    item = await db.get(LabOrderItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Lab order item not found")
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
+    if item.status != "in_progress":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "sample_not_ready_for_result",
+                "current_status": item.status,
+            },
+        )
+
+    existing = (
+        await db.execute(
+            select(LabResult).where(
+                LabResult.lab_order_item_id == item_id,
+                LabResult.is_current.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "result_already_exists", "result_id": str(existing.id)},
+        )
 
     result = LabResult(
         lab_order_item_id=item_id,
@@ -271,9 +330,12 @@ async def verify_result(
     item_id: uuid.UUID,
     payload: LabResultVerify,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("pathologist")),
+    current_user=Depends(require_roles("lab_tech")),
 
 ):
+    item = await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
     current = (await db.execute(
         select(LabResult)
         .where(LabResult.lab_order_item_id == item_id, LabResult.is_current.is_(True))
@@ -291,7 +353,7 @@ async def verify_result(
     if str(current.created_by) == str(current_db_user.id):
         raise HTTPException(
             status_code=403,
-            detail="Verifying pathologist must be different from the person who entered the result",
+            detail="Verifier must be different from the person who entered the result",
         )
 
     # Verification is a status transition on the SAME row, not a new
@@ -299,7 +361,6 @@ async def verify_result(
     # version. See reviewer note on PR #260.
     current.status = "final"
 
-    item = await db.get(LabOrderItem, item_id)
     item.status = "released"
 
     await _write_audit_log(db, table_name="lab_results", row_id=current.id,
@@ -325,9 +386,12 @@ async def amend_result(
     item_id: uuid.UUID,
     payload: LabResultAmend,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("pathologist")),
+    current_user=Depends(require_roles("lab_tech")),
 
 ):
+    await _get_scoped_lab_item(
+        db, item_id, current_db_user.facility_id, for_update=True
+    )
     current = (await db.execute(
         select(LabResult)
         .where(LabResult.lab_order_item_id == item_id, LabResult.is_current.is_(True))
@@ -366,10 +430,11 @@ async def amend_result(
     response_model=LabResultHistoryOut,
 )
 async def get_result_history(
+    current_db_user: CurrentDbUser,
     item_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
 ):
+    await _get_scoped_lab_item(db, item_id, current_db_user.facility_id)
     result = await db.execute(
         select(LabResult)
         .where(LabResult.lab_order_item_id == item_id)
@@ -388,10 +453,11 @@ async def get_result_history(
     response_model=LabMISSummaryOut,
 )
 async def lab_mis_summary(
+    current_db_user: CurrentDbUser,
     date_from: datetime = Query(..., description="Range start, inclusive"),
     date_to: datetime = Query(..., description="Range end, inclusive"),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_roles("pathologist", "lab_tech", "doctor")),
+    current_user=Depends(require_roles("lab_tech", "doctor")),
 ):
     """
     Aggregates lab order items and results created within [date_from, date_to].
@@ -399,7 +465,10 @@ async def lab_mis_summary(
     same pattern as the single-item TAT calc in verify_result.
     """
     items_result = await db.execute(
-        select(LabOrderItem).where(
+        select(LabOrderItem)
+        .join(Order, Order.id == LabOrderItem.order_id)
+        .where(
+            Order.facility_id == current_db_user.facility_id,
             LabOrderItem.created_at >= date_from,
             LabOrderItem.created_at <= date_to,
         )
@@ -418,7 +487,9 @@ async def lab_mis_summary(
     results_rows = (await db.execute(
         select(LabResult, LabOrderItem)
         .join(LabOrderItem, LabResult.lab_order_item_id == LabOrderItem.id)
+        .join(Order, Order.id == LabOrderItem.order_id)
         .where(
+            Order.facility_id == current_db_user.facility_id,
             LabResult.created_at >= date_from,
             LabResult.created_at <= date_to,
             LabResult.status.in_(["final", "corrected"]),
@@ -476,8 +547,7 @@ _critical_alert_subscribers: dict[str, list[asyncio.Queue]] = {}
 
 async def _resolve_ordering_doctor_id(db: AsyncSession, item: LabOrderItem) -> uuid.UUID | None:
     try:
-        from app.orders.models import Order
-        from app.encounters.models import Encounter
+        from app.opd.models import Encounter
     except ImportError:
         return None
 
@@ -532,7 +602,7 @@ async def _publish_critical_alert(db: AsyncSession, item: LabOrderItem,
 @router.get("/critical-alerts/stream")
 async def critical_alerts_stream(
     current_db_user: CurrentDbUser,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_roles("doctor")),
 
 ):
     # NOTE: key must be str(users.id) to match _publish_critical_alert's

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.enums import MedicationAdministrationStatus
 from app.nursing.models import IntakeOutputRecord, MedicationAdministration, Vitals
+from app.orders.models import PrescriptionItem
 from app.nursing.schemas import (
     IntakeOutputCreate, MedicationAdministrationCreate, VitalsCreate,
 )
@@ -121,19 +122,64 @@ async def record_administration(
     db.add(record)
     await db.flush()
     await db.refresh(record)
+    # So the 201 body has the same shape as the list rows — a client should not
+    # have to know that one carries the drug name and the other does not.
+    return await _attach_medicine(db, record)
+
+
+async def _attach_medicine(db: AsyncSession, record: MedicationAdministration) -> MedicationAdministration:
+    """Copy the prescribed drug name, dose and route onto one record.
+
+    Same reason as the join in list_administrations: a caller holding only
+    prescription_item_id cannot say what was given.
+    """
+    item = await db.get(PrescriptionItem, record.prescription_item_id)
+    record.medicine_name = item.medicine_name if item else None
+    record.dosage = item.dosage if item else None
+    record.route = item.route if item else None
     return record
 
 
 async def list_administrations(
     db: AsyncSession, admission_id: uuid.UUID
 ) -> list[MedicationAdministration]:
-    """The ward eMAR table for one admission, most recent first."""
+    """The ward eMAR table for one admission, most recent first.
+
+    Joined to prescription_items for the drug name, prescribed dose and route.
+    Without them the response carries only prescription_item_id, and an eMAR
+    that cannot say which drug a dose was is not an eMAR — the screen would
+    have to fetch every item separately, one request per row.
+
+    LEFT join, not inner: a dose that was actually given must never disappear
+    from the record because its prescription item did. The name renders as
+    unknown; the administration stays.
+
+    `dosage` (what was prescribed) and `dose_given` (what the nurse recorded)
+    are deliberately both present. They are the same number most of the time,
+    and the times they are not are the ones worth seeing.
+    """
     rows = await db.execute(
-        select(MedicationAdministration)
+        select(
+            MedicationAdministration,
+            PrescriptionItem.medicine_name,
+            PrescriptionItem.dosage,
+            PrescriptionItem.route,
+        )
+        .outerjoin(
+            PrescriptionItem,
+            PrescriptionItem.id == MedicationAdministration.prescription_item_id,
+        )
         .where(MedicationAdministration.admission_id == admission_id)
         .order_by(MedicationAdministration.administered_at.desc())
     )
-    return list(rows.scalars().all())
+
+    records: list[MedicationAdministration] = []
+    for record, medicine_name, dosage, route in rows.all():
+        record.medicine_name = medicine_name
+        record.dosage = dosage
+        record.route = route
+        records.append(record)
+    return records
 
 
 async def record_intake_output(
@@ -212,6 +258,7 @@ class OrderAlreadyCompleted(Exception):
 async def pending_orders(
     db: AsyncSession,
     *,
+    facility_id: uuid.UUID | None = None,
     patient_id: uuid.UUID | None = None,
     order_type: str | None = None,
 ) -> list[Order]:
@@ -226,6 +273,8 @@ async def pending_orders(
         OrderStatus.IN_PROGRESS.value,
     )
     stmt = select(Order).where(Order.status.in_(open_statuses))
+    if facility_id is not None:
+        stmt = stmt.where(Order.facility_id == facility_id)
     if patient_id is not None:
         stmt = stmt.where(Order.patient_id == patient_id)
     if order_type is not None:

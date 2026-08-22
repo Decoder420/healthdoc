@@ -25,13 +25,13 @@ shape transfer_patient() actually returns.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import schemas, service
 from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
-from app.auth.deps import AuthUser, require_roles
+from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.common.db import get_db
 
 router = APIRouter(prefix="/admissions", tags=["admissions"])
@@ -47,6 +47,7 @@ async def ping() -> dict:
 @router.post("", response_model=schemas.AdmissionOut, status_code=status.HTTP_201_CREATED)
 async def create_admission(
     body: schemas.AdmissionCreate,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_IPD_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
@@ -63,23 +64,62 @@ async def create_admission(
             created_by=actor_id,
             reason=body.reason,
             admitted_at=body.admitted_at,
+            facility_id=current_db_user.facility_id,
         )
     except service.VisitNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Visit not found")
     except service.BedNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Bed not found")
+    except service.WardNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ward not found")
     except service.BedNotAvailable:
         raise HTTPException(status.HTTP_409_CONFLICT, "Bed is already occupied")
     return schemas.AdmissionOut.model_validate(admission)
 
 
+@router.get(
+    "",
+    response_model=list[schemas.AdmissionOut],
+    dependencies=[Depends(require_roles(*_IPD_ROLES))],
+)
+async def list_admissions(
+    current_db_user: CurrentDbUser,
+    admission_status: str | None = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+) -> list[schemas.AdmissionOut]:
+    rows = await service.list_admissions(
+        db,
+        facility_id=current_db_user.facility_id,
+        admission_status=admission_status,
+    )
+    return [schemas.AdmissionOut.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/discharges",
+    response_model=list[schemas.DischargeOut],
+    dependencies=[Depends(require_roles(*_IPD_ROLES))],
+)
+async def list_discharges(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[schemas.DischargeOut]:
+    rows = await service.list_discharges(
+        db, facility_id=current_db_user.facility_id
+    )
+    return [schemas.DischargeOut.model_validate(row) for row in rows]
+
+
 @router.get("/{admission_id}", response_model=schemas.AdmissionOut)
 async def get_admission(
     admission_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     _user: AuthUser = Depends(require_roles(*_IPD_ROLES)),
 ) -> schemas.AdmissionOut:
-    admission = await service.get_admission(db, admission_id)
+    admission = await service.get_admission(
+        db, admission_id, current_db_user.facility_id
+    )
     if admission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Admission not found")
     return schemas.AdmissionOut.model_validate(admission)
@@ -89,6 +129,7 @@ async def get_admission(
 async def transfer_admission(
     admission_id: uuid.UUID,
     body: schemas.TransferRequest,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_IPD_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
@@ -96,14 +137,19 @@ async def transfer_admission(
     actor_id = await service.resolve_actor_user_id(
         db, keycloak_sub=getattr(user, "sub", None), fallback_id=getattr(user, "id", None)
     )
-    admission = await service.get_admission(db, admission_id)
+    admission = await service.get_admission(
+        db, admission_id, current_db_user.facility_id
+    )
     if admission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Admission not found")
     try:
         admission = await service.transfer_patient(
             db, admission, to_ward_id=body.to_ward_id, to_bed_id=body.to_bed_id,
             moved_by=actor_id, reason=body.reason,
+            facility_id=current_db_user.facility_id,
         )
+    except service.WardNotFound:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Target ward not found")
     except service.BedNotFound:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Target bed not found")
     except service.BedNotAvailable:
@@ -117,6 +163,7 @@ async def transfer_admission(
 async def discharge_admission(
     admission_id: uuid.UUID,
     body: schemas.DischargeRequest,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_IPD_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
@@ -124,7 +171,9 @@ async def discharge_admission(
     actor_id = await service.resolve_actor_user_id(
         db, keycloak_sub=getattr(user, "sub", None), fallback_id=getattr(user, "id", None)
     )
-    admission = await service.get_admission(db, admission_id)
+    admission = await service.get_admission(
+        db, admission_id, current_db_user.facility_id
+    )
     if admission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Admission not found")
     try:
@@ -150,10 +199,13 @@ async def discharge_admission(
 @router.get("/{admission_id}/discharge-summary", response_model=schemas.DischargeSummaryOut)
 async def discharge_summary(
     admission_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     _user: AuthUser = Depends(require_roles(*_IPD_ROLES)),
 ) -> schemas.DischargeSummaryOut:
-    admission = await service.get_admission(db, admission_id)
+    admission = await service.get_admission(
+        db, admission_id, current_db_user.facility_id
+    )
     if admission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Admission not found")
     discharge = await service.get_discharge(db, admission_id)

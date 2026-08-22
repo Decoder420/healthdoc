@@ -147,6 +147,9 @@ jobs:
       - name: Schema drift check (docs vs migrations)
         run: python scripts/schema_drift_check.py
 
+      - name: Frontend/backend API contract matrix
+        run: python -m scripts.check_frontend_contracts
+
       - name: PR convention check
         run: |
           git fetch --no-tags --depth=50 origin staging
@@ -161,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with: { node-version: "22" }
 
       - name: Install dependencies
         run: npm ci
@@ -177,3 +180,37 @@ jobs:
       # build that had never succeeded because the script was "absent enough".
       - name: Build
         run: npm run build
+
+  nurse-auth-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx puppeteer browsers install chrome
+
+      - name: Start the complete stack and seed linked nurse identities
+        run: make setup
+
+      - name: Nurse authentication and bearer API gate
+        working-directory: frontend
+        env:
+          E2E_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-e2e
+        run: npm run test:e2e
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail=200
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: nurse-auth-e2e-failure
+          path: ${{ runner.temp }}/healthdoc-e2e
+          if-no-files-found: ignore

@@ -1,18 +1,9 @@
 import { BedStatus } from "./BedGrid.types";
 
-export const BED_STATUS_STYLES: Record<
-  BedStatus,
-  string
-> = {
-  Occupied:
-    "bg-danger-muted text-danger",
-
-  Vacant:
-    "bg-success-muted text-success",
-
-  Reserved:
-    "bg-info-muted text-info",
-
-  Cleaning:
-    "bg-warning-muted text-warning",
+export const BED_STATUS_STYLES: Record<BedStatus, string> = {
+  occupied: "bg-danger-muted text-danger",
+  vacant: "bg-success-muted text-success",
+  reserved: "bg-info-muted text-info",
+  // Out of service, not "being cleaned" — this bed is not about to free up.
+  maintenance: "bg-warning-muted text-warning",
 };

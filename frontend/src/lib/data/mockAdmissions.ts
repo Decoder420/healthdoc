@@ -1,0 +1,51 @@
+import type { Admission } from "@/features/ipd/services/ipd.service";
+import {
+  ADMISSION_1_ID,
+  ADMISSION_2_ID,
+  ADMISSION_3_ID,
+  BED_B101_ID,
+  BED_C301_ID,
+  BED_I201_ID,
+  CCU_WARD_ID,
+  GENERAL_WARD_ID,
+  ICU_WARD_ID,
+  PATIENT_1_ID,
+  PATIENT_2_ID,
+  PATIENT_3_ID,
+  VISIT_1_ID,
+  VISIT_2_ID,
+  VISIT_3_ID,
+} from "./mockIds";
+
+export const MOCK_ADMISSIONS: Admission[] = [
+  {
+    id: ADMISSION_1_ID,
+    visit_id: VISIT_1_ID,
+    patient_id: PATIENT_1_ID,
+    ward_id: GENERAL_WARD_ID,
+    bed_id: BED_B101_ID,
+    admitted_at: "2026-07-12T10:00:00Z",
+    reason: "Observation",
+    status: "admitted",
+  },
+  {
+    id: ADMISSION_2_ID,
+    visit_id: VISIT_2_ID,
+    patient_id: PATIENT_2_ID,
+    ward_id: ICU_WARD_ID,
+    bed_id: BED_I201_ID,
+    admitted_at: "2026-07-16T09:00:00Z",
+    reason: "Post-op monitoring",
+    status: "admitted",
+  },
+  {
+    id: ADMISSION_3_ID,
+    visit_id: VISIT_3_ID,
+    patient_id: PATIENT_3_ID,
+    ward_id: CCU_WARD_ID,
+    bed_id: BED_C301_ID,
+    admitted_at: "2026-08-01T14:30:00Z",
+    reason: "Cardiac monitoring",
+    status: "admitted",
+  },
+];

@@ -1,7 +1,5 @@
-﻿"use client";
-
-import { BillingDashboard } from "@/features/billing";
+import { LiveInvoiceQueue } from "@/features/billing/components/LiveInvoiceQueue";
 
 export default function Page() {
-  return <BillingDashboard />;
+  return <LiveInvoiceQueue />;
 }
