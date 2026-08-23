@@ -134,6 +134,9 @@ for name in MODULES:
 # B1-owned routers that don't live at app/<name>/router.py — included explicitly.
 _B1_ROUTERS = [
     "app.common.capabilities_router",
+    # facility_modules (0027) had no ORM model and no write path at all — module
+    # gating was configurable only by direct SQL. See app/common/facility_modules.py.
+    "app.common.facility_modules",
     "app.integrations.abdm.identity.router",  # ABHA capture (W6-01)
     # Break-glass (#391). This sat unregistered behind a note saying
     # break_glass_grants / data_access_log (0004) and notification_history (0020)

@@ -1,18 +1,16 @@
 import type { ModuleCode, RealmRole } from "./types";
-import {
-  MOCK_FACILITY_CODE,
-  MOCK_FACILITY_ID,
-  MOCK_FACILITY_NAME,
-} from "@/lib/mock/facility";
 
-/** Mock session admin for maker-checker demos (users.id). */
-export const MOCK_SESSION_ADMIN_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
-/** Second admin used as approver (≠ requester). */
-export const MOCK_APPROVER_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
-
-export const FACILITY_ID = MOCK_FACILITY_ID;
-export const FACILITY_CODE = MOCK_FACILITY_CODE;
-export const FACILITY_DISPLAY_NAME = MOCK_FACILITY_NAME;
+// Retired (P1.1):
+//
+//   FACILITY_ID / FACILITY_CODE / FACILITY_DISPLAY_NAME re-exported
+//   MOCK_FACILITY_*. Nothing on the wire told the browser which facility it was
+//   in until GET /users/me existed. Use useCurrentUser() — and never send a
+//   facility from the browser; the server derives it from the token.
+//
+//   MOCK_SESSION_ADMIN_USER_ID / MOCK_APPROVER_USER_ID were two hardcoded ids
+//   that made "approver != requester" true by construction, so the screen
+//   advertised maker-checker while guaranteeing it trivially. Both sides now
+//   come from the token and the server compares them.
 
 /** v3.13 — exactly five optional ModuleCode values. */
 export const MODULE_CODES: ModuleCode[] = [

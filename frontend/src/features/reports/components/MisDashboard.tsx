@@ -18,7 +18,7 @@ import type { FacilityCapabilities } from "@/features/admin/types";
 import { kpiSnapshotToMetricCardProps, kpiLabel } from "@/lib/kpi";
 import { meridian } from "@/styles/theme";
 
-import { FACILITY_ID, KPI_SERIES_COLORS, PERIOD_OPTIONS } from "../constants";
+import { KPI_SERIES_COLORS, PERIOD_OPTIONS } from "../constants";
 import { useKpis } from "../hooks";
 import { visibleKpiCodes } from "../lib/capabilitiesFilter";
 import {
@@ -57,7 +57,8 @@ export function MisDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    void getFacilityCapabilities(FACILITY_ID).then((caps) => {
+    // No argument: capabilities are the caller's own facility, from the token.
+    void getFacilityCapabilities().then((caps) => {
       if (!cancelled) setCapabilities(caps);
     });
     return () => {

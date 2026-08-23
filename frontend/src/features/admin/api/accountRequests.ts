@@ -1,174 +1,115 @@
-import { MOCK_APPROVER_USER_ID, MOCK_SESSION_ADMIN_USER_ID } from "../constants";
+/**
+ * Maker-checker for staff account creation. Retired from fixtures (P1.1).
+ *
+ * The backend for this did not exist until it was built alongside this change:
+ * migration 0028 created `user_account_requests`, the ORM model was there, and
+ * nothing imported it — no router, no service, so the table was not even in
+ * SQLAlchemy's metadata.
+ *
+ * WHAT CHANGED IN THE SHAPE OF THESE CALLS
+ *
+ * The fixture simulated maker-checker with two hardcoded ids —
+ * MOCK_SESSION_ADMIN_USER_ID as requester, MOCK_APPROVER_USER_ID as approver —
+ * so the "different person" rule was satisfied by two constants rather than by
+ * anything real. Both are gone: requester and decider come from the token.
+ *
+ * `facility_id` is gone from the create payload for the same reason it left
+ * UserCreateInput: the request is raised at the caller's own facility, derived
+ * server-side.
+ *
+ * Approval now needs a temporary password, because approval genuinely creates
+ * the Keycloak account. The fixture did not need one; it created nothing.
+ */
+import { api } from "@/lib/api";
 import type {
   ApprovalStatus,
   CreateAccountRequestInput,
-  Paginated,
-  User,
   UserAccountRequest,
 } from "../types";
-import {
-  getAccountRequests,
-  getUsers,
-  isoNow,
-  newId,
-  setAccountRequests,
-  setUsers,
-} from "@/lib/mock/admin_data";
 
-function delay<T>(value: T, ms = 200): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
+interface AccountRequestListResponse {
+  items: UserAccountRequest[];
+  page: number;
+  page_size: number;
 }
 
-export class AdminApiError extends Error {
-  code: string;
-
-  constructor(message: string, code: string) {
-    super(message);
-    this.name = "AdminApiError";
-    this.code = code;
-  }
-}
-
+/**
+ * GET /users/account-requests — requests at the caller's facility.
+ *
+ * No `facility_id` filter: the token carries it, and an optional scope filter
+ * is one forgotten argument away from being no scope at all.
+ */
 export async function listAccountRequests(filters: {
   status?: ApprovalStatus | "all";
-  facility_id?: string;
   page?: number;
   page_size?: number;
-} = {}): Promise<Paginated<UserAccountRequest>> {
-  const page = filters.page ?? 1;
-  const page_size = Math.min(filters.page_size ?? 20, 100);
-  let rows = getAccountRequests();
-  if (filters.facility_id) {
-    rows = rows.filter((r) => r.facility_id === filters.facility_id);
-  }
-  if (filters.status && filters.status !== "all") {
-    rows = rows.filter((r) => r.status === filters.status);
-  }
-  rows = rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const total = rows.length;
-  const start = (page - 1) * page_size;
-  return delay({
-    items: rows.slice(start, start + page_size),
-    page,
-    page_size,
-    total,
+} = {}): Promise<AccountRequestListResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(filters.page ?? 1));
+  params.set("page_size", String(Math.min(filters.page_size ?? 20, 100)));
+  if (filters.status && filters.status !== "all") params.set("status", filters.status);
+
+  return api<AccountRequestListResponse>(`/users/account-requests?${params.toString()}`);
+}
+
+/** GET /users/account-requests/{id}. 404 for another facility's request. */
+export async function getAccountRequest(id: string): Promise<UserAccountRequest> {
+  return api<UserAccountRequest>(`/users/account-requests/${id}`);
+}
+
+/**
+ * POST /users/account-requests — raise a request.
+ *
+ * Creates nothing in Keycloak. That is the point of the workflow: the account
+ * does not exist until somebody else approves it.
+ *
+ * `requested_by` is no longer a parameter. It was defaulted to a mock constant,
+ * which meant the requester recorded on every request was the same fictional
+ * person — and the requester is exactly what the self-approval check compares.
+ */
+export async function createAccountRequest(
+  payload: CreateAccountRequestInput,
+): Promise<UserAccountRequest> {
+  return api<UserAccountRequest>("/users/account-requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-export async function getAccountRequest(id: string): Promise<UserAccountRequest | null> {
-  return delay(getAccountRequests().find((r) => r.id === id) ?? null);
-}
-
-export async function createAccountRequest(
-  payload: CreateAccountRequestInput,
-  requested_by: string = MOCK_SESSION_ADMIN_USER_ID,
-): Promise<UserAccountRequest> {
-  const t = isoNow();
-  const row: UserAccountRequest = {
-    id: newId(),
-    facility_id: payload.facility_id,
-    requested_for_full_name: payload.requested_for_full_name,
-    requested_username: payload.requested_username,
-    requested_roles: payload.requested_roles,
-    designation: payload.designation ?? null,
-    employee_id: payload.employee_id ?? null,
-    registration_number: payload.registration_number ?? null,
-    qualification: payload.qualification ?? null,
-    email: payload.email ?? null,
-    mobile: payload.mobile ?? null,
-    justification: payload.justification,
-    requested_by,
-    status: "pending",
-    decided_by: null,
-    decided_at: null,
-    rejection_reason: null,
-    created_user_id: null,
-    created_at: t,
-    updated_at: t,
-  };
-  setAccountRequests([row, ...getAccountRequests()]);
-  return delay(row);
-}
-
-/** Approve creates a User and returns it (§4.4). Request row is updated in mock store. */
+/**
+ * POST /users/account-requests/{id}/approve — approves AND creates the account.
+ *
+ * Returns 409 `self_approval` if the approver raised the request. That is the
+ * control: this call mints a working Keycloak credential, so an admin approving
+ * their own request would have maker-checker in name only.
+ *
+ * Also 409 `not_pending` on a second decision, and `username_taken` if someone
+ * created that username directly while the request was queued.
+ */
 export async function approveAccountRequest(
   id: string,
-  decided_by: string = MOCK_APPROVER_USER_ID,
-): Promise<User> {
-  const store = getAccountRequests();
-  const idx = store.findIndex((r) => r.id === id);
-  if (idx < 0) throw new Error("Account request not found");
-  const row = store[idx];
-  if (row.status !== "pending") throw new Error("Request is not pending");
-  if (row.requested_by === decided_by) {
-    throw new AdminApiError(
-      "Self-approval is not allowed (requested_by ≠ decided_by)",
-      "self_approval_not_allowed",
-    );
-  }
-
-  const t = isoNow();
-  const created: User = {
-    id: newId(),
-    keycloak_sub: `kc-${row.requested_username}`,
-    username: row.requested_username,
-    full_name: row.requested_for_full_name,
-    email: row.email,
-    mobile: row.mobile,
-    designation: row.designation,
-    employee_id: row.employee_id,
-    registration_number: row.registration_number,
-    qualification: row.qualification,
-    facility_id: row.facility_id,
-    department_id: null,
-    is_active: true,
-    created_at: t,
-    updated_at: t,
-  };
-  setUsers([created, ...getUsers()]);
-
-  const next: UserAccountRequest = {
-    ...row,
-    status: "approved",
-    decided_by,
-    decided_at: t,
-    rejection_reason: null,
-    created_user_id: created.id,
-    updated_at: t,
-  };
-  store[idx] = next;
-  setAccountRequests(store);
-  return delay(created);
+  temporary_password: string,
+): Promise<UserAccountRequest> {
+  return api<UserAccountRequest>(`/users/account-requests/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ temporary_password }),
+  });
 }
 
+/**
+ * POST /users/account-requests/{id}/reject — reject with a recorded reason.
+ *
+ * The reason is required by the server: a refusal with no reason is not
+ * reviewable afterwards. Self-rejection is refused on the same grounds as
+ * self-approval — withdrawing your own request and having it decided against
+ * you are different events in an audit trail.
+ */
 export async function rejectAccountRequest(
   id: string,
-  rejection_reason: string,
-  decided_by: string = MOCK_APPROVER_USER_ID,
+  reason: string,
 ): Promise<UserAccountRequest> {
-  const store = getAccountRequests();
-  const idx = store.findIndex((r) => r.id === id);
-  if (idx < 0) throw new Error("Account request not found");
-  const row = store[idx];
-  if (row.status !== "pending") throw new Error("Request is not pending");
-  if (row.requested_by === decided_by) {
-    throw new AdminApiError(
-      "Self-approval is not allowed (requested_by ≠ decided_by)",
-      "self_approval_not_allowed",
-    );
-  }
-  if (!rejection_reason.trim()) throw new Error("rejection_reason is required");
-
-  const t = isoNow();
-  const next: UserAccountRequest = {
-    ...row,
-    status: "rejected",
-    decided_by,
-    decided_at: t,
-    rejection_reason: rejection_reason.trim(),
-    updated_at: t,
-  };
-  store[idx] = next;
-  setAccountRequests(store);
-  return delay(next);
+  return api<UserAccountRequest>(`/users/account-requests/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }

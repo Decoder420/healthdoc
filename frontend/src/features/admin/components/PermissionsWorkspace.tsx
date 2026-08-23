@@ -9,7 +9,8 @@ import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
-import { FACILITY_ID, MODULE_CODE_LABELS, MODULE_CODES } from "../constants";
+import { MODULE_CODE_LABELS, MODULE_CODES } from "../constants";
+import { useCurrentUser } from "@/features/session/useCurrentUser";
 import { useFacilityModules } from "../hooks/useFacilityModules";
 import { AdminPageHeader } from "./AdminPageHeader";
 import { FacilityModulesPanel } from "./FacilityModulesPanel";
@@ -19,7 +20,8 @@ type PermTab = "modules" | "roles";
 
 export function PermissionsWorkspace() {
   const [tab, setTab] = useState<PermTab>("modules");
-  const { modules, capabilities, loading, busyId, toggle } = useFacilityModules();
+  const { modules, capabilities, loading, busyCode, toggle } = useFacilityModules();
+  const { user: currentUser } = useCurrentUser();
 
   const enabledCount = useMemo(
     () => modules.filter((m) => m.is_enabled).length,
@@ -76,7 +78,10 @@ export function PermissionsWorkspace() {
             Facility
           </Typography>
           {[
-            { key: "fac", label: FACILITY_ID },
+            // The real facility, from GET /users/me — this used to render a
+            // hardcoded mock UUID, which is a poor label anyway: an admin
+            // checking they are configuring the right hospital wants its name.
+            { key: "fac", label: currentUser?.facility.name ?? "…" },
             {
               key: "on",
               label: loading ? "… enabled" : `${enabledCount} enabled`,
@@ -150,7 +155,7 @@ export function PermissionsWorkspace() {
         <FacilityModulesPanel
           modules={modules}
           loading={loading}
-          busyId={busyId}
+          busyCode={busyCode}
           onToggle={toggle}
         />
       ) : (
