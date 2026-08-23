@@ -23,7 +23,7 @@ facility's staff list; 404 is indistinguishable from a nonexistent id.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentDbUser, require_roles
@@ -51,6 +51,7 @@ async def list_users(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     is_active: bool | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict:
@@ -59,10 +60,29 @@ async def list_users(
     The `facility_id` query parameter is gone rather than defaulted: an optional
     scope filter is one forgotten argument away from being no scope at all, and
     the argument was optional here.
+
+    `search` matches username, full name or employee id. It is server-side on
+    purpose: the admin screen offered a search box backed by a client-side
+    filter over the *current page*, which silently hides matches on every other
+    page — an admin searching for a staff member who is not on page one is told
+    they do not exist.
+
+    `total` is deliberately still absent from the response. Adding it means a
+    second COUNT query on every page load, and nothing in the UI uses it; the
+    frontend's Paginated<T> already types it optional.
     """
     q = select(User).where(User.facility_id == current_db_user.facility_id)
     if is_active is not None:
         q = q.where(User.is_active == is_active)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        q = q.where(
+            or_(
+                User.username.ilike(term),
+                User.full_name.ilike(term),
+                User.employee_id.ilike(term),
+            )
+        )
     q = q.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(q)).scalars().all()
     return {"items": [UserOut.model_validate(r).model_dump(mode="json") for r in rows],
