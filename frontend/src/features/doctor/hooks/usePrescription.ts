@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { localOnly } from "../lib/mockMode";
 import { checkAllergies, createPrescription } from "../api";
 import { ALLERGY_OVERRIDE_REASON_MIN, FREQUENCIES_WITHOUT_DURATION } from "../constants";
 import type {
@@ -129,7 +128,8 @@ export function usePrescription(encounter: ActiveEncounter, context: EncounterCo
           instructions: i.instructions,
         })),
       });
-      toast.success(localOnly("Prescription saved"));
+      // Real write — POST /orders/prescriptions. No localOnly() suffix.
+      toast.success("Prescription saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save prescription");
     } finally {

@@ -571,6 +571,15 @@ export interface ResultWorklistItem {
   id: string;
   order_id: string;
   order_number: string;
+  /**
+   * The encounter the order was placed in.
+   *
+   * doctor_reviews belong to an encounter, so a review opened from this list
+   * has to be filed against this id. The fixture omitted it, which is why the
+   * review lifecycle used to file everything against one hardcoded
+   * REVIEW_ENCOUNTER_ID.
+   */
+  encounter_id: string;
   order_type: "lab" | "radiology";
   accession_number: string;
   patient_id: string;

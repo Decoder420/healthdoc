@@ -3,14 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { localOnly } from "../lib/mockMode";
 import {
   createDoctorReview,
   getLabResults,
   getRadiologyReports,
   getReviewsForItem,
   listResultsWorklist,
-  REVIEW_ENCOUNTER_ID,
   updateDoctorReview,
 } from "../api";
 import type {
@@ -95,7 +93,7 @@ export function useResults() {
         setRadVersions(rows);
         setViewingVersion((rows.find((r) => r.is_current) ?? rows[0])?.version ?? null);
       }
-      setReviews(await getReviewsForItem(item.id, item.order_type));
+      setReviews(await getReviewsForItem(item.encounter_id, item.id, item.order_type));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load result");
     } finally {
@@ -131,18 +129,24 @@ export function useResults() {
       if (!selected) return;
       setSigning(true);
       try {
-        const existing = review ?? (await createDoctorReview(REVIEW_ENCOUNTER_ID, {
+        // The encounter the order was placed in, from the worklist row —
+        // not a fixed mock id. A review filed against the wrong encounter is
+        // attached to the wrong consultation in the record.
+        const existing = review ?? (await createDoctorReview(selected.encounter_id, {
           lab_order_item_id: selected.order_type === "lab" ? selected.id : undefined,
           radiology_order_item_id: selected.order_type === "radiology" ? selected.id : undefined,
           notes,
         }));
         const updated = await updateDoctorReview(existing.id, { status, notes });
-        if (updated) setReviews([updated]);
+        setReviews([updated]);
         setItems((prev) =>
           prev.map((i) => (i.id === selected.id ? { ...i, review_status: status } : i)),
         );
         setSelected((prev) => (prev ? { ...prev, review_status: status } : prev));
-        toast.success(localOnly(status === "signed_off" ? "Result signed off" : "Marked as reviewed"));
+        // No localOnly() suffix: this write really persists now. Keeping it
+        // would be a stale reassurance in the other direction — telling a
+        // clinician a sign-off did NOT save when it did.
+        toast.success(status === "signed_off" ? "Result signed off" : "Marked as reviewed");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to update review");
       } finally {

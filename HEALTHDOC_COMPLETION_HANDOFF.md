@@ -108,6 +108,74 @@ because `pg_dump` refuses to run against a newer server.
 
 ---
 
+## 2b. What changed on 23 August
+
+The day's work was P0.4's tail and P1.1 (retiring fixtures). Retiring fixtures
+turned out to be the most productive defect-finding activity so far, because
+**wiring a mock to a real endpoint is the first time anyone checks the endpoint
+exists and returns what the screen assumed.**
+
+### Two production defects, both multi-tenant
+
+**`order_number` collided across facilities — the most serious find.**
+`orders.order_number` carries `uq_orders_order_number`, a **global** unique
+constraint (0008). The allocator's counter is per `(facility_id, counter_date)`,
+and the format embedded no facility code: `ORD-<YYYYMMDD>-<SEQ6>`. So every
+facility independently allocates `seq=1` each morning and formats the identical
+string. **The second facility to place an order on any given day gets a
+UniqueViolation — one hospital's first order of every day, failing permanently.**
+
+`app/opd/visit_number.py` does the identical job correctly
+(`VST-<FACILITYCODE>-<YYYYMMDD>-<SEQ5>`). Fixed to match. No migration —
+`order_number` is a generated string, not a parsed key, and `String(30)` fits
+`ORD-JPR001-20260823-000001` (26 chars). Existing rows keep their old format.
+
+*Why 649 tests missed it:* `tests/_lab_seed.py` inserts a literal
+`'ORD-LABTEST-0001'`, so only the OPD journey ever exercised the real allocator
+— from one facility. A collision needs two. It surfaced only when a new test
+called `POST /orders` from a second facility on the same day.
+
+**`POST /orders` took `created_by` from the request body.** Required field,
+written straight to `orders.created_by`, so any caller could file a lab test or
+a scan under a colleague's name — while `app/orders/router.py`'s own module
+docstring said "created_by comes from current_db_user, never the request body"
+(true for `create_prescription` directly below it, false for this one). Now from
+the token; a disagreeing body value is refused **403**, not silently overridden.
+
+### Five endpoints that did not exist
+
+Each was found by trying to wire a fixture to it. In every case the mock was
+standing in for missing **product**, not missing wiring:
+
+| Endpoint | What was impossible without it |
+|---|---|
+| `POST /billing/invoices/{id}/issue` | **No invoice could ever be paid.** `build_invoice` creates `draft`, `record_payment` requires `issued`, nothing bridged them. The integration test passed because it ran `UPDATE invoices SET status='issued'` in raw SQL itself. |
+| `GET /billing/invoices/{id}` | No way to view an invoice with its lines, receipts and balance. |
+| `GET /patients/{patient_id}` | The patient record could not be fetched by id — the first call every clinical screen makes. |
+| `GET /radiology/order-items/{id}/reports` | A radiologist could write and sign a report; **nobody could read one back** except via the FHIR bundle. Pathology has had `/results/history` since #218. |
+| `GET /orders/results-worklist` | The doctor's "what have I ordered, what came back, what needs sign-off" screen had no backend at all. |
+
+Plus `GET /users/me` (the browser had no way to learn its own facility, so five
+modules hardcoded `MOCK_FACILITY_ID` — and *sent* it) and
+`GET /allergies/patients/{id}/check` (the prescribing pre-check was
+reimplemented in the browser; enforcement was always server-side and correct).
+
+**`GET /pharmacy/medicines/search` did not return `ingredient_code`** — the key
+the allergy matcher matches on. Wired as-was, every prescribed item would have
+come back "uncheckable": a missing column reading as a missing allergy check, on
+every prescription.
+
+### The pattern worth carrying forward
+
+Four times now, a broken module sat directly beside a correct one doing the same
+job: radiology vs pathology (report reads), `order_number` vs `visit_number`
+(facility code), `create_order` vs `create_prescription` (`created_by`), and
+`allergies` vs everything else (facility scoping through a join). **When
+auditing, compare siblings.** A module that looks reasonable in isolation often
+looks obviously wrong next to the one that got it right.
+
+---
+
 ## 3. Product state, measured
 
 | Measure | Value |
@@ -115,12 +183,19 @@ because `pg_dump` refuses to run against a newer server.
 | App routes | 34 |
 | Title-only shells | **0** — 3 thin pages render real feature components |
 | Files calling the API client | **38** (was 3 before the frontend push) |
-| Files still importing fixtures | **27** |
+| Files still importing fixtures | **25** (was 27) |
 
-The 27 fixture importers are the honest headline. They are concentrated in
-Doctor (8), Billing (6), Admin (5), Consent/Audit (4), Reports (2) and two
-shared components. Those screens exist and demo convincingly on data from a
+The fixture importers are the honest headline. They are concentrated in
+Doctor (6, was 8), Billing (6), Admin (5), Consent/Audit (4), Reports (2) and
+two shared components. Those screens exist and demo convincingly on data from a
 TypeScript file, which makes them the most misleading thing in the build.
+
+Fully retired so far: `features/doctor/api/patients.ts` and
+`features/doctor/api/prescriptions.ts`. `results.ts` is partially wired — its
+two result reads now call real endpoints; its review lifecycle still uses
+fixtures, and is unblocked now that `GET /orders/results-worklist` returns
+`encounter_id` (the mock omitted it, which is why the review lifecycle filed
+everything against one hardcoded encounter).
 
 Fixture gate — note `rg` is not installed on this machine, `grep` is:
 
