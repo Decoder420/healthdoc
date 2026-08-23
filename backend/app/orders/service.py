@@ -49,7 +49,9 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
 
     order = Order(
         id=uuid.uuid4(),
-        order_number=order_number.format_order_number(business_date, seq),
+        # facility.code, not the caller's facility — same rule as facility_id
+        # and the business date above: one facility in play, the resource's.
+        order_number=order_number.format_order_number(facility.code, business_date, seq),
         encounter_id=payload.encounter_id,
         facility_id=encounter.facility_id,
         patient_id=payload.patient_id,

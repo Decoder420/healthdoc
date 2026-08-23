@@ -15,11 +15,12 @@ measurement.
 
 | Gate | Result |
 |---|---|
-| PostgreSQL backend suite | **589 passed**, 0 failed, 0 skipped |
+| PostgreSQL backend suite | **649 passed**, 0 failed, 0 skipped |
 | Migration integrity | **54 migrations, linear, downgrades present, head `0047`** |
 | Schema/spec check | **96 tables, 67 enums, map + FKs + ModuleCode consistent** |
 | Schema drift | **0 blockers**, 57 documentation warnings |
-| API contract matrix | **51/51 frontend calls match OpenAPI** |
+| API contract matrix | **59/59 frontend calls match OpenAPI** |
+| Frontend fixture importers | **25** (was 27) |
 | Frontend TypeScript | Passed |
 | Frontend ESLint | 0 errors, 4 pre-existing React-compiler warnings |
 | Frontend convention checker | 0 blockers, 0 warnings |
@@ -240,10 +241,46 @@ clinical-owner sign-off**, not code.
    router because `/users` is admin-gated at the APIRouter level and `/me` must
    be readable by every role.
 
-   Done so far: `facility_id` removed from `UserCreateInput` and both admin
-   write paths; contract matrix 51 -> **52/52**. Remaining: the 13
-   `features/*/api/*.ts` mock modules, which reimplement filtering and
-   pagination client-side and need real endpoints rather than a type change.
+   **The finding that changes how to approach the rest.** These mocks are not
+   only standing in for missing *wiring*. Three times now they were standing in
+   for missing *product*, and each was invisible until someone tried to wire the
+   call behind them:
+
+   - **No invoice could ever be paid.** `build_invoice` creates `draft`,
+     `record_payment` accepts only `("issued","partially_paid")`, and nothing in
+     the application bridged them. The integration test passed because it ran
+     `UPDATE invoices SET status='issued'` in raw SQL itself. Fixed by
+     `POST /billing/invoices/{id}/issue`.
+   - **No `GET /patients/{patient_id}`.** A patient could be created, searched,
+     updated and have their history read — but the record could not be fetched
+     by id, which is the first call every clinical screen makes.
+   - **`GET /pharmacy/medicines/search` did not return `ingredient_code`** — the
+     key the allergy matcher matches on. Wired as-was, *every* prescribed item
+     would have come back "uncheckable": a missing column reading as a missing
+     allergy check, on every prescription.
+
+   Treat each remaining mock module as a specification of possibly-unbuilt
+   backend, not a list of calls to swap in. Read what the endpoint actually
+   returns before assuming the mock's shape was ever real.
+
+   Endpoints added to close these: `GET /users/me`,
+   `POST /billing/invoices/{id}/issue`, `GET /billing/invoices/{id}`,
+   `GET /patients/{patient_id}`, `GET /allergies/patients/{id}/check`.
+
+   Retired so far — **27 -> 25**: `features/doctor/api/patients.ts` and
+   `features/doctor/api/prescriptions.ts`. Doctor is 8 -> 6.
+
+   Still fixture-backed, with what each needs:
+
+   | Module | Files | Missing backend |
+   |---|---|---|
+   | Doctor | 6 | `searchIcd` (needs an ICD-10 code set — **external input**), `suggestOrderNames`, `createProcedure`, results worklist, radiology report reads, 3 of 4 break-glass calls, `mockEncounterContext` on 2 pages |
+   | Billing | 6 | draft line editing (add/update/remove item) and `resolveTariff` — **a product decision**, since charges are aggregated by `build_invoice` and issuing freezes amounts |
+   | Admin | 5 | account-request endpoints exist at `app/users/account_requests.py`; needs wiring, not building |
+   | Consent/Audit | 4 | not yet surveyed |
+   | Reports | 2 | reports backend is still a ping route |
+
+   `mockMedicines` is now dead and can be deleted.
 2. Inventory workflows — backend mutations exist; the frontend shows only alerts.
 3. ABDM delivery monitoring — needs sandbox credentials.
 4. Radiology — backend contracts exist, the route is unbuilt.

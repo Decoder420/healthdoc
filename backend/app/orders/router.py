@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
 from app.allergies.service import AllergyConflict
-from app.orders import service
+from app.orders import results_worklist, service
 from app.orders.schemas import (
+    ResultWorklistItemOut,
+    ResultWorklistOut,
     OrderCreate, OrderOut, PrescriptionCreate, PrescriptionItemOut, PrescriptionOut,
 )
 
@@ -26,12 +28,58 @@ async def create_order(payload: OrderCreate, current_db_user: CurrentDbUser,
     the business-date timezone from the encounter's own facility now,
     not the caller's. current_db_user.facility_id was never the right
     facility for this: it's whoever is logged in, which can legitimately
-    differ from the facility the encounter/order actually belongs to."""
+    differ from the facility the encounter/order actually belongs to.
+
+    created_by, however, IS the caller's. It used to be a required body field
+    written straight to orders.created_by, so any caller could file a lab test
+    or a scan under a colleague's name — contradicting this module's docstring.
+    A disagreeing body value is refused rather than silently overridden, so an
+    attempted misattribution leaves a trace.
+    """
+    if payload.created_by is not None and payload.created_by != current_db_user.id:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "created_by_mismatch",
+                "message": "created_by must be the authenticated user",
+            },
+        )
+    payload.created_by = current_db_user.id
+
     try:
         order = await service.create_order(db, payload)
     except service.EncounterNotFound:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="encounter_not_found")
     return OrderOut.model_validate(order)
+
+
+@router.get("/results-worklist", response_model=ResultWorklistOut,
+            dependencies=[Depends(require_roles("doctor", "admin"))],
+            summary="Lab and radiology results awaiting this doctor's review")
+async def get_results_worklist(
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> ResultWorklistOut:
+    """The doctor's outstanding results, lab and radiology ranked together.
+
+    Registered BEFORE GET /{order_id}: both are one segment under /orders, so
+    whichever is declared first wins, and "results-worklist" parsed as a UUID
+    is a 422 that reads like a validation bug rather than a routing one.
+
+    Scope follows queue.service.get_doctor_worklist — a doctor sees the orders
+    they placed, an admin sees the facility. It is derived from the caller's
+    roles, never from a query parameter: a doctor able to pass `all=true` would
+    be reading colleagues' worklists, which is the thing the scope prevents.
+    """
+    rows = await results_worklist.get_results_worklist(
+        db,
+        caller_id=current_db_user.id,
+        facility_id=current_db_user.facility_id,
+        caller_roles=current_db_user.roles,
+    )
+    return ResultWorklistOut(
+        items=[ResultWorklistItemOut(**row) for row in rows]
+    )
 
 
 @router.get("/{order_id}", response_model=OrderOut,

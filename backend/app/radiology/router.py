@@ -23,6 +23,7 @@ from app.radiology.schemas import (
     RadiologyOrderItemListOut,
     RadiologyOrderItemOut,
     RadiologyReportCreate,
+    RadiologyReportHistoryOut,
     RadiologyReportOut,
     RadiologyReportSignOff,
     ScanCompletionRequest,
@@ -173,6 +174,45 @@ async def list_radiology_order_items(
     )
     rows = result.scalars().all()
     return RadiologyOrderItemListOut(items=rows, page=page, page_size=page_size, total=total)
+
+
+@router.get("/order-items/{item_id}/reports", response_model=RadiologyReportHistoryOut)
+async def list_radiology_reports(
+    current_db_user: CurrentDbUser,
+    item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles("doctor", "radiology_tech", "admin")),
+):
+    """Every version of the report for this scan, newest first.
+
+    This did not exist. A radiologist could draft a report (POST) and sign it
+    off (PUT), but nothing could read one back: the ordering doctor's only route
+    to the findings was the FHIR bundle, which returns just the current version
+    inside a DiagnosticReport document. Pathology has carried the equivalent
+    (`/results/history`) since #218 — the asymmetry was an oversight, not a
+    decision.
+
+    Version history rather than the current row alone, for the same reason
+    pathology keeps it: a preliminary read that was revised on final is what a
+    treating doctor needs to see, and `is_current` cannot show that it changed.
+
+    Empty list, not 404, when the scan exists but has no report yet — "not
+    reported" is a legitimate state of a real order, distinct from "no such
+    order".
+    """
+    await _scoped_item(db, item_id, current_db_user.facility_id)
+
+    rows = (
+        await db.execute(
+            select(RadiologyReport)
+            .where(RadiologyReport.radiology_order_item_id == item_id)
+            .order_by(RadiologyReport.version.desc())
+        )
+    ).scalars().all()
+
+    return RadiologyReportHistoryOut(
+        items=[RadiologyReportOut.model_validate(r) for r in rows]
+    )
 
 
 @router.post("/order-items/{item_id}/reports", response_model=RadiologyReportOut, status_code=201)

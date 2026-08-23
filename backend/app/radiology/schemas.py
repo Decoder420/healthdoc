@@ -61,6 +61,22 @@ class RadiologyReportSignOff(BaseModel):
     impression: str | None = None
 
 
+class RadiologyReportHistoryOut(BaseModel):
+    """Response for GET /radiology/order-items/{item_id}/reports.
+
+    Mirrors pathology's LabResultHistoryOut. Radiology had no read endpoint at
+    all: a radiologist could draft (POST) and sign off (PUT), but the ordering
+    doctor had no way to read what was written except the FHIR bundle, which
+    returns only the current version wrapped in a DiagnosticReport.
+
+    All versions, newest first. The history is the clinically interesting part —
+    a preliminary read that was revised on final is exactly what a treating
+    doctor needs to see, and `is_current` alone cannot show that it changed.
+    """
+
+    items: list["RadiologyReportOut"]
+
+
 class RadiologyReportOut(BaseModel):
     id: uuid.UUID
     radiology_order_item_id: uuid.UUID

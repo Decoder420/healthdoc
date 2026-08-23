@@ -417,6 +417,111 @@ async def test_another_facilitys_scan_cannot_be_signed_off(db):
     assert surviving[0].findings == "Their radiologist's findings."
 
 
+async def test_an_order_cannot_be_attributed_to_another_user(db):
+    """POST /orders took created_by as a REQUIRED body field and wrote it
+    straight to orders.created_by — so any caller could file a lab test or a
+    scan under a colleague's name, while app/orders/router.py's own docstring
+    said "created_by comes from current_db_user, never the request body".
+
+    Refused rather than silently overridden: an attempted misattribution should
+    leave a trace, not vanish.
+    """
+    from app.orders import router as orders_router
+    from app.orders.schemas import OrderCreate
+
+    ours = await _facility(db)
+    caller = _Caller(ours.id)
+    visit = await _visit(db, ours.id)
+
+    with pytest.raises(HTTPException) as caught:
+        await orders_router.create_order(
+            OrderCreate(
+                encounter_id=uuid.uuid4(),
+                patient_id=visit.patient_id,
+                created_by=uuid.uuid4(),  # somebody else
+                order_type="lab",
+            ),
+            caller,
+            db=db,
+        )
+
+    assert caught.value.status_code == 403
+    assert caught.value.detail["code"] == "created_by_mismatch"
+
+
+async def test_radiology_reports_are_readable_newest_first(db):
+    """GET /radiology/order-items/{id}/reports did not exist.
+
+    A radiologist could draft (POST) and sign off (PUT); nothing could read a
+    report back. The ordering doctor's only route to the findings was the FHIR
+    bundle, which returns the current version alone inside a DiagnosticReport.
+    Pathology has carried /results/history since #218.
+
+    Version order matters: a preliminary read revised on final is what a
+    treating doctor needs to see, and is_current cannot show that it changed.
+    """
+    from app.radiology import router as radiology_router
+    from app.radiology.models import RadiologyReport
+
+    facility = await _facility(db)
+    item = await _radiology_item(db, facility.id)
+
+    for version, status, is_current in ((1, "preliminary", False), (2, "final", True)):
+        db.add(RadiologyReport(
+            id=uuid.uuid4(), radiology_order_item_id=item.id, version=version,
+            is_current=is_current, findings=f"Findings v{version}",
+            impression=f"Impression v{version}", status=status,
+            created_by=uuid.uuid4(),
+        ))
+    await db.flush()
+
+    history = await radiology_router.list_radiology_reports(
+        _Caller(facility.id), item.id, db=db,
+    )
+
+    assert [r.version for r in history.items] == [2, 1], "newest first"
+    assert history.items[0].status == "final"
+    assert history.items[1].status == "preliminary", (
+        "the superseded preliminary read must remain visible"
+    )
+
+
+async def test_a_scan_with_no_report_yet_returns_an_empty_list(db):
+    """Not 404. "Ordered but not reported" is a real state of a real scan, and
+    a treating doctor checking for a result needs to see that distinction."""
+    from app.radiology import router as radiology_router
+
+    facility = await _facility(db)
+    item = await _radiology_item(db, facility.id)
+
+    history = await radiology_router.list_radiology_reports(
+        _Caller(facility.id), item.id, db=db,
+    )
+
+    assert history.items == []
+
+
+async def test_another_facilitys_radiology_reports_are_not_readable(db):
+    from app.radiology import router as radiology_router
+    from app.radiology.models import RadiologyReport
+
+    ours, theirs = await _facility(db), await _facility(db)
+    stranger = await _radiology_item(db, theirs.id)
+    db.add(RadiologyReport(
+        id=uuid.uuid4(), radiology_order_item_id=stranger.id, version=1,
+        is_current=True, findings="Their findings.", impression="Theirs.",
+        status="final", created_by=uuid.uuid4(),
+    ))
+    await db.flush()
+
+    with pytest.raises(HTTPException) as caught:
+        await radiology_router.list_radiology_reports(
+            _Caller(ours.id), stranger.id, db=db,
+        )
+
+    assert caught.value.status_code == 404
+
+
 async def test_another_facilitys_fhir_bundle_is_not_readable(db):
     """The bundle carries patient demographics alongside findings and
     impression. This route had no role dependency either."""

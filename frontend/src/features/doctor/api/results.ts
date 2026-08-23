@@ -5,11 +5,10 @@
  * lab_results/radiology_reports, which are append-only and versioned: writing a
  * review onto them would spawn a false result version.
  */
+import { api } from "@/lib/api";
 import {
   MOCK_ENCOUNTER_ID_FOR_REVIEWS,
   mockDoctorReviews,
-  mockLabResults,
-  mockRadiologyReports,
   mockResultsWorklist,
   savedDoctorReviews,
 } from "@/lib/mock";
@@ -46,22 +45,41 @@ export async function listResultsWorklist(): Promise<ResultWorklistItem[]> {
   return delay(sortWorklist(mockResultsWorklist));
 }
 
-/** GET /api/v1/pathology/order-items/{id}/results — all versions, newest first. */
+/**
+ * GET /pathology/order-items/{id}/results/history — all versions, newest first.
+ *
+ * The path is `/results/history`, not `/results`: POST `/results` files a
+ * result and PUT `/results/amend` supersedes one, so the read lives on its own
+ * segment. The fixture's comment named the wrong route.
+ *
+ * Ordering comes from the server. Not re-sorted here — an amendment chain that
+ * the browser reorders is a different clinical story than the one the lab filed.
+ */
 export async function getLabResults(labOrderItemId: string): Promise<LabResult[]> {
-  const rows = mockLabResults
-    .filter((r) => r.lab_order_item_id === labOrderItemId)
-    .sort((a, b) => b.version - a.version);
-  return delay(rows);
+  const response = await api<{ items: LabResult[] }>(
+    `/pathology/order-items/${labOrderItemId}/results/history`,
+  );
+  return response.items;
 }
 
-/** GET /api/v1/radiology/order-items/{id}/reports — all versions, newest first. */
+/**
+ * GET /radiology/order-items/{id}/reports — all versions, newest first.
+ *
+ * This endpoint did not exist until it was added alongside this change. A
+ * radiologist could draft and sign a report; nothing could read one back except
+ * the FHIR bundle, which returns only the current version. Pathology had
+ * carried the equivalent since #218.
+ *
+ * Returns an empty array for a scan that has no report yet — "ordered but not
+ * reported" is a real state, and distinct from "no such scan" (404).
+ */
 export async function getRadiologyReports(
   radiologyOrderItemId: string,
 ): Promise<RadiologyReport[]> {
-  const rows = mockRadiologyReports
-    .filter((r) => r.radiology_order_item_id === radiologyOrderItemId)
-    .sort((a, b) => b.version - a.version);
-  return delay(rows);
+  const response = await api<{ items: RadiologyReport[] }>(
+    `/radiology/order-items/${radiologyOrderItemId}/reports`,
+  );
+  return response.items;
 }
 
 function allReviews(): DoctorReview[] {
