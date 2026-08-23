@@ -126,6 +126,7 @@ def _include(module_path: str, *, optional_name: str | None = None) -> None:
 # parsed as a UUID and the endpoint 422s — a failure that reads like a
 # validation bug rather than a routing one. Keep this above the loop.
 _include("app.users.me")
+_include("app.users.account_request_router")
 
 for name in MODULES:
     _include(f"app.{name}.router", optional_name=name)
