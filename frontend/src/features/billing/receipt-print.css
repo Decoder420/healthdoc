@@ -1,5 +1,10 @@
 /* Print: show only receipt root when printing from billing */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
   body * {
     visibility: hidden !important;
   }
