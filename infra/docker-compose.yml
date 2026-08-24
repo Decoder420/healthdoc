@@ -118,7 +118,9 @@ services:
       - "127.0.0.1:${ICD11_PORT:-8083}:80"
 
   backend:
-    build: ../backend
+    build:
+      context: ../backend
+      target: dev
     env_file: ../.env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
