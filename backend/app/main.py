@@ -147,6 +147,7 @@ _B1_ROUTERS = [
     "app.common.facility_modules",
     "app.integrations.abdm.identity.router",  # ABHA capture (W6-01)
     "app.patients.portal_router",  # verified account-to-patient identity boundary (#228)
+    "app.patients.portal_self_router",  # bound patient self-service reads (#228)
     # Break-glass (#391). This sat unregistered behind a note saying
     # break_glass_grants / data_access_log (0004) and notification_history (0020)
     # were unmerged and would 500 with UndefinedTable. All three merged — staging
