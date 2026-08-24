@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
 from app.audit import (
@@ -14,6 +16,7 @@ from app.audit import (
 from app.common.config import get_settings
 from app.common.db import SessionLocal
 from app.common.envelope import EnvelopeMiddleware
+from app.common.metrics import MetricsMiddleware
 from app.common.mongo import get_mongo
 from app.common.redis import get_redis
 
@@ -51,6 +54,7 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 app.add_middleware(EnvelopeMiddleware)
+app.add_middleware(MetricsMiddleware)
 
 # B1-W4-02: CORS locked to the Electron/desktop origin only (no wildcard).
 # Extra origins (e.g. http://localhost:3000 for browser dev) come from settings.
@@ -99,6 +103,16 @@ async def health_deep() -> dict:
         checks["redis"] = f"error: {exc}"
     status = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
     return {"status": status, "checks": checks}
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics() -> Response:
+    """Internal scrape target; production Nginx does not expose this route."""
+    return Response(
+        generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _include(module_path: str, *, optional_name: str | None = None) -> None:

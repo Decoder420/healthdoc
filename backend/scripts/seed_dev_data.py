@@ -24,6 +24,7 @@ DISPLAY_NAMES = {
     "dev.radiology": "Dev Radiology Technician",
     "dev.pharmacist": "Dev Pharmacist",
     "dev.admin": "Dev Admin",
+    "dev.patient": "Dev Patient",
 }
 
 
@@ -107,6 +108,66 @@ async def seed(users: list[tuple[str, str]]) -> None:
                     "full_name": DISPLAY_NAMES.get(username, username),
                     "email": f"{username}@healthdoc.local",
                     "facility_id": FACILITY_ID,
+                },
+            )
+
+        patient_user_id = (
+            await session.execute(
+                text("SELECT id FROM users WHERE username = 'dev.patient'")
+            )
+        ).scalar_one_or_none()
+        verifier_id = (
+            await session.execute(
+                text("SELECT id FROM users WHERE username = 'dev.admin'")
+            )
+        ).scalar_one_or_none()
+        if patient_user_id is not None and verifier_id is not None:
+            patient_id = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:dev.patient:patient")
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO patients
+                        (id, thid, full_name, sex, dob, abha_number, identity_path,
+                         identity_status, status, facility_id, created_by)
+                    VALUES
+                        (:id, 'TH-DEV001-PORTAL', 'Dev Patient', 'unknown', DATE '1990-01-01',
+                         '91123456789012', 'abdm', 'verified', 'active', :facility_id, :verifier_id)
+                    ON CONFLICT (id) DO UPDATE SET
+                        abha_number = EXCLUDED.abha_number,
+                        identity_status = 'verified', status = 'active', deleted_at = NULL,
+                        updated_at = now(), updated_by = :verifier_id
+                    """
+                ),
+                {
+                    "id": patient_id,
+                    "facility_id": FACILITY_ID,
+                    "verifier_id": verifier_id,
+                },
+            )
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO patient_portal_bindings
+                        (id, user_id, patient_id, facility_id, verification_method,
+                         verification_reference, verified_by)
+                    VALUES
+                        (:id, :user_id, :patient_id, :facility_id, 'abha_otp',
+                         'DEV-ABHA-OTP-TXN', :verifier_id)
+                    ON CONFLICT (id) DO UPDATE SET
+                        patient_id = EXCLUDED.patient_id,
+                        verification_method = EXCLUDED.verification_method,
+                        verification_reference = EXCLUDED.verification_reference,
+                        verified_by = EXCLUDED.verified_by,
+                        verified_at = now(), revoked_at = NULL, revoked_by = NULL,
+                        revocation_reason = NULL, updated_at = now()
+                    """
+                ),
+                {
+                    "id": uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:dev.patient:binding"),
+                    "user_id": patient_user_id,
+                    "patient_id": patient_id,
+                    "facility_id": FACILITY_ID,
+                    "verifier_id": verifier_id,
                 },
             )
 

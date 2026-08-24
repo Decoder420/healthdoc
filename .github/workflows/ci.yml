@@ -243,10 +243,10 @@ jobs:
           npm ci
           npx puppeteer browsers install chrome
 
-      - name: Start the complete stack and seed linked staff identities
+      - name: Start the complete stack and seed linked identities
         run: make setup
 
-      - name: Staff authentication and bearer API gates
+      - name: Staff and patient authentication and bearer API gates
         working-directory: frontend
         env:
           E2E_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-e2e
