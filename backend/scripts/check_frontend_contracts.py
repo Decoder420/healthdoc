@@ -135,7 +135,7 @@ REMEDIATIONS = (
     ("POST /vitals", "Fixed", "POST /nursing/vitals"),
     ("POST /nursing/handover-notes", "Disabled", "No published write contract"),
     ("POST /nursing/movement", "Fixed", "POST /admissions/{admission_id}/transfer"),
-    ("POST /procedures", "Disabled", "No published write contract"),
+    ("POST /procedures", "Fixed", "Facility-scoped, idempotent procedure record contract added"),
     ("POST /nursing/notes", "Disabled", "No published write contract"),
     ("POST /discharges", "Fixed", "POST /admissions/{admission_id}/discharge"),
     ("GET /wards", "Fixed", "Facility-scoped backend list added"),

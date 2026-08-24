@@ -485,7 +485,20 @@ async def request_merge(
 # matching entry here. Do not add a table name here without also adding
 # the repointing code for it below.
 REPOINTED_ON_MERGE: frozenset[str] = frozenset(
-    {"patient_identifiers", "visits", "ot_schedules", "fhir_bundle_transactions", "files", "admissions", "vitals", "medication_administration", "clinical_incidents"}
+    {
+        "patient_identifiers",
+        "visits",
+        "orders",
+        "prescriptions",
+        "procedure_records",
+        "ot_schedules",
+        "fhir_bundle_transactions",
+        "files",
+        "admissions",
+        "vitals",
+        "medication_administration",
+        "clinical_incidents",
+    }
 )
 
 # patient_merge_log itself has FKs to patients.id (source_patient_id,
@@ -501,24 +514,19 @@ AUDIT_TABLES_EXEMPT_FROM_REPOINTING: frozenset[str] = frozenset({"patient_merge_
 PENDING_REPOINT_OTHER_MODULES: frozenset[str] = frozenset({
     "allergies",      # allergies module — repointing owned by that module's dev
     "invoices",       # B7/0014 — repointing owned by the billing module's dev
-    "orders",         # B3/0008 — see below; surfaced when app/orders became importable
-    "prescriptions",  # B3/0008 — same
 })
-# visits and ot_schedules moved to REPOINTED_ON_MERGE (B3, #284).
+# visits, orders, prescriptions, procedure_records and ot_schedules moved to
+# REPOINTED_ON_MERGE (B3, #284 and procedure contract closure).
 #
-# orders and prescriptions appear here now not because anything changed in
-# 0008 but because app/orders/models.py finally imports — it referenced
-# app.common.database and app.common.mixins, neither of which exists, so its
-# models never registered on Base.metadata and this guard could not see their
-# FKs to patients.id. They have been unrepointed since 0008 merged; only the
-# detection is new.
+# Orders and prescriptions were first surfaced when app/orders/models.py became
+# importable and the metadata guard could finally see their patient FKs. The
+# procedure contract registers procedure_records as well; all three B3-owned
+# references are now repointed together by _repoint_order_clinical_records.
 #
-# FOUR entries now. A merge currently succeeds while leaving the patient's
-# allergies, invoices, orders and prescriptions attached to the merged-away
-# record — orders and prescriptions being clinical history, not metadata.
-# This set was a reasonable escape hatch at one entry. At four it is a merge
-# that reports success and loses most of the record. Before adding a fifth,
-# approve_merge should refuse outright while this set is non-empty.
+# Two cross-module entries remain. Invoices require a deliberate exception to
+# their post-issue freeze trigger before they can be safely repointed; allergy
+# conflict consolidation also needs an explicit clinical rule. Neither is
+# silently claimed as complete here.
 
 
 async def approve_merge(
@@ -585,6 +593,7 @@ async def approve_merge(
 
     await _repoint_identifiers(db, source=source, target=target)
     await _repoint_visits(db, source=source, target=target)
+    await _repoint_order_clinical_records(db, source=source, target=target)
     await _repoint_ot_schedules(db, source=source, target=target)
     await _repoint_clinical_incidents(db, source=source, target=target)
     await _repoint_medication_administration(db, source=source, target=target)
@@ -678,6 +687,36 @@ async def _repoint_visits(db: AsyncSession, *, source: Patient, target: Patient)
 
     await db.execute(
         update(Visit).where(Visit.patient_id == source.id).values(patient_id=target.id)
+    )
+    await db.flush()
+
+
+async def _repoint_order_clinical_records(
+    db: AsyncSession, *, source: Patient, target: Patient
+) -> None:
+    """Move the B3 order-owned patient references as one consistency unit.
+
+    Orders, prescriptions and procedure records each denormalize patient_id.
+    Repointing only one would make the surviving encounter point at the target
+    while its clinical detail still named the merged-away patient. None of
+    these three tables has a per-patient uniqueness constraint, so every row
+    can move without conflict resolution.
+    """
+    from app.orders.models import Order, Prescription
+    from app.procedures.models import ProcedureRecord
+
+    await db.execute(
+        update(Order).where(Order.patient_id == source.id).values(patient_id=target.id)
+    )
+    await db.execute(
+        update(Prescription)
+        .where(Prescription.patient_id == source.id)
+        .values(patient_id=target.id)
+    )
+    await db.execute(
+        update(ProcedureRecord)
+        .where(ProcedureRecord.patient_id == source.id)
+        .values(patient_id=target.id)
     )
     await db.flush()
 
