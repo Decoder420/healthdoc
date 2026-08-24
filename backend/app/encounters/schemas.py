@@ -9,15 +9,24 @@ from pydantic import BaseModel, Field
 
 class EncounterCreate(BaseModel):
     visit_id: UUID
+    #: The attending clinician, who is NOT necessarily the caller — a nurse may
+    #: open the encounter for the doctor about to see the patient. Still sent by
+    #: the client, but now validated as an active user of the caller's facility
+    #: rather than trusted (service._assert_provider_in_facility).
     provider_user_id: UUID
-    created_by: UUID
+    #: Ignored. Kept only so existing clients do not break on an unexpected
+    #: field; the value written is always the authenticated caller. It was
+    #: REQUIRED and written straight through — see service.create_encounter.
+    created_by: UUID | None = None
     encounter_type: str | None = None
     chief_complaint: str | None = None
     started_at: datetime | None = None
 
 
 class EncounterUpdate(BaseModel):
-    updated_by: UUID
+    #: Ignored — the token supplies it. Was required AND assigned
+    #: unconditionally, so omitting it NULLed the last-editor of the note.
+    updated_by: UUID | None = None
     ended_at: datetime | None = None
     subjective: str | None = None
     objective: str | None = None
@@ -47,7 +56,10 @@ class EncounterOut(BaseModel):
 
 class DiagnosisCreate(BaseModel):
     encounter_id: UUID
-    created_by: UUID
+    #: Ignored. Kept only so existing clients do not break on an unexpected
+    #: field; the value written is always the authenticated caller. It was
+    #: REQUIRED and written straight through — see service.create_diagnosis.
+    created_by: UUID | None = None
     icd_code: str
     icd_version: str
     icd_code_id: UUID | None = None

@@ -31,7 +31,8 @@ async def visit(db, seed):
 async def test_create_and_get_encounter(db, visit):
     v, doctor = visit
     encounter = await service.create_encounter(
-        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, created_by=doctor.id, chief_complaint="fever"))
+        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, chief_complaint="fever"),
+        actor_id=doctor.id, facility_id=v.facility_id)
 
     assert encounter.chief_complaint == "fever"
     assert encounter.note_status == "pending"
@@ -47,11 +48,12 @@ async def test_create_and_get_encounter(db, visit):
 async def test_update_encounter_soap_fields(db, visit):
     v, doctor = visit
     encounter = await service.create_encounter(
-        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, created_by=doctor.id, chief_complaint="cough"))
+        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, chief_complaint="cough"),
+        actor_id=doctor.id, facility_id=v.facility_id)
 
     updated = await service.update_encounter(
-        db, encounter, EncounterUpdate(updated_by=doctor.id, subjective="dry cough for 3 days",
-                                        assessment="viral", plan="rest", note_status="stored"))
+        db, encounter, EncounterUpdate(subjective="dry cough for 3 days",
+                                        assessment="viral", plan="rest", note_status="stored"), actor_id=doctor.id)
 
     assert updated.subjective == "dry cough for 3 days"
     assert updated.assessment == "viral"
@@ -65,17 +67,18 @@ async def test_update_encounter_soap_fields(db, visit):
 async def test_diagnosis_create_and_list(db, visit):
     v, doctor = visit
     encounter = await service.create_encounter(
-        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, created_by=doctor.id))
+        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id),
+        actor_id=doctor.id, facility_id=v.facility_id)
 
     d1 = await service.create_diagnosis(db, DiagnosisCreate(
-        encounter_id=encounter.id, created_by=doctor.id, icd_code="J11", icd_version="ICD-10",
-        diagnosis_text="Influenza", diagnosis_type="provisional", is_primary=True))
+        encounter_id=encounter.id, icd_code="J11", icd_version="ICD-10",
+        diagnosis_text="Influenza", diagnosis_type="provisional", is_primary=True), actor_id=doctor.id)
     assert d1.facility_id == encounter.facility_id
     assert d1.is_primary is True
 
     await service.create_diagnosis(db, DiagnosisCreate(
-        encounter_id=encounter.id, created_by=doctor.id, icd_code="R50.9", icd_version="ICD-10",
-        diagnosis_text="Fever, unspecified", diagnosis_type="differential", is_primary=False))
+        encounter_id=encounter.id, icd_code="R50.9", icd_version="ICD-10",
+        diagnosis_text="Fever, unspecified", diagnosis_type="differential", is_primary=False), actor_id=doctor.id)
 
     diagnoses = await service.list_diagnoses(db, encounter.id)
     assert len(diagnoses) == 2
