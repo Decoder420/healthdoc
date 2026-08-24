@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "../forms/FormSection";
@@ -27,7 +27,7 @@ export default function AddPatientMovementForm({
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<AddPatientMovementSchema>({
     resolver: zodResolver(addPatientMovementSchema),
@@ -38,7 +38,7 @@ export default function AddPatientMovementForm({
     },
   });
 
-  const toWardId = watch("to_ward_id");
+  const toWardId = useWatch({ control, name: "to_ward_id" });
 
   // Only vacant beds in the selected destination ward are selectable.
   const destinationBeds = beds.filter(

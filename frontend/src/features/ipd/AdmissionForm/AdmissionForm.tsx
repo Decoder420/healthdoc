@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "@/components/forms/FormSection";
@@ -27,15 +27,15 @@ export default function AdmissionForm({
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<AddAdmissionSchema>({
     resolver: zodResolver(addAdmissionSchema),
     defaultValues: DEFAULT_VALUES,
   });
 
-  const wardId = watch("ward_id");
-  const bedId = watch("bed_id");
+  const wardId = useWatch({ control, name: "ward_id" });
+  const bedId = useWatch({ control, name: "bed_id" });
 
   // Reusing BedGrid instead of a separate dropdown component — filtered to
   // vacant beds in the selected ward, since admission can only go to a

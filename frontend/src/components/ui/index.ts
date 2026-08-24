@@ -42,11 +42,3 @@ export { default as FEFOIndicator } from "./FEFOindicator";
 export type { FEFOIndicatorProps } from "./FEFOindicator";
 export { default as StockLevelBadge } from "./StockLevelBadge";
 export type { StockLevelBadgeProps } from "./StockLevelBadge";
-
-/** Clinical / lab helpers (Ishika) */
-export { default as PatientInfo } from "./PatientInfo";
-export { default as LabCalendar } from "./Lab_Calendar";
-export { default as LabKpiCards } from "./Lab_KpiCards";
-export { default as LabLineCharts } from "./Lab_LineCharts";
-export { default as LabGenderPieChart } from "./Lab_GenderPieChart";
-export { default as LabUrgencyPieChart } from "./Lab_Urgency_Pi_Chart";
