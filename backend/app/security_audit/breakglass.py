@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import AuthUser, get_current_user, require_roles
 from app.common.db import get_db
 
+log = logging.getLogger("healthdoc.breakglass")
+
 router = APIRouter(prefix="/break-glass", tags=["security"])
 GRANT_WINDOW = timedelta(hours=2)
 
@@ -126,3 +128,166 @@ async def expired_unreviewed_grants(
         ORDER BY expires_at DESC
     """))).mappings().all()
     return {"items": [dict(r) for r in rows]}
+
+
+# ---------------------------------------------------------------------------
+# Revoke and review — the two halves of this control that had columns and no
+# code.
+#
+# break_glass_grants has carried revoked_at/revoked_by and
+# reviewed_at/reviewed_by/review_outcome since 0004. Nothing wrote any of them.
+#
+# The consequence was not cosmetic. /expired-unreviewed is a compliance
+# worklist of grants awaiting review — and with no way to record a review, that
+# list could only ever grow. A worklist nobody can clear is indistinguishable
+# from one nobody is working.
+#
+# Revocation was the other gap: a grant ran its full two hours regardless. If a
+# clinician opened emergency access to the wrong patient, or the emergency
+# ended, there was no way to cut it short.
+# ---------------------------------------------------------------------------
+
+
+async def _actor(db: AsyncSession, user: AuthUser) -> dict:
+    """The caller's users row.
+
+    break_glass_grants.revoked_by / reviewed_by are FKs to users.id. The token
+    carries a Keycloak subject, which is a different identifier — the same trap
+    app/billing/service.resolve_actor_user_id exists to document.
+    """
+    caller = (await db.execute(
+        text("SELECT id, facility_id FROM users WHERE keycloak_sub = :sub"),
+        {"sub": user.sub},
+    )).mappings().one_or_none()
+    if caller is None:
+        raise HTTPException(403, "Authenticated user has no HealthDoc profile")
+    return dict(caller)
+
+
+class BreakGlassReview(BaseModel):
+    """A compliance decision on a used grant."""
+
+    outcome: str = Field(
+        description="justified | not_justified — the reviewer's finding.",
+    )
+    notes: str | None = None
+
+    @field_validator("outcome")
+    @classmethod
+    def _known_outcome(cls, v: str) -> str:
+        if v not in ("justified", "not_justified"):
+            raise ValueError("outcome must be 'justified' or 'not_justified'")
+        return v
+
+
+class BreakGlassRevoke(BaseModel):
+    reason: str = Field(
+        min_length=1,
+        description="Why the grant is being cut short. Recorded on the row — a "
+                    "revocation with no reason is not reviewable later.",
+    )
+
+
+@router.post("/{grant_id}/revoke",
+             dependencies=[Depends(require_roles("emergency", "doctor", "admin"))])
+async def revoke_grant(
+    grant_id: str,
+    payload: BreakGlassRevoke,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """End an active grant now rather than at its two-hour expiry.
+
+    Only an ACTIVE grant can be revoked. An already-expired one is not revoked,
+    it is over — recording a revocation against it would misstate when access
+    actually stopped, which is the one fact this row exists to establish.
+
+    Idempotency is deliberate rather than incidental: revoking twice returns
+    409, because the second call would move revoked_at forward and quietly
+    extend the recorded access window.
+    """
+    # revoked_by is an FK to users.id — the app-side UUID, NOT the Keycloak
+    # subject. Resolved the same way the grant endpoint above does; writing
+    # user.sub here would violate the foreign key.
+    actor = await _actor(db, user)
+
+    # Scoped through the patient, because break_glass_grants has no
+    # facility_id. Revoking another hospital's emergency grant is not this
+    # caller's to do, and 404 rather than 403 keeps grant ids unenumerable.
+    row = (await db.execute(text("""
+        SELECT g.id, g.revoked_at, g.expires_at
+        FROM break_glass_grants g
+        JOIN patients p ON p.id = g.patient_id
+        WHERE g.id = :id AND p.facility_id = :fid
+    """), {"id": grant_id, "fid": actor["facility_id"]})).mappings().one_or_none()
+
+    if row is None:
+        raise HTTPException(404, {"code": "grant_not_found"})
+    if row["revoked_at"] is not None:
+        raise HTTPException(409, {"code": "already_revoked",
+                                  "message": "This grant was already revoked."})
+    if row["expires_at"] <= datetime.now(timezone.utc):
+        raise HTTPException(409, {
+            "code": "already_expired",
+            "message": "This grant has already expired; there is nothing to revoke.",
+        })
+
+    await db.execute(text("""
+        UPDATE break_glass_grants
+        SET revoked_at = now(), revoked_by = :actor, updated_at = now()
+        WHERE id = :id
+    """), {"id": grant_id, "actor": actor["id"]})
+    await db.commit()
+
+    log.info("break_glass_revoked grant=%s by=%s reason=%s",
+             grant_id, user.sub, payload.reason)
+    return {"revoked": True, "grant_id": grant_id}
+
+
+@router.post("/{grant_id}/review",
+             dependencies=[Depends(require_roles("auditor", "admin"))])
+async def review_grant(
+    grant_id: str,
+    payload: BreakGlassReview,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record the compliance review of a grant.
+
+    This is what clears a row off /expired-unreviewed. Without it that worklist
+    could only grow, which is worse than having no worklist: it looks like a
+    control while guaranteeing a backlog.
+
+    Reviewed once, and only once — a second review would overwrite the first
+    reviewer's finding with no trace that it changed.
+    """
+    # reviewed_by is an FK to users.id, not the Keycloak subject — see revoke.
+    actor = await _actor(db, user)
+
+    row = (await db.execute(text("""
+        SELECT g.id, g.reviewed_at
+        FROM break_glass_grants g
+        JOIN patients p ON p.id = g.patient_id
+        WHERE g.id = :id AND p.facility_id = :fid
+    """), {"id": grant_id, "fid": actor["facility_id"]})).mappings().one_or_none()
+
+    if row is None:
+        raise HTTPException(404, {"code": "grant_not_found"})
+    if row["reviewed_at"] is not None:
+        raise HTTPException(409, {
+            "code": "already_reviewed",
+            "message": "This grant has already been reviewed. A second review "
+                       "would overwrite the first finding.",
+        })
+
+    await db.execute(text("""
+        UPDATE break_glass_grants
+        SET reviewed_at = now(), reviewed_by = :actor, review_outcome = :outcome,
+            updated_at = now()
+        WHERE id = :id
+    """), {"id": grant_id, "actor": actor["id"], "outcome": payload.outcome})
+    await db.commit()
+
+    log.info("break_glass_reviewed grant=%s by=%s outcome=%s",
+             grant_id, user.sub, payload.outcome)
+    return {"reviewed": True, "grant_id": grant_id, "outcome": payload.outcome}
