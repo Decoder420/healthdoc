@@ -123,7 +123,7 @@ async def test_a_facility_with_no_suppliers_gets_nothing_rather_than_everyone_el
 # no GET anywhere. Each endpoint worked perfectly alone, which is why it passed
 # review; together they formed an approval workflow nobody could reach.
 
-async def test_an_hod_can_find_a_pending_indent_to_approve(
+async def test_an_hod_can_find_a_requested_indent_to_approve(
     db_session, inventory_seed, pharmacy_seed
 ):
     """The defect, stated as the thing a person could not do.
@@ -134,19 +134,23 @@ async def test_an_hod_can_find_a_pending_indent_to_approve(
     indent_id = uuid.uuid4()
     await db_session.execute(text("""
         INSERT INTO indents (id, facility_id, department_id, status, created_by, updated_by)
-        VALUES (:id, :fid, :dept, 'pending', :user, :user)
+        VALUES (:id, :fid, :dept, 'requested', :user, :user)
     """), {
         "id": indent_id, "fid": pharmacy_seed["facility_id"],
         "dept": pharmacy_seed["department_id"], "user": pharmacy_seed["pharmacist_id"],
     })
     await db_session.flush()
 
-    pending = await list_indents(
-        db_session, facility_id=pharmacy_seed["facility_id"], status="pending"
+    # 'requested' is the initial state, not 'pending' — ck_indents_status allows
+    # requested/approved/rejected/issued only. Adjustments use 'pending'; indents
+    # do not, and assuming one workflow's vocabulary fits another is how this
+    # test failed the first time.
+    awaiting = await list_indents(
+        db_session, facility_id=pharmacy_seed["facility_id"], status="requested"
     )
 
-    found = next((i for i in pending.items if i.id == indent_id), None)
-    assert found is not None, "a pending indent must be reachable by its approver"
+    found = next((i for i in awaiting.items if i.id == indent_id), None)
+    assert found is not None, "a requested indent must be reachable by its approver"
     assert found.department_name, "the requesting department is named, not just its id"
 
 
@@ -172,7 +176,7 @@ async def test_indents_do_not_leak_across_facilities(db_session, inventory_seed,
     theirs = uuid.uuid4()
     await db_session.execute(text("""
         INSERT INTO indents (id, facility_id, department_id, status, created_by, updated_by)
-        VALUES (:id, :fid, :dept, 'pending', :user, :user)
+        VALUES (:id, :fid, :dept, 'requested', :user, :user)
     """), {"id": theirs, "fid": other_facility, "dept": other_dept, "user": other_user})
     await db_session.flush()
 

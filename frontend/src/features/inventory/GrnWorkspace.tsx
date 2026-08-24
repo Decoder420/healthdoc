@@ -35,7 +35,8 @@ const EMPTY_LINE: GrnItemDraft = {
 
 function statusTone(status: string): string {
   if (status === "verified") return "bg-green-100 text-green-800";
-  if (status === "rejected") return "bg-red-100 text-red-800";
+  // GRN's terminal negative state is 'cancelled'; there is no 'rejected'.
+  if (status === "cancelled") return "bg-red-100 text-red-800";
   return "bg-amber-100 text-amber-900";
 }
 

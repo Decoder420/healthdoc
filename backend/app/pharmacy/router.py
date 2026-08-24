@@ -578,7 +578,7 @@ async def list_stock_locations_endpoint(
 async def list_grns_endpoint(
     current_user: CurrentDbUser,
     db: DbSession,
-    status: str | None = Query(None, description="draft | received | verified | rejected"),
+    status: str | None = Query(None, description="draft | received | verified | cancelled"),
 ) -> GrnListOut:
     """Goods receipts. Facility-scoped from the token."""
     return await list_grns(db, facility_id=current_user.facility_id, status=status)
@@ -595,7 +595,7 @@ async def list_grns_endpoint(
 async def list_indents_endpoint(
     current_user: CurrentDbUser,
     db: DbSession,
-    status: str | None = Query(None, description="pending | approved | rejected | issued"),
+    status: str | None = Query(None, description="requested | approved | rejected | issued"),
 ) -> IndentListOut:
     """Indents for this facility.
 

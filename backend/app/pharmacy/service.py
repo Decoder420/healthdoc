@@ -2019,7 +2019,7 @@ async def list_grns(
                 JOIN suppliers s ON s.id = g.supplier_id
                 LEFT JOIN grn_items gi ON gi.grn_id = g.id
                 WHERE g.facility_id = :facility_id
-                  AND (:status IS NULL OR g.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR g.status = CAST(:status AS text))
                 GROUP BY g.id, s.name
                 ORDER BY g.received_date DESC, g.created_at DESC
                 LIMIT 200
@@ -2049,7 +2049,7 @@ async def list_indents(
                 LEFT JOIN users u ON u.id = i.approved_by
                 LEFT JOIN indent_items ii ON ii.indent_id = i.id
                 WHERE i.facility_id = :facility_id
-                  AND (:status IS NULL OR i.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR i.status = CAST(:status AS text))
                 GROUP BY i.id, d.name, u.full_name
                 ORDER BY i.created_at DESC
                 LIMIT 200
@@ -2089,7 +2089,7 @@ async def list_adjustments(
                 JOIN users f ON f.id = a.first_approver_id
                 LEFT JOIN users sa ON sa.id = a.second_approver_id
                 WHERE a.facility_id = :facility_id
-                  AND (:status IS NULL OR a.status = :status)
+                  AND (CAST(:status AS text) IS NULL OR a.status = CAST(:status AS text))
                 ORDER BY a.created_at DESC
                 LIMIT 200
             """),

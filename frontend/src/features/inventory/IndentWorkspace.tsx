@@ -263,7 +263,7 @@ export function IndentWorkspace() {
                   </span>
                 </div>
 
-                {row.status === "pending" ? (
+                {row.status === "requested" ? (
                   isHod ? (
                     <div className="mt-2 flex gap-2">
                       <button

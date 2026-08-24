@@ -11,8 +11,15 @@
  * cannot reconcile against the ledger.
  */
 
-export type GrnStatus = "draft" | "received" | "verified" | "rejected";
-export type IndentStatus = "pending" | "approved" | "rejected" | "issued";
+export type GrnStatus = "draft" | "received" | "verified" | "cancelled";
+/**
+ * Taken from ck_indents_status, not inferred from the workflow. An indent
+ * starts 'requested'; there is no 'pending' state here even though adjustments
+ * have one. Two workflows in the same module using different vocabulary for
+ * "not yet decided" is exactly the kind of thing worth reading rather than
+ * assuming.
+ */
+export type IndentStatus = "requested" | "approved" | "rejected" | "issued";
 export type AdjustmentStatus = "pending" | "approved" | "rejected";
 
 export interface Supplier {
