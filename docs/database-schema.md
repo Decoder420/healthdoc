@@ -167,6 +167,7 @@ do not merge out of order.**
 | 0046 | clinical_incidents | clinical_incidents | B3/nursing (#236) — NABH DHS incident register. Distinct from data_breach_notifications (0022a), which is the DPDP/CERT-In data path. |
 | 0047 | queue_token_transferred_not_live | ALTER queue_tokens: uq_queue_tokens_one_live_per_visit predicate gains 'transferred' | B4 (#407) — 0009's predicate counted a transferred token as still live, so every reassign_token() collided with its own historical row against PostgreSQL. Invisible until the ORM declared the index, because the SQLite test DB is built from ORM metadata. |
 | 0048 | clinical_review_consent_purpose | consent_purposes | Release readiness — seed canonical `clinical_review` reference data because patient history enforces this purpose and a fresh database needs a real purpose_id with which staff can record consent. |
+| 0049 | file_erasure | ALTER files: erased_at, erased_by, erasure_reason, object_key, sha256; ALTER file_access_log: action | Security (#368) — `file_access_log.file_id` is NOT NULL ondelete=RESTRICT, so a DPDP erasure could only be satisfied by deleting the record of who read the file. Files are now tombstoned, never deleted: the bytes go, the row and its access trail stay. RESTRICT is kept deliberately — it now states the real rule. `object_key`/`sha256` become nullable for erased rows only, guarded by a CHECK. Does NOT set a retention floor; when erasure is *permitted* is a privacy decision. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -1084,11 +1085,14 @@ issued_to_patient_id UUID NULL → patients
 
 **files**
 ```
-bucket varchar(63) NOT NULL · object_key text NOT NULL   -- MinIO location
+bucket varchar(63) NOT NULL · object_key text     -- MinIO location. NULL only on an
+                                                 -- erased row (0049) — see the CHECK below
 original_name text · content_type varchar(100) · size_bytes bigint
-sha256 char(64) NOT NULL                         -- without it the row can't prove the
+sha256 char(64)                                  -- without it the row can't prove the
                                                  -- MinIO object still matches what was
-                                                 -- uploaded; compute at upload time
+                                                 -- uploaded; compute at upload time.
+                                                 -- Cleared on erasure: a digest is a
+                                                 -- fingerprint that could confirm a copy
 owner_module varchar(50)                         -- 'patients', 'lab', ...
 facility_id UUID NOT NULL → facilities           -- patient photos and guardian ID proofs
                                                  -- are among the most sensitive rows here
@@ -1097,8 +1101,19 @@ uploaded_by UUID NOT NULL → users
 sensitivity varchar(50) NOT NULL DEFAULT 'normal'
 scan_status varchar(50) NOT NULL DEFAULT 'skipped'  -- ScanStatus enum, §4A.4. 'skipped' is
                                                  -- NOT 'clean' — no scanner is wired up yet
-UNIQUE (bucket, object_key)
+erased_at timestamptz                            -- 0049 (#368). A file row is NEVER deleted:
+erased_by UUID NULL → users                      -- file_access_log.file_id is NOT NULL
+erasure_reason text                              -- ondelete=RESTRICT, so deleting one means
+                                                 -- deleting the record of who read it. DPDP
+                                                 -- erasure destroys the DATA, not the evidence
+                                                 -- that processing occurred, so the bytes go
+                                                 -- and the row is tombstoned.
+UNIQUE (bucket, object_key)                      -- NULLs are distinct in PG, so erased rows
+                                                 -- coexist freely
+CHECK erased_at IS NULL OR (erasure_reason IS NOT NULL AND erased_by IS NOT NULL)
+CHECK erased_at IS NOT NULL OR (object_key IS NOT NULL AND sha256 IS NOT NULL)
 INDEX ix_files_facility_id (facility_id)
+INDEX ix_files_erased_at (erased_at) WHERE erased_at IS NOT NULL
 ```
 Also in 0019: add the deferred FKs — `patients.photo_file_id`,
 `consent_records.guardian_id_proof_file_id` → `files.id`.
