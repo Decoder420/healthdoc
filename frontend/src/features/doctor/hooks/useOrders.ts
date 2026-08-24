@@ -35,7 +35,7 @@ export function useOrders(encounter: ActiveEncounter) {
     async (draft: Omit<DraftOrder, "tempId">, idempotencyKey: string) => {
       setAdding(true);
       try {
-        // Two calls: the order header, then the department detail row.
+        // Two calls: the order header, then its clinical detail row.
         const result = await placeOrder(
           draft,
           {

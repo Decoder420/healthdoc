@@ -24,7 +24,7 @@ CORE_MODULES = frozenset({
     "patients", "registration", "opd", "encounters", "queue", "departments",
     "billing", "consent", "audit", "files", "users", "notifications",
     "inventory", "ipd", "emergency", "patient_portal", "abdm",
-    "orders", "nursing", "wards", "reports", "outbox", "security_audit",
+    "orders", "procedures", "nursing", "wards", "reports", "outbox", "security_audit",
 })
 
 

@@ -24,8 +24,6 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
-
 from tests.integration.conftest import (
     DOCTOR,
     LAB_TECH,
@@ -171,6 +169,76 @@ class TestOPDCoreJourney:
         )
         assert listed_orders.status_code == 200, listed_orders.text
         assert order_id in {row["id"] for row in listed_orders.json()["data"]["items"]}
+
+        wrong_type_procedure = client.post(
+            "/api/v1/procedures",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "order_id": order_id,
+                "procedure_name": "Must not attach to a lab order",
+                "setting": "opd_minor",
+            },
+        )
+        assert wrong_type_procedure.status_code == 422, wrong_type_procedure.text
+        assert (
+            wrong_type_procedure.json()["error"]["message"]["code"]
+            == "order_type_mismatch"
+        )
+
+        # --- Step 3b: procedure header + detail + read-back ---
+        procedure_order_key = str(uuid.uuid4())
+        procedure_order_resp = client.post(
+            "/api/v1/orders",
+            headers={"Idempotency-Key": procedure_order_key},
+            json={
+                "encounter_id": encounter_id,
+                "patient_id": patient_id,
+                "created_by": doctor_id,
+                "order_type": "procedure",
+                "priority": "routine",
+            },
+        )
+        assert procedure_order_resp.status_code == 201, procedure_order_resp.text
+        procedure_order_id = procedure_order_resp.json()["data"]["id"]
+        procedure_key = f"{procedure_order_key}:detail"
+        procedure_body = {
+            "order_id": procedure_order_id,
+            "procedure_name": "Minor wound dressing",
+            "setting": "opd_minor",
+        }
+        missing_key = client.post("/api/v1/procedures", json=procedure_body)
+        assert missing_key.status_code == 400, missing_key.text
+        assert (
+            missing_key.json()["error"]["message"]["code"]
+            == "missing_idempotency_key"
+        )
+        procedure_resp = client.post(
+            "/api/v1/procedures",
+            headers={"Idempotency-Key": procedure_key},
+            json=procedure_body,
+        )
+        assert procedure_resp.status_code == 201, procedure_resp.text
+        procedure = procedure_resp.json()["data"]
+        assert procedure["order_id"] == procedure_order_id
+        assert procedure["encounter_id"] == encounter_id
+        assert procedure["patient_id"] == patient_id
+        assert procedure["performed_by"] == doctor_id
+
+        procedure_replay = client.post(
+            "/api/v1/procedures",
+            headers={"Idempotency-Key": procedure_key},
+            json=procedure_body,
+        )
+        assert procedure_replay.status_code == 201, procedure_replay.text
+        assert procedure_replay.json()["data"]["id"] == procedure["id"]
+
+        listed_procedures = client.get(
+            "/api/v1/procedures", params={"encounter_id": encounter_id},
+        )
+        assert listed_procedures.status_code == 200, listed_procedures.text
+        assert procedure["id"] in {
+            row["id"] for row in listed_procedures.json()["data"]["items"]
+        }
 
         # --- Step 4a: lab order item (pathology/router.py) ---
         client = client_as(LAB_TECH)

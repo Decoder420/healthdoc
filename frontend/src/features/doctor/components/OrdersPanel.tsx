@@ -36,7 +36,7 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Orders</Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>
-            Lab and radiology orders for this encounter
+            Lab, radiology and procedure orders for this encounter
           </Typography>
         </Box>
         <Button variant="outlined" size="small" sx={doctorButtonSx} disabled={loading} onClick={() => setOpen(true)}>

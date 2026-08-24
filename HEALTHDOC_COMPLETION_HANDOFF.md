@@ -31,11 +31,11 @@ was therefore documented and closed; it must not be reopened or merged.
 
 | Gate | Measured result |
 |---|---|
-| Backend suite against PostgreSQL | **728 passed** in 31.97s |
+| Backend suite against PostgreSQL | **733 passed** in 33.38s |
 | Migration integrity | **55 migrations**, linear, downgrades present, head `0048` |
 | Schema/spec check | **96 tables**, 67 enums, map/FKs/ModuleCode consistent |
 | Schema drift | **0 blockers**, 57 documentation warnings |
-| Frontend/backend contract | **129/129 calls match OpenAPI** |
+| Frontend/backend contract | **131/131 calls match OpenAPI** |
 | Frontend fixture importers | **0** (was 27); unused fixture libraries deleted |
 | Files using the API client | **59** |
 | Routed pages | **34** |
@@ -66,9 +66,9 @@ cd ../backend
 
 ### 1. Latest release work integrated into staging
 
-Complete through the doctor workflow tranche. PRs #415, #416, #417, #419 and
-#420 are merged, reviewed and green on `staging`. `release-readiness` was
-fast-forwarded from the PR #420 staging merge before the current break-glass
+Complete through the consent/break-glass tranche. PRs #415, #416, #417, #419,
+#420 and #421 are merged, reviewed and green on `staging`. `release-readiness`
+was fast-forwarded from the PR #421 staging merge before the current procedure
 change began. New work must go through a new PR to `staging`; do not bypass
 review.
 
@@ -86,7 +86,8 @@ review.
 - Radiology: no longer a title shell; scheduling, scan completion, report draft
   and sign-off are wired.
 - Doctor consultation: encounters, SOAP notes, vitals, ICD search, diagnoses,
-  lab orders, radiology orders and prescriptions now use real APIs. Child
+  lab orders, radiology orders, minor/bedside/emergency procedure orders and
+  prescriptions now use real APIs. Child
   clinical writes stay locked until the server creates the encounter; reloads
   restore that encounter by visit instead of minting a browser UUID.
 - Inventory: GRN, indent and adjustment workspaces are implemented.
@@ -101,18 +102,24 @@ review.
   creation/read-back and revocation use the backend; fabricated inline TOTP has
   been removed. Keycloak owns re-authentication and the API accepts a grant only
   when the bearer token's `amr` proves OTP/MFA.
+- Procedures: `/procedures` now has a facility-scoped, idempotent create and
+  encounter read-back contract. Patient, encounter and performer attribution
+  are server-owned; cross-facility IDs, wrong order types and duplicate detail
+  rows are rejected. OT is not offered in the doctor form without a real OT
+  schedule. Patient merge now repoints orders, prescriptions and procedure
+  records together instead of splitting their clinical identity.
 
 ### 3. Integration and quality gates
 
 - The frontend/backend contract parser is fixed and guarded by tests.
-- All **129** statically discoverable frontend API calls match OpenAPI.
+- All **131** statically discoverable frontend API calls match OpenAPI.
 - Fixture importers fell from 27 to **0**; the now-unreferenced fixture files
   were deleted as well.
 - Encounter PATCH now enforces `If-Match` and returns the current server copy
   on a stale write. Encounter, diagnosis, vitals and order creation paths honor
   stable idempotency keys.
-- Order creation rejects a patient outside the encounter, and Lab/Radiology
-  detail writes reject the wrong order type.
+- Order creation rejects a patient outside the encounter, and
+  Lab/Radiology/Procedure detail writes reject the wrong order type.
 - React compiler warnings fell from 4 to **0** by using `useWatch` instead of
   the non-memoizable `react-hook-form` `watch` function.
 - The real browser gate now proves:
@@ -169,7 +176,17 @@ Lab critical alerts still include a placeholder haemoglobin rule. Units,
 population ranges, age/sex handling, escalation recipients and acknowledgement
 SLA require clinical-owner sign-off. Do not invent clinical thresholds.
 
-#### P0.4 Security and recovery sign-off
+#### P0.4 Patient-merge financial/allergy consistency
+
+Orders, prescriptions and procedure records now move together during an
+approved patient merge. Two older cross-module references remain explicitly
+unhandled: `allergies.patient_id` and `invoices.patient_id`. Invoice identity
+cannot simply be bulk-updated after issue because the database freeze trigger
+correctly protects issued financial records. Approve a clinically and
+financially auditable merge rule, implement it, and add PostgreSQL coverage;
+do not silently move one side or add another allowlist exception.
+
+#### P0.5 Security and recovery sign-off
 
 - GitHub issue #368 remains open: `file_access_log.file_id` deletion restriction
   conflicts with DPDP erasure.
@@ -201,9 +218,6 @@ and successful business API response.
 
 - ABDM delivery monitoring remains unavailable and needs sandbox credentials,
   delivery-status contracts and external UAT.
-- `procedure_records` exists in the database, but `/procedures` still has no
-  published backend write contract. The doctor UI deliberately withholds the
-  procedure option until this is implemented and tested.
 - A facility-wide consent operations console is not built. Decide whether it
   is release scope; the per-patient workflow is complete.
 - Prometheus/Grafana dashboards, alert routing and production runbooks need an
@@ -225,8 +239,7 @@ and successful business API response.
    immediately; these are schedule-critical external inputs.
 2. Enroll a test clinician in Keycloak OTP and run the real break-glass browser
    gate; the application and API flow are implemented and fail closed.
-3. Implement and test the missing `/procedures` contract before re-enabling
-   procedure ordering.
+3. Approve and implement the remaining allergy/invoice patient-merge rule.
 4. Resolve issue #368, then run ZAP and authenticated load tests.
 5. Run the real-data migration/restore/rollback rehearsal from the exact staging
    release SHA.
@@ -238,11 +251,10 @@ and successful business API response.
 
 A reviewed staging release candidate is still possible by 27 August only if
 the sanitized database dump, identity/guardian policy and clinical threshold
-decision arrive immediately and scope is frozen. Code can finish the remaining
-procedure contract quickly; the staff E2Es and doctor consultation wiring are
-already complete. It cannot manufacture external approvals, a clinician's real
-OTP enrollment, or proof of a production-data restore without the required
-access.
+decision arrive immediately and scope is frozen. The procedure contract, staff
+E2Es and doctor consultation wiring are complete. Code cannot manufacture
+external approvals, a clinician's real OTP enrollment, or proof of a
+production-data restore without the required access.
 
 If any P0 input is missing, keep `main` unchanged and report the release as
 blocked by that named gate. Passing static tests is not permission to bypass a
