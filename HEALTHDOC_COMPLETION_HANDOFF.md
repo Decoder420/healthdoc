@@ -31,7 +31,7 @@ was therefore documented and closed; it must not be reopened or merged.
 
 | Gate | Measured result |
 |---|---|
-| Backend suite against PostgreSQL | **714 passed** in 32.37s |
+| Backend suite against PostgreSQL | **714 passed** in 32.77s |
 | Migration integrity | **54 migrations**, linear, downgrades present, head `0047` |
 | Schema/spec check | **96 tables**, 67 enums, map/FKs/ModuleCode consistent |
 | Schema drift | **0 blockers**, 57 documentation warnings |
@@ -43,7 +43,7 @@ was therefore documented and closed; it must not be reopened or merged.
 | Frontend ESLint | **0 errors, 0 warnings** |
 | Frontend convention check | **193 files, 0 blockers, 0 warnings** |
 | Next.js production build | Passed |
-| Real Keycloak browser gates | **4 passed**: receptionist, doctor, nurse, admin |
+| Real Keycloak browser gates | **8 passed**: receptionist, doctor, nurse, lab, radiology, pharmacist, billing, admin |
 
 Reproduce the gates:
 
@@ -100,6 +100,10 @@ PR to `staging`; do not bypass review.
   - receptionist login → registration → bearer patient search;
   - doctor login → dashboard → bearer queue worklist;
   - nurse login → ward dashboard → bearer nursing tasks;
+  - lab technician login → worklist → bearer pathology order-items request;
+  - radiology technician login → worklist → bearer radiology order-items request;
+  - pharmacist login → prescription queue → bearer pharmacy request;
+  - receptionist billing navigation → bearer invoice request;
   - admin login → users workspace → bearer users request;
   - every journey also verifies `silent-check-sso.html` returns 200.
 
@@ -159,20 +163,15 @@ SLA require clinical-owner sign-off. Do not invent clinical thresholds.
 
 ### P1 — product completion
 
-#### P1.1 Five remaining named browser gates
+#### P1.1 One remaining named browser gate
 
-Four real roles now pass. The named journeys still missing are:
-
-1. lab technician;
-2. radiology technician;
-3. pharmacist;
-4. billing journey (using its approved receptionist/admin role);
-5. patient, blocked by P0.2.
+All named staff/business journeys now pass. The only named journey still
+missing is patient, blocked by P0.2.
 
 The earlier checklist said “nine additional” but named only eight roles. Count
-the named journeys, not the typo. Seed a matching Keycloak account and users row
-for every staff role; each test must prove route, role guard, bearer header and
-successful business API response.
+the named journeys, not the typo. Every completed staff gate now has a matching
+Keycloak account and users row and proves the route, role guard, bearer header
+and successful business API response.
 
 #### P1.2 Three remaining fixture importers
 
@@ -210,16 +209,14 @@ clinical write must either persist and read back or be visibly unavailable.
 
 1. Obtain the sanitized dump, patient/guardian policy and clinical thresholds
    immediately; these are schedule-critical external inputs.
-2. Add the lab, radiology and pharmacist Keycloak/users seeds and browser gates.
-3. Add the billing browser journey using an already approved role.
-4. Retire `consultation.ts` and `orders.ts` fixtures through real write/read-back
+2. Retire `consultation.ts` and `orders.ts` fixtures through real write/read-back
    tests.
-5. Implement Keycloak MFA step-up and retire `breakGlass.ts` mocks.
-6. Resolve issue #368, then run ZAP and authenticated load tests.
-7. Run the real-data migration/restore/rollback rehearsal from the exact staging
+3. Implement Keycloak MFA step-up and retire `breakGlass.ts` mocks.
+4. Resolve issue #368, then run ZAP and authenticated load tests.
+5. Run the real-data migration/restore/rollback rehearsal from the exact staging
    release SHA.
-8. Merge only reviewed, green PRs to `staging`; soak and sign off.
-9. Open a separate `staging` → `main` PR. Never merge a feature branch directly
+6. Merge only reviewed, green PRs to `staging`; soak and sign off.
+7. Open a separate `staging` → `main` PR. Never merge a feature branch directly
    into `main`.
 
 ## 27 August reality check

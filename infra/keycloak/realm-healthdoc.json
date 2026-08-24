@@ -151,6 +151,57 @@
       ]
     },
     {
+      "username": "dev.labtech",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Lab Technician",
+      "email": "dev.labtech@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "lab_tech"
+      ]
+    },
+    {
+      "username": "dev.radiology",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Radiology Technician",
+      "email": "dev.radiology@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "radiology_tech"
+      ]
+    },
+    {
+      "username": "dev.pharmacist",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Pharmacist",
+      "email": "dev.pharmacist@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "pharmacist"
+      ]
+    },
+    {
       "username": "dev.admin",
       "enabled": true,
       "firstName": "Dev",

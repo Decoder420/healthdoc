@@ -47,6 +47,39 @@ const roles = [
     },
   },
   {
+    name: "lab-technician",
+    username: "dev.labtech",
+    landingPath: "/lab",
+    api: { method: "GET", path: "/api/v1/pathology/order-items" },
+  },
+  {
+    name: "radiology-technician",
+    username: "dev.radiology",
+    landingPath: "/radiology",
+    api: { method: "GET", path: "/api/v1/radiology/order-items" },
+  },
+  {
+    name: "pharmacist",
+    username: "dev.pharmacist",
+    landingPath: "/pharmacy/prescription-queue",
+    api: { method: "GET", path: "/api/v1/pharmacy/queue" },
+  },
+  {
+    name: "billing-receptionist",
+    username: "dev.receptionist",
+    landingPath: "/receptionist/registration",
+    api: { method: "GET", path: "/api/v1/billing/invoices" },
+    async startJourney(page) {
+      await page.goto(`${baseUrl}/billing`, {
+        waitUntil: "domcontentloaded",
+        timeout: 30_000,
+      });
+      await page.waitForFunction(() => window.location.pathname === "/billing", {
+        timeout: 60_000,
+      });
+    },
+  },
+  {
     name: "admin",
     username: "dev.admin",
     landingPath: "/admin",

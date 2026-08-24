@@ -20,6 +20,9 @@ DISPLAY_NAMES = {
     "dev.receptionist": "Dev Receptionist",
     "dev.doctor": "Dev Doctor",
     "dev.nurse": "Dev Nurse",
+    "dev.labtech": "Dev Lab Technician",
+    "dev.radiology": "Dev Radiology Technician",
+    "dev.pharmacist": "Dev Pharmacist",
     "dev.admin": "Dev Admin",
 }
 

@@ -188,6 +188,9 @@ ensure_keycloak_user() {
 RECEPTIONIST_SUB=$(ensure_keycloak_user dev.receptionist Dev Receptionist receptionist)
 DOCTOR_SUB=$(ensure_keycloak_user dev.doctor Dev Doctor doctor)
 NURSE_SUB=$(ensure_keycloak_user dev.nurse Dev Nurse nurse)
+LAB_TECH_SUB=$(ensure_keycloak_user dev.labtech Dev "Lab Technician" lab_tech)
+RADIOLOGY_TECH_SUB=$(ensure_keycloak_user dev.radiology Dev "Radiology Technician" radiology_tech)
+PHARMACIST_SUB=$(ensure_keycloak_user dev.pharmacist Dev Pharmacist pharmacist)
 ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin,supervisor)
 
 docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
@@ -195,6 +198,9 @@ docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
     --user "dev.receptionist=$RECEPTIONIST_SUB" \
     --user "dev.doctor=$DOCTOR_SUB" \
     --user "dev.nurse=$NURSE_SUB" \
+    --user "dev.labtech=$LAB_TECH_SUB" \
+    --user "dev.radiology=$RADIOLOGY_TECH_SUB" \
+    --user "dev.pharmacist=$PHARMACIST_SUB" \
     --user "dev.admin=$ADMIN_SUB"
 
 cat <<DONE
@@ -208,5 +214,7 @@ HealthDoc dev stack is up:
   Orthanc           http://localhost:${ORTHANC_PORT:-8042}
   Postgres localhost:${POSTGRES_PORT:-5432} · Mongo localhost:${MONGO_PORT:-27017} · Redis localhost:${REDIS_PORT:-6379}
 
-Dev logins (Keycloak realm 'healthdoc'): dev.receptionist / dev.doctor / dev.nurse / dev.admin — password 'devpass'
+Dev logins (Keycloak realm 'healthdoc', password 'devpass'):
+  dev.receptionist / dev.doctor / dev.nurse / dev.labtech /
+  dev.radiology / dev.pharmacist / dev.admin
 DONE
