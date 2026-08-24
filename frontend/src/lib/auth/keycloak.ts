@@ -18,6 +18,16 @@ const clientId =
 
 let keycloak: Keycloak | null = null;
 let initPromise: Promise<boolean> | null = null;
+const sessionExpiredListeners = new Set<() => void>();
+
+export function onKeycloakSessionExpired(listener: () => void): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => sessionExpiredListeners.delete(listener);
+}
+
+function notifySessionExpired() {
+  for (const listener of sessionExpiredListeners) listener();
+}
 
 export type SessionUser = {
   id: string;
@@ -130,6 +140,7 @@ export async function initKeycloak(): Promise<boolean> {
               })
               .catch(() => {
                 setAccessToken(null);
+                notifySessionExpired();
               });
           };
         }
