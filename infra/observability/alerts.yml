@@ -1,0 +1,34 @@
+groups:
+  - name: healthdoc-api
+    rules:
+      - alert: HealthDocBackendDown
+        expr: up{job="healthdoc-backend"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: HealthDoc backend metrics target is unavailable
+          description: Prometheus has failed to scrape the backend for one minute.
+
+      - alert: HealthDocHighErrorRate
+        expr: |
+          sum(rate(healthdoc_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(healthdoc_http_requests_total[5m])), 0.001)
+          > 0.01
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: HealthDoc API 5xx rate exceeds one percent
+          description: More than one percent of API responses were 5xx for five minutes.
+
+      - alert: HealthDocHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(healthdoc_http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: HealthDoc API p95 latency exceeds two seconds
+          description: Aggregate API p95 latency was above two seconds for five minutes.
