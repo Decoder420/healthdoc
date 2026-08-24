@@ -169,6 +169,7 @@ do not merge out of order.**
 | 0048 | clinical_review_consent_purpose | consent_purposes | Release readiness — seed canonical `clinical_review` reference data because patient history enforces this purpose and a fresh database needs a real purpose_id with which staff can record consent. |
 | 0049 | file_erasure | ALTER files: erased_at, erased_by, erasure_reason, object_key, sha256; ALTER file_access_log: action | Security (#368) — `file_access_log.file_id` is NOT NULL ondelete=RESTRICT, so a DPDP erasure could only be satisfied by deleting the record of who read the file. Files are now tombstoned, never deleted: the bytes go, the row and its access trail stay. RESTRICT is kept deliberately — it now states the real rule. `object_key`/`sha256` become nullable for erased rows only, guarded by a CHECK. Does NOT set a retention floor; when erasure is *permitted* is a privacy decision. |
 | 0050 | performance_indexes | INDEXES only | W7 (#241) — add supporting indexes for every previously uncovered foreign key and the missing `lab_results.result_data` `jsonb_path_ops` GIN index. A PostgreSQL catalog test enforces the complete FK and named hot-path strategy on every build. |
+| 0051 | patient_portal_bindings | patient_portal_bindings | B2/F1 (#228, #234) — append-only, audited proof linking one active Keycloak-backed user to one active patient after ABHA OTP or in-person document verification. Revocation retains the verification history; portal requests never accept a patient id. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -566,6 +567,11 @@ reason text · unmerge_reason text
 before_snapshot jsonb NOT NULL · after_snapshot jsonb
 decision_reason text NULL                       -- Why the merge was accepted or rejected.
 ```
+
+**patient_portal_bindings** (0051) — append-only verified portal identity proof
+- `user_id` and `patient_id` are each unique while `revoked_at IS NULL`; every FK is indexed.
+- Verification is `abha_otp` or `in_person_document`; the evidence reference is never returned.
+- Revocation retains verifier, timestamp and reason; `/me` APIs never accept a patient id.
 
 ### 0007 — visits, encounters, diagnoses (B3)
 
