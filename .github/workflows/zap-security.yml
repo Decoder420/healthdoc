@@ -1,0 +1,43 @@
+name: ZAP Security
+
+on:
+  schedule:
+    - cron: "0 4 * * 3"
+  workflow_dispatch:
+
+jobs:
+  authenticated-api-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install browser dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx puppeteer browsers install chrome
+
+      - name: Start and seed the disposable stack
+        run: make setup
+
+      - name: Authenticated OWASP ZAP API active scan
+        env:
+          ZAP_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-zap
+        run: ./scripts/security/run_zap_api_scan.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authenticated-zap-api-report
+          path: |
+            ${{ runner.temp }}/healthdoc-zap/zap-report.json
+            ${{ runner.temp }}/healthdoc-zap/zap-report.html
+            ${{ runner.temp }}/healthdoc-zap/zap-report.md
+            ${{ runner.temp }}/healthdoc-zap/high-critical-summary.txt
+            ${{ runner.temp }}/healthdoc-zap/e2e
+          if-no-files-found: error
+          retention-days: 14
