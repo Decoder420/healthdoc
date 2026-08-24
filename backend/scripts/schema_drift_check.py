@@ -46,9 +46,29 @@ MIXIN_COLUMNS = {
 # Words that appear where a column name would be in the doc's prose-style blocks.
 NOT_A_COLUMN = {
     "unique", "index", "check", "primary", "foreign", "constraint", "partition",
-    "partitioned", "note", "notes", "where", "and", "the", "see", "one", "all",
+    "partitioned", "where", "and", "the", "see", "one", "all",
     "same", "must", "never", "always", "row", "rows", "table", "no", "on", "if",
 }
+
+#: Words that are BOTH real column names and common ways to start a prose line.
+#:
+#: `note`/`notes` used to sit in NOT_A_COLUMN, which made them unmatchable: six
+#: tables have a genuine `notes` column (ot_records, prescriptions,
+#: doctor_reviews, intake_output_records, medication_administration,
+#: machine_maintenance_logs) and every one of them was reported as undocumented
+#: no matter what §3 said. ot_records.notes had in fact been documented all
+#: along and still failed — a checker warning nobody could ever clear, which is
+#: worse than no warning, because it trains people to ignore the output.
+#:
+#: These are accepted as columns only when followed by something type-shaped,
+#: which is what separates `notes text NULL` from `Note: the freeze trigger…`.
+PROSE_AMBIGUOUS = {"note", "notes"}
+
+_TYPEISH = re.compile(
+    r"^(text|varchar|char|uuid|int|integer|bigint|smallint|bool|boolean|numeric|"
+    r"decimal|timestamptz|timestamp|date|time|jsonb|json|bytea|inet|enum|→|->)",
+    re.I,
+)
 
 
 def _locate() -> tuple[pathlib.Path, pathlib.Path]:
@@ -144,7 +164,14 @@ def _column_token(part: str) -> str:
     if not m:
         return ""
     tok = m.group(1)
-    return "" if tok in NOT_A_COLUMN else tok
+    if tok in NOT_A_COLUMN:
+        return ""
+    if tok in PROSE_AMBIGUOUS:
+        # `notes text NULL` is a column; `Notes: see §4` is prose. The
+        # difference is whether a type follows.
+        rest = part[m.end():].strip().lstrip(":").strip()
+        return tok if _TYPEISH.match(rest) else ""
+    return tok
 
 
 # ----------------------------------------------------------------------------

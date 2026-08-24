@@ -289,6 +289,8 @@ registration_number varchar(50) NULL             -- medical council reg no (doct
 qualification   varchar(100) NULL
 facility_id     UUID NOT NULL → facilities
 is_active       boolean NOT NULL DEFAULT true
+department_id UUID NULL → departments           -- Home department. Null for facility-wide roles
+                                                -- (admin, auditor) that belong to no one department.
 ```
 (`department_id UUID NULL → departments` is added by migration 0005 via `op.add_column`,
 since departments doesn't exist yet at 0002.)
@@ -404,6 +406,8 @@ consent_artefact_id text
 consent_artefact_signature text
 status          varchar(50) NOT NULL DEFAULT 'granted'   -- ConsentStatus enum
 status_changed_at timestamptz
+consent_manager_id UUID NOT NULL                -- 0022a. DPDP Rules 2025 consent manager.
+                                                -- NOT mapped by the ORM — see §3-end note.
 ```
 
 **consent_withdrawals** — append-only; insert flips parent `consent_records.status → revoked`
@@ -509,6 +513,11 @@ UNIQUE INDEX uq_patients_uhid ON (uhid) WHERE deleted_at IS NULL
 -- NULLs are distinct in Postgres unique indexes — INTENDED: many THID-only patients
 -- coexist with uhid NULL until their supervisor-approved merge assigns one.
 CHECK (uhid IS NOT NULL OR thid IS NOT NULL)     -- ck_patients_has_identifier
+is_minor                    boolean NOT NULL DEFAULT false  -- 0042. Declared by the ORM since B2-W3;
+guardian_verified           boolean NOT NULL DEFAULT false  -- 0042. no migration created these until
+guardian_verification_method varchar(30) NULL               -- 0042. 0042, and unit tests could not
+                                                -- catch it because they build the schema from
+                                                -- Base.metadata rather than from the migrations.
 ```
 
 **patient_identifiers**
@@ -554,6 +563,7 @@ approved_by UUID NULL → users · approved_at timestamptz
 status varchar(50) NOT NULL                      -- pending | approved | rejected | unmerged
 reason text · unmerge_reason text
 before_snapshot jsonb NOT NULL · after_snapshot jsonb
+decision_reason text NULL                       -- Why the merge was accepted or rejected.
 ```
 
 ### 0007 — visits, encounters, diagnoses (B3)
@@ -578,6 +588,12 @@ encounter_type  varchar(50)                      -- consultation | follow_up | e
 chief_complaint text
 started_at      timestamptz · ended_at timestamptz
 INDEX ix_encounters_visit_id (visit_id) · INDEX ix_encounters_provider_user_id (provider_user_id)
+facility_id  UUID NOT NULL → facilities         -- 0007. Denormalized from the parent visit.
+subjective   text NULL                          -- 0021. SOAP note. Nullable: a note is drafted
+objective    text NULL                          -- 0021. incrementally during the consultation,
+assessment   text NULL                          -- 0021. so an empty section is a normal
+plan         text NULL                          -- 0021. intermediate state, not bad data.
+note_status  varchar(50) NOT NULL DEFAULT 'pending'  -- 0021. pending | signed. Signing freezes the note.
 ```
 Long-form clinical notes go to **Mongo `clinical_notes`** (keyed by `encounter_id`),
 not a text column here.
@@ -605,6 +621,7 @@ diagnosis_text text NOT NULL
 diagnosis_type varchar(50) NOT NULL              -- provisional | final | differential
 is_primary     boolean NOT NULL DEFAULT false
 INDEX ix_diagnoses_icd_code_icd_version (icd_code, icd_version)
+facility_id  UUID NOT NULL → facilities         -- 0007. Denormalized from the parent encounter.
 ```
 
 > **ICD-11 edge footprint:** the WHO container is several GB. A district hospital runs it
@@ -627,10 +644,12 @@ INDEX ix_diagnoses_icd_code_icd_version (icd_code, icd_version)
 ### 0008 — orders, prescriptions (B3)
 
 **orders** `[Blame]` — the single order header for *all* departments. Lab/radiology add
-their detail rows in 0010/0011 pointing back here. Fulfilment is not payment-gated;
-completed chargeable work accrues lines onto the visit invoice (ADR 0002).
 ```
-order_number varchar(30) UNIQUE NOT NULL         -- ORD-<YYYYMMDD>-<SEQ6>
+order_number varchar(30) UNIQUE NOT NULL         -- ORD-<FACILITYCODE>-<YYYYMMDD>-<SEQ6>
+                                                 -- The facility code is NOT decorative: the counter
+                                                 -- is per (facility, business date), so without it
+                                                 -- the second facility to place an order on any given
+                                                 -- day collides on this UNIQUE constraint. Every day.
 encounter_id UUID NOT NULL → encounters
 patient_id   UUID NOT NULL → patients
 order_type   varchar(50) NOT NULL                -- lab | radiology | pharmacy | procedure | blood
@@ -639,6 +658,15 @@ status       varchar(50) NOT NULL DEFAULT 'placed'   -- OrderStatus enum
 ordered_at   timestamptz NOT NULL DEFAULT now()
 INDEX ix_orders_order_type_status (order_type, status)
 INDEX ix_orders_patient_id (patient_id) · INDEX ix_orders_encounter_id (encounter_id)
+facility_id    UUID NOT NULL → facilities       -- 0022. Scope. Every order read joins on this.
+accepted_at    timestamptz NULL                 -- 0045. status alone recorded THAT a transition
+accepted_by    UUID NULL → users                -- 0045. happened and lost who and when. These
+completed_at   timestamptz NULL                 -- 0045. carry the evidence; null until the
+completed_by   UUID NULL → users                -- 0045. corresponding transition occurs.
+completion_note text NULL                       -- 0045. Optional remark recorded at completion.
+fulfilment_mode varchar(50) NOT NULL DEFAULT 'in_house'  -- 0027. in_house | external_referral.
+                                                -- NOT mapped by the ORM and read by no code path
+                                                -- — see §3-end note.
 ```
 
 **drug_interactions** (0040, B6) — pairwise interaction rules, read on every dispense
@@ -684,6 +712,7 @@ encounter_id UUID NOT NULL → encounters
 patient_id   UUID NOT NULL → patients
 facility_id  UUID NOT NULL → facilities        -- added 0036a; denormalized for audit
 notes        text
+notes        text NULL                          -- Prescriber's free-text note.
 ```
 `facility_id` is denormalized from the encounter for the same reason as
 `orders.facility_id`: the audit layer opts a model in via
@@ -699,6 +728,8 @@ dosage varchar(50) · frequency varchar(50) · duration_days int · route varcha
 instructions text
 status varchar(50) NOT NULL DEFAULT 'prescribed' -- PrescriptionItemStatus enum
 INDEX ix_prescription_items_prescription_id (prescription_id)
+allergy_override_by     UUID NULL → users       -- 0031. Prescribing against a recorded allergy is
+allergy_override_reason text NULL               -- 0031. permitted but never silent.
 ```
 
 ### 0009 — rosters, queues, queue_tokens (B4, Suprita's design + parent queues table)
@@ -731,6 +762,7 @@ service_date   date NOT NULL
 is_open        boolean NOT NULL DEFAULT true      -- doctor arrived / desk open
 UNIQUE (department_id, doctor_user_id, service_date)
 INDEX ix_queues_department_id_service_date (department_id, service_date)
+facility_id  UUID NOT NULL → facilities         -- 0022. Scope.
 ```
 
 **queue_counters** — race-safe token allocator, scoped per department per day (mirrors `billing_counters`)
@@ -776,6 +808,11 @@ PARTIAL UNIQUE (visit_id) WHERE status NOT IN ('completed','cancelled','no_show'
 -- The doctor a token is for = queues.doctor_user_id via queue_id. The token STRING stays
 -- dept+sequence (MED-042); the display resolves doctor + room from the queue, so a token
 -- can be moved to another doctor (transferred) without reprinting the number.
+facility_id  UUID NOT NULL → facilities         -- 0022. Scope; queue reads never cross facilities.
+priority_rank smallint NOT NULL DEFAULT 6       -- 0009. Numeric sort key derived from `priority`.
+                                                -- Lower sorts first. Backs ix_queue_tokens_active
+                                                -- (queue_id, priority_rank, created_at) — ordering by
+                                                -- the varchar would be alphabetical, not clinical.
 ```
 Priority sort (high→low): `emergency, doctor_recall, admin_override, senior_citizen,
 pregnant, follow_up_recall, normal`; ties by `created_at` ascending.
@@ -868,7 +905,7 @@ status varchar(50) NOT NULL DEFAULT 'placed'     -- RadiologyOrderStatus: placed
 
 ### 0012 / 0013 — inventory, pharmacy (B6, Riya's design adopted with fixes)
 
-**suppliers** — `name text NOT NULL · contact_info text · is_active bool DEFAULT true`
+**suppliers** — `name text NOT NULL · contact_info text · is_active bool DEFAULT true · facility_id UUID NOT NULL → facilities`
 
 **inventory_items**
 ```
@@ -880,6 +917,8 @@ manufacturer text
 owning_department_id UUID NULL → departments
 reorder_level numeric(12,2) NOT NULL DEFAULT 0
 is_active boolean NOT NULL DEFAULT true
+ingredient_code varchar(50) NULL                -- 0032. Joins to drug_interactions; null for
+                                                -- consumables and non-drug items.
 ```
 
 **stock_locations**
@@ -932,11 +971,20 @@ prescription_item_id UUID NOT NULL → prescription_items
 batch_id UUID NOT NULL → inventory_batches
 quantity_prescribed numeric(12,2) · quantity_dispensed numeric(12,2)
 is_substitute boolean NOT NULL DEFAULT false · substitute_reason text
+approval_status  varchar(50) NOT NULL DEFAULT 'not_required'  -- 0013. not_required|pending|approved|rejected
+approved_by      UUID NULL → users              -- 0013. Prescriber sign-off on a substitution.
+approved_at      timestamptz NULL               -- 0013.
+rejection_reason text NULL                      -- 0013. Required in practice when rejected.
+substitute_item_id UUID NULL → inventory_items  -- 0013. What was dispensed instead.
+expiry_override_by UUID NULL → users            -- 0013. Dispensing near-expiry stock is refused by
+expiry_override_reason text NULL                -- 0013. trg_pharmacy_dispense_items_reject_expired
+                                                -- unless overridden; the override is named and reasoned.
 ```
 
-**grn** `[Blame]` — `supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled)`
+**grn** `[Blame]` — `facility_id UUID NOT NULL → facilities · supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled) · purchase_order_id UUID NOT NULL`
+> `purchase_order_id` (0024) is NOT mapped by the ORM — see the §3-end note on unmapped columns.
 **grn_items** — `grn_id → grn CASCADE · item_id → inventory_items · batch_number · expiry_date · quantity numeric CHECK (>0) · unit_price numeric(12,2)`
-**indents** `[Blame]` — `department_id → departments · status varchar(30) (requested|approved|rejected|issued) · approved_by UUID NULL → users`
+**indents** `[Blame]` — `facility_id UUID NOT NULL → facilities · department_id → departments · status varchar(30) (requested|approved|rejected|issued) · approved_by UUID NULL → users`
 **indent_items** — `indent_id → indents CASCADE · item_id → inventory_items · quantity_requested numeric CHECK (>0)`
 **adjustments** `[Blame]` — dual sign-off:
 ```
@@ -945,6 +993,8 @@ quantity_change numeric(12,2) NOT NULL CHECK (<> 0) · reason text NOT NULL
 first_approver_id UUID NOT NULL → users · second_approver_id UUID NULL → users
 status varchar(50) NOT NULL                      -- pending|approved|rejected
 CHECK (first_approver_id <> second_approver_id)  -- ck_adjustments_distinct_approvers
+facility_id  UUID NOT NULL → facilities         -- 0013. Scope; adjustments never cross facilities.
+adjustment_type varchar(50) NOT NULL            -- 0024. NOT mapped by the ORM — see §3-end note.
 ```
 **facility_settings** (was `hospital_settings`) — `facility_id UUID PK → facilities · stock_deduction_policy varchar(30) CHECK on_acceptance|on_dispense`
 
@@ -986,6 +1036,9 @@ description text NOT NULL
 quantity numeric(10,2) NOT NULL DEFAULT 1 CHECK (> 0)
 unit_price numeric(12,2) NOT NULL CHECK (>= 0)
 amount numeric(12,2) NOT NULL CHECK (>= 0)       -- quantity * unit_price, app-computed
+charge_master_id UUID NULL → charge_master      -- 0033. The tariff row this line was priced from.
+                                                -- Nullable: lines predating 0033 have no pointer,
+                                                -- and the frozen amount stays authoritative anyway.
 ```
 
 **payments** `[Blame]` — partial payments allowed (many per invoice)
@@ -1041,13 +1094,15 @@ status varchar(50) NOT NULL DEFAULT 'admitted'   -- AdmissionStatus enum
 ```
 
 **discharges** `[Blame]` — table name plural; discharge checks invoice settlement per
-facility policy (ADR 0002) but is never hard-blocked for emergency/DAMA cases
 ```
 admission_id UUID UNIQUE NOT NULL → admissions
 discharged_at timestamptz NOT NULL
 discharge_type varchar(50) NOT NULL              -- discharged|dama|deceased|absconded|transferred
 discharge_summary text                           -- long form → Mongo clinical_notes
 follow_up_date date NULL
+destination_facility_id   UUID NULL → facilities  -- 0034. Set on transfer-out to a known facility.
+destination_facility_name text NULL               -- 0034. Free text when the destination is external
+                                                  -- and therefore has no row in `facilities`.
 ```
 
 ### 0016 — blood bank (B5, schema only)
@@ -1078,7 +1133,7 @@ issued_to_patient_id UUID NULL → patients
 
 ### 0017 — OT stubs (B3, schema only)
 
-**ot_schedules** `[Blame]` — `visit_id → visits · patient_id → patients · scheduled_start timestamptz · scheduled_end timestamptz · procedure_name text · status varchar(30) (scheduled|completed|cancelled)`
+**ot_schedules** `[Blame]` — `facility_id UUID NOT NULL → facilities · visit_id → visits · patient_id → patients · scheduled_start timestamptz · scheduled_end timestamptz · procedure_name text · status varchar(30) (scheduled|completed|cancelled)`
 **ot_records** — `ot_schedule_id → ot_schedules · started_at · ended_at · surgeon_user_id → users · anesthetist_user_id UUID NULL → users · notes text`
 
 ### 0019 — files (B7)
@@ -1281,6 +1336,10 @@ occurred_at / reported_at timestamptz NOT NULL
 description text NOT NULL · immediate_action text NOT NULL
 reported_by UUID NOT NULL → users · reviewed_by/reviewed_at NULL
 root_cause / corrective_action text NULL
+ward_id          UUID NULL → wards              -- 0046. Null for incidents outside a ward (OPD, OT).
+reported_at      timestamptz NOT NULL DEFAULT now()  -- 0046. When it was RAISED, not when it occurred.
+reviewed_at      timestamptz NULL               -- 0046. Null until a reviewer closes it.
+corrective_action text NULL                     -- 0046. NABH requires the action, not just the finding.
 ```
 **Not the same thing as `data_breach_notifications` (0022a).** That table is the DPDP /
 CERT-In *data* incident path, with a 6-hour statutory clock and the DPO as owner. A patient
@@ -1308,6 +1367,7 @@ scheduled_at timestamptz NULL · administered_at timestamptz NOT NULL DEFAULT no
 status varchar(30) NOT NULL          -- given|held|refused
 dose_given varchar(100) NULL · reason text NULL · notes text NULL
 CHECK status = 'given' OR reason IS NOT NULL AND length(trim(reason)) > 0
+notes        text NULL                          -- 0043. Administering nurse's remark.
 ```
 One row per administration **attempt**, not per scheduled dose: the schedule is derivable
 from the prescription's frequency and duration, and materialising it would put a second
@@ -1346,6 +1406,7 @@ handed_over_to UUID NOT NULL → users
 admission_id UUID NOT NULL → admissions · recorded_at timestamptz NOT NULL
 entry_type varchar(50) NOT NULL                   -- intake_oral|intake_iv|output_urine|output_drain|output_other
 volume_ml int NOT NULL CHECK (volume_ml > 0) · notes text
+notes        text NULL                          -- 0023. Free text alongside the measured volume.
 ```
 
 **patient_movement_log** (0023) — append-only transfer trail
@@ -1381,6 +1442,8 @@ table** — 0024 adds `adjustments.adjustment_type varchar(30)`
 machine_id varchar(50) NOT NULL · department_id UUID NULL → departments
 maintenance_type varchar(50) (preventive|breakdown|calibration|qa_check)
 performed_at timestamptz NOT NULL · performed_by_vendor text · downtime_minutes int · notes text
+notes        text NOT NULL                      -- 0024. NOT mapped by the ORM; the table has no
+                                                -- model at all — see §3-end note.
 ```
 
 **staff_certifications / staff_training_records** (0025, B1) `[Blame]` — NABH HRM
@@ -1401,7 +1464,6 @@ UNIQUE (facility_id, kpi_code, period_start, period_end)
 ```
 
 **fhir_bundle_transactions** (0026, B7) — Postgres audit of every ABDM transmission
-(payloads stay in Mongo; this row is the auditable fact)
 ```
 bundle_id varchar(100) NOT NULL · abdm_request_id varchar(100)
 direction varchar(30) (hip_push|hiu_pull) · care_context_linked boolean
@@ -1409,6 +1471,7 @@ gateway_response_status varchar(50) · signed_by_hpr_id varchar(50)
 patient_id UUID NULL → patients · consent_id UUID NULL → consent_records
 transmitted_at timestamptz NOT NULL
 INDEX ix_fhir_bundle_transactions_patient_id (patient_id, transmitted_at)
+facility_id  UUID NOT NULL → facilities         -- 0026. Which hospital's data left the building.
 ```
 
 **discharge_notifications** (0026, B4) — NABH discharge-planning notifications, durable
@@ -1428,6 +1491,9 @@ is_enabled boolean NOT NULL DEFAULT true
 config jsonb NOT NULL DEFAULT '{}'               -- module sub-config, e.g. lab: {"departments": ["PATH","BIO"]}, radiology: {"modalities": ["xray","usg"]}
 disabled_reason text
 UNIQUE (facility_id, module_code)
+enabled_at   timestamptz NULL                   -- 0027. When the module was last switched on.
+disabled_at  timestamptz NULL                   -- 0027. Both nullable: a module that has never been
+                                                -- toggled is on by default and carries neither.
 ```
 No row = enabled (default-on) — but **on facility creation the service seeds one row
 per ModuleCode with `is_enabled = true`**, so operations always sees explicit rows and
@@ -1782,7 +1848,6 @@ CHECK (discharge_type <> 'transferred'
 ### 0038 — doctor_reviews (B3, W4)
 
 **doctor_reviews** (0038, B3) — doctor sign-off on an encounter and on individual
-lab/radiology results. Transcribed from #361; that PR owns this table.
 ```
 encounter_id UUID NOT NULL → encounters
 reviewed_by UUID NOT NULL → users
@@ -1790,6 +1855,8 @@ lab_order_item_id UUID NULL → lab_order_items
 radiology_order_item_id UUID NULL → radiology_order_items
 status varchar(50) NOT NULL DEFAULT 'pending'   -- pending|reviewed|signed_off
 notes text · signed_off_at timestamptz
+facility_id  UUID NOT NULL → facilities         -- 0038. Scope; doctor_reviews has no other path to it.
+notes        text NULL                          -- 0038. Reviewer's remark on the transition.
 ```
 Both result FKs are nullable: a review can cover the encounter as a whole, or one
 specific result. `signed_off_at` is separate from `status` because the timestamp is
@@ -1804,6 +1871,30 @@ INDEX ix_notification_history_facility_id_created_at (facility_id, created_at)
 The table had no facility column, so a row with a NULL `department_id` could not be
 attributed and no read could be scoped. Added before #230 builds the read API rather
 than after, because the alternative is fixing an endpoint as well as a table.
+
+### 3-end — columns that exist in the database but not in the ORM
+
+Found while clearing the 57 schema-documentation warnings. These columns are
+created by a migration and are **not mapped by any SQLAlchemy model**, so no
+code path can read or write them. They are documented above for completeness,
+with a pointer here.
+
+| Column | Migration | Note |
+|---|---|---|
+| `orders.fulfilment_mode` | 0027 | NOT NULL with a server default. §2's v3.3 changelog describes "external-referral fulfilment on orders" as delivered, but nothing reads this column — every order is `in_house` by default and no code can set anything else. |
+| `adjustments.adjustment_type` | 0024 | NOT NULL. The adjustment workflow works without it because of the server default. |
+| `grn.purchase_order_id` | 0024 | NOT NULL. There is no `purchase_orders` table, so this references nothing. |
+| `consent_records.consent_manager_id` | 0022a | NOT NULL. DPDP Rules 2025 consent-manager linkage; the consent module does not populate it. |
+| `machine_maintenance_logs.notes` | 0024 | The whole TABLE has no ORM model. |
+
+This is the same shape as `kpi_snapshots` before the reports module was built:
+an unmapped table or column is a feature nobody finished, not a documentation
+gap. Deciding what each of these should do is a product question — recorded
+here rather than guessed at.
+
+**These are not release blockers.** Every one is either nullable or defaulted,
+so nothing fails today; the risk is a future reader assuming the feature exists
+because the column does.
 
 
 ## 4. API field contract (backend → frontend)
