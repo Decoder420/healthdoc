@@ -155,6 +155,33 @@ export async function loginWithKeycloak(redirectUri?: string): Promise<void> {
   });
 }
 
+/** Whether the current access token proves an OTP/MFA authenticator ran. */
+export function hasKeycloakMfaSession(): boolean {
+  const parsed = keycloak?.tokenParsed as { amr?: string[] } | undefined;
+  const methods = parsed?.amr ?? [];
+  return methods.includes("otp") || methods.includes("mfa");
+}
+
+/**
+ * Force a fresh Keycloak browser authentication before a sensitive action.
+ *
+ * The application never receives a TOTP code. Keycloak owns credential entry
+ * and the backend accepts the resulting request only when the access token's
+ * `amr` claim proves that OTP/MFA actually ran.
+ */
+export async function stepUpWithKeycloak(redirectUri?: string): Promise<void> {
+  const kc = getKeycloak();
+  const authenticated = await initKeycloak();
+  if (!authenticated) {
+    throw new Error("Sign in with Keycloak before requesting emergency access.");
+  }
+  await kc.login({
+    redirectUri: redirectUri ?? window.location.href,
+    prompt: "login",
+    maxAge: 0,
+  });
+}
+
 export async function logoutFromKeycloak(redirectUri?: string): Promise<void> {
   const kc = getKeycloak();
   setAccessToken(null);

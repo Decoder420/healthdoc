@@ -31,17 +31,17 @@ was therefore documented and closed; it must not be reopened or merged.
 
 | Gate | Measured result |
 |---|---|
-| Backend suite against PostgreSQL | **719 passed** in 33.08s |
-| Migration integrity | **54 migrations**, linear, downgrades present, head `0047` |
+| Backend suite against PostgreSQL | **728 passed** in 31.97s |
+| Migration integrity | **55 migrations**, linear, downgrades present, head `0048` |
 | Schema/spec check | **96 tables**, 67 enums, map/FKs/ModuleCode consistent |
 | Schema drift | **0 blockers**, 57 documentation warnings |
-| Frontend/backend contract | **126/126 calls match OpenAPI** |
-| Frontend fixture importers | **1**, doctor break-glass only (was 27) |
-| Files using the API client | **57** |
+| Frontend/backend contract | **129/129 calls match OpenAPI** |
+| Frontend fixture importers | **0** (was 27); unused fixture libraries deleted |
+| Files using the API client | **59** |
 | Routed pages | **34** |
 | Frontend TypeScript | Passed |
 | Frontend ESLint | **0 errors, 0 warnings** |
-| Frontend convention check | **193 files, 0 blockers, 0 warnings** |
+| Frontend convention check | **169 files, 0 blockers, 0 warnings** |
 | Next.js production build | Passed |
 | Real Keycloak browser gates | **8 passed**: receptionist, doctor, nurse, lab, radiology, pharmacist, billing, admin |
 
@@ -66,10 +66,11 @@ cd ../backend
 
 ### 1. Latest release work integrated into staging
 
-Complete. PR #415 and PR #416 are merged, reviewed and green. Before the work
-described in this handoff, `origin/staging` and `origin/release-readiness` had
-different histories but the exact same Git tree. New work must go through a new
-PR to `staging`; do not bypass review.
+Complete through the doctor workflow tranche. PRs #415, #416, #417, #419 and
+#420 are merged, reviewed and green on `staging`. `release-readiness` was
+fast-forwarded from the PR #420 staging merge before the current break-glass
+change began. New work must go through a new PR to `staging`; do not bypass
+review.
 
 ### 2. Core product modules
 
@@ -92,12 +93,21 @@ PR to `staging`; do not bypass review.
 - Reports: backend is no longer a ping stub; the KPI/MIS read path is live.
 - Consent: per-patient workflow is API-backed. There is no fixture-backed
   facility-wide console pretending to be complete.
+- Consent enforcement: patient history now fails closed without active
+  `clinical_review` consent or the caller's active break-glass grant. Emergency
+  reads are marked `emergency_access=true` in the access ledger. Migration
+  `0048` seeds that canonical consent purpose on every fresh/updated database.
+- Break-glass: the final fixture flow is retired. Access checks, two-hour grant
+  creation/read-back and revocation use the backend; fabricated inline TOTP has
+  been removed. Keycloak owns re-authentication and the API accepts a grant only
+  when the bearer token's `amr` proves OTP/MFA.
 
 ### 3. Integration and quality gates
 
 - The frontend/backend contract parser is fixed and guarded by tests.
-- All **126** statically discoverable frontend API calls match OpenAPI.
-- Fixture importers fell from 27 to **1**.
+- All **129** statically discoverable frontend API calls match OpenAPI.
+- Fixture importers fell from 27 to **0**; the now-unreferenced fixture files
+  were deleted as well.
 - Encounter PATCH now enforces `If-Match` and returns the current server copy
   on a stale write. Encounter, diagnosis, vitals and order creation paths honor
   stable idempotency keys.
@@ -169,6 +179,11 @@ SLA require clinical-owner sign-off. Do not invent clinical thresholds.
 - Perform authenticated clinical-journey load tests, not only public health or
   shell-page load.
 - Prove backup, restore, rollback and recovery of every stateful service.
+- Enroll a real doctor/emergency account in Keycloak OTP and run one browser
+  gate that proves re-authentication produces `amr=otp`, grant creation returns
+  a server-owned grant ID, the clinical read succeeds, and revocation closes it.
+  The realm now includes the AMR token mapper and the application fails closed,
+  but the repository deliberately does not contain a clinician's OTP secret.
 
 ### P1 — product completion
 
@@ -182,22 +197,7 @@ the named journeys, not the typo. Every completed staff gate now has a matching
 Keycloak account and users row and proves the route, role guard, bearer header
 and successful business API response.
 
-#### P1.2 One remaining fixture importer
-
-The only remaining importer is in `frontend/src/features/doctor/api/`:
-
-| File | Real completion needed |
-|---|---|
-| `breakGlass.ts` | Replace mock access/grants with the existing backend grant/revoke contracts and a real Keycloak MFA step-up/re-auth flow. |
-
-Do not remove the imports by replacing them with empty success responses. A
-clinical write must either persist and read back or be visibly unavailable.
-
-Completed in the current `release-readiness` change: `consultation.ts` and
-`orders.ts` are API-backed, the live ICD endpoint degrades to the local code
-catalogue, and unsupported procedure ordering is hidden instead of simulated.
-
-#### P1.3 Incomplete operational modules
+#### P1.2 Incomplete operational modules
 
 - ABDM delivery monitoring remains unavailable and needs sandbox credentials,
   delivery-status contracts and external UAT.
@@ -223,7 +223,8 @@ catalogue, and unsupported procedure ordering is hidden instead of simulated.
 
 1. Obtain the sanitized dump, patient/guardian policy and clinical thresholds
    immediately; these are schedule-critical external inputs.
-2. Implement Keycloak MFA step-up and retire the last `breakGlass.ts` mock.
+2. Enroll a test clinician in Keycloak OTP and run the real break-glass browser
+   gate; the application and API flow are implemented and fail closed.
 3. Implement and test the missing `/procedures` contract before re-enabling
    procedure ordering.
 4. Resolve issue #368, then run ZAP and authenticated load tests.
@@ -239,8 +240,9 @@ A reviewed staging release candidate is still possible by 27 August only if
 the sanitized database dump, identity/guardian policy and clinical threshold
 decision arrive immediately and scope is frozen. Code can finish the remaining
 procedure contract quickly; the staff E2Es and doctor consultation wiring are
-already complete. It cannot manufacture external approvals, a real Keycloak
-MFA policy, or proof of a production-data restore without the required access.
+already complete. It cannot manufacture external approvals, a clinician's real
+OTP enrollment, or proof of a production-data restore without the required
+access.
 
 If any P0 input is missing, keep `main` unchanged and report the release as
 blocked by that named gate. Passing static tests is not permission to bypass a

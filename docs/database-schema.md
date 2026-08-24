@@ -166,6 +166,7 @@ do not merge out of order.**
 | 0045 | order_checkoff | ALTER orders: accepted_at, accepted_by, completed_at, completed_by, completion_note (+ 3 CHECKs) | B3/nursing (#210) — status recorded THAT an order was done and lost who and when |
 | 0046 | clinical_incidents | clinical_incidents | B3/nursing (#236) — NABH DHS incident register. Distinct from data_breach_notifications (0022a), which is the DPDP/CERT-In data path. |
 | 0047 | queue_token_transferred_not_live | ALTER queue_tokens: uq_queue_tokens_one_live_per_visit predicate gains 'transferred' | B4 (#407) — 0009's predicate counted a transferred token as still live, so every reassign_token() collided with its own historical row against PostgreSQL. Invisible until the ORM declared the index, because the SQLite test DB is built from ORM metadata. |
+| 0048 | clinical_review_consent_purpose | consent_purposes | Release readiness — seed canonical `clinical_review` reference data because patient history enforces this purpose and a fresh database needs a real purpose_id with which staff can record consent. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.

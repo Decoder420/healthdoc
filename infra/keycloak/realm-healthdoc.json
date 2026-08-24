@@ -85,6 +85,19 @@
         "https://localhost",
         "http://localhost:3000"
       ],
+      "protocolMappers": [
+        {
+          "name": "Authentication Method Reference",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "+"

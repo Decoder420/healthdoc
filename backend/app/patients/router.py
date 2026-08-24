@@ -309,6 +309,7 @@ import sqlalchemy as sa
 from app.common.enums import AccessChannel
 from app.consent.access_log import log_patient_data_access
 from app.consent.models import DataAccessLog
+from app.consent.service import evaluate_clinical_access
 from app.patients.history_service import get_patient_history
 
 _HISTORY_ROLES = ("doctor", "nurse", "receptionist", "admin")
@@ -419,9 +420,20 @@ async def get_patient_history_endpoint(
             raise HTTPException(404, {"code": "patient_not_found"})
         patient_id = canonical.id
 
-    # TODO [#179 deferred]: consent gate — blocked on consent module
-    # exposing check_active_consent(). Access is logged with
-    # consent_required=True above so the audit trail is intact.
+    access = await evaluate_clinical_access(
+        db,
+        patient_id=patient_id,
+        user_id=current_db_user.id,
+    )
+    if not access.allowed:
+        raise HTTPException(
+            403,
+            {
+                "code": "consent_required",
+                "blocked_reason": access.blocked_reason,
+                "break_glass_available": "doctor" in current_db_user.roles,
+            },
+        )
 
     # Explicit priority list — set iteration is non-deterministic.
     # doctor > nurse > receptionist/admin.
