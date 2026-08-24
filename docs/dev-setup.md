@@ -1,7 +1,7 @@
 # Developer setup
 
 Prerequisites: Docker Desktop (or docker + compose v2), `openssl`, `make`, Git.
-Node 20 and Python 3.12 only needed if you run things outside Docker.
+Node 22 and Python 3.12 are only needed if you run things outside Docker.
 
 ## First run
 
@@ -22,7 +22,9 @@ Then open https://localhost (accept the self-signed cert warning).
 | Orthanc (PACS) | http://localhost:8042 | `.env` |
 | Postgres / Mongo / Redis | localhost 5432 / 27017 / 6379 | `.env` |
 
-Dev users (realm `healthdoc`, password `devpass`): `dev.receptionist`, `dev.doctor`, `dev.admin`.
+Dev users (realm `healthdoc`, password `devpass`): `dev.receptionist`,
+`dev.doctor`, `dev.nurse`, `dev.labtech`, `dev.radiology`, `dev.pharmacist`
+and `dev.admin`.
 
 ## Daily commands
 
