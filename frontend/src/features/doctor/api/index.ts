@@ -2,18 +2,19 @@ export { listQueue, getQueueToken } from "./queue";
 export { getPatient, getPatientHistory, listAllergies } from "./patients";
 export {
   createEncounter,
+  getEncounterForVisit,
   updateEncounter,
   completeEncounter,
   saveVitals,
   searchIcd,
-  saveDiagnoses,
+  saveDiagnosis,
+  listDiagnoses,
 } from "./consultation";
 export {
-  suggestOrderNames,
+  listOrders,
   createOrder,
   createLabOrderItem,
   createRadiologyOrderItem,
-  createProcedure,
   placeOrder,
 } from "./orders";
 export { searchMedicines, checkAllergies, createPrescription } from "./prescriptions";

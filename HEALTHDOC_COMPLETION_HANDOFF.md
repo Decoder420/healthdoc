@@ -31,13 +31,13 @@ was therefore documented and closed; it must not be reopened or merged.
 
 | Gate | Measured result |
 |---|---|
-| Backend suite against PostgreSQL | **714 passed** in 32.77s |
+| Backend suite against PostgreSQL | **719 passed** in 33.08s |
 | Migration integrity | **54 migrations**, linear, downgrades present, head `0047` |
 | Schema/spec check | **96 tables**, 67 enums, map/FKs/ModuleCode consistent |
 | Schema drift | **0 blockers**, 57 documentation warnings |
-| Frontend/backend contract | **115/115 calls match OpenAPI** |
-| Frontend fixture importers | **3**, all in the doctor module (was 27) |
-| Files using the API client | **53** |
+| Frontend/backend contract | **126/126 calls match OpenAPI** |
+| Frontend fixture importers | **1**, doctor break-glass only (was 27) |
+| Files using the API client | **57** |
 | Routed pages | **34** |
 | Frontend TypeScript | Passed |
 | Frontend ESLint | **0 errors, 0 warnings** |
@@ -84,6 +84,10 @@ PR to `staging`; do not bypass review.
 - Billing: all six fixture-backed reads were retired, including refund reads.
 - Radiology: no longer a title shell; scheduling, scan completion, report draft
   and sign-off are wired.
+- Doctor consultation: encounters, SOAP notes, vitals, ICD search, diagnoses,
+  lab orders, radiology orders and prescriptions now use real APIs. Child
+  clinical writes stay locked until the server creates the encounter; reloads
+  restore that encounter by visit instead of minting a browser UUID.
 - Inventory: GRN, indent and adjustment workspaces are implemented.
 - Reports: backend is no longer a ping stub; the KPI/MIS read path is live.
 - Consent: per-patient workflow is API-backed. There is no fixture-backed
@@ -92,8 +96,13 @@ PR to `staging`; do not bypass review.
 ### 3. Integration and quality gates
 
 - The frontend/backend contract parser is fixed and guarded by tests.
-- All **115** statically discoverable frontend API calls match OpenAPI.
-- Fixture importers fell from 27 to **3**.
+- All **126** statically discoverable frontend API calls match OpenAPI.
+- Fixture importers fell from 27 to **1**.
+- Encounter PATCH now enforces `If-Match` and returns the current server copy
+  on a stale write. Encounter, diagnosis, vitals and order creation paths honor
+  stable idempotency keys.
+- Order creation rejects a patient outside the encounter, and Lab/Radiology
+  detail writes reject the wrong order type.
 - React compiler warnings fell from 4 to **0** by using `useWatch` instead of
   the non-memoizable `react-hook-form` `watch` function.
 - The real browser gate now proves:
@@ -173,23 +182,28 @@ the named journeys, not the typo. Every completed staff gate now has a matching
 Keycloak account and users row and proves the route, role guard, bearer header
 and successful business API response.
 
-#### P1.2 Three remaining fixture importers
+#### P1.2 One remaining fixture importer
 
-All are in `frontend/src/features/doctor/api/`:
+The only remaining importer is in `frontend/src/features/doctor/api/`:
 
 | File | Real completion needed |
 |---|---|
-| `consultation.ts` | Wire encounters, SOAP updates, vitals and diagnoses; use the approved ICD service/code set and preserve stale-write behavior. |
-| `orders.ts` | Wire order header plus lab/radiology/procedure detail writes; source safe suggestions without inventing a catalog. |
 | `breakGlass.ts` | Replace mock access/grants with the existing backend grant/revoke contracts and a real Keycloak MFA step-up/re-auth flow. |
 
 Do not remove the imports by replacing them with empty success responses. A
 clinical write must either persist and read back or be visibly unavailable.
 
+Completed in the current `release-readiness` change: `consultation.ts` and
+`orders.ts` are API-backed, the live ICD endpoint degrades to the local code
+catalogue, and unsupported procedure ordering is hidden instead of simulated.
+
 #### P1.3 Incomplete operational modules
 
 - ABDM delivery monitoring remains unavailable and needs sandbox credentials,
   delivery-status contracts and external UAT.
+- `procedure_records` exists in the database, but `/procedures` still has no
+  published backend write contract. The doctor UI deliberately withholds the
+  procedure option until this is implemented and tested.
 - A facility-wide consent operations console is not built. Decide whether it
   is release scope; the per-patient workflow is complete.
 - Prometheus/Grafana dashboards, alert routing and production runbooks need an
@@ -209,9 +223,9 @@ clinical write must either persist and read back or be visibly unavailable.
 
 1. Obtain the sanitized dump, patient/guardian policy and clinical thresholds
    immediately; these are schedule-critical external inputs.
-2. Retire `consultation.ts` and `orders.ts` fixtures through real write/read-back
-   tests.
-3. Implement Keycloak MFA step-up and retire `breakGlass.ts` mocks.
+2. Implement Keycloak MFA step-up and retire the last `breakGlass.ts` mock.
+3. Implement and test the missing `/procedures` contract before re-enabling
+   procedure ordering.
 4. Resolve issue #368, then run ZAP and authenticated load tests.
 5. Run the real-data migration/restore/rollback rehearsal from the exact staging
    release SHA.
@@ -224,8 +238,9 @@ clinical write must either persist and read back or be visibly unavailable.
 A reviewed staging release candidate is still possible by 27 August only if
 the sanitized database dump, identity/guardian policy and clinical threshold
 decision arrive immediately and scope is frozen. Code can finish the remaining
-staff E2Es and doctor wiring quickly; it cannot manufacture those external
-approvals or prove a production-data restore without the data.
+procedure contract quickly; the staff E2Es and doctor consultation wiring are
+already complete. It cannot manufacture external approvals, a real Keycloak
+MFA policy, or proof of a production-data restore without the required access.
 
 If any P0 input is missing, keep `main` unchanged and report the release as
 blocked by that named gate. Passing static tests is not permission to bypass a

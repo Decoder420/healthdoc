@@ -49,6 +49,11 @@ class EncounterNotFound(Exception):
         self.encounter_id = encounter_id
 
 
+class StaleEncounterWrite(Exception):
+    def __init__(self, encounter: Encounter):
+        self.encounter = encounter
+
+
 class DoctorReviewNotFound(Exception):
     def __init__(self, review_id: UUID):
         self.review_id = review_id
@@ -144,10 +149,40 @@ async def get_encounter(db: AsyncSession, encounter_id: UUID) -> Encounter | Non
     return result.scalar_one_or_none()
 
 
+async def get_latest_encounter_for_visit(
+    db: AsyncSession, visit_id: UUID, facility_id: UUID
+) -> Encounter | None:
+    """Return the most recently opened encounter for one scoped visit.
+
+    Standalone clinical screens use this instead of inventing an encounter id
+    in the browser.  The facility predicate is deliberately on the encounter
+    as well as the visit-derived identifier: a UUID from another hospital must
+    remain indistinguishable from a missing visit.
+    """
+    result = await db.execute(
+        select(Encounter)
+        .where(Encounter.visit_id == visit_id, Encounter.facility_id == facility_id)
+        .order_by(Encounter.started_at.desc().nullslast(), Encounter.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def update_encounter(
-    db: AsyncSession, encounter: Encounter, payload: EncounterUpdate, *, actor_id: UUID
+    db: AsyncSession,
+    encounter: Encounter,
+    payload: EncounterUpdate,
+    *,
+    actor_id: UUID,
+    expected_row_version: int | None = None,
 ) -> Encounter:
     """Only overwrites fields the caller provided; row_version increments on every mutation."""
+    if expected_row_version is not None and encounter.row_version != expected_row_version:
+        raise StaleEncounterWrite(encounter)
+    if payload.encounter_type is not None:
+        encounter.encounter_type = payload.encounter_type
+    if payload.chief_complaint is not None:
+        encounter.chief_complaint = payload.chief_complaint
     if payload.ended_at is not None:
         encounter.ended_at = payload.ended_at
     if payload.subjective is not None:
@@ -164,6 +199,11 @@ async def update_encounter(
     # assigned payload.updated_by unconditionally — and it is optional, so a
     # PATCH that omitted it NULLed out the last-editor of a clinical note.
     encounter.updated_by = actor_id
+    # Timestamps.updated_at uses SQL ``onupdate=now()``. PostgreSQL expires the
+    # attribute after flush, and response serialization would then attempt an
+    # implicit async SELECT outside greenlet_spawn. Set it explicitly so the
+    # returned clinical row is complete without hidden I/O.
+    encounter.updated_at = datetime.now(timezone.utc)
     encounter.row_version += 1
     await db.flush()
     return encounter

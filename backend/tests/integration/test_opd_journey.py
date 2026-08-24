@@ -97,40 +97,86 @@ class TestOPDCoreJourney:
         # --- Step 2: consultation (encounters/router.py -> POST /api/v1/encounters) ---
         client = client_as(DOCTOR)
         doctor_id = str(uuid.uuid5(uuid.NAMESPACE_OID, DOCTOR.sub))
+        encounter_key = str(uuid.uuid4())
+        encounter_body = {
+            "visit_id": visit_id,
+            "provider_user_id": doctor_id,
+            "created_by": doctor_id,
+            "encounter_type": "consultation",
+            "chief_complaint": "Journey test complaint",
+        }
         encounter_resp = client.post(
             "/api/v1/encounters",
-            json={
-                "visit_id": visit_id,
-                "provider_user_id": doctor_id,
-                "created_by": doctor_id,
-                "encounter_type": "consultation",
-                "chief_complaint": "Journey test complaint",
-            },
+            headers={"Idempotency-Key": encounter_key},
+            json=encounter_body,
         )
         assert encounter_resp.status_code == 201, encounter_resp.text
         encounter = encounter_resp.json()["data"]
         encounter_id = encounter["id"]
+        encounter_replay = client.post(
+            "/api/v1/encounters",
+            headers={"Idempotency-Key": encounter_key},
+            json=encounter_body,
+        )
+        assert encounter_replay.status_code == 201, encounter_replay.text
+        assert encounter_replay.json()["data"]["id"] == encounter_id
+
+        note_resp = client.patch(
+            f"/api/v1/encounters/{encounter_id}",
+            headers={"If-Match": str(encounter["row_version"])},
+            json={
+                "subjective": "Fever for two days",
+                "assessment": "Viral syndrome",
+                "plan": "Hydration and review",
+                "note_status": "stored",
+            },
+        )
+        assert note_resp.status_code == 200, note_resp.text
+        assert note_resp.json()["data"]["row_version"] == encounter["row_version"] + 1
+        stale_note = client.patch(
+            f"/api/v1/encounters/{encounter_id}",
+            headers={"If-Match": str(encounter["row_version"])},
+            json={"assessment": "must not overwrite"},
+        )
+        assert stale_note.status_code == 409, stale_note.text
+        assert stale_note.json()["error"]["message"]["code"] == "stale_write"
 
         # --- Step 3: order (orders/router.py -> POST /api/v1/orders) ---
+        order_key = str(uuid.uuid4())
+        order_body = {
+            "encounter_id": encounter_id,
+            "patient_id": patient_id,
+            "created_by": doctor_id,
+            "order_type": "lab",
+            "priority": "routine",
+        }
         order_resp = client.post(
             "/api/v1/orders",
-            json={
-                "encounter_id": encounter_id,
-                "patient_id": patient_id,
-                "created_by": doctor_id,
-                "order_type": "lab",
-                "priority": "routine",
-            },
+            headers={"Idempotency-Key": order_key},
+            json=order_body,
         )
         assert order_resp.status_code == 201, order_resp.text
         order = order_resp.json()["data"]
         order_id = order["id"]
         assert order["status"] not in (None, "")
+        order_replay = client.post(
+            "/api/v1/orders",
+            headers={"Idempotency-Key": order_key},
+            json=order_body,
+        )
+        assert order_replay.status_code == 201, order_replay.text
+        assert order_replay.json()["data"]["id"] == order_id
+        listed_orders = client.get(
+            "/api/v1/orders", params={"encounter_id": encounter_id},
+        )
+        assert listed_orders.status_code == 200, listed_orders.text
+        assert order_id in {row["id"] for row in listed_orders.json()["data"]["items"]}
 
         # --- Step 4a: lab order item (pathology/router.py) ---
         client = client_as(LAB_TECH)
         item_resp = client.post(
             f"/api/v1/pathology/order-items?order_id={order_id}",
+            headers={"Idempotency-Key": f"{order_key}:detail"},
             json={
                 "test_code": "CBC",
                 "test_name": "Complete Blood Count",
@@ -139,6 +185,17 @@ class TestOPDCoreJourney:
         )
         assert item_resp.status_code == 201, item_resp.text
         lab_item_id = item_resp.json()["data"]["id"]
+        item_replay = client.post(
+            f"/api/v1/pathology/order-items?order_id={order_id}",
+            headers={"Idempotency-Key": f"{order_key}:detail"},
+            json={
+                "test_code": "CBC",
+                "test_name": "Complete Blood Count",
+                "sample_type": "blood",
+            },
+        )
+        assert item_replay.status_code == 201, item_replay.text
+        assert item_replay.json()["data"]["id"] == lab_item_id
 
         collect_resp = client.put(
             f"/api/v1/pathology/order-items/{lab_item_id}/sample-collection",

@@ -39,6 +39,10 @@ class OrderOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OrderListOut(BaseModel):
+    items: list[OrderOut]
+
+
 class PrescriptionItemCreate(BaseModel):
     medicine_item_id: UUID | None = None
     medicine_name: str

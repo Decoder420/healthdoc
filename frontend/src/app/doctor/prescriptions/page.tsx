@@ -1,29 +1,37 @@
 "use client";
 
-import * as React from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 
 import { PrescriptionWorkspace } from "@/features/doctor";
-import { newProvisionalEncounter } from "@/features/doctor/lib/encounter";
 import { doctorPageSx } from "@/features/doctor/panelSx";
 import { useEncounterContext } from "@/features/doctor/hooks/useEncounterContext";
+import { usePersistedEncounter } from "@/features/doctor/hooks/usePersistedEncounter";
 import type { EncounterContext } from "@/features/doctor/types";
 
 /**
- * Split out so the provisional encounter is created ONCE, from a context that
- * is already known.
- *
- * `newProvisionalEncounter` seeds the encounter a prescription is written
- * against. Calling it in the parent would mean calling it before the queue has
- * loaded — useState's initialiser runs on first render and never again, so the
- * encounter would be built from a null context and then never corrected.
+ * Resolve the encounter from PostgreSQL. A prescription must never point at a
+ * browser-generated UUID.
  */
 function PrescribeFor({ context }: { context: EncounterContext }) {
-  const [encounter] = React.useState(() => newProvisionalEncounter(context));
+  const { encounter, loading, error } = usePersistedEncounter(context);
 
   return (
     <Box sx={doctorPageSx}>
-      <PrescriptionWorkspace context={context} encounter={encounter} />
+      {loading ? (
+        <CircularProgress size={28} />
+      ) : error ? (
+        <Alert severity="error">{error}</Alert>
+      ) : encounter?.ended_at ? (
+        <Alert severity="info">This consultation is completed; new prescriptions are locked.</Alert>
+      ) : encounter ? (
+        <PrescriptionWorkspace context={context} encounter={encounter} />
+      ) : (
+        <Alert severity="info">
+          Save this patient&apos;s consultation before creating a prescription.
+        </Alert>
+      )}
     </Box>
   );
 }

@@ -2,19 +2,21 @@
 from current_db_user, never the request body."""
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status as http_status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
+from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.allergies.service import AllergyConflict
 from app.orders import results_worklist, service
 from app.orders.schemas import (
     ResultWorklistItemOut,
     ResultWorklistOut,
-    OrderCreate, OrderOut, PrescriptionCreate, PrescriptionItemOut, PrescriptionOut,
+    OrderCreate, OrderListOut, OrderOut, PrescriptionCreate, PrescriptionItemOut, PrescriptionOut,
 )
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -23,7 +25,10 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 @router.post("", response_model=OrderOut, status_code=http_status.HTTP_201_CREATED,
              dependencies=[Depends(require_roles("doctor", "nurse", "admin"))])
 async def create_order(payload: OrderCreate, current_db_user: CurrentDbUser,
-                        db: AsyncSession = Depends(get_db)) -> OrderOut:
+                        db: AsyncSession = Depends(get_db),
+                        idempotency_key: Annotated[
+                            str | None, Header(alias="Idempotency-Key")
+                        ] = None) -> OrderOut:
     """No facility lookup here (see #362) -- create_order() resolves
     the business-date timezone from the encounter's own facility now,
     not the caller's. current_db_user.facility_id was never the right
@@ -46,11 +51,54 @@ async def create_order(payload: OrderCreate, current_db_user: CurrentDbUser,
         )
     payload.created_by = current_db_user.id
 
+    endpoint = "POST /orders"
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            endpoint,
+            hash_request_body(payload),
+            current_db_user.id,
+        )
+        if cached is not None:
+            return OrderOut.model_validate(cached.response_body)
+
     try:
         order = await service.create_order(db, payload)
     except service.EncounterNotFound:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="encounter_not_found")
-    return OrderOut.model_validate(order)
+    except service.PatientMismatch:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "patient_mismatch",
+                "message": "patient_id does not belong to the encounter's visit",
+            },
+        )
+    response = OrderOut.model_validate(order)
+    if idempotency_key:
+        await record_idempotent_response(
+            db,
+            idempotency_key,
+            endpoint,
+            http_status.HTTP_201_CREATED,
+            response.model_dump(mode="json"),
+            current_db_user.id,
+        )
+    return response
+
+
+@router.get("", response_model=OrderListOut,
+            dependencies=[Depends(require_roles("doctor", "nurse", "receptionist", "admin"))])
+async def list_orders(
+    current_db_user: CurrentDbUser,
+    encounter_id: UUID = Query(...),
+    db: AsyncSession = Depends(get_db),
+) -> OrderListOut:
+    rows = await service.list_orders_for_encounter(
+        db, encounter_id, current_db_user.facility_id,
+    )
+    return OrderListOut(items=[OrderOut.model_validate(row) for row in rows])
 
 
 @router.get("/results-worklist", response_model=ResultWorklistOut,

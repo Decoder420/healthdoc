@@ -28,8 +28,9 @@ import json
 import uuid
 from datetime import datetime, timezone
 from statistics import mean, median
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +39,7 @@ from app.audit.service import write_audit_log
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.accession import LAB, allocate_accession_number
 from app.common.db import get_db
+from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.orders.models import Order
 from app.pathology.models import LabOrderItem, LabResult
 from app.pathology.schemas import (
@@ -96,11 +98,29 @@ async def create_lab_order_item(
     order_id: uuid.UUID = Query(..., description="Existing order id (order_type=lab)"),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_roles("doctor", "lab_tech")),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 
 ):
     order = await db.get(Order, order_id)
     if order is None or order.facility_id != current_db_user.facility_id:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.order_type != "lab":
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "order_type_mismatch", "message": "A lab item requires order_type=lab"},
+        )
+
+    endpoint = f"POST /pathology/order-items?order_id={order_id}"
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            endpoint,
+            hash_request_body(payload),
+            current_db_user.id,
+        )
+        if cached is not None:
+            return LabOrderItemOut.model_validate(cached.response_body)
 
     # One allocation, no retry loop. accession_counters (0020a) hands out the
     # number atomically, so there is no collision to retry against — the loop
@@ -126,12 +146,23 @@ async def create_lab_order_item(
     )
     db.add(item)
     await db.flush()
-
     await _write_audit_log(db, table_name="lab_order_items", row_id=item.id,
                             action="create", actor_id=current_db_user.id,
                             facility_id=current_db_user.facility_id)
     await db.refresh(item)
-    return item
+    response = LabOrderItemOut.model_validate(item)
+    if idempotency_key:
+        await record_idempotent_response(
+            db,
+            idempotency_key,
+            endpoint,
+            201,
+            response.model_dump(mode="json"),
+            current_db_user.id,
+        )
+    return response
+
+
 @router.put(
     "/order-items/{item_id}/sample-collection",
     response_model=LabOrderItemOut,

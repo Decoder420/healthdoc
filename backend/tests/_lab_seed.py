@@ -44,6 +44,7 @@ PATIENT_ID = uuid.UUID("00000000-0000-0000-0000-0000000000e1")
 VISIT_ID = uuid.UUID("00000000-0000-0000-0000-0000000000a1")
 ENCOUNTER_ID = uuid.UUID("00000000-0000-0000-0000-0000000000e2")
 ORDER_ID = uuid.UUID("00000000-0000-0000-0000-0000000000d1")
+RADIOLOGY_ORDER_ID = uuid.UUID("00000000-0000-0000-0000-0000000000d2")
 
 
 def _user_id_for(sub: str) -> uuid.UUID:
@@ -52,7 +53,7 @@ def _user_id_for(sub: str) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_OID, sub)
 
 
-async def _seed(subs: list[str]) -> None:
+async def _seed(subs: list[str], order_type: str) -> None:
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
         async with engine.begin() as conn:
@@ -92,18 +93,25 @@ async def _seed(subs: list[str]) -> None:
                 {"id": ENCOUNTER_ID, "vid": VISIT_ID, "fac": FACILITY_ID,
                  "prov": creator, "by": creator})
 
+            order_id = ORDER_ID if order_type == "lab" else RADIOLOGY_ORDER_ID
+            order_number = (
+                "ORD-LABTEST-0001" if order_type == "lab" else "ORD-RADTEST-0001"
+            )
             await conn.execute(sa.text(
                 "INSERT INTO orders (id, order_number, encounter_id, patient_id, order_type, "
                 " facility_id, created_by) "
-                "VALUES (:id, 'ORD-LABTEST-0001', :eid, :pid, 'lab', :fac, :by) "
+                "VALUES (:id, :number, :eid, :pid, :order_type, :fac, :by) "
                 "ON CONFLICT (id) DO NOTHING"),
-                {"id": ORDER_ID, "eid": ENCOUNTER_ID, "pid": PATIENT_ID,
+                {"id": order_id, "number": order_number, "eid": ENCOUNTER_ID,
+                 "pid": PATIENT_ID, "order_type": order_type,
                  "fac": FACILITY_ID, "by": creator})
     finally:
         await engine.dispose()
 
 
-def seed_order_chain(subs: list[str]) -> str:
+def seed_order_chain(subs: list[str], order_type: str = "lab") -> str:
     """Returns a real orders.id the handlers will find. Safe to call repeatedly."""
-    asyncio.run(_seed(subs))
-    return str(ORDER_ID)
+    if order_type not in {"lab", "radiology"}:
+        raise ValueError("test order_type must be lab or radiology")
+    asyncio.run(_seed(subs, order_type))
+    return str(ORDER_ID if order_type == "lab" else RADIOLOGY_ORDER_ID)

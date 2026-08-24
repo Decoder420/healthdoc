@@ -65,12 +65,46 @@ async def test_order_sequence_is_gapless_per_day(db, encounter):
     assert o1.order_number != o2.order_number
 
 
+async def test_list_orders_for_encounter_is_facility_scoped(db, encounter):
+    e, patient, doctor = encounter
+    order = await service.create_order(
+        db,
+        OrderCreate(
+            encounter_id=e.id,
+            patient_id=patient.id,
+            created_by=doctor.id,
+            order_type="lab",
+        ),
+    )
+
+    rows = await service.list_orders_for_encounter(db, e.id, e.facility_id)
+    hidden = await service.list_orders_for_encounter(db, e.id, uuid.uuid4())
+
+    assert [row.id for row in rows] == [order.id]
+    assert hidden == []
+
+
 async def test_create_order_encounter_not_found(db, seed):
     dept, room, doctor = seed
     with pytest.raises(service.EncounterNotFound):
         await service.create_order(
             db, OrderCreate(encounter_id=uuid.uuid4(), patient_id=uuid.uuid4(),
                              created_by=doctor.id, order_type="pharmacy"),
+        )
+
+
+async def test_create_order_rejects_patient_outside_the_encounter(db, encounter):
+    e, _patient, doctor = encounter
+
+    with pytest.raises(service.PatientMismatch):
+        await service.create_order(
+            db,
+            OrderCreate(
+                encounter_id=e.id,
+                patient_id=uuid.uuid4(),
+                created_by=doctor.id,
+                order_type="lab",
+            ),
         )
 
 

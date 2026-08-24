@@ -11,15 +11,17 @@ through a new entry, so the original and the correction are both visible.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status as http_status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.models import Admission, Ward
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
+from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.nursing import incidents, service
 from app.nursing.schemas import (
     FluidBalanceOut, IncidentOut, IncidentReport, IncidentReviewRequest,
@@ -142,6 +144,7 @@ async def create_vitals(
     payload: VitalsCreate,
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> VitalsOut:
     await _require_patient_scope(db, payload.patient_id, current_db_user.facility_id)
     if payload.admission_id is not None:
@@ -158,8 +161,29 @@ async def create_vitals(
             payload.patient_id,
             current_db_user.facility_id,
         )
+    endpoint = "POST /nursing/vitals"
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            endpoint,
+            hash_request_body(payload),
+            current_db_user.id,
+        )
+        if cached is not None:
+            return VitalsOut.model_validate(cached.response_body)
     vitals = await service.record_vitals(db, payload, recorded_by=current_db_user.id)
-    return VitalsOut.model_validate(vitals)
+    response = VitalsOut.model_validate(vitals)
+    if idempotency_key:
+        await record_idempotent_response(
+            db,
+            idempotency_key,
+            endpoint,
+            http_status.HTTP_201_CREATED,
+            response.model_dump(mode="json"),
+            current_db_user.id,
+        )
+    return response
 
 
 @router.get(

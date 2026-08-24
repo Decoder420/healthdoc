@@ -29,6 +29,11 @@ class EncounterNotFound(Exception):
         self.encounter_id = encounter_id
 
 
+class PatientMismatch(Exception):
+    def __init__(self, expected_patient_id: UUID):
+        self.expected_patient_id = expected_patient_id
+
+
 async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
     """facility_timezone is no longer a caller-supplied parameter (see
     #362): it was previously resolved from current_db_user.facility_id
@@ -43,6 +48,12 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
     if encounter is None:
         raise EncounterNotFound(payload.encounter_id)
 
+    visit = await db.get(Visit, encounter.visit_id)
+    if visit is None:
+        raise EncounterNotFound(payload.encounter_id)
+    if visit.patient_id != payload.patient_id:
+        raise PatientMismatch(visit.patient_id)
+
     facility = await db.get(Facility, encounter.facility_id)
     business_date = _business_date(facility.timezone)
     seq = await order_number.next_order_sequence(db, encounter.facility_id, business_date)
@@ -54,7 +65,7 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
         order_number=order_number.format_order_number(facility.code, business_date, seq),
         encounter_id=payload.encounter_id,
         facility_id=encounter.facility_id,
-        patient_id=payload.patient_id,
+        patient_id=visit.patient_id,
         order_type=payload.order_type,
         priority=payload.priority,
         status="placed",
@@ -69,6 +80,17 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
 async def get_order(db: AsyncSession, order_id: UUID) -> Order | None:
     result = await db.execute(select(Order).where(Order.id == order_id))
     return result.scalar_one_or_none()
+
+
+async def list_orders_for_encounter(
+    db: AsyncSession, encounter_id: UUID, facility_id: UUID
+) -> list[Order]:
+    result = await db.execute(
+        select(Order)
+        .where(Order.encounter_id == encounter_id, Order.facility_id == facility_id)
+        .order_by(Order.ordered_at.desc(), Order.created_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def create_prescription(

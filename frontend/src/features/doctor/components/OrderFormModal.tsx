@@ -7,51 +7,40 @@ import TextField from "@mui/material/TextField";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { SearchAutocomplete } from "@/components/ui/SearchAutocomplete";
-import { suggestOrderNames } from "../api";
 import {
   MODALITY_OPTIONS,
   ORDER_PRIORITY_OPTIONS,
   ORDER_TYPE_OPTIONS,
-  PROCEDURE_SETTING_OPTIONS,
   SAMPLE_TYPE_OPTIONS,
 } from "../constants";
 import { doctorButtonSx } from "../panelSx";
-import type { DraftOrder, Modality, OrderPriority, OrderType, ProcedureSetting, SampleType } from "../types";
+import type { DraftOrder, Modality, OrderPriority, OrderType, SampleType } from "../types";
 
 export interface OrderFormModalProps {
   open: boolean;
   busy: boolean;
   onClose: () => void;
-  onAdd: (draft: Omit<DraftOrder, "tempId">) => Promise<boolean> | boolean;
+  onAdd: (
+    draft: Omit<DraftOrder, "tempId">,
+    idempotencyKey: string,
+  ) => Promise<boolean> | boolean;
 }
 
 export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalProps) {
   const [orderType, setOrderType] = React.useState<OrderType>("lab");
-  const [item, setItem] = React.useState<string | null>(null);
+  const [item, setItem] = React.useState("");
   const [priority, setPriority] = React.useState<OrderPriority>("routine");
-  const [catalog, setCatalog] = React.useState<string[]>([]);
-  // Required on the department detail rows, so the form must ask for them.
   const [sampleType, setSampleType] = React.useState<SampleType>("blood");
   const [modality, setModality] = React.useState<Modality>("xray");
-  const [setting, setSetting] = React.useState<ProcedureSetting>("opd_minor");
-
-  // Load the catalogue for the selected order type.
-  React.useEffect(() => {
-    let live = true;
-    void suggestOrderNames(orderType, "").then((r: string[]) => live && setCatalog(r));
-    return () => {
-      live = false;
-    };
-  }, [orderType]);
+  const [idempotencyKey, setIdempotencyKey] = React.useState(() => crypto.randomUUID());
 
   const reset = () => {
     setOrderType("lab");
-    setItem(null);
+    setItem("");
     setPriority("routine");
     setSampleType("blood");
     setModality("xray");
-    setSetting("opd_minor");
+    setIdempotencyKey(crypto.randomUUID());
   };
 
   const close = () => {
@@ -60,16 +49,18 @@ export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalPro
   };
 
   const handleAdd = async () => {
-    if (!item) return;
-    const ok = await onAdd({
-      order_type: orderType,
-      priority,
-      ...(orderType === "lab"
-        ? { test_name: item, sample_type: sampleType }
-        : orderType === "radiology"
-          ? { scan_type: item, modality }
-          : { procedure_name: item, setting }),
-    });
+    const label = item.trim();
+    if (!label) return;
+    const ok = await onAdd(
+      {
+        order_type: orderType,
+        priority,
+        ...(orderType === "lab"
+          ? { test_name: label, sample_type: sampleType }
+          : { scan_type: label, modality }),
+      },
+      idempotencyKey,
+    );
     if (ok) close();
   };
 
@@ -84,7 +75,12 @@ export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalPro
           <Button sx={doctorButtonSx} onClick={close}>
             Cancel
           </Button>
-          <Button variant="contained" sx={doctorButtonSx} onClick={handleAdd} disabled={!item}>
+          <Button
+            variant="contained"
+            sx={doctorButtonSx}
+            onClick={handleAdd}
+            disabled={!item.trim()}
+          >
             Add order
           </Button>
         </>
@@ -95,62 +91,42 @@ export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalPro
           select
           label="Order type"
           value={orderType}
-          onChange={(e) => {
-            setOrderType(e.target.value as OrderType);
-            setItem(null);
+          onChange={(event) => {
+            setOrderType(event.target.value as OrderType);
+            setItem("");
           }}
           size="small"
         >
-          {ORDER_TYPE_OPTIONS.map((o) => (
-            <MenuItem key={o.value} value={o.value}>
-              {o.label}
+          {ORDER_TYPE_OPTIONS.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
             </MenuItem>
           ))}
         </TextField>
 
-        <SearchAutocomplete<string>
-          label={`Search ${orderType} catalogue`}
-          options={catalog}
+        <TextField
+          label={orderType === "lab" ? "Test name" : "Study name"}
           value={item}
-          onChange={setItem}
-          onInputChange={(q) => {
-            void suggestOrderNames(orderType, q).then(setCatalog);
-          }}
-          getOptionLabel={(o) => o}
-          isOptionEqualToValue={(a, b) => a === b}
+          onChange={(event) => setItem(event.target.value)}
+          helperText="Enter the department's clinical order text"
+          size="small"
+          autoFocus
         />
 
         <TextField
           select
-          label={
-            orderType === "lab"
-              ? "Sample type"
-              : orderType === "radiology"
-                ? "Modality"
-                : "Setting"
-          }
-          value={orderType === "lab" ? sampleType : orderType === "radiology" ? modality : setting}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (orderType === "lab") setSampleType(v as SampleType);
-            else if (orderType === "radiology") setModality(v as Modality);
-            else setSetting(v as ProcedureSetting);
+          label={orderType === "lab" ? "Sample type" : "Modality"}
+          value={orderType === "lab" ? sampleType : modality}
+          onChange={(event) => {
+            if (orderType === "lab") setSampleType(event.target.value as SampleType);
+            else setModality(event.target.value as Modality);
           }}
           size="small"
-          helperText={
-            orderType === "procedure"
-              ? "Where the procedure is done"
-              : "Required on the department order row"
-          }
+          helperText="Required on the department order row"
         >
-          {(orderType === "lab"
-            ? SAMPLE_TYPE_OPTIONS
-            : orderType === "radiology"
-              ? MODALITY_OPTIONS
-              : PROCEDURE_SETTING_OPTIONS
-          ).map((o) => (
-            <MenuItem key={o.value} value={o.value}>
-              {o.label}
+          {(orderType === "lab" ? SAMPLE_TYPE_OPTIONS : MODALITY_OPTIONS).map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
             </MenuItem>
           ))}
         </TextField>
@@ -159,12 +135,12 @@ export function OrderFormModal({ open, busy, onClose, onAdd }: OrderFormModalPro
           select
           label="Priority"
           value={priority}
-          onChange={(e) => setPriority(e.target.value as OrderPriority)}
+          onChange={(event) => setPriority(event.target.value as OrderPriority)}
           size="small"
         >
-          {ORDER_PRIORITY_OPTIONS.map((o) => (
-            <MenuItem key={o.value} value={o.value}>
-              {o.label}
+          {ORDER_PRIORITY_OPTIONS.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
             </MenuItem>
           ))}
         </TextField>
