@@ -33,7 +33,7 @@ routine branch synchronization.
 
 | Gate | Result |
 |---|---|
-| Backend suite against PostgreSQL | **555 passed** in 22.52s |
+| Backend suite against PostgreSQL | **700 passed** in 30.18s (was 555) |
 | New Lab/Billing/Pharmacy HTTP journeys | **3 passed** |
 | Nurse Keycloak browser gate | **PASS** |
 | PR #408 GitHub CI | **PASS** — backend, frontend and nurse-auth E2E |
@@ -44,11 +44,38 @@ routine branch synchronization.
 | Frontend convention check | **0 blockers**, 2 timezone-display warnings |
 | Next.js production build | **PASS**, 35 routes generated |
 | Dependency audit | **0 known vulnerabilities** |
-| Frontend/backend contract | **17/17 valid** |
+| Frontend/backend contract | **103/103 valid** (was 17/17) |
+| Frontend fixture importers | **5 remaining** (was 27) |
 | Migration chain | **53 linear migrations**, head `0046`, downgrades present |
 | Spec checker | **96 tables / 67 enums consistent** |
 | Schema drift | **0 blockers**, 57 documentation warnings |
 | Synthetic main migration and restore | **PASS**, 0002 → 0046 |
+
+### Defects found by retiring the fixtures (P1.1)
+
+Wiring 22 mock modules to real endpoints was expected to be plumbing. It found
+fourteen product gaps and four production defects, because **a fixture is a
+specification of unbuilt backend until proved otherwise** — eight of the
+modules were hiding missing product, not missing wiring.
+
+| Defect | Consequence if released |
+|---|---|
+| `order_number` collision | Every facility after the first fails to place orders, daily |
+| `POST /orders` took `created_by` from the body | Any caller could attribute an order to another clinician |
+| `POST /encounters` took authorship, attending **and facility** from the body | An encounter could be written into another hospital's records; a note could name a doctor who never saw the patient |
+| Radiology had no `schedule` step | The entire radiology workflow stopped at step one — a placed scan could never be completed |
+| Refunds were write-only | A reversed payment displayed as unreversed; the balance disagreed with the patient's receipt |
+
+The last three share a shape worth naming for future review: in each case a
+**correct sibling sat beside the broken one** — `create_review` beside
+`create_encounter`, billing's issue-then-freeze beside radiology's missing
+schedule. Reading either alone looks fine. Four of this release's defects were
+found by comparing siblings rather than by reading code in isolation.
+
+`POST /encounters` also shows the limit of the P0.4 audit: that pass routed
+every **read** through a facility-scoped helper, but a create has no row yet to
+scope — it reaches facility through a join, and that path was missed. Every
+P0.4 finding was a read leak; this one was a write.
 
 The runtime test discovered and fixed two issues that static checks could not:
 macOS native packages were being copied into the Linux frontend container, and
