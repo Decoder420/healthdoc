@@ -15,6 +15,16 @@ from app.common.enums import DispenseStatus, NotificationStatus
 from app.common.redis import publish_event, stock_alert_channel
 from app.pharmacy.interactions import DrugInteractionConflict, check_against_existing
 from app.pharmacy.schemas import (
+    GrnListItem,
+    GrnListOut,
+    IndentListItem,
+    IndentListOut,
+    AdjustmentListItem,
+    AdjustmentListOut,
+    SupplierOut,
+    SupplierListOut,
+    StockLocationOut,
+    StockLocationListOut,
     AdjustmentApprovalRequest,
     AdjustmentCreate,
     AdjustmentOut,
@@ -1943,3 +1953,147 @@ async def get_expiry_tracker(
             for r in rows
         ],
     )
+
+
+async def list_suppliers(
+    db: AsyncSession, *, facility_id: UUID, include_inactive: bool = False
+) -> SupplierListOut:
+    """Suppliers for one facility, name-ordered.
+
+    Ordered by name rather than created_at: this feeds a picker, and a clerk
+    looking for "Cipla" scans alphabetically, not by when the account was set up.
+    """
+    sql = """
+        SELECT id, name, contact_info, is_active
+        FROM suppliers
+        WHERE facility_id = :facility_id
+    """
+    if not include_inactive:
+        sql += " AND is_active = true"
+    sql += " ORDER BY name"
+
+    rows = (await db.execute(text(sql), {"facility_id": str(facility_id)})).mappings().all()
+    return SupplierListOut(items=[SupplierOut(**dict(r)) for r in rows])
+
+
+async def list_stock_locations(db: AsyncSession, *, facility_id: UUID) -> StockLocationListOut:
+    """Stock locations for one facility.
+
+    No is_active column on this table, so nothing to filter — a location that
+    should no longer receive stock has to be handled by removing it, which is a
+    gap worth noting rather than papering over with a filter that has no column
+    behind it.
+    """
+    rows = (
+        await db.execute(
+            text("""
+                SELECT id, name, location_type, department_id
+                FROM stock_locations
+                WHERE facility_id = :facility_id
+                ORDER BY name
+            """),
+            {"facility_id": str(facility_id)},
+        )
+    ).mappings().all()
+    return StockLocationListOut(items=[StockLocationOut(**dict(r)) for r in rows])
+
+
+# -- Procurement read side ---------------------------------------------------
+
+async def list_grns(
+    db: AsyncSession, *, facility_id: UUID, status: str | None = None
+) -> GrnListOut:
+    """Goods receipts for this facility, newest first.
+
+    `grn.facility_id` is a real column, so this scopes directly. line_count is
+    aggregated rather than the lines being returned per row — a receiving list
+    is scanned, and the lines belong on the one GRN being opened.
+    """
+    rows = (
+        await db.execute(
+            text("""
+                SELECT g.id, g.supplier_id, s.name AS supplier_name,
+                       g.invoice_number, g.received_date, g.status,
+                       COUNT(gi.id) AS line_count, g.created_at, g.updated_at
+                FROM grn g
+                JOIN suppliers s ON s.id = g.supplier_id
+                LEFT JOIN grn_items gi ON gi.grn_id = g.id
+                WHERE g.facility_id = :facility_id
+                  AND (:status IS NULL OR g.status = :status)
+                GROUP BY g.id, s.name
+                ORDER BY g.received_date DESC, g.created_at DESC
+                LIMIT 200
+            """),
+            {"facility_id": str(facility_id), "status": status},
+        )
+    ).mappings().all()
+    return GrnListOut(items=[GrnListItem(**dict(r)) for r in rows])
+
+
+async def list_indents(
+    db: AsyncSession, *, facility_id: UUID, status: str | None = None
+) -> IndentListOut:
+    """Department indents for this facility.
+
+    The approver's worklist. Without it an HOD had no way to reach a pending
+    indent at all — the approve endpoint existed and nothing could find its id.
+    """
+    rows = (
+        await db.execute(
+            text("""
+                SELECT i.id, i.department_id, d.name AS department_name,
+                       i.status, i.approved_by, u.full_name AS approved_by_name,
+                       COUNT(ii.id) AS line_count, i.created_at
+                FROM indents i
+                JOIN departments d ON d.id = i.department_id
+                LEFT JOIN users u ON u.id = i.approved_by
+                LEFT JOIN indent_items ii ON ii.indent_id = i.id
+                WHERE i.facility_id = :facility_id
+                  AND (:status IS NULL OR i.status = :status)
+                GROUP BY i.id, d.name, u.full_name
+                ORDER BY i.created_at DESC
+                LIMIT 200
+            """),
+            {"facility_id": str(facility_id), "status": status},
+        )
+    ).mappings().all()
+    return IndentListOut(items=[IndentListItem(**dict(r)) for r in rows])
+
+
+async def list_adjustments(
+    db: AsyncSession, *, facility_id: UUID, status: str | None = None
+) -> AdjustmentListOut:
+    """Stock adjustments awaiting or carrying signatures.
+
+    Every name is joined server-side. A second approver is being asked to
+    certify that a discrepancy is real, and "adjust -40 of 3f2a…" is not
+    something anyone can meaningfully certify. quantity_on_hand comes along for
+    the same reason: writing off 40 units from a batch of 45 is a different
+    claim from writing off 40 from a batch of 4,000.
+    """
+    rows = (
+        await db.execute(
+            text("""
+                SELECT a.id, a.item_id, ii.name AS item_name,
+                       a.batch_id, ib.batch_number, ib.expiry_date,
+                       a.quantity_change, ib.quantity AS quantity_on_hand,
+                       a.reason, a.status,
+                       a.created_by, cu.full_name AS created_by_name,
+                       a.first_approver_id, f.full_name AS first_approver_name,
+                       a.second_approver_id, sa.full_name AS second_approver_name,
+                       a.created_at
+                FROM adjustments a
+                JOIN inventory_items ii ON ii.id = a.item_id
+                JOIN inventory_batches ib ON ib.id = a.batch_id
+                JOIN users cu ON cu.id = a.created_by
+                JOIN users f ON f.id = a.first_approver_id
+                LEFT JOIN users sa ON sa.id = a.second_approver_id
+                WHERE a.facility_id = :facility_id
+                  AND (:status IS NULL OR a.status = :status)
+                ORDER BY a.created_at DESC
+                LIMIT 200
+            """),
+            {"facility_id": str(facility_id), "status": status},
+        )
+    ).mappings().all()
+    return AdjustmentListOut(items=[AdjustmentListItem(**dict(r)) for r in rows])
