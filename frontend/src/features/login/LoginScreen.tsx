@@ -53,6 +53,7 @@ export function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const devAuth = isDevAuthEnabled();
+  const sessionExpired = searchParams.get("reason") === "session-expired";
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && user?.role) {
@@ -105,6 +106,11 @@ export function LoginScreen() {
       </p>
 
       <div className="mt-6 space-y-4">
+        {sessionExpired && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+            Your session expired. Sign in again to continue; unsaved clinical work was not stored in the browser.
+          </p>
+        )}
         {!devAuth && (
           <>
             <Button
