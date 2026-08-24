@@ -10,6 +10,7 @@ const baseUrl = process.env.E2E_BASE_URL ?? "https://localhost";
 const artifactDir = process.env.E2E_ARTIFACT_DIR ?? "/tmp/healthdoc-e2e";
 const requestedRole = process.env.E2E_ROLE;
 const tokenHeaderFile = process.env.E2E_TOKEN_HEADER_FILE;
+const tokenBundleFile = process.env.E2E_TOKEN_BUNDLE_FILE;
 const executablePath =
   process.env.PUPPETEER_EXECUTABLE_PATH ??
   [
@@ -117,8 +118,8 @@ const selectedRoles = requestedRole
 if (selectedRoles.length === 0) {
   throw new Error(`Unknown E2E_ROLE ${JSON.stringify(requestedRole)}`);
 }
-if (tokenHeaderFile && selectedRoles.length !== 1) {
-  throw new Error("E2E_TOKEN_HEADER_FILE requires E2E_ROLE to select exactly one role");
+if ((tokenHeaderFile || tokenBundleFile) && selectedRoles.length !== 1) {
+  throw new Error("token capture requires E2E_ROLE to select exactly one role");
 }
 
 async function exerciseRole(browser, role) {
@@ -126,6 +127,7 @@ async function exerciseRole(browser, role) {
   const page = await context.newPage();
   let apiObservation = null;
   let resolvePendingApi = null;
+  let tokenBundle = null;
 
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") {
@@ -143,6 +145,18 @@ async function exerciseRole(browser, role) {
   page.on("response", (response) => {
     const request = response.request();
     const url = new URL(response.url());
+    if (
+      tokenBundleFile &&
+      request.method() === "POST" &&
+      url.pathname.endsWith("/protocol/openid-connect/token")
+    ) {
+      void response
+        .json()
+        .then((body) => {
+          if (body.access_token && body.refresh_token) tokenBundle = body;
+        })
+        .catch(() => undefined);
+    }
     if (request.method() === role.api.method && url.pathname === role.api.path) {
       apiObservation = {
         authorization: request.headers().authorization ?? null,
@@ -258,6 +272,23 @@ async function exerciseRole(browser, role) {
         mode: 0o600,
       });
       await chmod(tokenHeaderFile, 0o600);
+    }
+    if (tokenBundleFile) {
+      if (!tokenBundle) throw new Error("Keycloak token response was not captured");
+      await mkdir(path.dirname(tokenBundleFile), { recursive: true });
+      await writeFile(
+        tokenBundleFile,
+        `${JSON.stringify({
+          access_token: tokenBundle.access_token,
+          refresh_token: tokenBundle.refresh_token,
+          expires_in: tokenBundle.expires_in,
+          refresh_expires_in: tokenBundle.refresh_expires_in,
+          token_type: tokenBundle.token_type,
+          obtained_at: Math.floor(Date.now() / 1000),
+        })}\n`,
+        { mode: 0o600 },
+      );
+      await chmod(tokenBundleFile, 0o600);
     }
 
     console.log(

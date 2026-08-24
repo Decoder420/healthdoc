@@ -1,16 +1,49 @@
 {
-  "_comment": "Real routes confirmed from /api/v1/openapi.json on 2026-08-20. No 'auth' block: Keycloak's healthdoc-frontend client has directAccessGrantsEnabled=false and healthdoc-backend is bearerOnly, so this script cannot authenticate as-is without editing realm-healthdoc.json, which is out of scope here. Scenarios below are limited to unauthenticated /ping and /health endpoints as a result — this proves the server survives 50 concurrent connections, not that the 5 clinical journeys hold up under load. Note that gap explicitly in the PR.",
-  "base_url": "http://localhost:8000",
-  "scenarios": [
-    { "name": "health",              "method": "GET", "path": "/api/v1/health", "weight": 4 },
-    { "name": "health_deep",         "method": "GET", "path": "/api/v1/health/deep", "weight": 2 },
-    { "name": "patients_ping",       "method": "GET", "path": "/api/v1/patients/ping", "weight": 3 },
-    { "name": "orders_ping",         "method": "GET", "path": "/api/v1/admissions/ping", "weight": 2 },
-    { "name": "pharmacy_ping",       "method": "GET", "path": "/api/v1/pharmacy/ping", "weight": 2 },
-    { "name": "billing_ping",        "method": "GET", "path": "/api/v1/billing/ping", "weight": 2 },
-    { "name": "pathology_ping",      "method": "GET", "path": "/api/v1/pathology/ping", "weight": 2 },
-    { "name": "radiology_ping",      "method": "GET", "path": "/api/v1/radiology/ping", "weight": 2 },
-    { "name": "consent_ping",        "method": "GET", "path": "/api/v1/consent/ping", "weight": 1 },
-    { "name": "notifications_ping",  "method": "GET", "path": "/api/v1/notifications/ping", "weight": 1 }
+  "_comment": "Five read-only clinical journeys using short-lived bearer tokens captured by capture_load_tokens.sh. Ten users per journey gives 50 concurrent authenticated users. The default two-second average think time keeps the workload below the intentional 30 request/second per-source-IP Nginx safety limit.",
+  "base_url": "https://localhost",
+  "verify_tls": false,
+  "token_path": "/keycloak/realms/healthdoc/protocol/openid-connect/token",
+  "client_id": "healthdoc-frontend",
+  "actors": [
+    {
+      "name": "opd-doctor",
+      "users": 10,
+      "token_file": "doctor.json",
+      "scenarios": [
+        { "name": "worklist", "method": "GET", "path": "/api/v1/queue/worklist" }
+      ]
+    },
+    {
+      "name": "ipd-nurse",
+      "users": 10,
+      "token_file": "nurse.json",
+      "scenarios": [
+        { "name": "tasks", "method": "GET", "path": "/api/v1/nursing/tasks" }
+      ]
+    },
+    {
+      "name": "lab",
+      "users": 10,
+      "token_file": "lab-technician.json",
+      "scenarios": [
+        { "name": "order-items", "method": "GET", "path": "/api/v1/pathology/order-items" }
+      ]
+    },
+    {
+      "name": "pharmacy",
+      "users": 10,
+      "token_file": "pharmacist.json",
+      "scenarios": [
+        { "name": "queue", "method": "GET", "path": "/api/v1/pharmacy/queue" }
+      ]
+    },
+    {
+      "name": "billing",
+      "users": 10,
+      "token_file": "billing-receptionist.json",
+      "scenarios": [
+        { "name": "invoices", "method": "GET", "path": "/api/v1/billing/invoices" }
+      ]
+    }
   ]
 }
