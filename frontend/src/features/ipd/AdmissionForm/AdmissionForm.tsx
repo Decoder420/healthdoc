@@ -69,14 +69,6 @@ export default function AdmissionForm({
             error={errors.visit_id}
           />
 
-          {/* NOTE: same as above — should become a patient-picker once
-              available; kept as a free-text UUID input for now. */}
-          <TextField
-            label="Patient ID"
-            placeholder="Patient UUID"
-            registration={register("patient_id")}
-            error={errors.patient_id}
-          />
 
           <SelectField
             label="Ward"

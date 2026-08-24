@@ -1,6 +1,5 @@
 ﻿"use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import WardSelector, {
   WARDS,
@@ -64,6 +63,11 @@ import { Bed } from "@/components/BedGrid/BedGrid.types";
 import { Patient } from "@/features/nurse/components/PatientDetails/PatientDetails.types";
 import { GENERAL_WARD_ID, NURSE_ANITA_ID } from "@/lib/data/mockIds";
 
+
+
+// NEW: incident report form
+import IncidentReportForm from "@/features/nurse/components/IncidentReportForm";
+
 export default function Page() {
   const [selectedWard, setSelectedWard] = useState(GENERAL_WARD_ID);
   const [selectedBed, setSelectedBed] = useState<Bed | null>(null);
@@ -73,10 +77,6 @@ export default function Page() {
     null
   );
 
-  // procedure_records is keyed by encounter_id + patient_id, not admission_id —
-  // a separate mock lookup from admissionsByBedId. medications (prescription_items)
-  // follow the same pattern: they only link to a patient through
-  // prescriptions.patient_id, not admission_id.
   const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(
     null
   );
@@ -95,27 +95,22 @@ export default function Page() {
 
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
-  // Nursing Note ("note") and Incident Report ("incident") are intentionally
-  // blocked here rather than wired to a form — no published schema/backend
-  // contract exists for either yet (see docs). Medication administration
-  // ("medication") is blocked for the same reason: prescription_items.status
-  // is pharmacy dispense status, not nurse dose administration. "doctor" has
-  // no backing table/endpoint at all.
+  // Nursing Note ("note") is intentionally blocked here rather than wired to
+  // a form — no published clinical_notes API contract exists yet.
+  // "doctor" has no backing table/endpoint at all.
+  //
+  // Medication administration and incident reporting are now wired:
+  // - medication: EMARTable above calls POST /nursing/medication-administrations
+  // - incident: IncidentReportForm below calls POST /nursing/incidents
   const BLOCKED_ACTION_MESSAGES: Record<string, string> = {
-    medication:
-      "Nurse dose administration (given / held / refused) is blocked until a medication-administration schema and API exist. The table below is prescription / pharmacy dispense status only.",
     note:
       "Nursing notes are blocked until a published clinical_notes API contract exists. This action does not submit a note payload.",
-    incident:
-      "Incident reporting is blocked until a nursing incident schema and backend contract exist. DPDP breach / grievance tables must not be reused for this.",
     doctor:
       "\"Call Doctor\" isn't wired to any backend feature yet — no table/endpoint exists for this in the schema doc.",
   };
 
   const handleWardChange = (wardId: string) => {
     setSelectedWard(wardId);
-    // Changing ward should clear the previously selected bed/patient —
-    // otherwise stale records from the old ward's bed keep showing.
     setSelectedBed(null);
     setSelectedPatient(null);
     setSelectedAdmissionId(null);
@@ -125,15 +120,21 @@ export default function Page() {
 
   const filteredBeds = beds.filter((bed) => bed.ward_id === selectedWard);
 
-  // "Critical Patients" removed — no criticality concept exists anywhere in
-  // the schema (patients/vitals/admissions have no such flag). Occupied/
-  // Available are scoped to the selected ward (same beds as the Ward
-  // Overview grid below); Discharges Today is hospital-wide, computed the
-  // same way as the IPD dashboard KPI.
+  // const today = new Date().toDateString();
+  // const dischargesTodayCount = MOCK_DISCHARGES.filter(
+  //   (d) => new Date(d.discharged_at).toDateString() === today
+  // ).length;
+
+  const [dischargesTodayCount, setDischargesTodayCount] = useState(0);
+
+useEffect(() => {
   const today = new Date().toDateString();
-  const dischargesTodayCount = MOCK_DISCHARGES.filter(
+  const count = MOCK_DISCHARGES.filter(
     (d) => new Date(d.discharged_at).toDateString() === today
   ).length;
+  setDischargesTodayCount(count);
+}, []);
+
 
   const wardStats: WardStat[] = [
     {
@@ -170,8 +171,6 @@ export default function Page() {
     setSelectedPatientId(procedureContext?.patientId ?? null);
   };
 
-  // Local mock preview only — not a schema-backed nurse completion record.
-  // Only placed -> completed; no invented timestamp is stored on the order.
   const handleCheckOff = (orderId: string) => {
     setOrders((prev) =>
       prev.map((o) =>
@@ -182,8 +181,16 @@ export default function Page() {
     );
   };
 
-  // Vitals — schema has admission_id directly, so filter the same way as
-  // IntakeOutput/HandoverNotes/PatientMovement.
+  const handleAccept = (orderId: string) => {
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId && o.status === "placed"
+          ? { ...o, status: "accepted" }
+          : o
+      )
+    );
+  };
+
   const admissionVitals = selectedAdmissionId
     ? vitals.filter((v) => v.admission_id === selectedAdmissionId)
     : [];
@@ -204,27 +211,16 @@ export default function Page() {
       )
     : [];
 
-  // Filtered by patient_id — procedure_records does not have admission_id.
   const patientProcedureRecords = selectedPatientId
     ? procedureRecords.filter(
         (record) => record.patient_id === selectedPatientId
       )
     : [];
 
-  // eMAR rows are medication_administration (0043), scoped to the ADMISSION,
-  // matching GET /nursing/admissions/{admission_id}/medication-administrations.
-  //
-  // This previously filtered prescription_items by the patient's prescriptions
-  // and fed those to EMARTable. A prescription says what was ordered; an eMAR
-  // says what reached the patient. Showing the first in place of the second
-  // means the ward cannot tell whether the 14:00 dose was actually given.
   const patientMedications = selectedAdmissionId
     ? medications.filter((m) => m.admission_id === selectedAdmissionId)
     : [];
 
-  // admissions.status is a single column — no history/log table is
-  // confirmed in the schema, so this finds the one current status,
-  // not a list of past changes.
   const admissionStatusRecord = selectedAdmissionId
     ? ADMISSION_STATUS.find(
         (record) => record.admission_id === selectedAdmissionId
@@ -245,8 +241,6 @@ export default function Page() {
   ) => {
     const ok = await submitHandover(data);
 
-    // backend endpoint isn't confirmed yet — still show it locally regardless
-    // of submit success, same as other handlers in this file
     setHandoverNotes((prev) => [
       ...prev,
       { id: crypto.randomUUID(), ...data, created_at: new Date().toISOString() },
@@ -335,7 +329,7 @@ export default function Page() {
       {/* Ward Statistics */}
       <WardStats stats={wardStats} />
 
-      {/* Pending doctor orders — ward/shift-level local preview, not a nursing completion audit */}
+      {/* Pending doctor orders */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Pending doctor orders</h2>
@@ -345,7 +339,7 @@ export default function Page() {
           </p>
         </div>
 
-        <TaskQueue orders={orders} onCheckOff={handleCheckOff} />
+        <TaskQueue orders={orders} onCheckOff={handleCheckOff} onAccept={handleAccept} />
       </section>
 
       {/* Bed Grid */}
@@ -451,11 +445,9 @@ export default function Page() {
           wards={WARDS}
           beds={beds}
         />
-        {/* Use "Transfer" in Quick Actions below to record a new movement. */}
       </section>
 
-      {/* Procedure Assistance — keyed by encounter_id + patient_id, not
-          admission_id (see procedure_records schema). */}
+      {/* Procedure Assistance */}
       <section className="space-y-4">
         <ProcedureAssistance
           patientId={selectedPatientId}
@@ -488,8 +480,7 @@ export default function Page() {
         />
       </section>
 
-      {/* Prescription items linked via prescriptions.patient_id — pharmacy
-          dispense status, not nurse dose administration. */}
+      {/* Prescription / Dispense Status (eMAR) */}
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">
@@ -499,15 +490,18 @@ export default function Page() {
             Pharmacy prescription item status for the selected patient.
           </p>
         </div>
-
-        {!selectedPatientId ? (
+        {!selectedPatientId || !selectedAdmissionId ? (
           <div className="surface-card p-6">
             <p className="text-sm text-muted-foreground">
               Select a bed to view medications.
             </p>
           </div>
         ) : (
-          <EMARTable medications={patientMedications} />
+          <EMARTable
+            medications={patientMedications}
+            admissionId={selectedAdmissionId}
+            patientId={selectedPatientId}
+          />
         )}
       </section>
 
@@ -545,8 +539,6 @@ export default function Page() {
           />
         )}
 
-        {/* ward_id is attached client-side by flattenBedGrids, so it is
-            optional on Bed — normalise the undefined the API never sends. */}
         {activeAction === "transfer" && selectedAdmissionId && selectedBed && (
           <AddPatientMovementForm
             admissionId={selectedAdmissionId}
@@ -557,6 +549,16 @@ export default function Page() {
             movedBy={CURRENT_NURSE_ID}
             isSubmitting={isSubmittingPatientMovement}
             onSubmit={handleAddPatientMovement}
+          />
+        )}
+
+        {/* NEW: incident report form, wired to POST /nursing/incidents */}
+        {activeAction === "incident" && selectedAdmissionId && (
+          <IncidentReportForm
+            patientId={selectedPatientId ?? undefined}
+            admissionId={selectedAdmissionId}
+            wardId={selectedWard}
+            onSuccess={() => setActiveAction(null)}
           />
         )}
       </section>

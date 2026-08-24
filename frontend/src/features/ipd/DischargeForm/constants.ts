@@ -23,4 +23,6 @@ export const DEFAULT_VALUES = {
   discharge_type: "discharged" as const,
   discharge_summary: "",
   follow_up_date: "",
+  destination_facility_id: "",
+  destination_facility_name: "",
 };

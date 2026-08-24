@@ -17,12 +17,10 @@ export interface Order {
   priority: OrderPriority;
   status: OrderStatus;
   ordered_at: string;
-
-  // Joined display field — not a column on `orders` (comes from
-  // patients.full_name).
-  patient_name?: string | null;
 }
+
 export interface TaskQueueProps {
   orders: Order[];
   onCheckOff: (orderId: string) => void;
+  onAccept: (orderId: string) => void;
 }

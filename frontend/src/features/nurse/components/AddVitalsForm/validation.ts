@@ -8,48 +8,64 @@ export const addVitalsSchema = z
 
     measured_at: z.string().min(1),
 
-    height_cm: z.number().positive("Height must be greater than 0").optional(),
-    weight_kg: z.number().positive("Weight must be greater than 0").optional(),
-    waist_cm: z.number().positive().optional(),
-    hip_cm: z.number().positive().optional(),
+    height_cm: z
+      .number()
+      .positive("Height must be greater than 0")
+      .max(300, "Height cannot exceed 300 cm")
+      .optional(),
+    weight_kg: z
+      .number()
+      .positive("Weight must be greater than 0")
+      .max(700, "Weight cannot exceed 700 kg")
+      .optional(),
+    waist_cm: z
+      .number()
+      .min(0, "Waist must be at least 0 cm")
+      .max(300, "Waist cannot exceed 300 cm")
+      .optional(),
+    hip_cm: z
+      .number()
+      .min(0, "Hip must be at least 0 cm")
+      .max(300, "Hip cannot exceed 300 cm")
+      .optional(),
 
     temp_c: z
       .number()
-      .min(30, "Temperature must be at least 30°C")
+      .min(20, "Temperature must be at least 20°C")
       .max(45, "Temperature cannot exceed 45°C")
       .optional(),
 
     pulse_bpm: z
       .number()
       .int()
-      .min(30, "Pulse must be at least 30 bpm")
-      .max(220, "Pulse cannot exceed 220 bpm")
+      .min(0, "Pulse must be at least 0 bpm")
+      .max(350, "Pulse cannot exceed 350 bpm")
       .optional(),
 
     resp_rate: z
       .number()
       .int()
-      .min(5, "Respiratory rate must be at least 5")
-      .max(60, "Respiratory rate cannot exceed 60")
+      .min(0, "Respiratory rate must be at least 0")
+      .max(120, "Respiratory rate cannot exceed 120")
       .optional(),
 
     bp_systolic: z
       .number()
       .int()
-      .min(50, "Systolic BP must be at least 50")
-      .max(250, "Systolic BP cannot exceed 250")
+      .min(0, "Systolic BP must be at least 0")
+      .max(350, "Systolic BP cannot exceed 350")
       .optional(),
 
     bp_diastolic: z
       .number()
       .int()
-      .min(30, "Diastolic BP must be at least 30")
-      .max(150, "Diastolic BP cannot exceed 150")
+      .min(0, "Diastolic BP must be at least 0")
+      .max(250, "Diastolic BP cannot exceed 250")
       .optional(),
 
     spo2_pct: z
       .number()
-      .min(50, "SpO₂ must be at least 50%")
+      .min(0, "SpO₂ must be at least 0%")
       .max(100, "SpO₂ cannot exceed 100%")
       .optional(),
 
@@ -63,6 +79,16 @@ export const addVitalsSchema = z
   .refine((data) => !!data.encounter_id || !!data.admission_id, {
     message: "Vitals must be linked to either an encounter or an admission",
     path: ["admission_id"],
-  });
+  })
+  .refine(
+    (data) =>
+      data.bp_systolic == null ||
+      data.bp_diastolic == null ||
+      data.bp_diastolic < data.bp_systolic,
+    {
+      message: "Diastolic BP must be less than systolic BP",
+      path: ["bp_diastolic"],
+    }
+  );
 
 export type AddVitalsSchema = z.infer<typeof addVitalsSchema>;

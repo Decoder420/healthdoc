@@ -21,6 +21,7 @@ import type { TargetModule } from "@/features/ipd/DischargeForm/DischargeForm.ty
 
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
 import type { Bed } from "@/components/BedGrid/BedGrid.types";
+import { flattenBedGrids } from "@/components/BedGrid/BedGrid.types";
 
 // TEMPORARY — mock data for local testing while backend endpoints aren't
 // live yet. Adjust these import paths to wherever your mock files actually
@@ -64,15 +65,24 @@ export default function IpdPage() {
       return;
     }
 
-    const [wardsRes, bedsRes, admissionsRes, dischargesRes] = await Promise.all([
+    const [wardsRes, admissionsRes, dischargesRes] = await Promise.all([
       getWards(),
-      getBeds(),
       getActiveAdmissions(),
       getDischarges(),
     ]);
+
+    const wardsList = wardsRes as unknown as Ward[];
+
+    // getBeds() is per-ward — fetch beds for every ward, then flatten with
+    // the shared helper (also stamps each bed with its ward_id).
+    const bedGridResponses = await Promise.all(
+      wardsList.map((ward) => getBeds(ward.id))
+    );
+    const allBeds = flattenBedGrids(bedGridResponses);
+
     // adjust unwrapping (e.g. `.data`) to match your api() helper's actual return shape
-    setWards(wardsRes as unknown as Ward[]);
-    setBeds(bedsRes as unknown as Bed[]);
+    setWards(wardsList);
+    setBeds(allBeds);
     setAdmissions(admissionsRes as unknown as Admission[]);
     setDischarges(dischargesRes as unknown as Discharge[]);
   };

@@ -11,7 +11,7 @@ function isPending(status: Order["status"]): boolean {
   return status !== "completed" && status !== "cancelled";
 }
 
-export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
+export default function TaskQueue({ orders, onCheckOff, onAccept }: TaskQueueProps) {
   const pendingOrders = orders
     .filter((order) => isPending(order.status))
     .slice()
@@ -41,7 +41,6 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
           <thead className="bg-muted">
             <tr>
               <th className="px-4 py-3 text-left">Order #</th>
-              <th className="px-4 py-3 text-left">Patient</th>
               <th className="px-4 py-3 text-left">Type</th>
               <th className="px-4 py-3 text-left">Priority</th>
               <th className="px-4 py-3 text-left">Status</th>
@@ -54,7 +53,6 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
             {pendingOrders.map((order: Order) => (
               <tr key={order.id} className="border-b border-border last:border-none">
                 <td className="px-4 py-3 text-sm">{order.order_number}</td>
-                <td className="px-4 py-3 text-sm">{order.patient_name ?? "-"}</td>
                 <td className="px-4 py-3 text-sm capitalize">{order.order_type}</td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`rounded-full px-2 py-1 text-xs font-medium ${PRIORITY_STYLES[order.priority]}`}>
@@ -66,6 +64,13 @@ export default function TaskQueue({ orders, onCheckOff }: TaskQueueProps) {
                   {formatOrderedAt(order.ordered_at)}
                 </td>
                 <td className="px-4 py-3 text-sm">
+                  <button
+                    className="btn btn-sm btn-secondary mr-2"
+                    onClick={() => onAccept(order.id)}
+                    disabled={order.status !== "placed"}
+                  >
+                    Accept
+                  </button>
                   <button
                     className="btn btn-sm btn-primary"
                     onClick={() => onCheckOff(order.id)}

@@ -83,6 +83,22 @@ export interface ProcedureRecord {
   complications: string | null;
 }
 
+// Nurse task queue (#210) — mirrors backend OrderTaskOut.
+export interface OrderTaskOut {
+  id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  order_type: string;
+  priority: string;
+  status: string;
+  ordered_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  completion_note: string | null;
+}
+
 // clinical_notes → Mongo, keyed by encounter_id (per schema doc). URL not
 // documented — confirm with backend, same as the other unconfirmed
 // endpoints below.
@@ -137,5 +153,13 @@ export async function addNursingNote(data: AddNursingNoteSchema) {
   return api<NursingNote>("/nursing/notes", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+// Idempotent — re-accepting an already-accepted order keeps the first
+// acceptance (backend mirrors this; see nursing/router.py accept_task).
+export async function acceptNursingTask(orderId: string) {
+  return api<OrderTaskOut>(`/nursing/tasks/${orderId}/accept`, {
+    method: "POST",
   });
 }
