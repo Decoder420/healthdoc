@@ -363,3 +363,109 @@ class ExpiringBatch(BaseModel):
 class ExpiryTrackerResponse(BaseModel):
     items: list[ExpiringBatch]
     threshold_days: int
+
+
+# -- Master data the procurement screens need to exist at all ----------------
+#
+# suppliers and stock_locations have existed since migration 0012 with no
+# endpoint over either. A GRN carries a supplier_id and verification carries a
+# stock_location_id, so without these two reads the receiving screen has no
+# pickers and the workflow cannot be started from the UI at all.
+
+class SupplierOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    name: str
+    contact_info: str | None
+    is_active: bool
+
+
+class SupplierListOut(BaseModel):
+    items: list[SupplierOut]
+
+
+class StockLocationOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    name: str
+    location_type: str
+    department_id: UUID | None
+
+
+class StockLocationListOut(BaseModel):
+    items: list[StockLocationOut]
+
+
+# -- Procurement read side --------------------------------------------------
+#
+# GRN, indents and adjustments were WRITE-ONLY: each had a POST to create and a
+# POST to approve, and no GET anywhere. Every endpoint works perfectly in
+# isolation, which is why it survived review — but an HOD had no way to find an
+# indent to approve and a second pharmacist no way to find an adjustment to
+# sign. The approval workflow was unreachable without already knowing the UUID.
+#
+# The list rows carry display names rather than bare ids. A screen showing
+# "adjust 40 units of 3f2a…-…" is not reviewable, and a reviewer who cannot
+# read what they are signing is not a control.
+
+class GrnListItem(BaseModel):
+    id: UUID
+    supplier_id: UUID
+    supplier_name: str
+    invoice_number: str | None
+    received_date: date
+    status: str
+    line_count: int
+    created_at: datetime
+    #: There is no verified_at column — verification is visible only as
+    #: status='verified'. Worth knowing when reading this screen: the GRN does
+    #: not record WHEN stock was posted, only that it was. The stock_ledger
+    #: rows carry the timestamp, so that is where a reconciliation has to look.
+    updated_at: datetime
+
+
+class GrnListOut(BaseModel):
+    items: list[GrnListItem]
+
+
+class IndentListItem(BaseModel):
+    id: UUID
+    department_id: UUID
+    department_name: str
+    status: str
+    approved_by: UUID | None
+    approved_by_name: str | None
+    line_count: int
+    created_at: datetime
+
+
+class IndentListOut(BaseModel):
+    items: list[IndentListItem]
+
+
+class AdjustmentListItem(BaseModel):
+    id: UUID
+    item_id: UUID
+    item_name: str
+    batch_id: UUID
+    batch_number: str
+    expiry_date: date
+    #: Signed. Negative is a write-down, which is the direction that conceals loss.
+    quantity_change: Decimal
+    #: What the batch holds now, so a reviewer can see whether the result is sane.
+    quantity_on_hand: Decimal
+    reason: str
+    status: str
+    created_by: UUID
+    created_by_name: str
+    first_approver_id: UUID
+    first_approver_name: str
+    second_approver_id: UUID | None
+    second_approver_name: str | None
+    created_at: datetime
+
+
+class AdjustmentListOut(BaseModel):
+    items: list[AdjustmentListItem]

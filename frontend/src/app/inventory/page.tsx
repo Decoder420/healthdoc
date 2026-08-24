@@ -4,11 +4,23 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ModuleCapabilityGate } from "@/components/common/ModuleCapabilityGate";
 import { ExpiryTracker } from "@/features/pharmacy/ExpiryTracker";
+import { AdjustmentWorkspace } from "@/features/inventory/AdjustmentWorkspace";
+import { GrnWorkspace } from "@/features/inventory/GrnWorkspace";
+import { IndentWorkspace } from "@/features/inventory/IndentWorkspace";
 import { listReorderAlerts } from "@/features/pharmacy/api";
 import type { ReorderAlertItem } from "@/features/pharmacy/types";
 import { ApiError } from "@/lib/api";
 
+type StockTab = "grn" | "indents" | "adjustments";
+
+const STOCK_TABS: Array<{ id: StockTab; label: string }> = [
+  { id: "grn", label: "Goods receipt" },
+  { id: "indents", label: "Indents" },
+  { id: "adjustments", label: "Adjustments" },
+];
+
 function Inventory() {
+  const [tab, setTab] = useState<StockTab>("grn");
   const [alerts, setAlerts] = useState<ReorderAlertItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,13 +100,44 @@ function Inventory() {
         <ExpiryTracker />
       </section>
 
-      <section className="surface-card border border-warning p-5 text-sm">
-        <h2 className="font-semibold">Receiving, indents and adjustments</h2>
-        <p className="mt-2 text-muted-foreground">
-          Mutations exist, but the backend publishes no supplier, stock-location, GRN, indent or
-          adjustment list contracts. Those actions stay off this screen so operators are not asked
-          to paste internal UUIDs or act without a review queue.
-        </p>
+      {/*
+        This was a warning panel explaining why receiving, indents and
+        adjustments were absent: the mutations existed, but no supplier,
+        stock-location, GRN, indent or adjustment LIST contract did, so the
+        screen would have had to ask operators to paste UUIDs and would have
+        given approvers no queue to work from. That diagnosis was exactly
+        right. Those six reads now exist, so the panel is replaced by the
+        workflows it was standing in for.
+      */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Stock movement</h2>
+          <p className="text-sm text-muted-foreground">
+            Receiving, department indents and adjustments. Every step here is
+            reviewed by someone other than the person who started it.
+          </p>
+        </div>
+
+        <div className="flex gap-1 border-b border-border">
+          {STOCK_TABS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setTab(entry.id)}
+              className={`px-4 py-2 text-sm ${
+                tab === entry.id
+                  ? "border-b-2 border-blue-700 font-medium text-blue-700"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "grn" ? <GrnWorkspace /> : null}
+        {tab === "indents" ? <IndentWorkspace /> : null}
+        {tab === "adjustments" ? <AdjustmentWorkspace /> : null}
       </section>
     </div>
   );

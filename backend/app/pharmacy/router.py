@@ -12,6 +12,11 @@ from app.common.idempotency import check_idempotency, hash_request_body, record_
 from app.common.modules import require_module
 from app.common.redis import stock_alert_channel, subscribe
 from app.pharmacy.schemas import (
+    GrnListOut,
+    IndentListOut,
+    AdjustmentListOut,
+    SupplierListOut,
+    StockLocationListOut,
     DispenseCreate,
     DispenseItemOut,
     DispenseOut,
@@ -33,6 +38,11 @@ from app.pharmacy.schemas import (
     AdjustmentApprovalRequest,
 )
 from app.pharmacy.service import (
+    list_grns,
+    list_indents,
+    list_adjustments,
+    list_suppliers,
+    list_stock_locations,
     approve_substitution,
     create_dispense,
     get_pharmacy_mis_report,
@@ -503,3 +513,110 @@ async def approve_adjustment_endpoint(
         db, idempotency_key, _APPROVE_ADJUSTMENT_ENDPOINT, 200, response_body, current_user.id
     )
     return result
+
+
+@router.get(
+    "/suppliers",
+    response_model=SupplierListOut,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin")),
+    ],
+)
+async def list_suppliers_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+    include_inactive: bool = Query(
+        False,
+        description=(
+            "Inactive suppliers are excluded by default. They are kept rather than "
+            "deleted so historical GRNs still resolve a name, but offering them in a "
+            "picker would let a clerk receive new stock against a supplier the "
+            "hospital has stopped buying from."
+        ),
+    ),
+) -> SupplierListOut:
+    """Suppliers for this facility.
+
+    `suppliers.facility_id` is a real column, so this scopes directly rather
+    than through a join.
+    """
+    return await list_suppliers(
+        db, facility_id=current_user.facility_id, include_inactive=include_inactive
+    )
+
+
+@router.get(
+    "/stock-locations",
+    response_model=StockLocationListOut,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin", "hod")),
+    ],
+)
+async def list_stock_locations_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+) -> StockLocationListOut:
+    """Where stock can physically sit in this facility.
+
+    Verifying a GRN posts every line into one of these, and that choice decides
+    which store the quantity becomes available from — `verify_grn` already 404s
+    a location belonging to another facility.
+    """
+    return await list_stock_locations(db, facility_id=current_user.facility_id)
+
+
+@router.get(
+    "/grn",
+    response_model=GrnListOut,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin")),
+    ],
+)
+async def list_grns_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+    status: str | None = Query(None, description="draft | received | verified | cancelled"),
+) -> GrnListOut:
+    """Goods receipts. Facility-scoped from the token."""
+    return await list_grns(db, facility_id=current_user.facility_id, status=status)
+
+
+@router.get(
+    "/indents",
+    response_model=IndentListOut,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin", "hod", "nurse", "doctor")),
+    ],
+)
+async def list_indents_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+    status: str | None = Query(None, description="requested | approved | rejected | issued"),
+) -> IndentListOut:
+    """Indents for this facility.
+
+    Same role set as creating one — ward staff who raise indents need to see
+    what happened to them, and an HOD cannot approve what they cannot find.
+    """
+    return await list_indents(db, facility_id=current_user.facility_id, status=status)
+
+
+@router.get(
+    "/adjustments",
+    response_model=AdjustmentListOut,
+    dependencies=[
+        Depends(require_module("pharmacy")),
+        Depends(require_roles("pharmacist", "admin")),
+    ],
+)
+async def list_adjustments_endpoint(
+    current_user: CurrentDbUser,
+    db: DbSession,
+    status: str | None = Query(None, description="pending | approved | rejected"),
+) -> AdjustmentListOut:
+    """Stock adjustments. The second approver's worklist."""
+    return await list_adjustments(db, facility_id=current_user.facility_id, status=status)
