@@ -192,6 +192,7 @@ LAB_TECH_SUB=$(ensure_keycloak_user dev.labtech Dev "Lab Technician" lab_tech)
 RADIOLOGY_TECH_SUB=$(ensure_keycloak_user dev.radiology Dev "Radiology Technician" radiology_tech)
 PHARMACIST_SUB=$(ensure_keycloak_user dev.pharmacist Dev Pharmacist pharmacist)
 ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin,supervisor)
+PATIENT_SUB=$(ensure_keycloak_user dev.patient Dev Patient patient)
 
 docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
   python -m scripts.seed_dev_data \
@@ -201,7 +202,8 @@ docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
     --user "dev.labtech=$LAB_TECH_SUB" \
     --user "dev.radiology=$RADIOLOGY_TECH_SUB" \
     --user "dev.pharmacist=$PHARMACIST_SUB" \
-    --user "dev.admin=$ADMIN_SUB"
+    --user "dev.admin=$ADMIN_SUB" \
+    --user "dev.patient=$PATIENT_SUB"
 
 cat <<DONE
 
@@ -216,5 +218,5 @@ HealthDoc dev stack is up:
 
 Dev logins (Keycloak realm 'healthdoc', password 'devpass'):
   dev.receptionist / dev.doctor / dev.nurse / dev.labtech /
-  dev.radiology / dev.pharmacist / dev.admin
+  dev.radiology / dev.pharmacist / dev.admin / dev.patient
 DONE
