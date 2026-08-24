@@ -21,7 +21,7 @@ log = logging.getLogger("healthdoc")
 
 MODULES = [
     "allergies", "audit", "billing", "blood_bank", "consent", "departments",
-    "emergency", "encounters", "files", "inventory", "ipd", "notifications",
+    "diagnoses", "emergency", "encounters", "files", "inventory", "ipd", "notifications",
     "nursing", "opd", "orders", "ot", "outbox", "pathology", "patients",
     "pharmacy", "queue", "radiology", "registration", "reports",
     "security_audit", "users", "wards",
@@ -63,7 +63,13 @@ app.add_middleware(
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "If-Match",
+        "X-Request-ID",
+    ],
 )
 
 

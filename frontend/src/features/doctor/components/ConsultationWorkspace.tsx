@@ -1,5 +1,6 @@
 "use client";
 
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -15,6 +16,7 @@ import { DiagnosesPanel } from "./DiagnosesPanel";
 import { EncounterHeaderPanel } from "./EncounterHeaderPanel";
 import { OrdersPanel } from "./OrdersPanel";
 import { PatientAllergyBanner } from "./PatientAllergyBanner";
+import { PrescriptionWorkspace } from "./PrescriptionWorkspace";
 import { SoapNotePanel } from "./SoapNotePanel";
 import { StaleWritePanel } from "./StaleWritePanel";
 import { VitalsPanel } from "./VitalsPanel";
@@ -32,6 +34,8 @@ export interface ConsultationWorkspaceProps {
 export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
   const {
     encounter,
+    startedAt,
+    loading,
     encounterType,
     setEncounterType,
     chiefComplaint,
@@ -40,6 +44,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
     saving,
     completing,
     canComplete,
+    canWriteChildren,
     saveEncounter,
     soap,
     patchSoap,
@@ -55,16 +60,25 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
       <PatientAllergyBanner patientId={context.patient_id} />
       <EncounterHeaderPanel
         context={context}
-        startedAt={encounter.started_at}
+        startedAt={startedAt}
         encounterType={encounterType}
         onEncounterTypeChange={setEncounterType}
       />
       <ChiefComplaintPanel value={chiefComplaint} onChange={setChiefComplaint} />
-      <VitalsPanel encounter={encounter} />
       {conflict && <StaleWritePanel yours={soap} theirs={conflict} />}
       <SoapNotePanel value={soap} noteStatus={noteStatus} onChange={patchSoap} />
-      <DiagnosesPanel encounter={encounter} />
-      <OrdersPanel encounter={encounter} />
+      {canWriteChildren && encounter ? (
+        <>
+          <VitalsPanel encounter={encounter} />
+          <DiagnosesPanel encounter={encounter} />
+          <OrdersPanel encounter={encounter} />
+          <PrescriptionWorkspace context={context} encounter={encounter} />
+        </>
+      ) : !ended ? (
+        <Alert severity="info">
+          Save the encounter before recording vitals, diagnoses, orders, or prescriptions.
+        </Alert>
+      ) : null}
 
       <Box
         sx={{
@@ -88,7 +102,7 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
             )}
           </Stack>
           <Stack direction="row" spacing={1.5}>
-            <Button variant="contained" sx={doctorButtonSx} disabled={saving || ended} onClick={saveEncounter}>
+            <Button variant="contained" sx={doctorButtonSx} disabled={loading || saving || ended} onClick={saveEncounter}>
               {saving ? "Saving…" : "Save encounter"}
             </Button>
             <Button variant="outlined" sx={doctorButtonSx} disabled={!canComplete || completing || ended} onClick={complete}>

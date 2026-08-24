@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -28,7 +27,7 @@ export interface OrdersPanelProps {
 }
 
 export function OrdersPanel({ encounter }: OrdersPanelProps) {
-  const { orders, adding, addOrder, removeOrder } = useOrders(encounter);
+  const { placed, loading, adding, addOrder } = useOrders(encounter);
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -37,23 +36,27 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
         <Box>
           <Typography sx={{ fontSize: "1.0625rem", fontWeight: 700 }}>Orders</Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, mt: 0.25 }}>
-            Lab, radiology and procedure orders for this encounter
+            Lab and radiology orders for this encounter
           </Typography>
         </Box>
-        <Button variant="outlined" size="small" sx={doctorButtonSx} onClick={() => setOpen(true)}>
+        <Button variant="outlined" size="small" sx={doctorButtonSx} disabled={loading} onClick={() => setOpen(true)}>
           + Add order
         </Button>
       </Stack>
 
-      {orders.length === 0 ? (
+      {loading ? (
+        <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
+          Loading orders…
+        </Typography>
+      ) : placed.length === 0 ? (
         <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
           No orders added yet for this encounter.
         </Typography>
       ) : (
         <Stack spacing={1}>
-          {orders.map((o) => (
+          {placed.map((order) => (
             <Box
-              key={o.tempId}
+              key={order.id}
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -63,13 +66,26 @@ export function OrdersPanel({ encounter }: OrdersPanelProps) {
                 border: `1px solid ${meridian.border}`,
               }}
             >
-              <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>{(o.test_name ?? o.scan_type ?? o.procedure_name ?? o.order_type)}</Typography>
+              <Box>
+                <Typography sx={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                  {order.item_label}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "0.75rem",
+                    color: order.detail_status === "failed" ? meridian.danger : meridian.textSecondary,
+                  }}
+                >
+                  {order.detail_status === "failed"
+                    ? `${order.order_number} · department item failed`
+                    : order.accession_number
+                      ? `${order.order_number} · ${order.accession_number}`
+                      : order.order_number}
+                </Typography>
+              </Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Badge variant="outline">{typeLabel(o.order_type)}</Badge>
-                <Badge variant={PRIORITY_BADGE[o.priority]}>{o.priority}</Badge>
-                <IconButton size="small" onClick={() => removeOrder(o.tempId)} aria-label="Remove order">
-                  ×
-                </IconButton>
+                <Badge variant="outline">{typeLabel(order.order_type)}</Badge>
+                <Badge variant={PRIORITY_BADGE[order.priority]}>{order.priority}</Badge>
               </Stack>
             </Box>
           ))}

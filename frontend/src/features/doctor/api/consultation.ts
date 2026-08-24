@@ -1,112 +1,156 @@
-import { mockIcdConcepts, savedDiagnoses, savedVitals } from "@/lib/mock";
+import { ApiError, api } from "@/lib/api";
 import { StaleWriteError } from "../types";
 import type {
   ActiveEncounter,
   CreateDiagnosisInput,
   CreateEncounterInput,
-  UpdateEncounterInput,
+  EncounterType,
   IcdConcept,
+  NoteStatus,
+  UpdateEncounterInput,
   VitalsInput,
 } from "../types";
 
-/** Stands in for the server's row_version column, keyed by encounter id. */
-const serverRowVersion = new Map<string, number>();
-/** Last SOAP state the "server" accepted, so a conflict can be shown as a diff. */
-const serverSoap = new Map<string, UpdateEncounterInput>();
-
-function delay<T>(value: T, ms = 250): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
+interface EncounterResponse {
+  id: string;
+  visit_id: string;
+  provider_user_id: string;
+  encounter_type?: string | null;
+  chief_complaint?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  subjective?: string | null;
+  objective?: string | null;
+  assessment?: string | null;
+  plan?: string | null;
+  note_status: string;
+  row_version: number;
 }
 
-/**
- * POST /api/v1/encounters — body carries only real encounters columns.
- * `patient_id` is context (resolved from the visit); `id` is the provisional
- * client id so vitals/diagnoses/orders stay linked after save.
- */
+interface IcdSearchResponse {
+  items: IcdConcept[];
+  source: string;
+}
+
+function toEncounter(row: EncounterResponse, patientId: string): ActiveEncounter {
+  return {
+    id: row.id,
+    visit_id: row.visit_id,
+    patient_id: patientId,
+    provider_user_id: row.provider_user_id,
+    encounter_type: row.encounter_type as EncounterType | undefined,
+    chief_complaint: row.chief_complaint ?? undefined,
+    started_at: row.started_at ?? new Date().toISOString(),
+    ended_at: row.ended_at ?? undefined,
+    subjective: row.subjective ?? undefined,
+    objective: row.objective ?? undefined,
+    assessment: row.assessment ?? undefined,
+    plan: row.plan ?? undefined,
+    note_status: row.note_status as NoteStatus,
+    row_version: row.row_version,
+  };
+}
+
+/** Latest persisted encounter for this visit; null means the consultation is not saved yet. */
+export async function getEncounterForVisit(
+  visitId: string,
+  patientId: string,
+): Promise<ActiveEncounter | null> {
+  try {
+    const row = await api<EncounterResponse>(`/encounters/by-visit/${visitId}`);
+    return toEncounter(row, patientId);
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 404) return null;
+    throw error;
+  }
+}
+
+/** POST /encounters. The server owns the id and all authorship fields. */
 export async function createEncounter(
   body: CreateEncounterInput,
-  patient_id: string,
-  id: string,
+  patientId: string,
+  idempotencyKey: string,
 ): Promise<ActiveEncounter> {
-  const created: ActiveEncounter = {
-    id,
-    visit_id: body.visit_id,
-    patient_id,
-    provider_user_id: body.provider_user_id,
-    encounter_type: body.encounter_type,
-    chief_complaint: body.chief_complaint,
-    started_at: body.started_at,
-    note_status: "pending",
-    row_version: 1,
-  };
-  return delay(created);
+  const row = await api<EncounterResponse>("/encounters", {
+    method: "POST",
+    body: JSON.stringify(body),
+    idempotencyKey,
+  });
+  return toEncounter(row, patientId);
 }
 
-/**
- * PATCH /api/v1/encounters/{id} — where SOAP is saved (never on the POST).
- *
- * note_status tracks whether the long-form note reached its store: it starts
- * `pending`, becomes `stored` on success, and `failed` must stay visible so a
- * note that vanished is never mistaken for a note that was never written.
- */
+/** PATCH /encounters/{id}; If-Match prevents one clinician overwriting another. */
 export async function updateEncounter(
   encounter: ActiveEncounter,
   patch: UpdateEncounterInput,
 ): Promise<ActiveEncounter> {
-  // Optimistic locking: the real call sends If-Match with the row_version we
-  // read. If the server has moved on, it answers 409 stale_write and we must
-  // NOT overwrite — someone else's clinical note would be lost silently.
-  const sent = encounter.row_version ?? 1;
-  const current = serverRowVersion.get(encounter.id) ?? sent;
-  if (sent !== current) {
-    throw new StaleWriteError(current, serverSoap.get(encounter.id) ?? {});
+  try {
+    const row = await api<EncounterResponse>(`/encounters/${encounter.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+      ifMatch: encounter.row_version,
+    });
+    return toEncounter(row, encounter.patient_id);
+  } catch (error) {
+    if (error instanceof ApiError && error.isStaleWrite) {
+      const payload = error.payload as { current?: EncounterResponse };
+      const current = payload.current;
+      throw new StaleWriteError(current?.row_version ?? encounter.row_version ?? 1, {
+        encounter_type: current?.encounter_type as EncounterType | undefined,
+        chief_complaint: current?.chief_complaint ?? undefined,
+        subjective: current?.subjective ?? undefined,
+        objective: current?.objective ?? undefined,
+        assessment: current?.assessment ?? undefined,
+        plan: current?.plan ?? undefined,
+        note_status: current?.note_status as NoteStatus | undefined,
+      });
+    }
+    throw error;
   }
-
-  const nextVersion = current + 1;
-  serverRowVersion.set(encounter.id, nextVersion);
-  serverSoap.set(encounter.id, {
-    subjective: patch.subjective,
-    objective: patch.objective,
-    assessment: patch.assessment,
-    plan: patch.plan,
-  });
-
-  const next: ActiveEncounter = {
-    ...encounter,
-    ...patch,
-    note_status: patch.note_status ?? "stored",
-    row_version: nextVersion,
-  };
-  return delay(next, 300);
 }
 
-/** PATCH /api/v1/encounters/{id} { ended_at }. */
 export async function completeEncounter(
   encounter: ActiveEncounter,
-  ended_at: string,
+  endedAt: string,
 ): Promise<ActiveEncounter> {
-  return delay({ ...encounter, ended_at });
+  return updateEncounter(encounter, { ended_at: endedAt });
 }
 
-/** POST /api/v1/vitals — vitals is its own table (never folded into the encounter). */
-export async function saveVitals(input: VitalsInput): Promise<void> {
-  savedVitals.push(input);
-  await delay(null);
+/** POST /nursing/vitals; recorded_by is derived from the access token. */
+export async function saveVitals(input: VitalsInput, idempotencyKey: string): Promise<void> {
+  await api("/nursing/vitals", {
+    method: "POST",
+    body: JSON.stringify(input),
+    idempotencyKey,
+  });
 }
 
-/** GET /api/v1/diagnoses/icd-search?q= — proxies WHO ICD-API + local icd_codes. */
+/** GET /diagnoses/icd-search; WHO ICD-11 degrades to the local ICD catalogue. */
 export async function searchIcd(query: string): Promise<IcdConcept[]> {
-  const q = query.trim().toLowerCase();
-  if (!q) return delay(mockIcdConcepts);
-  return delay(
-    mockIcdConcepts.filter(
-      (c) => c.title.toLowerCase().includes(q) || c.code.toLowerCase().includes(q),
-    ),
+  const q = query.trim();
+  if (!q) return [];
+  const response = await api<IcdSearchResponse>(
+    `/diagnoses/icd-search?q=${encodeURIComponent(q)}`,
   );
+  return response.items;
 }
 
-/** POST /api/v1/diagnoses — one row per diagnosis. */
-export async function saveDiagnoses(rows: CreateDiagnosisInput[]): Promise<void> {
-  savedDiagnoses.push(...rows);
-  await delay(null);
+/** POST one diagnosis under the persisted encounter. */
+export async function saveDiagnosis(
+  row: CreateDiagnosisInput,
+  idempotencyKey: string,
+): Promise<void> {
+  await api(`/encounters/${row.encounter_id}/diagnoses`, {
+    method: "POST",
+    body: JSON.stringify(row),
+    idempotencyKey,
+  });
+}
+
+export async function listDiagnoses(
+  encounterId: string,
+): Promise<Array<CreateDiagnosisInput & { id: string }>> {
+  return api<Array<CreateDiagnosisInput & { id: string }>>(
+    `/encounters/${encounterId}/diagnoses`,
+  );
 }

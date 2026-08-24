@@ -22,9 +22,11 @@ export interface DiagnosesPanelProps {
 }
 
 export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
-  const { rows, options, search, addConcept, updateRow, setPrimary, removeRow, saving, save } =
+  const { rows, options, loading, search, addConcept, updateRow, setPrimary, removeRow, saving, save } =
     useDiagnoses(encounter);
   const [pick, setPick] = React.useState<IcdConcept | null>(null);
+  const pendingCount = rows.filter((row) => !row.persisted).length;
+  const persistedPrimary = rows.some((row) => row.persisted && row.is_primary);
 
   const available = options.filter(
     (c) => !rows.some((r) => r.icd_code === c.code && r.icd_version === c.version),
@@ -39,7 +41,7 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
             ICD-11 (ICD-10 accepted for continuity)
           </Typography>
         </Box>
-        <Button variant="outlined" size="small" sx={doctorButtonSx} disabled={rows.length === 0 || saving} onClick={save}>
+        <Button variant="outlined" size="small" sx={doctorButtonSx} disabled={pendingCount === 0 || loading || saving} onClick={save}>
           {saving ? "Saving…" : "Save diagnoses"}
         </Button>
       </Stack>
@@ -59,7 +61,11 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
         isOptionEqualToValue={(a, b) => a.code === b.code && a.version === b.version}
       />
 
-      {rows.length === 0 ? (
+      {loading ? (
+        <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
+          Loading diagnoses…
+        </Typography>
+      ) : rows.length === 0 ? (
         <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>
           No diagnoses added yet.
         </Typography>
@@ -80,16 +86,20 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}>
                 <Badge variant="outline">{`${r.icd_version.toUpperCase()} · ${r.icd_code}`}</Badge>
                 {r.is_primary && <Badge variant="default">Primary</Badge>}
+                {r.persisted && <Badge variant="secondary">Saved</Badge>}
                 <Box sx={{ flex: 1 }} />
-                <IconButton size="small" onClick={() => removeRow(r.tempId)} aria-label="Remove diagnosis">
-                  ×
-                </IconButton>
+                {!r.persisted && (
+                  <IconButton size="small" onClick={() => removeRow(r.tempId)} aria-label="Remove diagnosis">
+                    ×
+                  </IconButton>
+                )}
               </Stack>
 
               <TextField
                 label="Diagnosis text"
                 value={r.diagnosis_text}
                 onChange={(e) => updateRow(r.tempId, { diagnosis_text: e.target.value })}
+                disabled={r.persisted}
                 size="small"
                 fullWidth
               />
@@ -100,6 +110,7 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
                   label="Type"
                   value={r.diagnosis_type}
                   onChange={(e) => updateRow(r.tempId, { diagnosis_type: e.target.value as DiagnosisType })}
+                  disabled={r.persisted}
                   size="small"
                   sx={{ minWidth: 160 }}
                 >
@@ -113,7 +124,7 @@ export function DiagnosesPanel({ encounter }: DiagnosesPanelProps) {
                   variant={r.is_primary ? "contained" : "outlined"}
                   size="small"
                   sx={doctorButtonSx}
-                  disabled={r.is_primary}
+                  disabled={r.persisted || r.is_primary || persistedPrimary}
                   onClick={() => setPrimary(r.tempId)}
                 >
                   {r.is_primary ? "Primary diagnosis" : "Set as primary"}

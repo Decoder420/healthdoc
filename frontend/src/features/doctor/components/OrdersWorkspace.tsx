@@ -1,10 +1,11 @@
 "use client";
 
-import * as React from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 
-import { newProvisionalEncounter } from "../lib/encounter";
-import type { ActiveEncounter, EncounterContext } from "../types";
+import { usePersistedEncounter } from "../hooks/usePersistedEncounter";
+import type { EncounterContext } from "../types";
 import { OrdersPanel } from "./OrdersPanel";
 
 export interface OrdersWorkspaceProps {
@@ -13,7 +14,20 @@ export interface OrdersWorkspaceProps {
 
 /** Standalone /doctor/orders view — the same Orders panel used in the consultation. */
 export function OrdersWorkspace({ context }: OrdersWorkspaceProps) {
-  const [encounter] = React.useState<ActiveEncounter>(() => newProvisionalEncounter(context));
+  const { encounter, loading, error } = usePersistedEncounter(context);
+
+  if (loading) return <CircularProgress size={28} />;
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!encounter) {
+    return (
+      <Alert severity="info">
+        Save this patient&apos;s consultation before placing an order.
+      </Alert>
+    );
+  }
+  if (encounter.ended_at) {
+    return <Alert severity="info">This consultation is completed; new orders are locked.</Alert>;
+  }
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>

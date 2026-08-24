@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { localOnly } from "../lib/mockMode";
-import { saveDiagnoses, searchIcd } from "../api";
+import { listDiagnoses, saveDiagnosis, searchIcd } from "../api";
 import type {
   ActiveEncounter,
   CreateDiagnosisInput,
@@ -15,19 +14,48 @@ import type {
 export function useDiagnoses(encounter: ActiveEncounter) {
   const [rows, setRows] = useState<DraftDiagnosis[]>([]);
   const [options, setOptions] = useState<IcdConcept[]>([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load the ICD catalogue on mount; refined per keystroke via search().
+  const searchSequence = useRef(0);
+
   useEffect(() => {
-    let live = true;
-    void searchIcd("").then((r) => live && setOptions(r));
+    let cancelled = false;
+    setLoading(true);
+    void listDiagnoses(encounter.id)
+      .then((diagnoses) => {
+        if (cancelled) return;
+        setRows(
+          diagnoses.map((row) => ({
+            tempId: row.id,
+            persisted: true,
+            icd_code: row.icd_code,
+            icd_version: row.icd_version,
+            icd_uri: row.icd_uri,
+            post_coordinated_code: row.post_coordinated_code,
+            diagnosis_text: row.diagnosis_text,
+            diagnosis_type: row.diagnosis_type,
+            is_primary: row.is_primary,
+          })),
+        );
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : "Failed to load diagnoses");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
-      live = false;
+      cancelled = true;
     };
-  }, []);
+  }, [encounter.id]);
 
   const search = useCallback(async (query: string) => {
-    setOptions(await searchIcd(query));
+    const sequence = ++searchSequence.current;
+    const results = await searchIcd(query);
+    if (sequence === searchSequence.current) setOptions(results);
   }, []);
 
   const addConcept = useCallback((concept: IcdConcept) => {
@@ -45,7 +73,7 @@ export function useDiagnoses(encounter: ActiveEncounter) {
           post_coordinated_code: undefined,
           diagnosis_text: concept.title,
           diagnosis_type: "provisional",
-          is_primary: prev.length === 0,
+          is_primary: !prev.some((row) => row.is_primary),
         },
       ];
     });
@@ -53,51 +81,92 @@ export function useDiagnoses(encounter: ActiveEncounter) {
 
   const updateRow = useCallback(
     (tempId: string, patch: Partial<DraftDiagnosis>) =>
-      setRows((prev) => prev.map((r) => (r.tempId === tempId ? { ...r, ...patch } : r))),
+      setRows((prev) =>
+        prev.map((r) =>
+          r.tempId === tempId && !r.persisted ? { ...r, ...patch } : r,
+        ),
+      ),
     [],
   );
 
   const setPrimary = useCallback(
     (tempId: string) =>
-      setRows((prev) => prev.map((r) => ({ ...r, is_primary: r.tempId === tempId }))),
+      setRows((prev) => {
+        if (prev.some((row) => row.persisted && row.is_primary)) return prev;
+        return prev.map((row) =>
+          row.persisted ? row : { ...row, is_primary: row.tempId === tempId },
+        );
+      }),
     [],
   );
 
   const removeRow = useCallback(
     (tempId: string) =>
       setRows((prev) => {
-        const next = prev.filter((r) => r.tempId !== tempId);
-        if (next.length > 0 && !next.some((r) => r.is_primary)) next[0].is_primary = true;
+        const next = prev.filter((r) => r.persisted || r.tempId !== tempId);
+        const firstDraft = next.find((row) => !row.persisted);
+        if (firstDraft && !next.some((r) => r.is_primary)) firstDraft.is_primary = true;
         return next;
       }),
     [],
   );
 
   const save = useCallback(async () => {
-    if (rows.length === 0) {
+    const pending = rows.filter((row) => !row.persisted);
+    if (pending.length === 0) {
       toast.error("Add at least one diagnosis");
       return;
     }
     setSaving(true);
-    const payload: CreateDiagnosisInput[] = rows.map((r) => ({
-      encounter_id: encounter.id,
-      icd_code: r.icd_code,
-      icd_version: r.icd_version,
-      icd_uri: r.icd_uri,
-      post_coordinated_code: r.post_coordinated_code,
-      diagnosis_text: r.diagnosis_text,
-      diagnosis_type: r.diagnosis_type,
-      is_primary: r.is_primary,
-    }));
+    const savedIds: string[] = [];
     try {
-      await saveDiagnoses(payload);
-      toast.success(localOnly(`${rows.length} diagnosis${rows.length > 1 ? "es" : ""} saved`));
+      for (const row of pending) {
+        const payload: CreateDiagnosisInput = {
+          encounter_id: encounter.id,
+          icd_code: row.icd_code,
+          icd_version: row.icd_version,
+          icd_uri: row.icd_uri,
+          post_coordinated_code: row.post_coordinated_code,
+          diagnosis_text: row.diagnosis_text,
+          diagnosis_type: row.diagnosis_type,
+          is_primary: row.is_primary,
+        };
+        await saveDiagnosis(payload, row.tempId);
+        savedIds.push(row.tempId);
+      }
+      setRows((current) =>
+        current.map((row) =>
+          savedIds.includes(row.tempId) ? { ...row, persisted: true } : row,
+        ),
+      );
+      toast.success(
+        `${pending.length} diagnosis${pending.length > 1 ? "es" : ""} saved`,
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save diagnoses");
+      if (savedIds.length > 0) {
+        setRows((current) =>
+          current.map((row) =>
+            savedIds.includes(row.tempId) ? { ...row, persisted: true } : row,
+          ),
+        );
+      }
+      const prefix = savedIds.length > 0 ? `${savedIds.length} saved; unsaved rows were kept. ` : "";
+      toast.error(`${prefix}${e instanceof Error ? e.message : "Failed to save diagnoses"}`);
     } finally {
       setSaving(false);
     }
   }, [encounter.id, rows]);
 
-  return { rows, options, search, addConcept, updateRow, setPrimary, removeRow, saving, save };
+  return {
+    rows,
+    options,
+    loading,
+    search,
+    addConcept,
+    updateRow,
+    setPrimary,
+    removeRow,
+    saving,
+    save,
+  };
 }

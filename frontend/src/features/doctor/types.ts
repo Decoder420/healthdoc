@@ -201,6 +201,8 @@ export class StaleWriteError extends Error {
 
 /** PATCH /encounters/{id} — mirrors backend EncounterUpdate. */
 export interface UpdateEncounterInput {
+  encounter_type?: EncounterType;
+  chief_complaint?: string;
   ended_at?: string;
   subjective?: string;
   objective?: string;
@@ -217,8 +219,6 @@ export interface VitalsInput {
   patient_id: string;
   /** vitals requires one of encounter_id / admission_id (CHECK constraint). */
   encounter_id: string;
-  /** users.id — a UUID, never a display name. */
-  created_by: string;
   measured_at: string;
   temp_c?: number;
   pulse_bpm?: number;
@@ -250,6 +250,8 @@ export interface IcdConcept {
 
 export interface DraftDiagnosis {
   tempId: string;
+  /** True when this row came from or has reached PostgreSQL. */
+  persisted?: boolean;
   icd_code: string;
   icd_version: IcdVersion;
   icd_uri?: string;
@@ -317,7 +319,6 @@ export interface DraftOrder {
 export interface CreateOrderInput {
   encounter_id: string;
   patient_id: string;
-  created_by: string;
   order_type: OrderType;
   priority: OrderPriority;
 }
@@ -358,6 +359,9 @@ export interface PlacedOrder {
   /** LAB-… / RAD-… from the department detail row. */
   accession_number?: string;
   item_label: string;
+  /** Header creation succeeded but the department detail row did not. */
+  detail_status: "complete" | "failed" | "header_only";
+  detail_error?: string;
 }
 
 // ---------------------------------------------------------------------------

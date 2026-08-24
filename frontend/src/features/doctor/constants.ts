@@ -5,7 +5,6 @@ import type {
   OrderPriority,
   OrderType,
   Modality,
-  ProcedureSetting,
   RouteCode,
   SampleType,
   QueuePriority,
@@ -61,7 +60,6 @@ export const DIAGNOSIS_TYPE_OPTIONS: { value: DiagnosisType; label: string }[] =
 export const ORDER_TYPE_OPTIONS: { value: OrderType; label: string }[] = [
   { value: "lab", label: "Lab" },
   { value: "radiology", label: "Radiology" },
-  { value: "procedure", label: "Procedure" },
 ];
 
 /** lab_order_items.sample_type — NOT NULL, so the form must collect it. */
@@ -82,14 +80,6 @@ export const MODALITY_OPTIONS: { value: Modality; label: string }[] = [
   { value: "mri", label: "MRI" },
   { value: "usg", label: "Ultrasound" },
   { value: "mammo", label: "Mammography" },
-];
-
-/** procedures.setting — works with the OT module off. */
-export const PROCEDURE_SETTING_OPTIONS: { value: ProcedureSetting; label: string }[] = [
-  { value: "opd_minor", label: "OPD (minor)" },
-  { value: "bedside", label: "Bedside" },
-  { value: "emergency", label: "Emergency" },
-  { value: "ot", label: "Operation theatre" },
 ];
 
 export const ORDER_PRIORITY_OPTIONS: { value: OrderPriority; label: string }[] = [

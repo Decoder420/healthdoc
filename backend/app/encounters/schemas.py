@@ -27,6 +27,8 @@ class EncounterUpdate(BaseModel):
     #: Ignored — the token supplies it. Was required AND assigned
     #: unconditionally, so omitting it NULLed the last-editor of the note.
     updated_by: UUID | None = None
+    encounter_type: str | None = None
+    chief_complaint: str | None = None
     ended_at: datetime | None = None
     subjective: str | None = None
     objective: str | None = None

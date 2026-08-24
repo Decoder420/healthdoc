@@ -13,13 +13,15 @@ below a violation of it. Reading either one alone looks fine.
 """
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status as http_status
+from fastapi import APIRouter, Depends, Header, HTTPException, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
+from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.encounters import service
 from app.encounters.schemas import (
     DiagnosisCreate, DiagnosisOut, DoctorReviewCreate, DoctorReviewOut,
@@ -50,7 +52,10 @@ async def _get_scoped_encounter(db: AsyncSession, encounter_id: UUID, caller_fac
 @router.post("", response_model=EncounterOut, status_code=http_status.HTTP_201_CREATED,
              dependencies=[Depends(require_roles("doctor", "nurse", "admin"))])
 async def create_encounter(payload: EncounterCreate, current_db_user: CurrentDbUser,
-                            db: AsyncSession = Depends(get_db)) -> EncounterOut:
+                            db: AsyncSession = Depends(get_db),
+                            idempotency_key: Annotated[
+                                str | None, Header(alias="Idempotency-Key")
+                            ] = None) -> EncounterOut:
     """Open an encounter.
 
     This handler took `current_db_user` and never referenced it. Authorship,
@@ -58,6 +63,18 @@ async def create_encounter(payload: EncounterCreate, current_db_user: CurrentDbU
     while line 1 of this file states the opposite rule. The docstring was the
     specification; the code was the bug.
     """
+    endpoint = "POST /encounters"
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            endpoint,
+            hash_request_body(payload),
+            current_db_user.id,
+        )
+        if cached is not None:
+            return EncounterOut.model_validate(cached.response_body)
+
     try:
         encounter = await service.create_encounter(
             db, payload, actor_id=current_db_user.id, facility_id=current_db_user.facility_id,
@@ -69,7 +86,17 @@ async def create_encounter(payload: EncounterCreate, current_db_user: CurrentDbU
             status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="provider_not_in_facility",
         )
-    return EncounterOut.model_validate(encounter)
+    response = EncounterOut.model_validate(encounter)
+    if idempotency_key:
+        await record_idempotent_response(
+            db,
+            idempotency_key,
+            endpoint,
+            http_status.HTTP_201_CREATED,
+            response.model_dump(mode="json"),
+            current_db_user.id,
+        )
+    return response
 
 
 @router.get("/{encounter_id}", response_model=EncounterOut,
@@ -80,24 +107,98 @@ async def get_encounter(encounter_id: UUID, current_db_user: CurrentDbUser,
     return EncounterOut.model_validate(encounter)
 
 
+@router.get("/by-visit/{visit_id}", response_model=EncounterOut,
+            dependencies=[Depends(require_roles("doctor", "nurse", "admin"))])
+async def get_encounter_by_visit(
+    visit_id: UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> EncounterOut:
+    """Resolve a real persisted encounter for standalone clinical screens."""
+    encounter = await service.get_latest_encounter_for_visit(
+        db, visit_id, current_db_user.facility_id,
+    )
+    if encounter is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="encounter_not_found",
+        )
+    return EncounterOut.model_validate(encounter)
+
+
 @router.patch("/{encounter_id}", response_model=EncounterOut,
               dependencies=[Depends(require_roles("doctor", "admin"))])
 async def update_encounter(encounter_id: UUID, payload: EncounterUpdate, current_db_user: CurrentDbUser,
-                            db: AsyncSession = Depends(get_db)) -> EncounterOut:
+                            db: AsyncSession = Depends(get_db),
+                            if_match: Annotated[
+                                str | None, Header(alias="If-Match")
+                            ] = None) -> EncounterOut:
     encounter = await _get_scoped_encounter(db, encounter_id, current_db_user.facility_id)
-    encounter = await service.update_encounter(db, encounter, payload, actor_id=current_db_user.id)
+    if if_match is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={"code": "if_match_required", "message": "If-Match header is required"},
+        )
+    try:
+        expected_row_version = int(if_match)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_if_match", "message": "If-Match must be an integer row_version"},
+        ) from exc
+    try:
+        encounter = await service.update_encounter(
+            db,
+            encounter,
+            payload,
+            actor_id=current_db_user.id,
+            expected_row_version=expected_row_version,
+        )
+    except service.StaleEncounterWrite as exc:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail={
+                "code": "stale_write",
+                "message": "Encounter was modified by another user",
+                "current": EncounterOut.model_validate(exc.encounter).model_dump(mode="json"),
+            },
+        ) from exc
     return EncounterOut.model_validate(encounter)
 
 
 @router.post("/{encounter_id}/diagnoses", response_model=DiagnosisOut, status_code=http_status.HTTP_201_CREATED,
              dependencies=[Depends(require_roles("doctor", "admin"))])
 async def create_diagnosis(encounter_id: UUID, payload: DiagnosisCreate, current_db_user: CurrentDbUser,
-                            db: AsyncSession = Depends(get_db)) -> DiagnosisOut:
+                            db: AsyncSession = Depends(get_db),
+                            idempotency_key: Annotated[
+                                str | None, Header(alias="Idempotency-Key")
+                            ] = None) -> DiagnosisOut:
     if payload.encounter_id != encounter_id:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="encounter_id_mismatch")
     await _get_scoped_encounter(db, encounter_id, current_db_user.facility_id)
+    endpoint = f"POST /encounters/{encounter_id}/diagnoses"
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            endpoint,
+            hash_request_body(payload),
+            current_db_user.id,
+        )
+        if cached is not None:
+            return DiagnosisOut.model_validate(cached.response_body)
     diagnosis = await service.create_diagnosis(db, payload, actor_id=current_db_user.id)
-    return DiagnosisOut.model_validate(diagnosis)
+    response = DiagnosisOut.model_validate(diagnosis)
+    if idempotency_key:
+        await record_idempotent_response(
+            db,
+            idempotency_key,
+            endpoint,
+            http_status.HTTP_201_CREATED,
+            response.model_dump(mode="json"),
+            current_db_user.id,
+        )
+    return response
 
 
 @router.get("/{encounter_id}/diagnoses", response_model=list[DiagnosisOut],

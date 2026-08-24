@@ -52,16 +52,58 @@ async def test_update_encounter_soap_fields(db, visit):
         actor_id=doctor.id, facility_id=v.facility_id)
 
     updated = await service.update_encounter(
-        db, encounter, EncounterUpdate(subjective="dry cough for 3 days",
-                                        assessment="viral", plan="rest", note_status="stored"), actor_id=doctor.id)
+        db, encounter, EncounterUpdate(
+            encounter_type="follow_up", chief_complaint="persistent cough",
+            subjective="dry cough for 3 days", assessment="viral", plan="rest",
+            note_status="stored",
+        ), actor_id=doctor.id)
 
     assert updated.subjective == "dry cough for 3 days"
     assert updated.assessment == "viral"
     assert updated.plan == "rest"
     assert updated.note_status == "stored"
     assert updated.row_version == 2
-    assert updated.chief_complaint == "cough"  # untouched field stays as-is
+    assert updated.chief_complaint == "persistent cough"
+    assert updated.encounter_type == "follow_up"
     assert updated.objective is None
+
+
+async def test_update_encounter_rejects_a_stale_row_version(db, visit):
+    v, doctor = visit
+    encounter = await service.create_encounter(
+        db,
+        EncounterCreate(visit_id=v.id, provider_user_id=doctor.id),
+        actor_id=doctor.id,
+        facility_id=v.facility_id,
+    )
+
+    with pytest.raises(service.StaleEncounterWrite):
+        await service.update_encounter(
+            db,
+            encounter,
+            EncounterUpdate(assessment="must not overwrite"),
+            actor_id=doctor.id,
+            expected_row_version=encounter.row_version + 1,
+        )
+
+    assert encounter.assessment is None
+    assert encounter.row_version == 1
+
+
+async def test_latest_encounter_for_visit_is_facility_scoped(db, visit):
+    v, doctor = visit
+    encounter = await service.create_encounter(
+        db,
+        EncounterCreate(visit_id=v.id, provider_user_id=doctor.id),
+        actor_id=doctor.id,
+        facility_id=v.facility_id,
+    )
+
+    found = await service.get_latest_encounter_for_visit(db, v.id, v.facility_id)
+    hidden = await service.get_latest_encounter_for_visit(db, v.id, uuid.uuid4())
+
+    assert found is not None and found.id == encounter.id
+    assert hidden is None
 
 
 async def test_diagnosis_create_and_list(db, visit):
