@@ -50,6 +50,8 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
     patchSoap,
     noteStatus,
     conflict,
+    dirty,
+    autoSaveStatus,
     complete,
   } = useConsultation(context);
 
@@ -95,14 +97,23 @@ export function ConsultationWorkspace({ context }: ConsultationWorkspaceProps) {
             <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary }}>Encounter</Typography>
             {ended ? (
               <StatusChip status="completed" label="Completed" />
+            ) : saving || autoSaveStatus === "saving" ? (
+              <StatusChip status="pending" label="Saving…" />
+            ) : autoSaveStatus === "failed" ? (
+              <StatusChip status="failed" label="Autosave failed" />
+            ) : dirty ? (
+              <StatusChip status="draft" label="Unsaved changes" />
             ) : status === "saved" ? (
-              <StatusChip status="issued" label="Saved" />
+              <StatusChip status="issued" label="Saved to server" />
             ) : (
               <StatusChip status="draft" label="Not saved" />
             )}
           </Stack>
           <Stack direction="row" spacing={1.5}>
-            <Button variant="contained" sx={doctorButtonSx} disabled={loading || saving || ended} onClick={saveEncounter}>
+            <Typography aria-live="polite" sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+              {saving ? "Saving consultation" : dirty ? "Consultation has unsaved changes" : "Consultation saved"}
+            </Typography>
+            <Button variant="contained" sx={doctorButtonSx} disabled={loading || saving || ended} onClick={() => void saveEncounter()}>
               {saving ? "Saving…" : "Save encounter"}
             </Button>
             <Button variant="outlined" sx={doctorButtonSx} disabled={!canComplete || completing || ended} onClick={complete}>

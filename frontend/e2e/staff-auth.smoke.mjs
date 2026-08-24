@@ -24,9 +24,15 @@ const roles = [
     name: "receptionist",
     username: "dev.receptionist",
     landingPath: "/receptionist/registration",
+    forbiddenPath: "/admin",
     api: { method: "POST", path: "/api/v1/patients/search" },
     async startJourney(page) {
       await page.waitForSelector('form input', { timeout: 60_000 });
+      const emptySearchDisabled = await page.$eval(
+        'form button[type="submit"]',
+        (button) => button.disabled,
+      );
+      if (!emptySearchDisabled) throw new Error("empty patient search was not blocked by validation");
       await page.type('form input', "Browser smoke patient");
       await page.click('form button[type="submit"]');
     },
@@ -35,12 +41,14 @@ const roles = [
     name: "doctor",
     username: "dev.doctor",
     landingPath: "/doctor/dashboard",
+    forbiddenPath: "/admin",
     api: { method: "GET", path: "/api/v1/queue/worklist" },
   },
   {
     name: "nurse",
     username: "dev.nurse",
     landingPath: "/nurse/ward-dashboard",
+    forbiddenPath: "/admin",
     api: { method: "GET", path: "/api/v1/nursing/tasks" },
     async startJourney(page) {
       await page.waitForSelector(
@@ -53,24 +61,28 @@ const roles = [
     name: "lab-technician",
     username: "dev.labtech",
     landingPath: "/lab",
+    forbiddenPath: "/admin",
     api: { method: "GET", path: "/api/v1/pathology/order-items" },
   },
   {
     name: "radiology-technician",
     username: "dev.radiology",
     landingPath: "/radiology",
+    forbiddenPath: "/admin",
     api: { method: "GET", path: "/api/v1/radiology/order-items" },
   },
   {
     name: "pharmacist",
     username: "dev.pharmacist",
     landingPath: "/pharmacy/prescription-queue",
+    forbiddenPath: "/admin",
     api: { method: "GET", path: "/api/v1/pharmacy/queue" },
   },
   {
     name: "billing-receptionist",
     username: "dev.receptionist",
     landingPath: "/receptionist/registration",
+    forbiddenPath: "/doctor",
     api: { method: "GET", path: "/api/v1/billing/invoices" },
     async startJourney(page) {
       await page.goto(`${baseUrl}/billing`, {
@@ -86,6 +98,7 @@ const roles = [
     name: "admin",
     username: "dev.admin",
     landingPath: "/admin",
+    forbiddenPath: "/doctor",
     api: { method: "GET", path: "/api/v1/users" },
     async startJourney(page) {
       await page.waitForSelector('a[href="/admin/users"]', { timeout: 60_000 });
@@ -229,6 +242,16 @@ async function exerciseRole(browser, role) {
       timeout: 5_000,
     });
 
+    await page.goto(`${baseUrl}${role.forbiddenPath}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+    await page.waitForFunction(
+      (expected) => window.location.pathname === expected,
+      { timeout: 30_000 },
+      role.landingPath,
+    );
+
     if (tokenHeaderFile) {
       await mkdir(path.dirname(tokenHeaderFile), { recursive: true });
       await writeFile(tokenHeaderFile, `Authorization: ${result.authorization}\n`, {
@@ -238,7 +261,7 @@ async function exerciseRole(browser, role) {
     }
 
     console.log(
-      `PASS ${role.name} login -> ${role.landingPath} -> bearer ${role.api.method} ${role.api.path} (200); WCAG serious/critical 0; keyboard skip link; silent SSO (200)`,
+      `PASS ${role.name} login -> ${role.landingPath} -> bearer ${role.api.method} ${role.api.path} (200); WCAG serious/critical 0; keyboard skip link; forbidden ${role.forbiddenPath} redirected; silent SSO (200)`,
     );
   } catch (error) {
     await mkdir(artifactDir, { recursive: true });

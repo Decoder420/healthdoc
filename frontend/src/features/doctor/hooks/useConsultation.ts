@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { newIdempotencyKey } from "@/lib/api";
+import { draftFingerprint } from "@/lib/resilience.mjs";
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
 import {
   completeEncounter,
   createEncounter,
@@ -41,13 +43,33 @@ export function useConsultation(context: EncounterContext) {
   });
   const [noteStatus, setNoteStatus] = useState<NoteStatus>("pending");
   const [conflict, setConflict] = useState<UpdateEncounterInput | null>(null);
+  const [lastSavedFingerprint, setLastSavedFingerprint] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "failed">("idle");
+  const hydrated = useRef(false);
+
+  const fingerprint = useMemo(
+    () => draftFingerprint({ encounterType, chiefComplaint, soap }),
+    [chiefComplaint, encounterType, soap],
+  );
+  const dirty = hydrated.current && fingerprint !== lastSavedFingerprint && status !== "completed";
+  useUnsavedChanges(dirty || saving);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     void getEncounterForVisit(context.visit_id, context.patient_id)
       .then((existing) => {
-        if (cancelled || !existing) return;
+        if (cancelled) return;
+        if (!existing) {
+          setLastSavedFingerprint(
+            draftFingerprint({
+              encounterType: "consultation",
+              chiefComplaint: "",
+              soap: { subjective: "", objective: "", assessment: "", plan: "" },
+            }),
+          );
+          return;
+        }
         setEncounter(existing);
         setEncounterType(existing.encounter_type ?? "consultation");
         setChiefComplaint(existing.chief_complaint ?? "");
@@ -59,6 +81,18 @@ export function useConsultation(context: EncounterContext) {
         });
         setNoteStatus(existing.note_status);
         setStatus(existing.ended_at ? "completed" : "saved");
+        setLastSavedFingerprint(
+          draftFingerprint({
+            encounterType: existing.encounter_type ?? "consultation",
+            chiefComplaint: existing.chief_complaint ?? "",
+            soap: {
+              subjective: existing.subjective ?? "",
+              objective: existing.objective ?? "",
+              assessment: existing.assessment ?? "",
+              plan: existing.plan ?? "",
+            },
+          }),
+        );
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -66,7 +100,10 @@ export function useConsultation(context: EncounterContext) {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          hydrated.current = true;
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -84,12 +121,13 @@ export function useConsultation(context: EncounterContext) {
   );
   const canWriteChildren = status === "saved" && encounter !== null;
 
-  const saveEncounter = useCallback(async () => {
+  const saveEncounter = useCallback(async (quiet = false) => {
     if (chiefComplaint.trim() === "") {
-      toast.error("Chief complaint is required to save the encounter");
-      return;
+      if (!quiet) toast.error("Chief complaint is required to save the encounter");
+      return false;
     }
     setSaving(true);
+    if (quiet) setAutoSaveStatus("saving");
     try {
       let current = encounter;
       if (!current) {
@@ -119,7 +157,10 @@ export function useConsultation(context: EncounterContext) {
       setConflict(null);
       setNoteStatus(saved.note_status);
       setStatus("saved");
-      toast.success("Encounter saved");
+      setLastSavedFingerprint(fingerprint);
+      setAutoSaveStatus("saved");
+      if (!quiet) toast.success("Encounter saved");
+      return true;
     } catch (error) {
       if (error instanceof StaleWriteError) {
         setConflict(error.serverCopy);
@@ -127,9 +168,12 @@ export function useConsultation(context: EncounterContext) {
         toast.error(
           "Someone else saved this encounter while you were editing. Reload before saving again — your note has NOT been stored.",
         );
-        return;
+        setAutoSaveStatus("failed");
+        return false;
       }
-      toast.error(error instanceof Error ? error.message : "Failed to save encounter");
+      setAutoSaveStatus("failed");
+      if (!quiet) toast.error(error instanceof Error ? error.message : "Failed to save encounter");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -141,9 +185,21 @@ export function useConsultation(context: EncounterContext) {
     createKey,
     encounter,
     encounterType,
+    fingerprint,
     soap,
     startedAt,
   ]);
+
+  useEffect(() => {
+    if (!dirty || loading || saving || completing || conflict || chiefComplaint.trim() === "") {
+      return;
+    }
+    setAutoSaveStatus("pending");
+    const timer = window.setTimeout(() => {
+      void saveEncounter(true);
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+  }, [chiefComplaint, completing, conflict, dirty, loading, saveEncounter, saving]);
 
   const complete = useCallback(async () => {
     if (!encounter) return;
@@ -179,5 +235,7 @@ export function useConsultation(context: EncounterContext) {
     patchSoap,
     noteStatus,
     conflict,
+    dirty,
+    autoSaveStatus,
   };
 }
