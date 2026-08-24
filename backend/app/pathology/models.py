@@ -1,7 +1,8 @@
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, ForeignKey, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from app.common.models import UUIDPk, Timestamps, Blame
+
 from app.common.db import Base
+from app.common.models import Blame, Timestamps, UUIDPk
 
 
 class LabOrderItem(Base, UUIDPk, Timestamps, Blame):
@@ -35,6 +36,14 @@ class LabResult(Base, UUIDPk, Timestamps):
     Append-only, versioned. Corrections = new row (never UPDATE an existing result row).
     """
     __tablename__ = "lab_results"
+    __table_args__ = (
+        Index(
+            "ix_lab_results_result_data",
+            "result_data",
+            postgresql_using="gin",
+            postgresql_ops={"result_data": "jsonb_path_ops"},
+        ),
+    )
 
     lab_order_item_id = Column(UUID(as_uuid=True), ForeignKey("lab_order_items.id", ondelete="RESTRICT"),
                                 nullable=False, index=True)
