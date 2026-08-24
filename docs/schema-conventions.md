@@ -55,7 +55,7 @@ Stored as their own `UNIQUE NOT NULL` (or nullable, where stated) columns:
 | UHID | `patients.uhid` | `IN-<STATE>-<FACILITY>-<YEAR>-<SEQ6>-<CHECK>` e.g. `IN-RJ-JPR001-2026-000042-7` | UHID engine (B2-W1-02), Postgres sequence + check digit |
 | THID (temporary) | `patients.thid` | `TH-<FACILITY>-<YYMMDD>-<SEQ4>` e.g. `TH-JPR001-260714-0007` | Emergency registration; merged into UHID later (audited) |
 | Queue token | `queue_tokens.token_display` | `<DEPT_CODE>-<SEQ3>`, e.g. `MED-042`; uniqueness = `(queue_id, sequence)`, not the string | Queue service, per doctor-queue per day |
-| Order number | `orders.order_number` | `ORD-<YYYYMMDD>-<SEQ6>` | Orders module |
+| Order number | `orders.order_number` | `ORD-<FACILITYCODE>-<YYYYMMDD>-<SEQ6>` | Orders module |
 | Invoice number | `invoices.invoice_number` | `INV-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless — see 2.3) |
 | Receipt number | `payments.receipt_number` | `RCP-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless — see 2.3) |
 | Refund number | `refunds.refund_number` | `RFD-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless) |
