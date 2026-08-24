@@ -12,6 +12,12 @@ import { api, newIdempotencyKey } from "@/lib/api";
 
 import type {
   Adjustment,
+  AdjustmentListRow,
+  AdjustmentStatus,
+  GrnListRow,
+  GrnStatus,
+  IndentListRow,
+  IndentStatus,
   ApprovalDecision,
   CreateAdjustmentInput,
   CreateGrnInput,
@@ -134,4 +140,43 @@ export function decideAdjustment(
     body: JSON.stringify(decision),
     idempotencyKey: newIdempotencyKey(),
   });
+}
+
+/* --------------------------------------------------------------- read side */
+/*
+ * The `?` stays inside the template literal rather than being folded into an
+ * interpolated suffix. scripts/check_frontend_contracts.py matches a call by
+ * its literal path prefix and truncates at the query string; building the URL
+ * as `${base}${qs}` leaves it with `/pharmacy/grn{param}`, which matches no
+ * route and fails the contract gate. An empty query string is harmless.
+ */
+
+function statusQuery(status?: string): string {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  return params.toString();
+}
+
+/** GET /pharmacy/grn — facility-scoped, newest first. */
+export async function listGrns(status?: GrnStatus): Promise<GrnListRow[]> {
+  const response = await api<{ items: GrnListRow[] }>(
+    `/pharmacy/grn?${statusQuery(status)}`,
+  );
+  return response.items;
+}
+
+/** GET /pharmacy/indents — the HOD's approval worklist. */
+export async function listIndents(status?: IndentStatus): Promise<IndentListRow[]> {
+  const response = await api<{ items: IndentListRow[] }>(
+    `/pharmacy/indents?${statusQuery(status)}`,
+  );
+  return response.items;
+}
+
+/** GET /pharmacy/adjustments — the second approver's worklist. */
+export async function listAdjustments(status?: AdjustmentStatus): Promise<AdjustmentListRow[]> {
+  const response = await api<{ items: AdjustmentListRow[] }>(
+    `/pharmacy/adjustments?${statusQuery(status)}`,
+  );
+  return response.items;
 }
