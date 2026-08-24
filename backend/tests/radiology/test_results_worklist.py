@@ -114,7 +114,19 @@ def test_a_reported_scan_shows_as_reported(client_as, seeded_order_id):
     item = _new_scan(doc, _new_order(doc), scan_type="Chest X-Ray PA")
 
     tech = client_as(RADIOLOGY_TECH)
-    tech.put(f"/api/v1/radiology/order-items/{item['id']}/scan-complete", json={})
+    # Schedule first, and ASSERT both calls. This test previously fired
+    # scan-complete with no assertion at all: it was 409ing every run (nothing
+    # could set 'scheduled') and still passing, because drafting a report does
+    # not check the item's status. A silent 409 inside a green test.
+    scheduled = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/schedule",
+        json={"scheduled_at": "2027-02-01T10:00:00Z", "machine_id": "XR-01"},
+    )
+    assert scheduled.status_code == 200, scheduled.text
+    completed = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/scan-complete", json={},
+    )
+    assert completed.status_code == 200, completed.text
 
     rad = client_as(RADIOLOGIST)
     drafted = rad.post(
@@ -157,3 +169,75 @@ def test_the_endpoint_is_not_captured_by_the_order_id_route(client_as, seeded_or
     assert response.status_code == 200, (
         f"expected the worklist route, got {response.status_code}: {response.text}"
     )
+
+
+# ---------------------------------------------------------------- scheduling
+
+def test_the_workflow_was_broken_at_its_first_step(client_as, seeded_order_id):
+    """A placed scan could not be marked complete, because nothing scheduled it.
+
+    ScheduleRequest existed as a schema and was imported by the router; no route
+    used it. Items are created 'placed', mark_scan_complete refuses anything not
+    'scheduled', and nothing set that status — so the radiology workflow stopped
+    at step one. Same shape as billing's draft -> issued gap.
+    """
+    doc = client_as(DOCTOR)
+    item = _new_scan(doc, _new_order(doc), scan_type="CT Abdomen")
+
+    tech = client_as(RADIOLOGY_TECH)
+
+    # Before scheduling, completing is refused — this is what used to be a
+    # permanent dead end.
+    premature = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/scan-complete", json={},
+    )
+    assert premature.status_code == 409, premature.text
+
+    scheduled = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/schedule",
+        json={
+            "scheduled_at": "2027-01-04T09:30:00Z",
+            "machine_id": "CT-01",
+        },
+    )
+    assert scheduled.status_code == 200, scheduled.text
+    body = scheduled.json()["data"]
+    assert body["status"] == "scheduled"
+    assert body["machine_id"] == "CT-01"
+
+    # And now the step that was unreachable works.
+    completed = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/scan-complete", json={},
+    )
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["data"]["status"] == "scanned"
+
+
+def test_a_scan_cannot_be_booked_into_the_past(client_as, seeded_order_id):
+    """A slot in the past is a data-entry error, and it would sort a scan into
+    a worklist window that has already closed."""
+    doc = client_as(DOCTOR)
+    item = _new_scan(doc, _new_order(doc), scan_type="USG Pelvis")
+
+    tech = client_as(RADIOLOGY_TECH)
+    response = tech.put(
+        f"/api/v1/radiology/order-items/{item['id']}/schedule",
+        json={"scheduled_at": "2020-01-01T09:00:00Z", "machine_id": "USG-01"},
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["message"]["code"] == "scheduled_in_the_past"
+
+
+def test_only_a_placed_scan_can_be_scheduled(client_as, seeded_order_id):
+    """Re-scheduling is a different operation — it has to say what happened to
+    the original slot — so it is refused rather than silently invented."""
+    doc = client_as(DOCTOR)
+    item = _new_scan(doc, _new_order(doc), scan_type="MRI Spine")
+
+    tech = client_as(RADIOLOGY_TECH)
+    slot = {"scheduled_at": "2027-01-05T11:00:00Z", "machine_id": "MRI-01"}
+    assert tech.put(f"/api/v1/radiology/order-items/{item['id']}/schedule", json=slot).status_code == 200
+
+    again = tech.put(f"/api/v1/radiology/order-items/{item['id']}/schedule", json=slot)
+    assert again.status_code == 409, again.text
