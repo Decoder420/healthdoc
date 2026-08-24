@@ -108,10 +108,19 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
   return (
     <>
       {open && (
-        <div onClick={() => setOpen(false)} className="sidebar-overlay" />
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setOpen(false)}
+          className="sidebar-overlay"
+        />
       )}
 
       <aside
+        id="workspace-sidebar"
+        aria-label="Workspace navigation"
+        aria-hidden={!open}
+        inert={!open}
         className={`
     fixed
     top-[70px]
@@ -166,7 +175,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
           />
         </div>
 
-        <nav className="space-y-4">
+        <nav aria-label="HealthDoc modules" className="space-y-4">
           {groups.length === 0 ? (
             <p className="px-2 text-sm text-gray-500">No screens for this role.</p>
           ) : (
@@ -186,6 +195,7 @@ export default function Sidebar({ open, setOpen }: SidebarProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setOpen(false)}
+                        aria-current={active ? "page" : undefined}
                         className={`group flex items-center justify-between rounded-xl px-4 py-3 transition ${
                           active ? "bg-[#EEF4FF]" : "hover:bg-[#EEF4FF]"
                         }`}
