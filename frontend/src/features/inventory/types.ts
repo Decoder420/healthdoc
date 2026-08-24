@@ -122,11 +122,12 @@ export interface CreateAdjustmentInput {
   /**
    * A DIFFERENT person from whoever is submitting.
    *
-   * Three database CHECK constraints enforce the separation of duties:
-   * created_by <> first_approver_id, first_approver_id <> second_approver_id,
-   * and status cannot reach 'approved' without a second approver. Three
-   * distinct people, minimum, before stock moves on paper without moving in
-   * the store — which is how shrinkage gets concealed.
+   * Four database CHECK constraints enforce the separation of duties:
+   * created_by <> first_approver_id, created_by <> second_approver_id,
+   * first_approver_id <> second_approver_id, and status cannot reach
+   * 'approved' without a second approver. The creator can be neither
+   * approver. Three distinct people, minimum, before stock moves on paper
+   * without moving in the store — which is how shrinkage gets concealed.
    */
   first_approver_id: string;
 }

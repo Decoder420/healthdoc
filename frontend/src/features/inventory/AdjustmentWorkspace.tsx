@@ -6,9 +6,10 @@
  * A stock adjustment moves a number without moving any goods. It is therefore
  * the instrument by which shrinkage is concealed: write off what walked out,
  * and the ledger reconciles. The database knows this and enforces separation of
- * duties with three CHECK constraints:
+ * duties with FOUR CHECK constraints:
  *
  *   created_by        <> first_approver_id
+ *   created_by        <> second_approver_id
  *   first_approver_id <> second_approver_id
  *   status = 'approved' requires second_approver_id
  *
