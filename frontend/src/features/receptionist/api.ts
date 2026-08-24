@@ -34,16 +34,50 @@ export function registerPatient(
   });
 }
 
+/**
+ * Normalise a criterion before it is matched.
+ *
+ * From PR #412 (Kunal). A receptionist reading a UHID off a card types it as
+ * printed — "in-rj-jpr001 2026 000041 3" — and an exact-match column never
+ * sees it. Mobile and ABHA are the same: spaces, +91 and hyphens are how people
+ * write numbers, not how they are stored.
+ *
+ * full_name is deliberately NOT normalised beyond trimming: it is matched
+ * fuzzily server-side, and stripping punctuation would damage names that
+ * legitimately contain it.
+ */
+function normaliseCriteria(criteria: PatientSearchRequest): PatientSearchRequest {
+  const digitsOnly = (v: string) => v.replace(/\D/g, "");
+  const out: PatientSearchRequest = { ...criteria };
+
+  if (out.uhid) out.uhid = out.uhid.trim().toUpperCase().replace(/[\s\-_/]/g, "");
+  if (out.mobile) out.mobile = digitsOnly(out.mobile);
+  if (out.abha_number) out.abha_number = digitsOnly(out.abha_number);
+  if (out.full_name) out.full_name = out.full_name.trim();
+
+  return out;
+}
+
 /** At least one criterion is required — the server rejects an empty search. */
 export function searchPatients(
   criteria: PatientSearchRequest,
+  page = 1,
+  pageSize = 20,
 ): Promise<PatientSearchResponse> {
   return api<PatientSearchResponse>("/patients/search", {
     method: "POST",
     // A search is a POST because the criteria include Aadhaar and ABHA numbers,
     // which must not end up in a query string, a browser history entry or an
     // access log.
-    body: JSON.stringify({ page: 1, page_size: 20, ...criteria }),
+    //
+    // Aadhaar is never sent FROM this UI at all — PatientSearchRequest carries
+    // the field because the endpoint accepts it, but the receptionist screen
+    // offers no input for it. Also PR #412's call.
+    body: JSON.stringify({
+      page,
+      page_size: pageSize,
+      ...normaliseCriteria(criteria),
+    }),
     idempotencyKey: null, // creates nothing
   });
 }

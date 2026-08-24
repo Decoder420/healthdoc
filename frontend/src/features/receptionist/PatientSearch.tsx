@@ -43,6 +43,12 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
   const [criteria, setCriteria] = useState<PatientSearchRequest>(EMPTY);
   const [results, setResults] = useState<PatientSearchResult[] | null>(null);
   const [total, setTotal] = useState(0);
+  /** Pagination, from PR #412. The screen previously fetched page 1 only and
+   *  showed "N matches" while displaying at most 20 — so a receptionist
+   *  searching a common surname was told there were 43 matches and shown
+   *  nothing beyond the first 20, with no way to reach the rest. */
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,8 +63,7 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
     setCriteria((current) => ({ ...current, [field]: value }));
   }
 
-  async function run(event: React.FormEvent) {
-    event.preventDefault();
+  async function search(nextPage: number) {
     if (!hasCriterion) return;
 
     setBusy(true);
@@ -69,17 +74,30 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
           .map(([key, value]) => [key, typeof value === "string" ? value.trim() : value])
           .filter(([, value]) => value !== "" && value !== undefined),
       );
-      const response = await searchPatients(trimmed);
+      const response = await searchPatients(trimmed, nextPage, PAGE_SIZE);
       setResults(response.items);
       setTotal(response.total);
+      setPage(nextPage);
     } catch (reason) {
+      // A disabled module reads as a permission failure otherwise, and a
+      // receptionist told "search failed" will retry rather than escalate.
+      // From PR #412.
       setError(
-        reason instanceof ApiError ? reason.message : "Patient search failed",
+        reason instanceof ApiError
+          ? reason.isModuleDisabled
+            ? "Patient search is not enabled at this facility."
+            : reason.message
+          : "Patient search failed",
       );
       setResults(null);
     } finally {
       setBusy(false);
     }
+  }
+
+  function run(event: React.FormEvent) {
+    event.preventDefault();
+    void search(1);
   }
 
   return (
@@ -230,6 +248,30 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
               ))}
             </tbody>
           </table>
+
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-center gap-3 border-t border-border py-3">
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+                disabled={busy || page <= 1}
+                onClick={() => void search(page - 1)}
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              </span>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+                disabled={busy || page >= Math.ceil(total / PAGE_SIZE)}
+                onClick={() => void search(page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
