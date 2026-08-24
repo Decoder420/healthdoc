@@ -7,6 +7,13 @@
   resolved "https://registry.npmjs.org/@alloc/quick-lru/-/quick-lru-5.2.0.tgz"
   integrity sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==
 
+"@axe-core/puppeteer@^4.13.0":
+  version "4.13.0"
+  resolved "https://registry.npmjs.org/@axe-core/puppeteer/-/puppeteer-4.13.0.tgz"
+  integrity sha512-y43krMJveVzxIZckPxo/2cHG5x4NBNF8fuwNcCYlTWV9cVtm5bagKZ6EmJO6EcKj37hsIL+nWUHGhTCvz4GNNg==
+  dependencies:
+    axe-core "~4.13.0"
+
 "@babel/code-frame@^7.0.0", "@babel/code-frame@^7.29.7":
   version "7.29.7"
   resolved "https://registry.npmjs.org/@babel/code-frame/-/code-frame-7.29.7.tgz"
@@ -1470,10 +1477,10 @@ available-typed-arrays@^1.0.7:
   dependencies:
     possible-typed-array-names "^1.0.0"
 
-axe-core@^4.10.0:
-  version "4.12.1"
-  resolved "https://registry.npmjs.org/axe-core/-/axe-core-4.12.1.tgz"
-  integrity sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==
+axe-core@^4.10.0, axe-core@~4.13.0:
+  version "4.13.0"
+  resolved "https://registry.npmjs.org/axe-core/-/axe-core-4.13.0.tgz"
+  integrity sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==
 
 axobject-query@^4.1.0:
   version "4.1.0"
@@ -4186,7 +4193,7 @@ puppeteer-core@25.3.0:
     webdriver-bidi-protocol "0.4.2"
     ws "^8.21.0"
 
-puppeteer@^25.3.0:
+puppeteer@^25.3.0, puppeteer@>=1.10.0:
   version "25.3.0"
   resolved "https://registry.npmjs.org/puppeteer/-/puppeteer-25.3.0.tgz"
   integrity sha512-O1tx8S315aw8eI99HZ5ZNcVEzJ9+jKF//eO5UvfZ3cXJ6okZ5sX3Y50u7DJaM+ewEK4LqXP068tBhfRaWikj+g==

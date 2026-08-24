@@ -12,6 +12,7 @@ import {
 } from "@/features/lab/api";
 import type { LabOrderItem, LabResult } from "@/features/lab/types";
 import { ApiError, formatDateTime } from "@/lib/api";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
 
 function StatusChip({ status }: { status: string }) {
   const tone =
@@ -221,11 +222,8 @@ function LabPageContent() {
         </button>
       </div>
 
-      {error ? (
-        <p role="alert" className="rounded-md bg-danger-muted p-3 text-sm text-danger">
-          {error}
-        </p>
-      ) : null}
+      {rows === null && !error ? <LoadingState label="Loading live lab orders" /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {message ? (
         <p role="status" className="rounded-md bg-success-muted p-3 text-sm text-success">
           {message}
@@ -233,15 +231,14 @@ function LabPageContent() {
       ) : null}
 
       {rows?.length === 0 ? (
-        <section className="surface-card p-6 text-sm text-muted-foreground">
-          No lab orders are waiting.
-        </section>
+        <EmptyState title="Worklist clear" description="No lab orders are waiting." />
       ) : null}
 
       {rows && rows.length > 0 ? (
         <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
+              <caption className="sr-only">Live laboratory worklist</caption>
               <thead className="bg-muted">
                 <tr>
                   {[
@@ -251,9 +248,9 @@ function LabPageContent() {
                     "Barcode",
                     "Status",
                     "Ordered",
-                    "",
+                    "Actions",
                   ].map((label, index) => (
-                    <th key={`${label}-${index}`} className="px-4 py-3 text-left">
+                    <th key={`${label}-${index}`} scope="col" className="px-4 py-3 text-left">
                       {label}
                     </th>
                   ))}
