@@ -368,6 +368,11 @@ class FileAction(CheckedEnum):
     DOWNLOAD = "download"
     UPLOAD = "upload"
     DELETE_ATTEMPT = "delete_attempt"
+    #: A lawful DPDP erasure (#368). Distinct from DELETE_ATTEMPT, which
+    #: records a REFUSED deletion — conflating "someone tried and was stopped"
+    #: with "the data controller destroyed this on request" would make the
+    #: access log useless as evidence in exactly the situation it exists for.
+    ERASE = "erase"
 
 
 class ScanStatus(CheckedEnum):

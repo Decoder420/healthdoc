@@ -35,10 +35,14 @@ Applied:
      facilities.id RESTRICT — patient photos and guardian ID proofs
      are among the most sensitive rows in the system and had nothing
      scoping them to a facility.
-  4. (should-fix) files.sha256 is now NOT NULL — an optional hash
+  4. (should-fix) files.sha256 became NOT NULL — an optional hash
      can't verify the MinIO object still matches what was uploaded,
      so tampering/corruption would be silently undetectable. Must be
      computed at upload time in the service layer.
+     SINCE AMENDED by 0049 (#368): sha256 and object_key are nullable
+     again, but ONLY on an erased row, enforced by
+     ck_files_object_present_unless_erased. The upload path still cannot
+     produce a row without them.
 
 Resolved — was correctly blocked on another module's file:
   3. scan_status now has its CHECK, generated from
@@ -50,8 +54,10 @@ Resolved — was correctly blocked on another module's file:
      reviewer rather than costing another round trip.
 
 Not touched (per review, tracked separately, not this PR):
-  - file_access_log.file_id ondelete=RESTRICT vs DPDP erasure conflict.
-  - No retention/cleanup path for orphaned MinIO objects on delete.
+  - RESOLVED in 0049 (#368): file_access_log.file_id ondelete=RESTRICT vs
+    DPDP erasure. Files are tombstoned, never deleted, so RESTRICT now
+    states the real rule instead of blocking a lawful erasure.
+  - Still open: no retention/cleanup path for orphaned MinIO objects.
 
 Decided (Tech Lead, #233): file_access_log stays unpartitioned. See
 FileAccessLog's own docstring below for the reasoning — don't reopen
@@ -81,14 +87,19 @@ class FileRecord(UUIDPk, Timestamps, Base):
     __tablename__ = "files"
 
     bucket: Mapped[str] = mapped_column(String(63), nullable=False)
-    object_key: Mapped[str] = mapped_column(Text, nullable=False)  # MinIO location
+    # Nullable ONLY on an erased row — ck_files_object_present_unless_erased
+    # enforces that. NULL means the bytes are gone, not that upload half-failed.
+    object_key: Mapped[str | None] = mapped_column(Text, nullable=True)  # MinIO location
     original_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
-    # NOT NULL — round-2 should-fix (was nullable). Compute on upload;
-    # without a hash the row can't prove the MinIO object hasn't changed.
-    sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    # Compute on upload; without a hash the row can't prove the MinIO object
+    # hasn't changed. Enforced NOT NULL for live rows by CHECK, not by the
+    # column, since 0049.
+    #: Cleared on erasure: a digest is a fingerprint that could confirm a
+    #: suspected copy of the erased file.
+    sha256: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
 
     owner_module: Mapped[str | None] = mapped_column(String(50), nullable=True)  # widened 30->50
 
@@ -115,11 +126,39 @@ class FileRecord(UUIDPk, Timestamps, Base):
     # ^ §4A.4: no malware scanner wired up for MVP. This column exists so the gap
     # is visible on every row ('skipped') instead of implied by silence.
 
+    # --- DPDP erasure (#368, migration 0049) -------------------------------
+    # A file row is NEVER deleted. file_access_log.file_id is NOT NULL with
+    # ondelete=RESTRICT, so deleting one would mean deleting the record of who
+    # read it — destroying the audit evidence that DPDP Rules 2025 and NABH DHS
+    # both require the hospital to keep. Erasure destroys the DATA, not the fact
+    # that processing occurred, so the bytes go and the row is tombstoned.
+    erased_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    erased_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT", name="fk_files_erased_by"),
+        nullable=True,
+    )
+    erasure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    @property
+    def is_erased(self) -> bool:
+        return self.erased_at is not None
+
     __table_args__ = (
         Index("ix_files_facility_id", "facility_id"),
         Index("ix_files_patient_id", "patient_id"),
         Index("ix_files_uploaded_by", "uploaded_by"),
         UniqueConstraint("bucket", "object_key", name="uq_files_bucket_object_key"),
+        # An erased file must say who erased it and why. Partial rather than a
+        # plain NOT NULL because the columns are meaningless on a live row.
+        CheckConstraint(
+            "erased_at IS NULL OR (erasure_reason IS NOT NULL AND erased_by IS NOT NULL)",
+            name="erasure_reason_present",
+        ),
+        CheckConstraint(
+            "erased_at IS NOT NULL OR (object_key IS NOT NULL AND sha256 IS NOT NULL)",
+            name="object_present_unless_erased",
+        ),
         # Generated from the enum, same as action's CHECK below — without it
         # the column accepts any string, so a future scanner integration could
         # write 'clean' from a path that never actually scanned.
