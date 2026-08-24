@@ -15,6 +15,21 @@ on:
 # not ready, delete the step rather than neutering it.
 
 jobs:
+  release-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only staging may target main
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "staging" ]]; then
+            echo "Direct feature PRs to main are forbidden. Retarget this work to staging."
+            echo "Only the separately reviewed staging -> main promotion PR may target production."
+            exit 1
+          fi
+
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
@@ -206,6 +221,8 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Keep this job id stable because it is an existing required check. The gate
+  # now covers every staff role seeded by `make setup`, not only nursing.
   nurse-auth-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -220,10 +237,10 @@ jobs:
           npm ci
           npx puppeteer browsers install chrome
 
-      - name: Start the complete stack and seed linked nurse identities
+      - name: Start the complete stack and seed linked staff identities
         run: make setup
 
-      - name: Nurse authentication and bearer API gate
+      - name: Staff authentication and bearer API gates
         working-directory: frontend
         env:
           E2E_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-e2e
@@ -236,6 +253,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: nurse-auth-e2e-failure
+          name: staff-auth-e2e-failure
           path: ${{ runner.temp }}/healthdoc-e2e
           if-no-files-found: ignore

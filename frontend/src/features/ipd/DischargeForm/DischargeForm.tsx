@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "@/components/forms/FormSection";
@@ -32,14 +32,14 @@ export default function DischargeForm({
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     formState: { errors },
   } = useForm<AddDischargeSchema>({
     resolver: zodResolver(addDischargeSchema),
     defaultValues: { ...DEFAULT_VALUES, admission_id: admissionId },
   });
 
-  const dischargeType = watch("discharge_type") as DischargeType;
+  const dischargeType = useWatch({ control, name: "discharge_type" }) as DischargeType;
   // Per ADR 0002: billing settlement is a warning, never a hard block —
   // emergency/DAMA/deceased discharges must not be blocked by settlement checks.
   const isEmergencyType =

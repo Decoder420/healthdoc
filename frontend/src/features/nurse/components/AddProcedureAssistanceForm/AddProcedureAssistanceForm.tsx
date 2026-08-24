@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import FormSection from "../../../../components/forms/FormSection";
@@ -31,7 +31,7 @@ export default function AddProcedureAssistanceForm({
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<AddProcedureAssistanceSchema>({
     resolver: zodResolver(addProcedureAssistanceSchema),
@@ -50,7 +50,7 @@ export default function AddProcedureAssistanceForm({
     setValue("assisted_by", assistedBy);
   }, [encounterId, patientId, assistedBy, setValue]);
 
-  const setting = watch("setting");
+  const setting = useWatch({ control, name: "setting" });
 
   const handleReset = () => {
     reset({

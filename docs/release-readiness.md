@@ -1,7 +1,12 @@
-# HealthDoc release-readiness report
+# HealthDoc release-readiness report (historical snapshot)
+
+> **Superseded on 24 August 2026.** Use
+> [`HEALTHDOC_COMPLETION_HANDOFF.md`](../HEALTHDOC_COMPLETION_HANDOFF.md) for
+> current measured counts, remaining work and release policy. The figures below
+> are retained only as the 20 August audit trail.
 
 **Assessment date:** 2026-08-20
-**Working branch:** `codex/release-readiness` from `origin/staging`
+**Historical working branch:** `release-readiness` from `origin/staging`
 **Release intent:** delivery / production-readiness (high confidence)
 
 ## Executive decision
