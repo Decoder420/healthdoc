@@ -6,7 +6,7 @@ Call-next is automatic: a prescription/order created for a visit is the
 Admin has manual overrides for edge cases only.
 """
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -18,15 +18,14 @@ from app.common.business_date import get_business_date
 from app.common.enums import OrderStatus, QueuePriority, QueueTokenStatus
 from app.common.redis import department_channel, queue_channel
 from app.departments.models import Department, Room
+from app.inventory.models import InventoryItem
 from app.notifications.models import NotificationHistory
 from app.opd.models import Visit
 from app.pathology.models import LabOrderItem
 from app.patients.models import Patient
+from app.pharmacy.models import Indent, IndentItem
 from app.queue.models import Queue, QueueCounter, QueueToken, QueueTokenPriorityChange, Roster
 from app.users.models import User
-from app.pathology.models import LabOrderItem
-from app.pharmacy.models import Indent, IndentItem
-from app.inventory.models import InventoryItem
 
 PRIORITY_RANK = {
     QueuePriority.EMERGENCY.value: 0,
@@ -358,7 +357,7 @@ async def _advance_queue(db: AsyncSession, queue: Queue) -> tuple[QueueToken | N
     next_token = candidates[0]
 
     next_token.status = QueueTokenStatus.CALLED.value
-    next_token.called_at = datetime.now(timezone.utc)
+    next_token.called_at = datetime.now(UTC)
     queue.now_serving_token_id = next_token.id
 
     await db.flush()
@@ -433,7 +432,7 @@ async def _complete_token_and_advance(
         raise HTTPException(404, "Queue not found")
 
     token.status = QueueTokenStatus.COMPLETED.value
-    token.completed_at = datetime.now(timezone.utc)
+    token.completed_at = datetime.now(UTC)
     if queue.now_serving_token_id == token.id:
         queue.now_serving_token_id = None
 
@@ -736,7 +735,10 @@ async def create_roster_entry(
         await db.flush()
     except IntegrityError as e:
         if getattr(e.orig, "sqlstate", None) == "23505":
-            raise HTTPException(409, "This staff member already has a roster entry for this date/shift")
+            raise HTTPException(
+                409,
+                "This staff member already has a roster entry for this date/shift",
+            ) from e
         raise
     await db.refresh(entry)
     return entry
@@ -1060,7 +1062,7 @@ async def get_priority_elevation_alerts(
     if department is None or department.facility_id != caller_facility_id:
         raise HTTPException(404, "Department not found")
  
-    day_start = datetime.combine(alert_date, datetime.min.time(), tzinfo=timezone.utc)
+    day_start = datetime.combine(alert_date, datetime.min.time(), tzinfo=UTC)
     day_end = day_start + timedelta(days=1)
  
     result = await db.execute(
@@ -1170,34 +1172,27 @@ async def get_emergency_escalations(
     if department is None or department.facility_id != caller_facility_id:
         raise HTTPException(404, "Department not found")
  
-    queues_result = await db.execute(
-        select(Queue.id).where(Queue.department_id == department_id)
-    )
-    queue_ids = [row[0] for row in queues_result.all()]
-    if not queue_ids:
-        return []
- 
-    tokens_result = await db.execute(
-        select(QueueToken).where(
-            QueueToken.queue_id.in_(queue_ids),
+    rows = (await db.execute(
+        select(QueueToken, User.full_name.label("doctor_name"))
+        .join(Queue, Queue.id == QueueToken.queue_id)
+        .outerjoin(User, User.id == Queue.doctor_user_id)
+        .where(
+            Queue.department_id == department_id,
             QueueToken.priority == QueuePriority.EMERGENCY.value,
             QueueToken.status.in_([QueueTokenStatus.WAITING.value, QueueTokenStatus.CALLED.value]),
         )
-    )
-    tokens = tokens_result.scalars().all()
- 
-    escalations = []
-    for token in tokens:
-        queue = await db.get(Queue, token.queue_id)
-        doctor = await db.get(User, queue.doctor_user_id) if queue else None
-        escalations.append({
+    )).all()
+
+    return [
+        {
             "token_id": token.id,
             "token_display": token.token_display,
             "status": token.status,
-            "doctor_name": doctor.full_name if doctor else None,
+            "doctor_name": doctor_name,
             "created_at": token.created_at,
-        })
-    return escalations
+        }
+        for token, doctor_name in rows
+    ]
  
 # ---------------- HOD DASHBOARD: PENDING APPROVALS (indents) ----------------
 async def get_pending_approvals(
@@ -1214,34 +1209,30 @@ async def get_pending_approvals(
     if department is None or department.facility_id != caller_facility_id:
         raise HTTPException(404, "Department not found")
  
-    indents_result = await db.execute(
-        select(Indent).where(
+    rows = (await db.execute(
+        select(Indent, IndentItem, InventoryItem.name.label("item_name"))
+        .outerjoin(IndentItem, IndentItem.indent_id == Indent.id)
+        .outerjoin(InventoryItem, InventoryItem.id == IndentItem.item_id)
+        .where(
             Indent.department_id == department_id,
             Indent.status == "requested",
         )
-    )
-    indents = indents_result.scalars().all()
- 
-    approvals = []
-    for indent in indents:
-        items_result = await db.execute(
-            select(IndentItem).where(IndentItem.indent_id == indent.id)
-        )
-        items = items_result.scalars().all()
- 
-        item_details = []
-        for item in items:
-            inventory_item = await db.get(InventoryItem, item.item_id)
-            item_details.append({
-                "item_id": item.item_id,
-                "item_name": inventory_item.name if inventory_item else None,
-                "quantity_requested": item.quantity_requested,
-            })
- 
-        approvals.append({
+        .order_by(Indent.created_at.desc(), IndentItem.id)
+    )).all()
+
+    approvals_by_id: dict[uuid.UUID, dict] = {}
+    for indent, item, item_name in rows:
+        approval = approvals_by_id.setdefault(indent.id, {
             "indent_id": indent.id,
             "department_id": indent.department_id,
             "created_at": indent.created_at,
-            "items": item_details,
+            "items": [],
         })
-    return approvals
+        if item is not None:
+            approval["items"].append({
+                "item_id": item.item_id,
+                "item_name": item_name,
+                "quantity_requested": item.quantity_requested,
+            })
+
+    return list(approvals_by_id.values())
