@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { Role } from "@/config/roles";
 import {
   type AuthUser,
@@ -16,8 +16,11 @@ import {
   initKeycloak,
   isKeycloakConfigured,
   logoutFromKeycloak,
+  onKeycloakSessionExpired,
 } from "@/lib/auth/keycloak";
 import { setAccessToken } from "@/lib/api";
+import { idleTimeoutMs, sessionExpiredPath } from "@/lib/session-policy.mjs";
+import { toast } from "@/components/ui/toast";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -38,6 +41,14 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const expireLocalSession = useCallback(() => {
+    setUser(null);
+    setAccessToken(null);
+    clearAuthToken();
+    const destination = sessionExpiredPath(window.location.pathname, window.location.search);
+    window.location.replace(destination);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +110,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => onKeycloakSessionExpired(expireLocalSession), [expireLocalSession]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    const timeout = idleTimeoutMs(process.env.NEXT_PUBLIC_SESSION_IDLE_MINUTES);
+    const warningLead = Math.min(60_000, timeout / 4);
+    let warningTimer = 0;
+    let expiryTimer = 0;
+
+    const expire = () => {
+      const destination = sessionExpiredPath(window.location.pathname, window.location.search);
+      setUser(null);
+      setAccessToken(null);
+      clearAuthToken();
+      if (isKeycloakConfigured() && !isDevAuthEnabled()) {
+        void logoutFromKeycloak(`${window.location.origin}${destination}`).catch(() => {
+          window.location.replace(destination);
+        });
+      } else {
+        window.location.replace(destination);
+      }
+    };
+
+    const reset = () => {
+      window.clearTimeout(warningTimer);
+      window.clearTimeout(expiryTimer);
+      warningTimer = window.setTimeout(() => {
+        toast.warning("Session expiring", "Save your work or continue activity to stay signed in.");
+      }, timeout - warningLead);
+      expiryTimer = window.setTimeout(expire, timeout);
+    };
+
+    const visibleActivity = () => {
+      if (document.visibilityState === "visible") reset();
+    };
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart"];
+    for (const event of events) window.addEventListener(event, reset, { passive: true });
+    document.addEventListener("visibilitychange", visibleActivity);
+    reset();
+
+    return () => {
+      window.clearTimeout(warningTimer);
+      window.clearTimeout(expiryTimer);
+      for (const event of events) window.removeEventListener(event, reset);
+      document.removeEventListener("visibilitychange", visibleActivity);
+    };
+  }, [isLoading, user]);
 
   function updateUser(nextUser: AuthUser) {
     setUser(nextUser);
