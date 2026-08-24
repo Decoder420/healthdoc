@@ -1,166 +1,192 @@
-# backend/scripts/seed_demo_251.py
-"""
-Demo seed for issue #251 — nurse recording (vitals), for the #250 demo chain.
-Scope: vitals only, no pharmacy dispense (nursing/pharmacy are separate
-modules per app/nursing/models.py and app/pharmacy/models.py).
+"""Seed repeatable receptionist, doctor, and nurse demo journeys for #251.
 
-Prerequisite: seed_dev_data.py must already have run (creates the facility
-and dev.nurse user this script attaches to).
+Prerequisite: ``scripts/dev_setup.sh`` (or ``seed_dev_data.py``) has created
+the three matching application users. This script is deliberately rejected in
+non-demo environments and is safe to rerun without duplicating clinical rows.
 
-Run with:
-    docker compose -f infra/docker-compose.yml --env-file .env exec backend \
-        python scripts/seed_demo_251.py
+Run from the repository root with::
+
+    docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
+        python -m scripts.seed_demo_251
 """
 from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any, TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions.models import Admission, Bed, Ward
+from app.audit.service import write_audit_log
 from app.common.db import SessionLocal
-from app.patients.models import Patient
-from app.admissions.models import Ward, Bed, Admission
-from app.opd.models import Visit, VisitNumberCounter
-from app.nursing.models import Vitals
-from app.users.models import User  # adjust import path if different
-import app.departments.models  # noqa: F401 — registers 'departments' table for FK resolution
 from app.common.enums import (
-    Sex, IdentityPath, IdentityStatus, PatientStatus,
-    VisitType, VisitStatus, AdmissionStatus, BedStatus,
+    AdmissionStatus,
+    BedStatus,
+    IdentityPath,
+    IdentityStatus,
+    PatientStatus,
+    QueuePriority,
+    QueueTokenStatus,
+    Sex,
+    VisitStatus,
+    VisitType,
 )
+from app.departments.models import Department, Room
+from app.nursing.models import Vitals
+from app.opd.models import Visit
+from app.patients.models import Patient
+from app.queue.models import Queue, QueueToken
+from app.users.models import User
 
-FACILITY_ID = uuid.UUID("00000000-0000-0000-0000-000000000101")  # matches seed_dev_data.py
-
-# Stable deterministic IDs so reruns update instead of duplicating
+FACILITY_ID = uuid.UUID("00000000-0000-0000-0000-000000000101")
 PATIENT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-patient")
+DEPARTMENT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-department")
+ROOM_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-room")
+QUEUE_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-queue")
+TOKEN_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-token")
+OPD_VISIT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-opd-visit")
+IPD_VISIT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-ipd-visit")
 WARD_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-ward")
 BED_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-bed")
-VISIT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-visit")
 ADMISSION_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-admission")
+VITALS_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-vitals")
 
-
-#: Environments this script will run in. It writes a fabricated patient, an
-#: admission and vitals — rows indistinguishable from real clinical records once
-#: they are in the table. The dev.nurse dependency below already makes it fail
-#: in a real deployment, but that is an accident of fixtures, not a decision.
-#: This is the decision.
 _ALLOWED_ENVIRONMENTS = {"dev", "demo", "local", "test"}
+ModelT = TypeVar("ModelT")
 
 
 def _refuse_outside_demo() -> None:
     from app.common.config import get_settings
 
     environment = (get_settings().environment or "").lower()
-    if environment in _ALLOWED_ENVIRONMENTS:
-        return
-    raise SystemExit(
-        f"Refusing to seed demo data: environment is '{environment}', not one of "
-        f"{sorted(_ALLOWED_ENVIRONMENTS)}. This script writes a fabricated patient "
-        f"and clinical observations; running it against a real database would put "
-        f"invented vitals in a chart nobody can tell apart from a real one."
-    )
+    if environment not in _ALLOWED_ENVIRONMENTS:
+        raise SystemExit(
+            f"Refusing to seed fabricated clinical data in environment {environment!r}; "
+            f"allowed values are {sorted(_ALLOWED_ENVIRONMENTS)}"
+        )
+
+
+async def _upsert(
+    session: AsyncSession,
+    model: type[ModelT],
+    row_id: uuid.UUID,
+    **values: Any,
+) -> ModelT:
+    row = await session.get(model, row_id)
+    if row is None:
+        row = model(id=row_id, **values)
+        session.add(row)
+    else:
+        for key, value in values.items():
+            setattr(row, key, value)
+    await session.flush()
+    return row
 
 
 async def seed() -> None:
     _refuse_outside_demo()
+    now = datetime.now(UTC)
     async with SessionLocal() as session, session.begin():
-        nurse = (
-            await session.execute(select(User).where(User.username == "dev.nurse"))
-        ).scalar_one_or_none()
-        if nurse is None:
+        users = {
+            user.username: user
+            for user in (
+                await session.execute(
+                    select(User).where(
+                        User.username.in_(["dev.receptionist", "dev.doctor", "dev.nurse"])
+                    )
+                )
+            ).scalars()
+        }
+        missing = sorted({"dev.receptionist", "dev.doctor", "dev.nurse"} - users.keys())
+        if missing:
             raise RuntimeError(
-                "dev.nurse user not found — run seed_dev_data.py --user dev.nurse=<sub> first"
+                f"Missing development users {missing}; run scripts/dev_setup.sh first"
             )
-
-        # Patient
-        patient = await session.get(Patient, PATIENT_ID)
-        if patient is None:
-            patient = Patient(
-                id=PATIENT_ID,
-                uhid="DEMO251",
-                full_name="Demo Patient 251",
-                sex=Sex.FEMALE.value,
-                age_years=45,
-                identity_path=IdentityPath.DEMOGRAPHICS_ONLY.value,
-                identity_status=IdentityStatus.VERIFIED.value,
-                status=PatientStatus.ACTIVE.value,
-                facility_id=FACILITY_ID,
-                created_by=nurse.id,
-                updated_by=nurse.id,
-            )
-            session.add(patient)
-            await session.flush()
-
-        # Ward
-        ward = await session.get(Ward, WARD_ID)
-        if ward is None:
-            ward = Ward(id=WARD_ID, name="Demo Ward", facility_id=FACILITY_ID, is_active=True)
-            session.add(ward)
-            await session.flush()
-
-        # Bed
-        bed = await session.get(Bed, BED_ID)
-        if bed is None:
-            bed = Bed(id=BED_ID, ward_id=WARD_ID, bed_number="D-01", status=BedStatus.OCCUPIED.value)
-            session.add(bed)
-            await session.flush()
-
-        # Visit number counter + Visit
-        visit = await session.get(Visit, VISIT_ID)
-        if visit is None:
-            visit = Visit(
-                id=VISIT_ID,
-                visit_number=f"DEMO-251-{datetime.now(timezone.utc):%Y%m%d}",
-                patient_id=PATIENT_ID,
-                facility_id=FACILITY_ID,
-                visit_type=VisitType.IPD.value,
-                status="completed",
-                visit_date=datetime.now(timezone.utc),
-                created_by=nurse.id,
-                updated_by=nurse.id,
-            )
-            session.add(visit)
-            await session.flush()
-
-        # Admission
-        admission = await session.get(Admission, ADMISSION_ID)
-        if admission is None:
-            admission = Admission(
-                id=ADMISSION_ID,
-                visit_id=VISIT_ID,
-                patient_id=PATIENT_ID,
-                ward_id=WARD_ID,
-                bed_id=BED_ID,
-                admitted_at=datetime.now(timezone.utc),
-                reason="Demo admission for #251 nurse recording",
-                status=AdmissionStatus.ADMITTED.value,
-                created_by=nurse.id,
-                updated_by=nurse.id,
-            )
-            session.add(admission)
-            await session.flush()
-
-        # Vitals — the actual nurse recording
-        vitals = Vitals(
-            admission_id=ADMISSION_ID,
-            encounter_id=None,
-            patient_id=PATIENT_ID,
-            measured_at=datetime.now(timezone.utc),
-            temp_c=37.1,
-            pulse_bpm=78,
-            resp_rate=16,
-            bp_systolic=118,
-            bp_diastolic=76,
-            spo2_pct=98,
-            pain_score=1,
-            created_by=nurse.id,
-            updated_by=nurse.id,
+        receptionist, doctor, nurse = (
+            users["dev.receptionist"],
+            users["dev.doctor"],
+            users["dev.nurse"],
         )
-        session.add(vitals)
 
-    print(f"Seeded demo patient {PATIENT_ID}, admission {ADMISSION_ID}, vitals recorded.")
+        await _upsert(
+            session, Department, DEPARTMENT_ID,
+            name="General Medicine Demo", code="DEMO251", facility_id=FACILITY_ID, is_active=True,
+        )
+        await _upsert(
+            session, Room, ROOM_ID,
+            department_id=DEPARTMENT_ID, room_number="Demo 251", is_active=True,
+        )
+        await _upsert(
+            session, Patient, PATIENT_ID,
+            uhid="DEMO251", thid=None, full_name="Demo Patient 251",
+            sex=Sex.FEMALE.value, age_years=45, mobile="9000000251",
+            identity_path=IdentityPath.DEMOGRAPHICS_ONLY.value,
+            identity_status=IdentityStatus.VERIFIED.value,
+            status=PatientStatus.ACTIVE.value, facility_id=FACILITY_ID,
+            created_by=receptionist.id, updated_by=receptionist.id, deleted_at=None,
+        )
+        await _upsert(
+            session, Visit, OPD_VISIT_ID,
+            visit_number="DEMO251-OPD", patient_id=PATIENT_ID, facility_id=FACILITY_ID,
+            department_id=DEPARTMENT_ID, visit_type=VisitType.OPD.value,
+            status=VisitStatus.REGISTERED.value, visit_date=now,
+            created_by=receptionist.id, updated_by=receptionist.id,
+        )
+        await _upsert(
+            session, Queue, QUEUE_ID,
+            facility_id=FACILITY_ID, department_id=DEPARTMENT_ID,
+            doctor_user_id=doctor.id, room_id=ROOM_ID, display_label="Demo OPD",
+            service_date=now.date(), is_open=True, now_serving_token_id=None,
+        )
+        await _upsert(
+            session, QueueToken, TOKEN_ID,
+            facility_id=FACILITY_ID, queue_id=QUEUE_ID, visit_id=OPD_VISIT_ID,
+            sequence=1, token_display="DEMO-001",
+            initial_priority=QueuePriority.NORMAL.value,
+            priority=QueuePriority.NORMAL.value, priority_rank=6,
+            status=QueueTokenStatus.WAITING.value, called_at=None, completed_at=None,
+        )
+        await _upsert(
+            session, Visit, IPD_VISIT_ID,
+            visit_number="DEMO251-IPD", patient_id=PATIENT_ID, facility_id=FACILITY_ID,
+            department_id=DEPARTMENT_ID, visit_type=VisitType.IPD.value,
+            status="completed", visit_date=now,
+            created_by=doctor.id, updated_by=doctor.id,
+        )
+        await _upsert(
+            session, Ward, WARD_ID,
+            name="Demo Ward", department_id=DEPARTMENT_ID,
+            facility_id=FACILITY_ID, is_active=True,
+        )
+        await _upsert(
+            session, Bed, BED_ID,
+            ward_id=WARD_ID, bed_number="D-01", status=BedStatus.OCCUPIED.value,
+        )
+        await _upsert(
+            session, Admission, ADMISSION_ID,
+            visit_id=IPD_VISIT_ID, patient_id=PATIENT_ID, ward_id=WARD_ID, bed_id=BED_ID,
+            admitted_at=now, reason="Deterministic nurse demo admission",
+            status=AdmissionStatus.ADMITTED.value, created_by=nurse.id, updated_by=nurse.id,
+        )
+        await _upsert(
+            session, Vitals, VITALS_ID,
+            admission_id=ADMISSION_ID, encounter_id=None, patient_id=PATIENT_ID,
+            measured_at=now, temp_c=37.1, pulse_bpm=78, resp_rate=16,
+            bp_systolic=118, bp_diastolic=76, spo2_pct=98, pain_score=1,
+            created_by=nurse.id, updated_by=nurse.id,
+        )
+        await write_audit_log(
+            session, facility_id=FACILITY_ID, action="seed", resource_type="demo_dataset",
+            resource_id=PATIENT_ID, patient_id=PATIENT_ID, visit_id=OPD_VISIT_ID,
+            user_id=receptionist.id, role="receptionist",
+            new_value={"roles": ["receptionist", "doctor", "nurse"]},
+            reason="Deterministic non-production demo seed for issue #251",
+        )
+
+    print("Seeded receptionist search, doctor queue, nurse admission, and vitals for #251.")
 
 
 if __name__ == "__main__":
