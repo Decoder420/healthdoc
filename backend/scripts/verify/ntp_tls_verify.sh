@@ -58,8 +58,22 @@ elif command -v timedatectl >/dev/null 2>&1; then
     else
         fail "timedatectl reports clock NOT synchronized: $STATUS"
     fi
+elif command -v sntp >/dev/null 2>&1; then
+    NTP_SERVER="${NTP_SERVER:-time.apple.com}"
+    SNTP_RESULT="$(sntp -t 5 "$NTP_SERVER" 2>&1 || true)"
+    OFFSET_S="$(echo "$SNTP_RESULT" | awk 'NR == 1 {print $1}')"
+    if ! echo "$OFFSET_S" | grep -Eq '^[+-]?[0-9]+([.][0-9]+)?$'; then
+        fail "sntp could not measure clock offset from $NTP_SERVER: $SNTP_RESULT"
+    else
+        OFFSET_MS="$(awk -v s="$OFFSET_S" 'BEGIN{printf "%d", (s<0?-s:s)*1000}')"
+        if [ "$OFFSET_MS" -gt "$MAX_CLOCK_SKEW_MS" ]; then
+            fail "sntp clock offset ${OFFSET_MS}ms exceeds ${MAX_CLOCK_SKEW_MS}ms threshold"
+        else
+            pass "sntp query to $NTP_SERVER, offset ${OFFSET_MS}ms"
+        fi
+    fi
 else
-    warn "neither chronyc nor timedatectl found — cannot verify NTP sync on this host. Install chrony."
+    fail "no supported NTP verifier found (chronyc, timedatectl or sntp)"
 fi
 
 echo ""
@@ -74,8 +88,18 @@ else
         PORT="${line##*:}"
         [ "$PORT" = "$HOST" ] && PORT=443
 
-        EXPIRY_RAW="$(echo | timeout 10 openssl s_client -servername "$HOST" -connect "$HOST:$PORT" 2>/dev/null \
-            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
+        if command -v timeout >/dev/null 2>&1; then
+            EXPIRY_RAW="$(echo | timeout 10 openssl s_client -servername "$HOST" -connect "$HOST:$PORT" 2>/dev/null \
+                | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
+        elif command -v gtimeout >/dev/null 2>&1; then
+            EXPIRY_RAW="$(echo | gtimeout 10 openssl s_client -servername "$HOST" -connect "$HOST:$PORT" 2>/dev/null \
+                | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
+        else
+            # macOS ships neither GNU timeout nor gtimeout. stdin is closed so
+            # s_client exits immediately after the TLS handshake.
+            EXPIRY_RAW="$(echo | openssl s_client -servername "$HOST" -connect "$HOST:$PORT" 2>/dev/null \
+                | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)"
+        fi
 
         if [ -z "$EXPIRY_RAW" ]; then
             fail "$HOST:$PORT — could not retrieve certificate (connection failed or no TLS)"
