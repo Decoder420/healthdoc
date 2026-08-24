@@ -16,4 +16,14 @@ export type KpiPeriod = "today" | "7d" | "30d" | "custom";
 
 export type KpiListResponse = {
   items: import("@/types/kpi").KpiSnapshot[];
+  period_start: string;
+  period_end: string;
+  /**
+   * True when the facility has no snapshots in this window at all.
+   *
+   * Not the same as every value being zero, and a chart cannot show the
+   * difference. Surface it as "not yet computed" — the writer job for these
+   * KPIs does not exist yet, so this is the expected state today.
+   */
+  no_snapshots: boolean;
 };

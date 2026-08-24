@@ -1,10 +1,10 @@
+// FACILITY_ID re-exported MOCK_FACILITY_ID. Reports are facility-scoped
+// server-side from the token — the browser never sends one. Removed (P1.1).
 import type { ModuleCode } from "@/features/admin/types";
 import type { CoreKpiCode, KpiPeriod } from "./types";
 
-import { MOCK_FACILITY_ID } from "@/lib/mock/facility";
 
 /** Same facility as admin / billing mock seed. */
-export const FACILITY_ID = MOCK_FACILITY_ID;
 
 /**
  * Exactly the documented kpi_code examples from kpi_snapshots / schema.
