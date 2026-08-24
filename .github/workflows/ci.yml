@@ -252,6 +252,10 @@ jobs:
           E2E_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-e2e
         run: npm run test:e2e
 
+      - name: Chromium print/PDF gates
+        working-directory: frontend
+        run: npm run test:print
+
       - name: Show service logs on failure
         if: failure()
         run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail=200
