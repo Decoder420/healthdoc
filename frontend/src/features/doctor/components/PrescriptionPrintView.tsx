@@ -1,6 +1,5 @@
 "use client";
 
-import { FACILITY_DISPLAY_NAME } from "../constants";
 import { frequencyLabel, formatAgeSex, routeLabel } from "../lib/formatters";
 import type { DraftPrescriptionItem, EncounterContext } from "../types";
 
@@ -10,20 +9,21 @@ export interface PrescriptionPrintViewProps {
   notes?: string;
   /** Active allergy substance names for the printed Rx header. */
   allergyNames?: string[];
+  facilityName: string;
 }
 
 /**
  * Hidden by default; visible only in @media print (see prescription-print.css).
  * Rendered plain HTML so the printed Rx is clean B/W, not the app chrome.
  */
-export function PrescriptionPrintView({ context, items, notes, allergyNames = [] }: PrescriptionPrintViewProps) {
+export function PrescriptionPrintView({ context, items, notes, allergyNames = [], facilityName }: PrescriptionPrintViewProps) {
   const now = new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
   return (
     <div className="rx-print" aria-hidden="true">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>{FACILITY_DISPLAY_NAME}</div>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{facilityName}</div>
           <div style={{ fontSize: 12 }}>{context.department}</div>
         </div>
         <div style={{ fontSize: 28, fontWeight: 800 }}>℞</div>

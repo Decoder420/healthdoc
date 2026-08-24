@@ -65,7 +65,6 @@ export default function Report({ report }: ReportProps) {
             </span>
           </button>
           <DownloadPdfButton
-            reportId={report.reportInfo.reportId}
             reportNumber={report.reportInfo.reportNumber}
           />
         </div>

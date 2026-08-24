@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { api, formatDateTime, formatMoney } from "@/lib/api";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
 
 interface InvoiceListItem {
   id: string;
@@ -47,15 +48,19 @@ export function LiveInvoiceQueue() {
   }, []);
 
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Billing work queue</h1>
+    <section aria-labelledby="billing-queue-heading" style={{ padding: "2rem" }}>
+      <h1 id="billing-queue-heading">Billing work queue</h1>
       <p>{loading ? "Loading live invoices…" : `${total} invoice${total === 1 ? "" : "s"}`}</p>
       <p>Invoice editing and payment mutations stay disabled until their live detail contracts replace the remaining mock stores.</p>
-      {error ? <p role="alert">{error}</p> : null}
-      {!loading && !error && rows.length === 0 ? <p>No invoices have been created.</p> : null}
+      {loading ? <LoadingState label="Loading live invoices" /> : null}
+      {error ? <ErrorState message={error} /> : null}
+      {!loading && !error && rows.length === 0 ? (
+        <EmptyState title="No invoices" description="No invoices have been created at this facility." />
+      ) : null}
       {rows.length > 0 ? (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <caption className="sr-only">Live billing invoices</caption>
             <thead>
               <tr>
                 {['Invoice', 'Patient', 'Identifier', 'Status', 'Gross', 'Net', 'Scheme', 'Created'].map((label) => (
@@ -80,6 +85,6 @@ export function LiveInvoiceQueue() {
           </table>
         </div>
       ) : null}
-    </main>
+    </section>
   );
 }

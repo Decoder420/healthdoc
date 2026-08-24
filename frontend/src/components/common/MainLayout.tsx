@@ -68,11 +68,14 @@ export default function MainLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar setOpen={setOpen} />
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+      <Navbar open={open} setOpen={setOpen} />
 
       <Sidebar open={open} setOpen={setOpen} />
 
-      <main className="pt-16 p-6">
+      <main id="main-content" tabIndex={-1} className="pt-16 p-6">
         {children}
       </main>
     </div>

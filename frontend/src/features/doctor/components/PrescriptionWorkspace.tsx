@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 
 import { Button } from "@/components/ui/Button";
 import { meridian } from "@/styles/theme";
+import { useCurrentUser } from "@/features/session/useCurrentUser";
 import { usePrescription } from "../hooks/usePrescription";
 import { formatAgeSex } from "../lib/formatters";
 import { doctorPanelSx, doctorButtonSx } from "../panelSx";
@@ -28,6 +29,7 @@ export interface PrescriptionWorkspaceProps {
 
 /** Week 4 — e-Prescription: search, dosage/frequency/route, SOS, safety banners, print. */
 export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorkspaceProps) {
+  const { user: currentUser } = useCurrentUser();
   const {
     items,
     notes,
@@ -133,7 +135,7 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
             <Button
               variant="outlined"
               sx={doctorButtonSx}
-              disabled={items.length === 0}
+              disabled={items.length === 0 || !currentUser?.facility.name}
               onClick={() => window.print()}
             >
               Print / PDF
@@ -152,6 +154,7 @@ export function PrescriptionWorkspace({ context, encounter }: PrescriptionWorksp
 
       <MedicineSearchModal open={pickOpen} onClose={() => setPickOpen(false)} onPick={addMedicine} />
       <PrescriptionPrintView
+        facilityName={currentUser?.facility.name ?? ""}
         context={context}
         items={items}
         notes={notes}
