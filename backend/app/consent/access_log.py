@@ -50,9 +50,10 @@ This only WRITES the log row. It does not:
     granted, non-expired consent_records row for (patient_id,
     purpose_code) — but this is a read-only lookup, not an enforcement
     gate; the request proceeds either way.
-  - detect break-glass automatically. emergency_access defaults False;
-    a route with a genuine emergency-override path should pass
-    emergency_access=True explicitly.
+  - grant emergency access. For a consent-required read it does detect the
+    caller's active server-side break-glass grant so the log row is marked
+    emergency_access=True, but the downstream handler remains responsible for
+    rejecting a request that has neither consent nor a grant.
   - resolve which specific patient a non-patient-keyed resource belongs
     to (e.g. an order_id that isn't itself a patient_id). Callers must
     supply the right path-param name via patient_id_param.
@@ -82,7 +83,7 @@ from app.common.db import SessionLocal
 from app.common.enums import AccessChannel
 from app.consent.access_log_fallback import serialise_row_for_fallback, write_fallback_row
 from app.consent.models import DataAccessLog
-from app.consent.service import find_active_consent
+from app.consent.service import find_active_break_glass_grant, find_active_consent
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,14 @@ def log_patient_data_access(
                     log_session, patient_id=patient_id, purpose_code=purpose_code
                 )
                 consent_verified = True if consent else (False if consent_required else None)
+                active_grant = None
+                if consent_required and consent is None:
+                    active_grant = await find_active_break_glass_grant(
+                        log_session,
+                        patient_id=patient_id,
+                        user_id=user_id,
+                    )
+                effective_emergency_access = emergency_access or active_grant is not None
 
                 log_session.add(
                     DataAccessLog(
@@ -212,7 +221,7 @@ def log_patient_data_access(
                         patient_id=patient_id,
                         purpose_code=purpose_code,
                         access_channel=access_channel,
-                        emergency_access=emergency_access,
+                        emergency_access=effective_emergency_access,
                         consent_id=consent.id if consent else None,
                         consent_required=consent_required,
                         consent_verified=consent_verified,

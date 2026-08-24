@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +387,18 @@ async def test_history_follows_merged_patient_to_canonical():
 
     fake_history = {"visits": [], "encounters": []}
 
-    with patch("app.patients.router.get_patient_history", new_callable=AsyncMock, return_value=fake_history) as mock_history:
+    with (
+        patch(
+            "app.patients.router.evaluate_clinical_access",
+            new_callable=AsyncMock,
+            return_value=MagicMock(allowed=True),
+        ),
+        patch(
+            "app.patients.router.get_patient_history",
+            new_callable=AsyncMock,
+            return_value=fake_history,
+        ) as mock_history,
+    ):
         result = await get_patient_history_endpoint(
             patient_id=merged_patient_id,
             current_db_user=user,
@@ -419,7 +431,18 @@ async def test_history_active_patient_no_merged_from():
 
     fake_history = {"visits": []}
 
-    with patch("app.patients.router.get_patient_history", new_callable=AsyncMock, return_value=fake_history):
+    with (
+        patch(
+            "app.patients.router.evaluate_clinical_access",
+            new_callable=AsyncMock,
+            return_value=MagicMock(allowed=True),
+        ),
+        patch(
+            "app.patients.router.get_patient_history",
+            new_callable=AsyncMock,
+            return_value=fake_history,
+        ),
+    ):
         result = await get_patient_history_endpoint(
             patient_id=pid,
             current_db_user=user,
@@ -427,6 +450,54 @@ async def test_history_active_patient_no_merged_from():
         )
 
     assert "merged_from_patient_id" not in result
+
+
+@pytest.mark.asyncio
+async def test_history_rejects_when_neither_consent_nor_break_glass_exists():
+    """Logging a missing consent is not enforcement; the read itself must stop."""
+    from app.patients.router import get_patient_history_endpoint
+
+    fid = uuid.uuid4()
+    pid = uuid.uuid4()
+    patient = _make_patient(id=pid, facility_id=fid, status="active")
+
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=patient)
+
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    user.facility_id = fid
+    user.roles = ["doctor"]
+
+    decision = MagicMock(
+        allowed=False,
+        blocked_reason="consent_absent",
+    )
+    with (
+        patch(
+            "app.patients.router.evaluate_clinical_access",
+            new_callable=AsyncMock,
+            return_value=decision,
+        ),
+        patch(
+            "app.patients.router.get_patient_history",
+            new_callable=AsyncMock,
+        ) as mock_history,
+        pytest.raises(HTTPException) as caught,
+    ):
+        await get_patient_history_endpoint(
+            patient_id=pid,
+            current_db_user=user,
+            db=db,
+        )
+
+    assert caught.value.status_code == 403
+    assert caught.value.detail == {
+        "code": "consent_required",
+        "blocked_reason": "consent_absent",
+        "break_glass_available": True,
+    }
+    mock_history.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

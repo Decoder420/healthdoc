@@ -21,6 +21,7 @@ insert, trigger-flipped, FOR UPDATE guarded against double-withdrawal).
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -31,7 +32,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit.actions import AuditAction
 from app.audit.service import audited_mutation
 from app.common.enums import ConsentStatus
-from app.consent.models import ConsentPurpose, ConsentRecord, ConsentRenewalReminder, ConsentWithdrawal
+from app.consent.models import (
+    BreakGlassGrant,
+    ConsentPurpose,
+    ConsentRecord,
+    ConsentRenewalReminder,
+    ConsentWithdrawal,
+)
 from app.patients.models import Patient
 
 # requested -> {granted, denied} only. granted has no entry here at all
@@ -97,6 +104,88 @@ async def find_active_consent(
         .limit(1)
     )
     return (await db.execute(q)).scalar_one_or_none()
+
+
+async def find_active_break_glass_grant(
+    db: AsyncSession, *, patient_id: uuid.UUID, user_id: uuid.UUID
+) -> BreakGlassGrant | None:
+    """The caller's current emergency grant for one patient, if any."""
+    q = (
+        sa.select(BreakGlassGrant)
+        .where(
+            BreakGlassGrant.patient_id == patient_id,
+            BreakGlassGrant.granted_to_user_id == user_id,
+            BreakGlassGrant.expires_at > sa.func.now(),
+            BreakGlassGrant.revoked_at.is_(None),
+        )
+        .order_by(BreakGlassGrant.expires_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(q)).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class ClinicalAccessDecision:
+    """Server-owned answer for a consent-gated clinical read."""
+
+    allowed: bool
+    consent: ConsentRecord | None = None
+    grant: BreakGlassGrant | None = None
+    blocked_reason: str | None = None
+
+
+async def evaluate_clinical_access(
+    db: AsyncSession,
+    *,
+    patient_id: uuid.UUID,
+    user_id: uuid.UUID,
+    purpose_code: str = "clinical_review",
+) -> ClinicalAccessDecision:
+    """Allow an active consent or the caller's active break-glass grant.
+
+    The browser must never decide this from fixtures or a timer. Both consent
+    and emergency expiry are evaluated against PostgreSQL time on each read.
+    """
+    consent = await find_active_consent(
+        db, patient_id=patient_id, purpose_code=purpose_code
+    )
+    if consent is not None:
+        return ClinicalAccessDecision(allowed=True, consent=consent)
+
+    grant = await find_active_break_glass_grant(
+        db, patient_id=patient_id, user_id=user_id
+    )
+    if grant is not None:
+        return ClinicalAccessDecision(allowed=True, grant=grant)
+
+    latest = (
+        await db.execute(
+            sa.select(ConsentRecord)
+            .join(ConsentPurpose, ConsentPurpose.id == ConsentRecord.purpose_id)
+            .where(
+                ConsentRecord.patient_id == patient_id,
+                ConsentPurpose.purpose_code == purpose_code,
+            )
+            .order_by(ConsentRecord.status_changed_at.desc(), ConsentRecord.granted_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if latest is None:
+        reason = "consent_absent"
+    elif latest.status == ConsentStatus.REVOKED.value:
+        reason = "consent_revoked"
+    elif (
+        latest.status == ConsentStatus.EXPIRED.value
+        or latest.expires_at is not None
+        and latest.expires_at <= datetime.now(timezone.utc)
+    ):
+        reason = "consent_expired"
+    else:
+        # requested/denied grants are not permission to expose the record.
+        reason = "consent_absent"
+
+    return ClinicalAccessDecision(allowed=False, blocked_reason=reason)
 
 
 async def get_consent_record(

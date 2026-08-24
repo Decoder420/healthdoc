@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
@@ -32,8 +33,19 @@ export function BreakGlassGate({
   patient: QueueToken | null;
   children: React.ReactNode;
 }) {
-  const { loading, submitting, allowed, blockedReason, grant, msRemaining, requestAccess, revoke } =
-    useBreakGlass(patient?.patient_id ?? null);
+  const {
+    loading,
+    submitting,
+    allowed,
+    blockedReason,
+    grant,
+    msRemaining,
+    mfaVerified,
+    stepUpError,
+    beginStepUp,
+    requestAccess,
+    revoke,
+  } = useBreakGlass(patient?.patient_id ?? null);
   const [modalOpen, setModalOpen] = React.useState(false);
 
   // Nothing selected — the child owns its own empty state.
@@ -71,17 +83,22 @@ export function BreakGlassGate({
           {blockedReason ? BLOCKED_COPY[blockedReason] : "You cannot view this record."}
         </Typography>
         <Typography sx={{ fontSize: "0.8125rem", color: meridian.textSecondary, lineHeight: 1.55 }}>
-          If this is a clinical emergency you can override the block. You will be asked why, and to
-          confirm it is you.
+          If this is a clinical emergency you can request a two-hour override. Keycloak must first
+          verify your authenticator; HealthDoc never receives the authentication code.
         </Typography>
+        {stepUpError ? <Alert severity="error">{stepUpError}</Alert> : null}
         <Box>
           <Button
             variant="contained"
             color="error"
             sx={doctorButtonSx}
-            onClick={() => setModalOpen(true)}
+            loading={submitting}
+            onClick={() => {
+              if (mfaVerified) setModalOpen(true);
+              else void beginStepUp();
+            }}
           >
-            Emergency access
+            {mfaVerified ? "Emergency access" : "Verify with Keycloak"}
           </Button>
         </Box>
       </Box>

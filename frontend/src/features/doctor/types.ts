@@ -624,12 +624,12 @@ export interface BreakGlassGrant {
    * clinician more than the granted window.
    */
   expires_at: string;
-  revoked_at?: string;
-  revoked_by?: string;
+  revoked_at?: string | null;
+  revoked_by?: string | null;
   /** Set by the HOD/DPO review, not by this UI. Read-only here. */
-  reviewed_at?: string;
-  reviewed_by?: string;
-  review_outcome?: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_outcome?: string | null;
 }
 
 /**
@@ -641,14 +641,7 @@ export interface CreateBreakGlassGrantInput {
   justification: string;
 }
 
-/**
- * PROVISIONAL — why a clinical read was refused.
- *
- * In production this is the body of the 403 from the read itself. Schema v3.13
- * §4.4 documents no /consent endpoints and no error shape for a consent
- * refusal, so the UI currently has no way to learn that break-glass is the
- * remedy. This stands in for that contract (raised with B7/TL).
- */
+/** Why the server refused a consent-gated clinical read. */
 export type RecordAccessBlockedReason = "consent_absent" | "consent_expired" | "consent_revoked";
 
 export interface RecordAccess {
@@ -658,17 +651,4 @@ export interface RecordAccess {
   blocked_reason?: RecordAccessBlockedReason;
   /** The caller's own active grant, when one is open. Access is then via break-glass. */
   grant?: BreakGlassGrant;
-}
-
-/**
- * PROVISIONAL — step-up MFA result.
- *
- * The schema gates break-glass on an MFA session (`amr` contains `otp`) but
- * never says whether the UI collects a TOTP code inline or bounces through
- * Keycloak for re-authentication. This is the inline shape; switching to a
- * redirect is a change to `verifyStepUp` and the modal's second step only.
- */
-export interface StepUpResult {
-  verified: boolean;
-  error?: string;
 }

@@ -29,7 +29,25 @@ class _Caller:
 
     def __init__(self, sub: str) -> None:
         self.sub = sub
+        self.username = "emergency.clinician"
+        self.roles = ["doctor"]
         self.amr = ["otp"]
+
+
+async def test_mfa_gate_rejects_a_password_only_token():
+    caller = _Caller("password-only")
+    caller.amr = ["pwd"]
+
+    with pytest.raises(HTTPException) as caught:
+        bg.require_mfa(caller)
+
+    assert caught.value.status_code == 403
+    assert caught.value.detail["code"] == "mfa_required"
+
+
+async def test_mfa_gate_accepts_an_otp_token():
+    caller = _Caller("otp-user")
+    assert bg.require_mfa(caller) is caller
 
 
 async def _facility(db) -> uuid.UUID:
@@ -212,8 +230,89 @@ async def test_another_facilitys_grant_is_not_reachable(db):
     assert row["revoked_at"] is None and row["reviewed_at"] is None
 
 
+async def test_doctor_cannot_revoke_another_doctors_grant_in_the_same_facility(db):
+    fid = await _facility(db)
+    owner_uid, _ = await _user(db, fid)
+    other_uid, other_sub = await _user(db, fid)
+    pid = await _patient(db, fid, owner_uid)
+    gid = await _grant(db, patient_id=pid, user_id=owner_uid)
+
+    with pytest.raises(HTTPException) as caught:
+        await bg.revoke_grant(
+            str(gid),
+            bg.BreakGlassRevoke(reason="Not my emergency session"),
+            _Caller(other_sub),
+            db=db,
+        )
+
+    assert caught.value.status_code == 404
+    assert (await _row(db, gid))["revoked_at"] is None
+    assert other_uid != owner_uid
+
+
+async def test_expired_review_worklist_is_scoped_to_the_auditors_facility(db):
+    ours, theirs = await _facility(db), await _facility(db)
+    our_uid, our_sub = await _user(db, ours)
+    their_uid, _ = await _user(db, theirs)
+    our_patient = await _patient(db, ours, our_uid)
+    their_patient = await _patient(db, theirs, their_uid)
+    our_grant = await _grant(
+        db, patient_id=our_patient, user_id=our_uid, expires_in=timedelta(hours=-1)
+    )
+    await _grant(
+        db, patient_id=their_patient, user_id=their_uid, expires_in=timedelta(hours=-1)
+    )
+    caller = _Caller(our_sub)
+    caller.roles = ["auditor"]
+
+    result = await bg.expired_unreviewed_grants(caller, db=db)
+
+    assert [row["id"] for row in result["items"]] == [our_grant]
+
+
 async def test_an_unknown_outcome_is_rejected(db):
     """'justified' or 'not_justified'. A free-text outcome makes the review
     column unaggregatable, which is most of its value to a DPO."""
     with pytest.raises(ValueError):
         bg.BreakGlassReview(outcome="probably fine")
+
+
+async def test_access_status_is_fail_closed_then_returns_the_active_grant(db):
+    fid = await _facility(db)
+    uid, sub = await _user(db, fid)
+    pid = await _patient(db, fid, uid)
+    caller = _Caller(sub)
+
+    denied = await bg.access_status(pid, caller, db=db)
+    assert denied == {
+        "patient_id": str(pid),
+        "allowed": False,
+        "blocked_reason": "consent_absent",
+    }
+
+    gid = await _grant(db, patient_id=pid, user_id=uid)
+    allowed = await bg.access_status(pid, caller, db=db)
+    assert allowed["allowed"] is True
+    assert allowed["grant"]["id"] == str(gid)
+    assert allowed["grant"]["granted_to_user_id"] == str(uid)
+
+
+async def test_grant_creation_returns_the_server_owned_grant_id_and_reuses_it(db):
+    fid = await _facility(db)
+    uid, sub = await _user(db, fid)
+    pid = await _patient(db, fid, uid)
+    caller = _Caller(sub)
+    payload = bg.BreakGlassRequest(
+        patient_id=pid,
+        justification="Unconscious trauma patient needs medication history.",
+    )
+
+    created = await bg.break_glass(payload, caller, db=db)
+    replay = await bg.break_glass(payload, caller, db=db)
+
+    assert created["id"]
+    assert created["patient_id"] == str(pid)
+    assert created["granted_to_user_id"] == str(uid)
+    assert created["reused"] is False
+    assert replay["id"] == created["id"]
+    assert replay["reused"] is True

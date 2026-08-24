@@ -10,11 +10,9 @@ import type {
   QueuePriority,
 } from "./types";
 
-/** Mock provider / facility identity until Keycloak/session wiring lands. */
-export const MOCK_PROVIDER_USER_ID = "00000000-0000-4000-8000-000000000201";
-export const MOCK_PROVIDER_NAME = "Dr. A. Sharma";
-export const MOCK_DEPARTMENT = "General Medicine";
-export const MOCK_FACILITY_NAME = "HealthDoc Hospital";
+/** Print header fallback until the facility profile endpoint supplies branding. */
+export const FACILITY_DISPLAY_NAME =
+  process.env.NEXT_PUBLIC_FACILITY_NAME ?? "HealthDoc Hospital";
 
 /**
  * break_glass_grants.justification — the schema annotates it "≥20 chars,
@@ -22,9 +20,6 @@ export const MOCK_FACILITY_NAME = "HealthDoc Hospital";
  * form matches intent; the server must enforce it too (raised with B7).
  */
 export const BREAK_GLASS_JUSTIFICATION_MIN = 20;
-
-/** TOTP code length for the break-glass step-up challenge. */
-export const MFA_CODE_LENGTH = 6;
 
 /**
  * Minimum characters to override a non-anaphylaxis allergy.

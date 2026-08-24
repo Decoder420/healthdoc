@@ -3,29 +3,24 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { toast } from "@/components/ui/toast";
-import { localOnly } from "../lib/mockMode";
+import { ApiError } from "@/lib/api";
+import { hasKeycloakMfaSession, stepUpWithKeycloak } from "@/lib/auth/keycloak";
+import { isDevAuthEnabled } from "@/lib/auth/mode";
 import {
   checkRecordAccess,
   requestBreakGlassGrant,
   revokeBreakGlassGrant,
-  verifyStepUp,
 } from "../api";
 import type { RecordAccess } from "../types";
 
-/**
- * Owns one patient's record-access decision and, when access is running on a
- * break-glass grant, the time left on it.
- *
- * The countdown is derived from the grant's `expires_at` on every tick rather
- * than decremented from a starting value. That is the whole point: a clinician
- * who reloads the page, or leaves the tab asleep for an hour, sees the true
- * remaining time instead of a fresh two hours.
- */
+/** Owns the server's consent-or-emergency-access decision for one patient. */
 export function useBreakGlass(patientId: string | null) {
   const [access, setAccess] = useState<RecordAccess | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [msRemaining, setMsRemaining] = useState(0);
+  const [mfaVerified, setMfaVerified] = useState(false);
+  const [stepUpError, setStepUpError] = useState<string | null>(null);
 
   const grant = access?.grant ?? null;
 
@@ -37,8 +32,8 @@ export function useBreakGlass(patientId: string | null) {
     setLoading(true);
     try {
       setAccess(await checkRecordAccess(patientId));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to check record access");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to check record access");
       setAccess(null);
     } finally {
       setLoading(false);
@@ -46,11 +41,13 @@ export function useBreakGlass(patientId: string | null) {
   }, [patientId]);
 
   useEffect(() => {
+    setMfaVerified(hasKeycloakMfaSession());
+    setStepUpError(null);
     void load();
   }, [load]);
 
-  // Tick against the server's expires_at. When it runs out, re-check access so
-  // the record closes itself without the clinician doing anything.
+  // Tick against the server's expires_at. On expiry, ask the server again;
+  // reloading or sleeping the tab can never create a fresh client-side window.
   useEffect(() => {
     if (!grant) {
       setMsRemaining(0);
@@ -77,45 +74,61 @@ export function useBreakGlass(patientId: string | null) {
     };
   }, [grant, load]);
 
-  /**
-   * Verify the step-up code, then open the grant. Returns an error string for
-   * the form to show inline — a failed MFA code is a normal outcome, not a
-   * toast-worthy fault.
-   */
+  const beginStepUp = useCallback(async (): Promise<void> => {
+    setStepUpError(null);
+    if (isDevAuthEnabled()) {
+      setStepUpError("Emergency access requires a real Keycloak MFA session.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await stepUpWithKeycloak(window.location.href);
+    } catch (error) {
+      setStepUpError(error instanceof Error ? error.message : "Keycloak verification failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
   const requestAccess = useCallback(
-    async (justification: string, code: string): Promise<string | null> => {
+    async (justification: string): Promise<string | null> => {
       if (!patientId) return "No patient selected.";
+      if (!mfaVerified) return "Verify your identity with Keycloak first.";
       setSubmitting(true);
       try {
-        const step = await verifyStepUp(code);
-        if (!step.verified) return step.error ?? "Verification failed.";
-
         const created = await requestBreakGlassGrant({
           patient_id: patientId,
           justification,
         });
         setAccess({ patient_id: patientId, allowed: true, grant: created });
-        toast.success(localOnly("Emergency access granted — this session is being recorded."));
+        toast.success("Emergency access granted — this session is being recorded.");
         return null;
-      } catch (e) {
-        return e instanceof Error ? e.message : "Could not open emergency access.";
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          error.code === 403 &&
+          (error.payload as { code?: string } | undefined)?.code === "mfa_required"
+        ) {
+          setMfaVerified(false);
+          return "Keycloak did not return OTP/MFA proof. Verify again or ask an administrator to enroll your authenticator.";
+        }
+        return error instanceof Error ? error.message : "Could not open emergency access.";
       } finally {
         setSubmitting(false);
       }
     },
-    [patientId],
+    [mfaVerified, patientId],
   );
 
-  /** Hand access back before the window runs out. */
   const revoke = useCallback(async () => {
     if (!grant) return;
     setSubmitting(true);
     try {
       await revokeBreakGlassGrant(grant.id);
-      toast.success(localOnly("Emergency access ended."));
+      toast.success("Emergency access ended.");
       await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to end emergency access");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to end emergency access");
     } finally {
       setSubmitting(false);
     }
@@ -124,11 +137,13 @@ export function useBreakGlass(patientId: string | null) {
   return {
     loading,
     submitting,
-    /** True once we know the record is readable — by consent or by grant. */
     allowed: access?.allowed ?? false,
     blockedReason: access?.blocked_reason ?? null,
     grant,
     msRemaining,
+    mfaVerified,
+    stepUpError,
+    beginStepUp,
     requestAccess,
     revoke,
   };

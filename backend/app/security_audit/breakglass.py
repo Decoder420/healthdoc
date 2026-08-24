@@ -15,6 +15,7 @@ is absent).
 """
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -25,6 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import AuthUser, get_current_user, require_roles
 from app.common.db import get_db
+from app.consent.models import BreakGlassGrant
+from app.consent.service import evaluate_clinical_access, find_active_break_glass_grant
+from app.patients.models import Patient
 
 log = logging.getLogger("healthdoc.breakglass")
 
@@ -40,7 +44,7 @@ def require_mfa(user: Annotated[AuthUser, Depends(get_current_user)]) -> AuthUse
 
 
 class BreakGlassRequest(BaseModel):
-    patient_id: str
+    patient_id: uuid.UUID
     justification: str = Field(min_length=20)
 
     @field_validator("justification")
@@ -51,40 +55,106 @@ class BreakGlassRequest(BaseModel):
         return v.strip()
 
 
-@router.post("", dependencies=[Depends(require_roles("emergency", "doctor")),
-                               Depends(require_mfa)])
-async def break_glass(payload: BreakGlassRequest,
-                      user: Annotated[AuthUser, Depends(get_current_user)],
-                      db: AsyncSession = Depends(get_db)) -> dict:
+def _grant_payload(grant: BreakGlassGrant, *, reused: bool = False) -> dict:
+    return {
+        "id": str(grant.id),
+        "patient_id": str(grant.patient_id),
+        "granted_to_user_id": str(grant.granted_to_user_id),
+        "justification": grant.justification,
+        "granted_at": grant.granted_at.isoformat(),
+        "expires_at": grant.expires_at.isoformat(),
+        "revoked_at": grant.revoked_at.isoformat() if grant.revoked_at else None,
+        "revoked_by": str(grant.revoked_by) if grant.revoked_by else None,
+        "reviewed_at": grant.reviewed_at.isoformat() if grant.reviewed_at else None,
+        "reviewed_by": str(grant.reviewed_by) if grant.reviewed_by else None,
+        "review_outcome": grant.review_outcome,
+        "granted": True,
+        "reused": reused,
+    }
+
+
+@router.get(
+    "/access/{patient_id}",
+    dependencies=[Depends(require_roles("emergency", "doctor"))],
+)
+async def access_status(
+    patient_id: uuid.UUID,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the server's consent-or-grant decision without clinical data."""
+    actor = await _actor(db, user)
+    patient = await db.get(Patient, patient_id)
+    if (
+        patient is None
+        or patient.deleted_at is not None
+        or patient.facility_id != actor["facility_id"]
+    ):
+        raise HTTPException(404, {"code": "patient_not_found"})
+
+    decision = await evaluate_clinical_access(
+        db,
+        patient_id=patient_id,
+        user_id=actor["id"],
+    )
+    response = {
+        "patient_id": str(patient_id),
+        "allowed": decision.allowed,
+    }
+    if decision.blocked_reason:
+        response["blocked_reason"] = decision.blocked_reason
+    if decision.grant:
+        response["grant"] = _grant_payload(decision.grant)
+    return response
+
+
+@router.post(
+    "",
+    dependencies=[Depends(require_roles("emergency", "doctor")), Depends(require_mfa)],
+)
+async def break_glass(
+    payload: BreakGlassRequest,
+    user: Annotated[AuthUser, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     now = datetime.now(timezone.utc)
     expires = now + GRANT_WINDOW
-    caller = (await db.execute(text("SELECT id, facility_id FROM users WHERE keycloak_sub = :sub"),
-                               {"sub": user.sub})).mappings().one_or_none()
-    if caller is None:
-        raise HTTPException(403, "Authenticated user has no HealthDoc profile")
-    exists = (await db.execute(text("SELECT 1 FROM patients WHERE id = :pid AND facility_id = :fid"),
-                               {"pid": payload.patient_id, "fid": caller["facility_id"]})).scalar_one_or_none()
-    if exists is None:
+    caller = await _actor(db, user)
+    patient = await db.get(Patient, payload.patient_id)
+    if (
+        patient is None
+        or patient.deleted_at is not None
+        or patient.facility_id != caller["facility_id"]
+    ):
         raise HTTPException(404, "Patient not found in caller facility")
-    active = (await db.execute(text("""
-        SELECT expires_at FROM break_glass_grants
-        WHERE patient_id = :pid AND granted_to_user_id = :uid
-          AND expires_at > now() AND revoked_at IS NULL
-        ORDER BY expires_at DESC LIMIT 1
-    """), {"pid": payload.patient_id, "uid": caller["id"]})).mappings().one_or_none()
+
+    # Serialize same-clinician/same-patient creation. Without this lock two
+    # simultaneous browser retries can both observe "no active grant" before
+    # either inserts, producing duplicate grants and notifications.
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"break-glass:{caller['id']}:{payload.patient_id}"},
+    )
+    active = await find_active_break_glass_grant(
+        db,
+        patient_id=payload.patient_id,
+        user_id=caller["id"],
+    )
     if active is not None:
-        return {"granted": True, "patient_id": payload.patient_id,
-                "expires_at": active["expires_at"].isoformat(), "reused": True}
+        return _grant_payload(active, reused=True)
 
     # 1) Store the grant in break_glass_grants for compliance tracking
     #    A grant is active iff now() < expires_at AND revoked_at IS NULL
-    await db.execute(text("""
-        INSERT INTO break_glass_grants
-            (id, patient_id, granted_to_user_id, justification, granted_at, expires_at, created_at)
-        VALUES (uuid_generate_v4(), :pid, :uid, :justification, :ts, :expires, :ts)
-    """), {"pid": payload.patient_id, "uid": caller["id"],
-           "justification": payload.justification,
-           "expires": expires, "ts": now})
+    grant = BreakGlassGrant(
+        id=uuid.uuid4(),
+        patient_id=payload.patient_id,
+        granted_to_user_id=caller["id"],
+        justification=payload.justification,
+        granted_at=now,
+        expires_at=expires,
+    )
+    db.add(grant)
+    await db.flush()
 
     # 2) Audit the access attempt (emergency_access=true => mandatory review)
     await db.execute(text("""
@@ -104,15 +174,13 @@ async def break_glass(payload: BreakGlassRequest,
             VALUES (uuid_generate_v4(), 'break_glass_used',
                     CAST(:p AS jsonb), :fid, :ts)
         """), {"p": json.dumps({"target": target,
-                               "patient_id": payload.patient_id,
+                               "patient_id": str(payload.patient_id),
                                "by": user.username,
                                "expires_at": expires.isoformat()}),
                "fid": caller["facility_id"],
                "ts": now})
 
-    return {"granted": True, "patient_id": payload.patient_id,
-            "expires_at": expires.isoformat(),
-            "justification_logged": True}
+    return _grant_payload(grant)
 
 
 @router.get("/expired-unreviewed", dependencies=[Depends(require_roles("auditor", "admin"))])
@@ -121,12 +189,18 @@ async def expired_unreviewed_grants(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Compliance worklist: grants that expired without being reviewed."""
+    actor = await _actor(db, user)
     rows = (await db.execute(text("""
-        SELECT id, patient_id, granted_to_user_id, justification, expires_at, created_at
-        FROM break_glass_grants
-        WHERE expires_at < now() AND revoked_at IS NULL AND reviewed_at IS NULL
-        ORDER BY expires_at DESC
-    """))).mappings().all()
+        SELECT g.id, g.patient_id, g.granted_to_user_id, g.justification,
+               g.expires_at, g.created_at
+        FROM break_glass_grants g
+        JOIN patients p ON p.id = g.patient_id
+        WHERE p.facility_id = :fid
+          AND g.expires_at < now()
+          AND g.revoked_at IS NULL
+          AND g.reviewed_at IS NULL
+        ORDER BY g.expires_at DESC
+    """), {"fid": actor["facility_id"]})).mappings().all()
     return {"items": [dict(r) for r in rows]}
 
 
@@ -219,7 +293,13 @@ async def revoke_grant(
         FROM break_glass_grants g
         JOIN patients p ON p.id = g.patient_id
         WHERE g.id = :id AND p.facility_id = :fid
-    """), {"id": grant_id, "fid": actor["facility_id"]})).mappings().one_or_none()
+          AND (:can_revoke_any OR g.granted_to_user_id = :actor)
+    """), {
+        "id": grant_id,
+        "fid": actor["facility_id"],
+        "actor": actor["id"],
+        "can_revoke_any": "admin" in user.roles,
+    })).mappings().one_or_none()
 
     if row is None:
         raise HTTPException(404, {"code": "grant_not_found"})

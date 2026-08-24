@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { meridian } from "@/styles/theme";
-import { BREAK_GLASS_JUSTIFICATION_MIN, MFA_CODE_LENGTH } from "../constants";
+import { BREAK_GLASS_JUSTIFICATION_MIN } from "../constants";
 import { doctorButtonSx } from "../panelSx";
 
 export interface BreakGlassWarningModalProps {
@@ -18,18 +18,12 @@ export interface BreakGlassWarningModalProps {
   patientName: string;
   onClose: () => void;
   /** Resolves to an error message to show inline, or null on success. */
-  onConfirm: (justification: string, code: string) => Promise<string | null>;
+  onConfirm: (justification: string) => Promise<string | null>;
 }
 
 /**
- * The "breaking" moment: warning → justification → step-up MFA.
- *
- * Every claim this modal makes is one the system actually keeps — the access is
- * logged against the clinician (data_access_log.emergency_access), it expires on
- * its own, and it is reviewable (break_glass_grants.reviewed_by). It does NOT
- * promise that anyone is notified: the architecture describes an HOD/MS
- * notification but no notification path for break-glass exists in the schema,
- * and a warning that overstates the consequences is worse than none.
+ * Final warning and justification after Keycloak has completed MFA. TOTP is
+ * never collected by this application; only Keycloak sees the credential.
  */
 export function BreakGlassWarningModal({
   open,
@@ -38,16 +32,12 @@ export function BreakGlassWarningModal({
   onClose,
   onConfirm,
 }: BreakGlassWarningModalProps) {
-  const [step, setStep] = React.useState<"justify" | "verify">("justify");
   const [justification, setJustification] = React.useState("");
-  const [code, setCode] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
-    setStep("justify");
     setJustification("");
-    setCode("");
     setError(null);
   }, [open]);
 
@@ -55,7 +45,7 @@ export function BreakGlassWarningModal({
   const justificationReady = remaining <= 0;
 
   const submit = async () => {
-    const message = await onConfirm(justification.trim(), code);
+    const message = await onConfirm(justification.trim());
     if (message) {
       setError(message);
       return;
@@ -71,46 +61,21 @@ export function BreakGlassWarningModal({
       size="sm"
       disableClose={busy}
       actions={
-        step === "justify" ? (
-          <>
-            <Button variant="outlined" sx={doctorButtonSx} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              color="error"
-              sx={doctorButtonSx}
-              disabled={!justificationReady}
-              onClick={() => setStep("verify")}
-            >
-              Continue
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="outlined"
-              sx={doctorButtonSx}
-              disabled={busy}
-              onClick={() => {
-                setError(null);
-                setStep("justify");
-              }}
-            >
-              Back
-            </Button>
-            <Button
-              variant="contained"
-              color="error"
-              sx={doctorButtonSx}
-              loading={busy}
-              disabled={code.trim().length !== MFA_CODE_LENGTH}
-              onClick={submit}
-            >
-              Open emergency access
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="outlined" sx={doctorButtonSx} disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            sx={doctorButtonSx}
+            loading={busy}
+            disabled={!justificationReady}
+            onClick={() => void submit()}
+          >
+            Open emergency access
+          </Button>
+        </>
       }
     >
       <Stack spacing={2}>
@@ -136,56 +101,32 @@ export function BreakGlassWarningModal({
             This is an emergency override
           </Typography>
           <Typography sx={{ fontSize: "0.8125rem", color: meridian.textPrimary, lineHeight: 1.55 }}>
-            You are about to open <strong>{patientName}</strong>&apos;s record without a consent
-            record. Your name, your reason and every record you open are recorded, the access ends
-            by itself, and it is reviewed afterwards.
+            You are about to open <strong>{patientName}</strong>&apos;s record without active
+            consent. Your identity, reason and record access are logged; the grant expires after
+            two hours and remains available for compliance review.
           </Typography>
         </Box>
 
-        {step === "justify" ? (
-          <>
-            <TextField
-              label="Why do you need this record now?"
-              value={justification}
-              onChange={(e) => setJustification(e.target.value)}
-              multiline
-              minRows={3}
-              fullWidth
-              autoFocus
-              placeholder="e.g. Unconscious trauma patient, need allergy and current medication history before surgery."
-              helperText={
-                justificationReady
-                  ? "This is stored with the grant and read during review."
-                  : `${remaining} more character${remaining === 1 ? "" : "s"} required.`
-              }
-            />
-          </>
-        ) : (
-          <>
-            <Typography sx={{ fontSize: "0.875rem" }}>
-              Confirm it is you. Enter the {MFA_CODE_LENGTH}-digit code from your authenticator app.
-            </Typography>
-            <TextField
-              label="Authentication code"
-              value={code}
-              onChange={(e) => {
-                setError(null);
-                setCode(e.target.value.replace(/\D/g, "").slice(0, MFA_CODE_LENGTH));
-              }}
-              fullWidth
-              autoFocus
-              error={Boolean(error)}
-              helperText={error ?? " "}
-              slotProps={{
-                htmlInput: {
-                  inputMode: "numeric",
-                  autoComplete: "one-time-code",
-                  style: { letterSpacing: "0.4em", fontVariantNumeric: "tabular-nums" },
-                },
-              }}
-            />
-          </>
-        )}
+        <TextField
+          label="Why do you need this record now?"
+          value={justification}
+          onChange={(event) => {
+            setError(null);
+            setJustification(event.target.value);
+          }}
+          multiline
+          minRows={3}
+          fullWidth
+          autoFocus
+          error={Boolean(error)}
+          placeholder="e.g. Unconscious trauma patient, need allergy and current medication history before surgery."
+          helperText={
+            error ??
+            (justificationReady
+              ? "Stored with the grant and read during compliance review."
+              : `${remaining} more character${remaining === 1 ? "" : "s"} required.`)
+          }
+        />
       </Stack>
     </Modal>
   );

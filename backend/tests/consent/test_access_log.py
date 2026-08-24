@@ -178,6 +178,75 @@ class TestConsentLinking:
         assert row["consent_id"] is None
         assert row["consent_verified"] is False
 
+    async def test_active_break_glass_marks_the_clinical_read_as_emergency(
+        self,
+        engine: AsyncEngine,
+        bind_access_log_to_test_engine,
+        facility_id,
+        user_id,
+    ):
+        patient_id = uuid.uuid4()
+        async with engine.begin() as conn:
+            sub = (
+                await conn.execute(
+                    text("SELECT keycloak_sub FROM users WHERE id = :id"), {"id": user_id}
+                )
+            ).scalar_one()
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO patients
+                        (id, uhid, full_name, sex, age_years, identity_path,
+                         identity_status, facility_id, created_by)
+                    VALUES
+                        (:id, :uhid, 'Emergency Audit Patient', 'female', 45,
+                         'demographics_only', 'verified', :fid, :uid)
+                    """
+                ),
+                {
+                    "id": patient_id,
+                    "uhid": f"BGLOG{uuid.uuid4().hex[:8]}",
+                    "fid": facility_id,
+                    "uid": user_id,
+                },
+            )
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO break_glass_grants
+                        (id, patient_id, granted_to_user_id, justification,
+                         granted_at, expires_at)
+                    VALUES
+                        (:id, :pid, :uid,
+                         'Unconscious trauma patient needs clinical history.',
+                         now(), now() + interval '2 hours')
+                    """
+                ),
+                {"id": uuid.uuid4(), "pid": patient_id, "uid": user_id},
+            )
+
+        dependency = log_patient_data_access(
+            resource_type="patient_history",
+            purpose_code="clinical_review",
+            consent_required=True,
+        )
+        request = _fake_request(path_params={"patient_id": str(patient_id)})
+        await dependency(request, AuthUser(sub=sub, username="doc", roles=["doctor"]))
+
+        async with engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT emergency_access, consent_verified "
+                        "FROM data_access_log WHERE patient_id = :pid"
+                    ),
+                    {"pid": patient_id},
+                )
+            ).mappings().one()
+
+        assert row["emergency_access"] is True
+        assert row["consent_verified"] is False
+
     async def test_no_consent_and_not_required_sets_verified_none(
         self, engine: AsyncEngine, bind_access_log_to_test_engine, user_id
     ):
