@@ -4,11 +4,10 @@ import { useEffect } from "react";
 
 import { toast } from "@/components/ui/toast";
 import { API_BASE_URL, getAccessToken } from "@/lib/api";
+import { retryDelayMs } from "@/lib/resilience.mjs";
 import { useAuth } from "@/providers/auth-provider";
 
 import type { CriticalLabAlert } from "./types";
-
-const RETRY_MS = 2_000;
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -68,10 +67,11 @@ export function CriticalAlertListener() {
     const controller = new AbortController();
 
     async function connect() {
+      let failedAttempts = 0;
       while (!controller.signal.aborted) {
         const token = getAccessToken();
         if (!token) {
-          await wait(RETRY_MS, controller.signal);
+          await wait(retryDelayMs(failedAttempts++), controller.signal);
           continue;
         }
         try {
@@ -81,13 +81,16 @@ export function CriticalAlertListener() {
             signal: controller.signal,
           });
           if (!response.ok) throw new Error(`Critical-alert stream returned ${response.status}`);
+          failedAttempts = 0;
           await readEventStream(response, controller.signal);
         } catch (reason) {
           if (!controller.signal.aborted) {
             console.warn("[lab] critical-alert stream disconnected", reason);
           }
         }
-        if (!controller.signal.aborted) await wait(RETRY_MS, controller.signal);
+        if (!controller.signal.aborted) {
+          await wait(retryDelayMs(failedAttempts++), controller.signal);
+        }
       }
     }
 
