@@ -25,12 +25,11 @@ not done here. Wiring that up means editing app/audit/listeners.py's shared
 AUDITABLE_MODULE_PREFIXES allowlist, a file this PR doesn't touch; uses the
 same manual audited_mutation() path consent's service.py uses instead.
 
-file_access_log is a SEPARATE table from audit_logs, and only upload goes
-through audited_mutation() (an audit_logs row, matching every other
-mutation in this codebase). view/download-url write ONLY a file_access_log
-row -- reads don't get an audit_logs row anywhere else in this codebase
-either (consent's access_log.py writes data_access_log, not audit_logs, for
-the same reason).
+file_access_log is a SEPARATE table from audit_logs. Upload and erasure go
+through audited_mutation() because they change state; view/download-url write
+ONLY a file_access_log row because reads don't get an audit_logs row anywhere
+else in this codebase either (consent's access_log.py writes data_access_log,
+not audit_logs, for the same reason).
 
 NOT BUILT HERE, ON PURPOSE: log-even-on-a-later-403 for file_access_log.
 consent's data_access_log needed that because a route could be rejected by
@@ -48,7 +47,7 @@ import asyncio
 import hashlib
 import io
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
@@ -223,6 +222,20 @@ async def get_download_url(
 ) -> str:
     record = await get_file_record(db, file_id, facility_id=facility_id)
 
+    # 410, not 404. The file existed and was lawfully destroyed, and the caller
+    # is already authorised to know that — GET /files/{id} returns the tombstone
+    # with erased_at and the reason. Answering 404 would claim it never existed,
+    # which contradicts the metadata read and makes the access log impossible to
+    # reconcile against what users were told.
+    #
+    # Guarded here rather than in get_file_record because erase_file() calls
+    # that helper and has to be able to see an already-erased row.
+    if record.is_erased:
+        raise HTTPException(
+            410,
+            "File erased under a data-protection request; its content no longer exists.",
+        )
+
     def _presign() -> str:
         return get_minio_client().presigned_get_object(
             record.bucket, record.object_key, expires=timedelta(seconds=PRESIGNED_URL_EXPIRY_SECONDS),
@@ -234,3 +247,86 @@ async def get_download_url(
     await db.flush()
 
     return url
+
+
+class FileAlreadyErased(Exception):
+    """Erasure is idempotent in intent but not silently repeatable.
+
+    A second erasure has nothing left to destroy, and pretending it succeeded
+    would let a caller believe they had erased something they had not — the
+    first erasure may have been of a different file entirely.
+    """
+
+
+async def erase_file(
+    db: AsyncSession,
+    file_id: uuid.UUID,
+    *,
+    facility_id: uuid.UUID,
+    user_id: uuid.UUID,
+    reason: str,
+    ip_address: str | None,
+) -> FileRecord:
+    """Destroy the bytes; keep the row and the access trail (#368).
+
+    ORDER MATTERS. The MinIO object is removed FIRST, and only then is the row
+    tombstoned. The other order leaves a row claiming the data is gone while the
+    object is still in the bucket — a false erasure certificate, which is worse
+    than an obvious failure. If the object removal raises, nothing is committed
+    and the file remains honestly un-erased.
+
+    The row is never deleted: file_access_log.file_id is NOT NULL with
+    ondelete=RESTRICT, so deleting it would mean deleting the record of who read
+    the file. DPDP requires destroying the personal data, not the evidence that
+    processing happened, and NABH requires the access record be kept.
+    """
+    record = await get_file_record(db, file_id, facility_id=facility_id)
+    if record.is_erased:
+        raise FileAlreadyErased
+
+    bucket, object_key = record.bucket, record.object_key
+
+    def _remove() -> None:
+        get_minio_client().remove_object(bucket, object_key)
+
+    await asyncio.to_thread(_remove)
+
+    async with audited_mutation(
+        db,
+        facility_id=facility_id,
+        action=AuditAction.ERASE,
+        resource_type="files",
+        user_id=user_id,
+        patient_id=record.patient_id,
+        ip_address=ip_address,
+    ) as audit:
+        record.erased_at = datetime.now(UTC)
+        record.erased_by = user_id
+        record.erasure_reason = reason
+        # Cleared because each is itself personal data or a means of confirming it:
+        # original_name routinely carries the patient's name, and sha256 would let
+        # anyone holding a suspected copy prove it was this file.
+        record.object_key = None
+        record.sha256 = None
+        record.original_name = None
+
+        audit.resource_id = record.id
+        # Do not copy the filename, object key, or digest into the permanent
+        # audit ledger: retaining them there would defeat the erasure itself.
+        audit.old_value = {"erased_at": None, "content_present": True}
+        audit.new_value = {
+            "erased_at": record.erased_at.isoformat(),
+            "content_present": False,
+        }
+        audit.reason = reason
+
+        db.add(
+            FileAccessLog(
+                file_id=file_id,
+                user_id=user_id,
+                action=FileAction.ERASE.value,
+                ip_address=ip_address,
+            )
+        )
+        await db.flush()
+    return record

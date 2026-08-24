@@ -3,6 +3,12 @@ on:
   pull_request:
   push:
     branches: [staging, main]
+  # 03:00 UTC every Monday — the Electron shell job below. Cross-platform
+  # compilation breaks from dependency drift, not from our commits, so tying it
+  # to a push would mean discovering it at the worst possible moment.
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
 
 # Every step here either passes or fails the build. No `|| true`, no
 # `|| echo "not yet created"`. A gate that reports success without running is
@@ -256,3 +262,49 @@ jobs:
           name: staff-auth-e2e-failure
           path: ${{ runner.temp }}/healthdoc-e2e
           if-no-files-found: ignore
+
+  # ------------------------------------------------------------------ #148
+  # Electron shell — weekly cross-platform compile.
+  #
+  # WHAT THIS DOES: type-checks and compiles electron/main.ts on Windows and
+  # Linux, and builds the Next bundle the shell loads. The realistic failure
+  # here is dependency drift breaking the main process on one platform, and
+  # that is what this catches.
+  #
+  # WHAT THIS DOES NOT DO: produce installers. That needs electron-builder,
+  # which is not a dependency of this repo, plus decisions about targets, code
+  # signing and auto-update that nobody has made. #148 asked for a "test build";
+  # this is the compile half. Stated rather than implied, because a job named
+  # "electron" that quietly never packages anything is the kind of green tick
+  # the policy note at the top of this file exists to prevent.
+  #
+  # Schedule/dispatch only: it adds two runners and nothing about it depends on
+  # the contents of a pull request.
+  electron-shell:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false          # a Windows-only break must not hide a Linux one
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The main process. tsconfig has strict: true, so this is a real check,
+      # not a formality.
+      - name: Compile the Electron main process
+        run: npx tsc -p electron/tsconfig.json
+
+      - name: Verify the compiled entrypoint exists
+        run: node -e "require('fs').accessSync('dist/electron/main.js')"
+
+      # The shell loads this. A renderer that does not build makes a shell that
+      # compiles useless.
+      - name: Build the renderer
+        run: npm run build

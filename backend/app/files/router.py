@@ -6,13 +6,13 @@ report), confirm before merge, same as consent's own role-list flags.
 """
 import uuid
 
-from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
 from app.files import service
-from app.files.schemas import FileDownloadUrlOut, FileOut
+from app.files.schemas import FileDownloadUrlOut, FileEraseRequest, FileOut
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -84,3 +84,41 @@ async def get_file_download_url(
         db, file_id, facility_id=user.facility_id, user_id=user.id, ip_address=_extract_ip(request)
     )
     return FileDownloadUrlOut(url=url, expires_in_seconds=service.PRESIGNED_URL_EXPIRY_SECONDS)
+
+
+@router.post(
+    "/{file_id}/erase",
+    response_model=FileOut,
+    dependencies=[Depends(require_roles("admin"))],
+)
+async def erase_file(
+    file_id: uuid.UUID,
+    payload: FileEraseRequest,
+    request: Request,
+    user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> FileOut:
+    """Destroy a file's contents under a data-protection request (#368).
+
+    POST, not DELETE. The row is not deleted and never will be — DELETE would
+    describe the wrong operation and would invite a client to expect 204 and an
+    absent resource afterwards. What actually happens is a tombstone: the bytes
+    go, the row and its access trail stay, and this returns the tombstone so the
+    caller can see erased_at and the reason they just recorded.
+
+    admin-only. Erasure is a data-controller decision, not clinical work, and
+    the roles that may READ a file are deliberately not the roles that may
+    destroy one.
+    """
+    try:
+        record = await service.erase_file(
+            db,
+            file_id,
+            facility_id=user.facility_id,
+            user_id=user.id,
+            reason=payload.reason,
+            ip_address=_extract_ip(request),
+        )
+    except service.FileAlreadyErased:
+        raise HTTPException(409, "File has already been erased") from None
+    return FileOut.model_validate(record)
