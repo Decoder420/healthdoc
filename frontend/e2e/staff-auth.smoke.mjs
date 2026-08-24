@@ -109,6 +109,19 @@ const roles = [
       });
     },
   },
+  {
+    name: "patient",
+    username: "dev.patient",
+    landingPath: "/patient-portal",
+    forbiddenPath: "/doctor",
+    api: { method: "GET", path: "/api/v1/patient-portal/me/access-history" },
+    async startJourney(page) {
+      await page.waitForFunction(
+        () => document.body.textContent?.includes("My health-data permissions"),
+        { timeout: 60_000 },
+      );
+    },
+  },
 ];
 
 const selectedRoles = requestedRole
@@ -326,7 +339,7 @@ try {
   }
 
   if (failures.length > 0) {
-    throw new Error(`Staff authentication gate failed:\n${failures.join("\n")}`);
+    throw new Error(`Authentication gate failed:\n${failures.join("\n")}`);
   }
 } catch (error) {
   console.error(error);
