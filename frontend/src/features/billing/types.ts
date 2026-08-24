@@ -64,6 +64,13 @@ export type Invoice = {
   net_amount: Money;
   scheme_code: string | null;
   sensitivity: "critical";
+  /**
+   * Optimistic concurrency (0035). Required by POST /invoices/{id}/issue as an
+   * If-Match: departments append charge lines to a draft as work completes, so
+   * a stale client would freeze an invoice missing a line added since it
+   * loaded. The fixture omitted this field entirely.
+   */
+  row_version: number;
   created_at: string;
   updated_at: string;
 };

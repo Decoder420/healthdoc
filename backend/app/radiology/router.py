@@ -120,6 +120,63 @@ async def create_radiology_order_item(
     return item
 
 
+@router.put("/order-items/{item_id}/schedule", response_model=RadiologyOrderItemOut)
+async def schedule_scan(
+    current_db_user: CurrentDbUser,
+    item_id: uuid.UUID,
+    payload: ScheduleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles("radiology_tech", "admin")),
+):
+    """Book a scan onto a machine and a time — the step that was missing.
+
+    `ScheduleRequest` existed as a schema and was imported by this module, but
+    no route ever used it. Items are created `placed`; `mark_scan_complete`
+    below refuses anything that is not `scheduled`; and nothing in the
+    application set that status. So **no radiology scan could ever be marked
+    complete**, and the workflow stopped at its first step.
+
+    Same shape as billing's draft -> issued gap: a status transition the schema
+    anticipates, with no code to perform it.
+
+    Only from `placed`. Re-scheduling an already-scheduled scan is a legitimate
+    thing to want, but it is a different operation — it has to say what happened
+    to the original slot — and inventing it silently here would be guessing.
+    """
+    item = await _scoped_item(db, item_id, current_db_user.facility_id)
+
+    if item.status != "placed":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "not_schedulable",
+                "message": (
+                    f"Item is '{item.status}'. Only a placed scan can be scheduled."
+                ),
+            },
+        )
+
+    if payload.scheduled_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "scheduled_in_the_past",
+                "message": "A scan cannot be booked into the past.",
+            },
+        )
+
+    item.scheduled_at = payload.scheduled_at
+    item.machine_id = payload.machine_id
+    item.status = "scheduled"
+
+    await _write_audit_log(db, table_name="radiology_order_items", row_id=item.id,
+                            action="update", actor_id=current_db_user.id,
+                            facility_id=current_db_user.facility_id)
+    await db.flush()
+    await db.refresh(item)
+    return item
+
+
 @router.put("/order-items/{item_id}/scan-complete", response_model=RadiologyOrderItemOut)
 async def mark_scan_complete(
     current_db_user: CurrentDbUser,

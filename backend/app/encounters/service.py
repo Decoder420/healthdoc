@@ -17,12 +17,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.opd.models import Diagnosis, DoctorReview, Encounter, Visit
+from app.users.models import User
 from app.encounters.schemas import DiagnosisCreate, EncounterCreate, EncounterUpdate
 
 
 class VisitNotFound(Exception):
     def __init__(self, visit_id: UUID):
         self.visit_id = visit_id
+
+
+class ProviderNotInFacility(Exception):
+    """The attending clinician named on the encounter is not a user here.
+
+    provider_user_id is NOT forced to the caller: a nurse or receptionist
+    legitimately opens an encounter for the doctor who will see the patient, so
+    the attending and the author are different people and both are recorded.
+
+    But it was previously written through from the request body with no check
+    at all, which meant an encounter — and every diagnosis hanging off it —
+    could be attributed to an arbitrary UUID, including a real doctor at another
+    hospital. That is a medico-legal record saying a clinician saw a patient
+    they never saw.
+    """
+
+    def __init__(self, provider_user_id: UUID):
+        self.provider_user_id = provider_user_id
 
 
 class EncounterNotFound(Exception):
@@ -55,11 +74,53 @@ _ALLOWED_REVIEW_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
-async def create_encounter(db: AsyncSession, payload: EncounterCreate) -> Encounter:
-    result = await db.execute(select(Visit).where(Visit.id == payload.visit_id))
+async def _assert_provider_in_facility(
+    db: AsyncSession, provider_user_id: UUID, facility_id: UUID
+) -> None:
+    """The named attending must be an active user of this facility.
+
+    `is_active` is checked too: attributing a new clinical note to a
+    deactivated account is how a departed clinician keeps appearing on records.
+    """
+    result = await db.execute(
+        select(User.id).where(
+            User.id == provider_user_id,
+            User.facility_id == facility_id,
+            User.is_active.is_(True),
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise ProviderNotInFacility(provider_user_id)
+
+
+async def create_encounter(
+    db: AsyncSession, payload: EncounterCreate, *, actor_id: UUID, facility_id: UUID
+) -> Encounter:
+    """Open an encounter against a visit in the CALLER's facility.
+
+    `actor_id` and `facility_id` are required keyword arguments with no
+    defaults, so no call site can omit them and silently fall back to the
+    request body — which is what this function used to do for both.
+
+    The visit lookup is scoped. It used to be `where(Visit.id == ...)` with no
+    facility predicate, and `facility_id` is then copied from whatever visit
+    came back: a caller could open an encounter on another hospital's visit and
+    the encounter would be stamped into that hospital. Every read in this module
+    goes through `_get_scoped_encounter`, but a create has no encounter yet to
+    scope — it scopes through the visit, and that path was missed. Same
+    join-scoping shape as the P0.4 findings, on the write side.
+
+    VisitNotFound rather than a distinct "wrong facility" error, for the same
+    reason reads 404: a different answer would confirm the visit id exists.
+    """
+    result = await db.execute(
+        select(Visit).where(Visit.id == payload.visit_id, Visit.facility_id == facility_id)
+    )
     visit = result.scalar_one_or_none()
     if visit is None:
         raise VisitNotFound(payload.visit_id)
+
+    await _assert_provider_in_facility(db, payload.provider_user_id, facility_id)
 
     encounter = Encounter(
         id=uuid.uuid4(),
@@ -69,7 +130,7 @@ async def create_encounter(db: AsyncSession, payload: EncounterCreate) -> Encoun
         encounter_type=payload.encounter_type,
         chief_complaint=payload.chief_complaint,
         started_at=payload.started_at,
-        created_by=payload.created_by,
+        created_by=actor_id,
         note_status="pending",
         row_version=1,
     )
@@ -83,7 +144,9 @@ async def get_encounter(db: AsyncSession, encounter_id: UUID) -> Encounter | Non
     return result.scalar_one_or_none()
 
 
-async def update_encounter(db: AsyncSession, encounter: Encounter, payload: EncounterUpdate) -> Encounter:
+async def update_encounter(
+    db: AsyncSession, encounter: Encounter, payload: EncounterUpdate, *, actor_id: UUID
+) -> Encounter:
     """Only overwrites fields the caller provided; row_version increments on every mutation."""
     if payload.ended_at is not None:
         encounter.ended_at = payload.ended_at
@@ -97,13 +160,18 @@ async def update_encounter(db: AsyncSession, encounter: Encounter, payload: Enco
         encounter.plan = payload.plan
     if payload.note_status is not None:
         encounter.note_status = payload.note_status
-    encounter.updated_by = payload.updated_by
+    # From the token, never the body. Besides the forgery, the old line
+    # assigned payload.updated_by unconditionally — and it is optional, so a
+    # PATCH that omitted it NULLed out the last-editor of a clinical note.
+    encounter.updated_by = actor_id
     encounter.row_version += 1
     await db.flush()
     return encounter
 
 
-async def create_diagnosis(db: AsyncSession, payload: DiagnosisCreate) -> Diagnosis:
+async def create_diagnosis(
+    db: AsyncSession, payload: DiagnosisCreate, *, actor_id: UUID
+) -> Diagnosis:
     result = await db.execute(select(Encounter).where(Encounter.id == payload.encounter_id))
     encounter = result.scalar_one_or_none()
     if encounter is None:
@@ -121,7 +189,9 @@ async def create_diagnosis(db: AsyncSession, payload: DiagnosisCreate) -> Diagno
         diagnosis_text=payload.diagnosis_text,
         diagnosis_type=payload.diagnosis_type,
         is_primary=payload.is_primary,
-        created_by=payload.created_by,
+        # From the token. A diagnosis is the most consequential attribution in
+        # the record — it drives billing, reporting and the discharge summary.
+        created_by=actor_id,
     )
     db.add(diagnosis)
     await db.flush()

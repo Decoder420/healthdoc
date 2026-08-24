@@ -5,7 +5,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { meridian } from "@/styles/theme";
-import { FACILITY_DISPLAY_NAME, PAYMENT_MODE_LABELS } from "../constants";
+import { useCurrentUser } from "@/features/session/useCurrentUser";
+import { PAYMENT_MODE_LABELS } from "../constants";
 import { formatINR } from "../lib/formatters";
 import type { InvoiceWithItems, PaymentWithRefunds } from "../types";
 import { PaymentStatusChip } from "./PaymentStatusChip";
@@ -27,6 +28,13 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function ImmutableReceipt({ payment, invoice }: Props) {
+  // The real facility, from GET /users/me. This used to render a hardcoded
+  // mock hospital name — on a RECEIPT, which is a document the patient keeps
+  // and may present for reimbursement. A wrong name here is worse than a
+  // missing one, so it renders nothing rather than a placeholder while the
+  // session loads.
+  const { user: currentUser } = useCurrentUser();
+
   return (
     <Box
       sx={{
@@ -49,7 +57,7 @@ export function ImmutableReceipt({ payment, invoice }: Props) {
       </Stack>
 
       <Typography sx={{ fontSize: "0.75rem", color: meridian.textSecondary, mb: 1.5 }}>
-        {FACILITY_DISPLAY_NAME}
+        {currentUser?.facility.name ?? ""}
       </Typography>
 
       <Row label="Receipt #" value={payment.receipt_number} />

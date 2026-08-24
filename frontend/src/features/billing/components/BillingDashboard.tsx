@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 
 import { toast } from "@/components/ui/toast";
 import { meridian } from "@/styles/theme";
-import { attemptMutatePayment, createRefund } from "../api";
+import { attemptMutatePayment, createRefund, getInvoice } from "../api";
 import { useCollectPayment } from "../hooks/useCollectPayment";
 import { useInvoiceDetail } from "../hooks/useInvoiceDetail";
 import { useInvoiceEditor } from "../hooks/useInvoiceEditor";
@@ -241,9 +241,11 @@ export function BillingDashboard() {
                   onRefund={async (paymentId, body) => {
                     setRefundBusy(true);
                     try {
-                      const result = await createRefund(paymentId, body);
-                      toast.success("Payment reversed", result.refund.refund_number);
-                      onPaymentSaved(result.invoice);
+                      // Returns the refund alone; re-read the invoice for the
+                      // new balance rather than assuming it.
+                      const refund = await createRefund(paymentId, body);
+                      toast.success("Payment reversed", refund.refund_number);
+                      if (selectedId) onPaymentSaved(await getInvoice(selectedId));
                     } catch (e) {
                       toast.error(e instanceof Error ? e.message : "Reversal failed");
                       throw e;

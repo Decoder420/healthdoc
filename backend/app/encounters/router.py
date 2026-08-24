@@ -1,5 +1,16 @@
-"""backend/app/encounters/router.py -- /encounters endpoints. created_by/updated_by come
-from current_db_user, never the request body (same rule as opd/router.py)."""
+"""backend/app/encounters/router.py -- /encounters endpoints.
+
+created_by/updated_by come from current_db_user, never the request body (same
+rule as opd/router.py). That sentence has been at the top of this file all
+along and create_encounter did not follow it: it passed the payload straight to
+the service, which wrote payload.created_by, payload.provider_user_id and a
+facility copied from an unscoped visit lookup.
+
+A note on how that survived review. `create_review` further down this same file
+does it correctly — `reviewed_by=current_db_user.id, created_by=current_db_user.id`
+— so the module contains a correct example of the rule sitting twenty lines
+below a violation of it. Reading either one alone looks fine.
+"""
 from __future__ import annotations
 
 from uuid import UUID
@@ -40,7 +51,24 @@ async def _get_scoped_encounter(db: AsyncSession, encounter_id: UUID, caller_fac
              dependencies=[Depends(require_roles("doctor", "nurse", "admin"))])
 async def create_encounter(payload: EncounterCreate, current_db_user: CurrentDbUser,
                             db: AsyncSession = Depends(get_db)) -> EncounterOut:
-    encounter = await service.create_encounter(db, payload)
+    """Open an encounter.
+
+    This handler took `current_db_user` and never referenced it. Authorship,
+    facility scope and the attending clinician all came from the request body,
+    while line 1 of this file states the opposite rule. The docstring was the
+    specification; the code was the bug.
+    """
+    try:
+        encounter = await service.create_encounter(
+            db, payload, actor_id=current_db_user.id, facility_id=current_db_user.facility_id,
+        )
+    except service.VisitNotFound:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="visit_not_found")
+    except service.ProviderNotInFacility:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="provider_not_in_facility",
+        )
     return EncounterOut.model_validate(encounter)
 
 
@@ -57,7 +85,7 @@ async def get_encounter(encounter_id: UUID, current_db_user: CurrentDbUser,
 async def update_encounter(encounter_id: UUID, payload: EncounterUpdate, current_db_user: CurrentDbUser,
                             db: AsyncSession = Depends(get_db)) -> EncounterOut:
     encounter = await _get_scoped_encounter(db, encounter_id, current_db_user.facility_id)
-    encounter = await service.update_encounter(db, encounter, payload)
+    encounter = await service.update_encounter(db, encounter, payload, actor_id=current_db_user.id)
     return EncounterOut.model_validate(encounter)
 
 
@@ -68,7 +96,7 @@ async def create_diagnosis(encounter_id: UUID, payload: DiagnosisCreate, current
     if payload.encounter_id != encounter_id:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="encounter_id_mismatch")
     await _get_scoped_encounter(db, encounter_id, current_db_user.facility_id)
-    diagnosis = await service.create_diagnosis(db, payload)
+    diagnosis = await service.create_diagnosis(db, payload, actor_id=current_db_user.id)
     return DiagnosisOut.model_validate(diagnosis)
 
 
