@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -7,6 +7,8 @@ import puppeteer from "puppeteer";
 
 const baseUrl = process.env.E2E_BASE_URL ?? "https://localhost";
 const artifactDir = process.env.E2E_ARTIFACT_DIR ?? "/tmp/healthdoc-e2e";
+const requestedRole = process.env.E2E_ROLE;
+const tokenHeaderFile = process.env.E2E_TOKEN_HEADER_FILE;
 const executablePath =
   process.env.PUPPETEER_EXECUTABLE_PATH ??
   [
@@ -93,6 +95,17 @@ const roles = [
     },
   },
 ];
+
+const selectedRoles = requestedRole
+  ? roles.filter((role) => role.name === requestedRole)
+  : roles;
+
+if (selectedRoles.length === 0) {
+  throw new Error(`Unknown E2E_ROLE ${JSON.stringify(requestedRole)}`);
+}
+if (tokenHeaderFile && selectedRoles.length !== 1) {
+  throw new Error("E2E_TOKEN_HEADER_FILE requires E2E_ROLE to select exactly one role");
+}
 
 async function exerciseRole(browser, role) {
   const context = await browser.createBrowserContext();
@@ -186,6 +199,14 @@ async function exerciseRole(browser, role) {
       throw new Error(`${role.api.method} ${role.api.path} returned ${result.status}`);
     }
 
+    if (tokenHeaderFile) {
+      await mkdir(path.dirname(tokenHeaderFile), { recursive: true });
+      await writeFile(tokenHeaderFile, `Authorization: ${result.authorization}\n`, {
+        mode: 0o600,
+      });
+      await chmod(tokenHeaderFile, 0o600);
+    }
+
     console.log(
       `PASS ${role.name} login -> ${role.landingPath} -> bearer ${role.api.method} ${role.api.path} (200); silent SSO (200)`,
     );
@@ -212,7 +233,7 @@ try {
   });
 
   const failures = [];
-  for (const role of roles) {
+  for (const role of selectedRoles) {
     try {
       await exerciseRole(browser, role);
     } catch (error) {
