@@ -34,6 +34,41 @@ export function registerPatient(
   });
 }
 
+/** Uppercase UHID and strip separators so card printouts match the column. */
+function normalizeUhid(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s\-_/]/g, "");
+}
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+/**
+ * Shape criteria for the wire. UHID is uppercased and separators stripped;
+ * mobile / ABHA keep digits only. Aadhaar is a valid server criterion and is
+ * deliberately never sent from this UI — see PatientSearch.
+ */
+export function normalizeSearchCriteria(
+  criteria: PatientSearchRequest,
+): PatientSearchRequest {
+  const next: PatientSearchRequest = {
+    page: criteria.page ?? 1,
+    page_size: criteria.page_size ?? 20,
+  };
+  if (criteria.full_name?.trim()) next.full_name = criteria.full_name.trim();
+  if (criteria.dob?.trim()) next.dob = criteria.dob.trim();
+  if (criteria.uhid?.trim()) next.uhid = normalizeUhid(criteria.uhid);
+  if (criteria.mobile?.trim()) {
+    const mobile = digitsOnly(criteria.mobile);
+    if (mobile) next.mobile = mobile;
+  }
+  if (criteria.abha_number?.trim()) {
+    const abha = digitsOnly(criteria.abha_number);
+    if (abha) next.abha_number = abha;
+  }
+  return next;
+}
+
 /** At least one criterion is required — the server rejects an empty search. */
 export function searchPatients(
   criteria: PatientSearchRequest,
@@ -43,7 +78,7 @@ export function searchPatients(
     // A search is a POST because the criteria include Aadhaar and ABHA numbers,
     // which must not end up in a query string, a browser history entry or an
     // access log.
-    body: JSON.stringify({ page: 1, page_size: 20, ...criteria }),
+    body: JSON.stringify(normalizeSearchCriteria(criteria)),
     idempotencyKey: null, // creates nothing
   });
 }

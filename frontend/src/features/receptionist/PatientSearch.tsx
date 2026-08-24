@@ -18,6 +18,8 @@ type Props = {
   selectLabel?: string;
 };
 
+const PAGE_SIZE = 20;
+
 const EMPTY: PatientSearchRequest = {
   full_name: "",
   mobile: "",
@@ -39,10 +41,23 @@ function MatchBadge({ matchedOn, score }: { matchedOn: string; score: number }) 
   );
 }
 
+function searchErrorMessage(reason: unknown): string {
+  if (reason instanceof ApiError) {
+    // Disabled module is not a transient failure — escalate, do not retry.
+    if (reason.isModuleDisabled) {
+      return "Patient search is not offered at this facility.";
+    }
+    return reason.message;
+  }
+  return "Patient search failed";
+}
+
 export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
   const [criteria, setCriteria] = useState<PatientSearchRequest>(EMPTY);
   const [results, setResults] = useState<PatientSearchResult[] | null>(null);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,12 +68,13 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
       criteria.abha_number?.trim(),
   );
 
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
   function set(field: keyof PatientSearchRequest, value: string) {
     setCriteria((current) => ({ ...current, [field]: value }));
   }
 
-  async function run(event: React.FormEvent) {
-    event.preventDefault();
+  async function runSearch(nextPage: number) {
     if (!hasCriterion) return;
 
     setBusy(true);
@@ -68,18 +84,28 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
         Object.entries(criteria)
           .map(([key, value]) => [key, typeof value === "string" ? value.trim() : value])
           .filter(([, value]) => value !== "" && value !== undefined),
-      );
-      const response = await searchPatients(trimmed);
+      ) as PatientSearchRequest;
+      const response = await searchPatients({
+        ...trimmed,
+        page: nextPage,
+        page_size: PAGE_SIZE,
+      });
       setResults(response.items);
       setTotal(response.total);
+      setPage(response.page);
+      setPageSize(response.page_size);
     } catch (reason) {
-      setError(
-        reason instanceof ApiError ? reason.message : "Patient search failed",
-      );
+      setError(searchErrorMessage(reason));
       setResults(null);
+      setTotal(0);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function run(event: React.FormEvent) {
+    event.preventDefault();
+    await runSearch(1);
   }
 
   return (
@@ -145,6 +171,8 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
             onClick={() => {
               setCriteria(EMPTY);
               setResults(null);
+              setTotal(0);
+              setPage(1);
               setError(null);
             }}
             className="text-sm underline"
@@ -230,6 +258,30 @@ export function PatientSearch({ onSelect, selectLabel = "Select" }: Props) {
               ))}
             </tbody>
           </table>
+
+          {total > pageSize && (
+            <div className="flex items-center justify-center gap-3 border-t border-border px-6 py-3">
+              <button
+                type="button"
+                className="text-sm underline disabled:opacity-50"
+                disabled={busy || page <= 1}
+                onClick={() => void runSearch(page - 1)}
+              >
+                Previous
+              </button>
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {pageCount}
+              </span>
+              <button
+                type="button"
+                className="text-sm underline disabled:opacity-50"
+                disabled={busy || page >= pageCount}
+                onClick={() => void runSearch(page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>
