@@ -20,13 +20,13 @@ produces a correctly-shaped, durably-recorded stub.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.integrations.abdm.fhir.models import FhirBundleTransaction
 from app.admissions.models import Admission, Discharge
+from app.integrations.abdm.fhir.models import FhirBundleTransaction
 from app.opd.models import Encounter, Visit
 from app.orders.models import Prescription, PrescriptionItem
 from app.outbox import service as outbox_service
@@ -93,7 +93,7 @@ async def _record_bundle(db: AsyncSession, visit: Visit, bundle: dict) -> FhirBu
         direction="hip_push",
         gateway_response_status="stub_not_sent",
         patient_id=visit.patient_id,
-        transmitted_at=datetime.now(timezone.utc),
+        transmitted_at=datetime.now(UTC),
         facility_id=visit.facility_id,
     )
     db.add(txn)
@@ -112,21 +112,47 @@ async def build_encounter_close_bundles(db: AsyncSession, visit: Visit) -> list[
         select(Encounter).where(Encounter.visit_id == visit.id)
     )).scalars().all()
 
+    # Batch the whole visit in three reads. The previous nested shape queried
+    # prescriptions once per encounter and items once per prescription, so a
+    # long visit generated 1 + E + P SELECTs at the exact point the clinician
+    # was trying to close it.
+    encounter_ids = [encounter.id for encounter in encounters]
+    prescriptions = []
+    if encounter_ids:
+        prescriptions = (await db.execute(
+            select(Prescription).where(Prescription.encounter_id.in_(encounter_ids))
+        )).scalars().all()
+
+    prescription_ids = [prescription.id for prescription in prescriptions]
+    items = []
+    if prescription_ids:
+        items = (await db.execute(
+            select(PrescriptionItem).where(
+                PrescriptionItem.prescription_id.in_(prescription_ids)
+            )
+        )).scalars().all()
+
+    prescriptions_by_encounter: dict[uuid.UUID, list[Prescription]] = {}
+    for prescription in prescriptions:
+        prescriptions_by_encounter.setdefault(prescription.encounter_id, []).append(prescription)
+
+    items_by_prescription: dict[uuid.UUID, list[PrescriptionItem]] = {}
+    for item in items:
+        items_by_prescription.setdefault(item.prescription_id, []).append(item)
+
     for encounter in encounters:
         if encounter.note_status == "stored":
             created.append(await _record_bundle(db, visit, _build_opd_note_bundle(encounter)))
 
-        prescriptions = (await db.execute(
-            select(Prescription).where(Prescription.encounter_id == encounter.id)
-        )).scalars().all()
-
-        for prescription in prescriptions:
-            items = (await db.execute(
-                select(PrescriptionItem).where(PrescriptionItem.prescription_id == prescription.id)
-            )).scalars().all()
-            if not items:
+        for prescription in prescriptions_by_encounter.get(encounter.id, []):
+            prescription_items = items_by_prescription.get(prescription.id, [])
+            if not prescription_items:
                 continue
-            created.append(await _record_bundle(db, visit, _build_prescription_bundle(prescription, items)))
+            created.append(await _record_bundle(
+                db,
+                visit,
+                _build_prescription_bundle(prescription, prescription_items),
+            ))
 
     return created
 
@@ -183,7 +209,7 @@ async def record_discharge_bundle(
         direction="hip_push",
         gateway_response_status="stub_not_sent",
         patient_id=admission.patient_id,
-        transmitted_at=datetime.now(timezone.utc),
+        transmitted_at=datetime.now(UTC),
         facility_id=facility_id,
     )
     db.add(txn)
