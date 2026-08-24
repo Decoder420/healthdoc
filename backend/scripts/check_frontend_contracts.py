@@ -31,19 +31,57 @@ class FrontendCall:
 
 
 def _call_body(source: str, opening_paren: int) -> str:
+    """The text between an `api(` and its matching `)`.
+
+    Skips comments as well as strings. It used to skip only strings, which made
+    an ordinary English apostrophe inside a `//` comment fatal:
+
+        return api<T>("/patients/search", {
+          // Aadhaar is never sent from this UI. Also PR #412's call.
+          //                                                  ^ opens a quote
+        });
+
+    The scan entered quote mode at that apostrophe, never found a closing one,
+    ran off the end of the file and raised "unterminated api() call" — naming a
+    call that was perfectly well-formed, several hundred lines from the real
+    cause. Any comment containing "doesn't", "patient's" or similar would do the
+    same, so this was a trap sitting in front of everyone.
+
+    Regex literals are still not tracked. None in the codebase contain an
+    unbalanced parenthesis or a stray quote, and distinguishing `/` as division
+    from `/` as a regex opener needs more context than this scanner has. If a
+    regex ever does break it, that is the place to look.
+    """
     depth = 1
     index = opening_paren + 1
     quote: str | None = None
     escaped = False
+    comment: str | None = None  # "line" or "block"
+
     while index < len(source):
         char = source[index]
-        if quote is not None:
+        nxt = source[index + 1] if index + 1 < len(source) else ""
+
+        if comment == "line":
+            if char == "\n":
+                comment = None
+        elif comment == "block":
+            if char == "*" and nxt == "/":
+                comment = None
+                index += 1
+        elif quote is not None:
             if escaped:
                 escaped = False
             elif char == "\\":
                 escaped = True
             elif char == quote:
                 quote = None
+        elif char == "/" and nxt == "/":
+            comment = "line"
+            index += 1
+        elif char == "/" and nxt == "*":
+            comment = "block"
+            index += 1
         elif char in {"'", '"', "`"}:
             quote = char
         elif char == "(":
@@ -53,6 +91,7 @@ def _call_body(source: str, opening_paren: int) -> str:
             if depth == 0:
                 return source[opening_paren + 1 : index]
         index += 1
+
     raise ValueError("unterminated api() call")
 
 

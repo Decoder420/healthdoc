@@ -1,6 +1,6 @@
 # HealthDoc Completion Handoff
 
-**Prepared:** 22 August 2026, Asia/Kolkata
+**Prepared:** 22 August 2026 · **Last measured:** 24 August 2026, Asia/Kolkata
 **Target:** reviewed release candidate on `staging` by end of 27 August 2026
 **Working branch:** `release-readiness`, merged into `staging` via #411
 
@@ -15,12 +15,13 @@ measurement.
 
 | Gate | Result |
 |---|---|
-| PostgreSQL backend suite | **649 passed**, 0 failed, 0 skipped |
-| Migration integrity | **54 migrations, linear, downgrades present, head `0047`** |
+| PostgreSQL backend suite | **690 passed**, 0 failed, 0 skipped |
+| Migration integrity | **55 migrations, linear, downgrades present, head `0047`** |
 | Schema/spec check | **96 tables, 67 enums, map + FKs + ModuleCode consistent** |
 | Schema drift | **0 blockers**, 57 documentation warnings |
-| API contract matrix | **59/59 frontend calls match OpenAPI** |
-| Frontend fixture importers | **25** (was 27) |
+| API contract matrix | **77/77 frontend calls match OpenAPI** |
+| Frontend fixture importers | **15** (was 27) |
+| Mounted API endpoints | **198** |
 | Frontend TypeScript | Passed |
 | Frontend ESLint | 0 errors, 4 pre-existing React-compiler warnings |
 | Frontend convention checker | 0 blockers, 0 warnings |
@@ -176,26 +177,99 @@ looks obviously wrong next to the one that got it right.
 
 ---
 
+## 2c. What changed on 24 August
+
+Continued P1.1. The same pattern held and hardened into a rule: **a fixture is a
+specification of unbuilt backend until proved otherwise.** Every module retired
+today had at least one call with no endpoint behind it.
+
+### Controls that had a schema and no code
+
+Four separate cases where a migration created a table, columns were named for a
+control, and nothing ever wrote or read them:
+
+| Control | Table | What was impossible |
+|---|---|---|
+| Maker-checker account requests | `user_account_requests` (0028) | No router, no service, and **nothing imported the model** — so the table was not in `Base.metadata` and existed only in PostgreSQL. `create_user` writes Keycloak first, so an approved request mints a real credential; segregation of duties had no code. |
+| Module gating | `facility_modules` (0027) | No ORM model and **no write path**. Whether pharmacy, lab, radiology, OT and blood bank answer at all was configurable only by SQL against production. |
+| Compliance ledgers | `data_access_log` (0004), `file_access_log` (0019), `audit_integrity_checks`, `audit_log_archive` (0003) | Tables and no endpoint. 6 of the auditor console's 8 calls were fixture-only. |
+| Break-glass revoke/review | `break_glass_grants` (0004) | `revoked_at`/`revoked_by` and `reviewed_at`/`reviewed_by`/`review_outcome` all unwritten. `GET /break-glass/expired-unreviewed` lists grants awaiting review and **nothing could complete one**, so that worklist could only grow. A grant also ran its full two hours with no way to cut it short. |
+
+### The scoping shape that keeps hiding bugs
+
+`data_access_log`, `file_access_log`, `break_glass_grants`, `allergies`,
+`radiology_order_items` and `consent_records` have **no `facility_id`**. They
+reach a facility only through a join. Every unscoped endpoint found in P0.4 was
+on a table of exactly this kind — the missing column is what makes the omission
+invisible to a reviewer scanning for `facility_id`.
+
+`data_access_log` adds a second trap: its `patient_id` is **nullable**. The
+obvious scoping join is an INNER JOIN, which silently discards every
+unattributed row — from the ledger recording who looked at whose data. Those
+rows are now included and counted in `unattributed_in_page` instead.
+
+### PR #412 (Kunal, patient search) — closed as superseded, three fixes taken
+
+Branch cut before #411, so its diff showed the receptionist route as a
+title-only stub while that route has rendered a working API-backed screen since
+22 August. Merging would have replaced live code with a parallel implementation.
+
+Three of its changes were **better than what shipped** and were ported, credited
+in the code: UHID/mobile/ABHA input normalisation (a receptionist types a UHID
+as printed on the card and an exact-match column never sees it — a real defect
+in the live screen), pagination (the screen showed "43 matches" and 20 rows with
+no way to the rest), and `isModuleDisabled` error handling. Not taken: a
+`globals.css` change removing `label`/`th` from the font-mono rule, which
+restyles every form label and table header in the product as a side effect of
+styling one table.
+
+*Second Kunal frontend PR superseded by a parallel implementation. The cause is
+branch age, not code quality — a coordination problem, not a review one.*
+
+### The contract gate was broken and nobody knew
+
+`make contract` crashed with `unterminated api() call`, naming a well-formed
+call. `_call_body` tracked strings but not comments, so an ordinary apostrophe
+in a `//` comment inside a call body — `#412's` — opened a quote that never
+closed and the scan ran off the end of the file.
+
+Any comment containing "doesn't" or "patient's" would have done it. Block
+comments were worse: a `)` in prose would decrement the depth and close the call
+early, **silently truncating the parsed body rather than crashing**. Fixed, with
+five unit tests on the parser; two fail against the old one, three guard against
+over-correction.
+
+---
+
 ## 3. Product state, measured
 
 | Measure | Value |
 |---|---|
 | App routes | 34 |
-| Title-only shells | **0** — 3 thin pages render real feature components |
-| Files calling the API client | **38** (was 3 before the frontend push) |
-| Files still importing fixtures | **25** (was 27) |
+| Title-only shells | **0** |
+| Files calling the API client | **41** (was 3 before the frontend push) |
+| Files still importing fixtures | **15** (was 27) |
+| Mounted API endpoints | **198** |
 
-The fixture importers are the honest headline. They are concentrated in
-Doctor (6, was 8), Billing (6), Admin (5), Consent/Audit (4), Reports (2) and
-two shared components. Those screens exist and demo convincingly on data from a
-TypeScript file, which makes them the most misleading thing in the build.
+The fixture importers remain the honest headline, but the number now means
+something different from what it did on 22 August. Then it read as "screens that
+demo on fake data". It now reads as **"screens whose backend does not exist"** —
+every module retired since had at least one call with nothing behind it.
 
-Fully retired so far: `features/doctor/api/patients.ts` and
-`features/doctor/api/prescriptions.ts`. `results.ts` is partially wired — its
-two result reads now call real endpoints; its review lifecycle still uses
-fixtures, and is unblocked now that `GET /orders/results-worklist` returns
-`encounter_id` (the mock omitted it, which is why the review lifecycle filed
-everything against one hardcoded encounter).
+**Fully retired (12 files):** doctor `patients.ts`, `prescriptions.ts`,
+`results.ts`; admin `users.ts`, `accountRequests.ts`, `facilityModules.ts`,
+`constants.ts`; audit-viewer `api/audit.ts`, `constants.ts`; both doctor pages;
+and the mock modules `doctor_results.ts`, `audit_data.ts`, `admin_data.ts`.
+
+**The 15 that remain, and what each actually needs:**
+
+| Module | Files | Blocker |
+|---|---|---|
+| Billing | 6 | **Your decision**: may a clerk hand-edit invoice lines before issuing? Charges are aggregated by `build_invoice` and issuing freezes amounts (corrections are cancel-and-reissue), so this is policy, not code. |
+| Doctor | 3 | `consultation.ts` needs an **ICD-10 code set** (external input). `orders.ts` needs `suggestOrderNames`/`createProcedure`. `breakGlass.ts` needs `verifyStepUp`, which is Keycloak re-authentication, not an endpoint. |
+| Consent | 2 | Per-patient endpoints all exist and are scoped. Only the facility-wide "consent console" list is missing — **deferred by you**; wireable now if the screen takes a patient. |
+| Reports | 2 | Genuinely blocked: the reports backend is still a ping route. |
+| Lab dashboard | 2 | **Your decision**: `components/dashboards/*` plus `PatientInfo.tsx` (1,281 lines with `lib/mock/lab_data.ts`) are **unreachable** — no route renders them, and `PatientInfo` survives only via a barrel export nothing imports. There are two lab dashboards; the real one is `app/lab/page.tsx`. Delete, or route it and it gets wired. Not wireable as-is: the mock's shape is not the schema, and the charts hardcode `const today = "2026-07-15"`. |
 
 Fixture gate — note `rg` is not installed on this machine, `grep` is:
 
@@ -289,73 +363,40 @@ clinical-owner sign-off**, not code.
 
 ### P1 — product completion
 
-1. **Retire the 27 fixture importers** (Doctor 8, Billing 6, Admin 5,
-   Consent/Audit 4, Reports 2, 2 shared).
+**1. Fixture importers: 27 -> 15.** Detail and the per-module blockers are in §3;
+the remaining work is either a decision of yours or an external input.
 
-   The prerequisite is now built. Five of those modules re-exported
-   `FACILITY_ID = MOCK_FACILITY_ID` because **nothing on the wire told the
-   browser which facility it was in** — there was no `/me` endpoint and no
-   session claim. That constant was not merely cosmetic: `CreateUserModal` and
-   `CreateAccountRequestModal` *sent* it as `facility_id` in the request body.
-   Since `POST /users` now refuses a disagreeing body `facility_id` with 403,
-   both screens would have failed on every submission the moment they were
-   wired to the real API — a mock that was concealing a broken contract rather
-   than standing in for a working one.
+**The rule this produced, which is the most reusable thing here:**
 
-   `GET /users/me` now returns the caller's id, username, full name, token
-   roles and facility (id, code, name, timezone). Deliberately narrow — no
-   email, mobile, employee_id or registration_number — since every role reads
-   it. `useCurrentUser()` consumes it with **no fallback**: a screen that
-   cannot identify its facility renders blank rather than a plausible wrong
-   name, because the facility label is what a user checks to confirm they are
-   looking at their own hospital's data.
+> A fixture is a specification of unbuilt backend until proved otherwise.
 
-   Route ordering is load-bearing and guarded by a test: `/users/me` must be
-   registered before `app.users.router`'s `GET /users/{user_id}`, or "me" is
-   parsed as a UUID and the endpoint 422s. `app/users/me.py` is a separate
-   router because `/users` is admin-gated at the APIRouter level and `/me` must
-   be readable by every role.
+Wiring a mock to a real endpoint is the first moment anyone checks the endpoint
+exists and returns what the screen assumed. **Eight times** a mock was standing
+in for missing product rather than missing wiring:
 
-   **The finding that changes how to approach the rest.** These mocks are not
-   only standing in for missing *wiring*. Three times now they were standing in
-   for missing *product*, and each was invisible until someone tried to wire the
-   call behind them:
+| What was impossible | Closed by |
+|---|---|
+| No invoice could ever be paid — `build_invoice` creates `draft`, `record_payment` requires `issued`, nothing bridged them. The integration test passed because it ran `UPDATE invoices SET status='issued'` in raw SQL itself. | `POST /billing/invoices/{id}/issue` |
+| No way to view an invoice with its lines, receipts and balance | `GET /billing/invoices/{id}` |
+| The patient record could not be fetched by id — the first call every clinical screen makes | `GET /patients/{patient_id}` |
+| A radiologist could write and sign a report; nobody could read one back. Pathology has had `/results/history` since #218 | `GET /radiology/order-items/{id}/reports` |
+| The doctor's "what have I ordered, what came back, what needs sign-off" screen had no query behind it | `GET /orders/results-worklist` |
+| The browser had no way to learn its own facility, so five modules hardcoded `MOCK_FACILITY_ID` — and *sent* it | `GET /users/me` |
+| The prescribing allergy pre-check was reimplemented in the browser | `GET /allergies/patients/{id}/check` |
+| Maker-checker, module gating, four compliance ledgers, break-glass revoke/review — all tables with no code (§2c) | 11 further endpoints |
 
-   - **No invoice could ever be paid.** `build_invoice` creates `draft`,
-     `record_payment` accepts only `("issued","partially_paid")`, and nothing in
-     the application bridged them. The integration test passed because it ran
-     `UPDATE invoices SET status='issued'` in raw SQL itself. Fixed by
-     `POST /billing/invoices/{id}/issue`.
-   - **No `GET /patients/{patient_id}`.** A patient could be created, searched,
-     updated and have their history read — but the record could not be fetched
-     by id, which is the first call every clinical screen makes.
-   - **`GET /pharmacy/medicines/search` did not return `ingredient_code`** — the
-     key the allergy matcher matches on. Wired as-was, *every* prescribed item
-     would have come back "uncheckable": a missing column reading as a missing
-     allergy check, on every prescription.
+Also: **`GET /pharmacy/medicines/search` did not return `ingredient_code`**, the
+key the allergy matcher matches on. Wired as-was, *every* prescribed item would
+have come back "uncheckable" — a missing column reading as a missing allergy
+check, on every prescription.
 
-   Treat each remaining mock module as a specification of possibly-unbuilt
-   backend, not a list of calls to swap in. Read what the endpoint actually
-   returns before assuming the mock's shape was ever real.
+**A second rule, which found four bugs: compare siblings.** Four times a broken
+module sat directly beside a correct one doing the same job — radiology vs
+pathology (report reads), `order_number` vs `visit_number` (facility code),
+`create_order` vs `create_prescription` (`created_by`), `allergies` vs
+everything else (facility scoping through a join). A module that looks
+reasonable alone often looks obviously wrong beside the one that got it right.
 
-   Endpoints added to close these: `GET /users/me`,
-   `POST /billing/invoices/{id}/issue`, `GET /billing/invoices/{id}`,
-   `GET /patients/{patient_id}`, `GET /allergies/patients/{id}/check`.
-
-   Retired so far — **27 -> 25**: `features/doctor/api/patients.ts` and
-   `features/doctor/api/prescriptions.ts`. Doctor is 8 -> 6.
-
-   Still fixture-backed, with what each needs:
-
-   | Module | Files | Missing backend |
-   |---|---|---|
-   | Doctor | 6 | `searchIcd` (needs an ICD-10 code set — **external input**), `suggestOrderNames`, `createProcedure`, results worklist, radiology report reads, 3 of 4 break-glass calls, `mockEncounterContext` on 2 pages |
-   | Billing | 6 | draft line editing (add/update/remove item) and `resolveTariff` — **a product decision**, since charges are aggregated by `build_invoice` and issuing freezes amounts |
-   | Admin | 5 | account-request endpoints exist at `app/users/account_requests.py`; needs wiring, not building |
-   | Consent/Audit | 4 | not yet surveyed |
-   | Reports | 2 | reports backend is still a ping route |
-
-   `mockMedicines` is now dead and can be deleted.
 2. Inventory workflows — backend mutations exist; the frontend shows only alerts.
 3. ABDM delivery monitoring — needs sandbox credentials.
 4. Radiology — backend contracts exist, the route is unbuilt.
@@ -382,7 +423,37 @@ exist in migrations with no ORM model (96 in spec, 81 mapped).
 
 A checker that compares the two would have caught it, and would likely find more.
 
-### Two testing facts worth knowing before writing a guard
+### Two more gates worth having, both earned the hard way
+
+**2. A table with no ORM model is a table with no code.** Four controls found on
+24 August had a migration, sometimes a model, and nothing else —
+`user_account_requests` was not even in `Base.metadata` because nothing imported
+it. A checker that lists tables present in migrations but absent from
+`Base.metadata` would have named all four in seconds. It is the same 96-vs-81
+gap already noted above, read from the other direction: those 15 unmapped tables
+are not a documentation problem, they are unbuilt features.
+
+**3. Test the gates.** `make contract` crashed on valid code for an apostrophe in
+a comment, and its block-comment handling would have *silently truncated* a
+parsed call body rather than failing. A release gate that can be wrong quietly
+is worse than most bugs in the code it checks. `tests/test_contract_checker_parsing.py`
+now covers its parser; `spec_check` and `schema_drift_check` have no equivalent.
+
+### Three testing facts worth knowing before writing a guard
+
+- `make test-pg` does **not** make the shared `db` fixture PostgreSQL. It is
+  always in-memory SQLite; `test-pg` only supplies a real `DATABASE_URL` to
+  tests that open their own engine. A test that skips itself on dialect skips
+  **everywhere**, while still reporting a tidy `skipped`.
+- Switching branches across a migration boundary leaves the test database ahead
+  of the code. Run `make test-db-reset` before `make test-pg` after any such
+  switch, or the failure looks like a broken branch rather than a stale database.
+- **A suite belongs on PostgreSQL when it touches a PG-only column type or a
+  migration-created constraint.** ARRAY and JSONB render on SQLite via
+  `@compiles` hooks but cannot bind a Python value; CHECK constraints and
+  triggers from migrations do not exist there at all. `tests/pg_fixtures.py` is
+  the shared session fixture — import `db, engine` from it rather than
+  duplicating an engine per package.
 
 - `make test-pg` does **not** make the shared `db` fixture PostgreSQL. It is
   always in-memory SQLite; `test-pg` only supplies a real `DATABASE_URL` to
