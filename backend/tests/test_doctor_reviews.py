@@ -26,8 +26,9 @@ async def encounter(db, seed):
     db.add(v)
     await db.flush()
     enc = await service.create_encounter(
-        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id, created_by=doctor.id,
-                             chief_complaint="fever"))
+        db, EncounterCreate(visit_id=v.id, provider_user_id=doctor.id,
+                             chief_complaint="fever"),
+        actor_id=doctor.id, facility_id=dept.facility_id)
     return enc, doctor
 
 
