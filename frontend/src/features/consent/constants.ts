@@ -1,8 +1,9 @@
+// FACILITY_ID re-exported MOCK_FACILITY_ID and had no consumers: consent is
+// read per patient and scoped server-side through that patient, because
+// consent_records has no facility_id of its own. Removed (P1.1).
 import type { AccessChannel, ConsentChannel, ConsentStatus } from "./types";
 
-import { MOCK_FACILITY_ID } from "@/lib/mock/facility";
 
-export const FACILITY_ID = MOCK_FACILITY_ID;
 
 export const CONSENT_STATUS_LABELS: Record<ConsentStatus, string> = {
   requested: "Requested",

@@ -1,20 +1,18 @@
 /**
- * Consent mock API — mirrors BE:
- * GET  /consent/purposes
- * GET  /consent/patients/{patient_id}/records
- * GET  /consent/patients/{patient_id}/records/{consent_id}
- * POST /consent/patients/{patient_id}/records
- * PATCH /consent/records/{consent_id}/status
- * POST /consent/records/{consent_id}/withdraw
+ * Consent records. Retired from fixtures (P1.1).
+ *
+ * PER-PATIENT, NOT FACILITY-WIDE.
+ *
+ * The fixture listed every consent in the facility when given no patient_id —
+ * "facility console convenience until patient picker exists". No endpoint does
+ * that, and building one is not trivial: `consent_records` has no facility_id,
+ * so a facility-wide list needs a deliberate join through `patients`. It is
+ * also a DPO-console question rather than a clinical one — deferred as a
+ * product decision rather than invented here.
+ *
+ * So every read below takes a patient. The screen asks who first.
  */
-
-import {
-  getConsentStore,
-  getDataAccessStore,
-  getPurposeStore,
-  setConsentStore,
-} from "@/lib/mock/consent_data";
-import { PURPOSE_LABELS } from "../constants";
+import { api } from "@/lib/api";
 import type {
   ConsentListFilters,
   ConsentPurpose,
@@ -26,203 +24,134 @@ import type {
   DataAccessLog,
 } from "../types";
 
-function delay<T>(value: T, ms = 220): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
-}
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `con-${Date.now()}`;
-}
-
-function withPurposeLabels(row: ConsentRecord): ConsentRecord {
-  const purpose = getPurposeStore().find((p) => p.id === row.purpose_id);
-  return {
-    ...row,
-    purpose_code: purpose?.purpose_code,
-    purpose_label: purpose
-      ? PURPOSE_LABELS[purpose.purpose_code] ?? purpose.purpose_code
-      : row.purpose_label,
-  };
-}
-
-/** Append-only ledger — mutations must fail. */
-export async function attemptMutateDataAccessLog(): Promise<never> {
-  await delay(null, 80);
-  throw new Error("Append-only: UPDATE/DELETE rejected on data_access_log");
-}
-
-/** GET /consent/purposes */
+/** GET /consent/purposes — the catalogue. Facility-independent. */
 export async function listConsentPurposes(): Promise<ConsentPurpose[]> {
-  return delay(getPurposeStore().filter((p) => p.is_active));
+  const response = await api<{ items: ConsentPurpose[] } | ConsentPurpose[]>(
+    "/consent/purposes",
+  );
+  return Array.isArray(response) ? response : response.items;
 }
 
 /**
- * List consents. Prefer patient_id (BE path). Without it, mock returns all
- * (facility console convenience until patient picker exists).
+ * GET /consent/patients/{patient_id}/records.
+ *
+ * `patient_id` is required. Without one there is nothing to ask for — see the
+ * module note. Returns [] rather than throwing so the screen can render its
+ * "choose a patient" state without treating it as an error.
+ *
+ * `status` and `query` narrow the returned set client-side. Safe here in a way
+ * it is not elsewhere: this is one patient's consents, not a paginated list, so
+ * filtering sees every row rather than one page of them.
  */
 export async function listConsentRecords(
   filters: ConsentListFilters = {},
 ): Promise<ConsentRecord[]> {
-  const q = filters.query?.trim().toLowerCase() ?? "";
+  if (!filters.patient_id) return [];
+
+  const rows = await api<ConsentRecord[]>(
+    `/consent/patients/${filters.patient_id}/records`,
+  );
+
   const status = filters.status ?? "all";
-  let rows = getConsentStore();
-  if (filters.patient_id) {
-    rows = rows.filter((r) => r.patient_id === filters.patient_id);
-  }
-  if (status !== "all") {
-    rows = rows.filter((r) => r.status === status);
-  }
-  if (q) {
-    rows = rows.filter((r) => {
-      const hay = [
-        r.id,
-        r.patient_id,
-        r.purpose_code,
-        r.patient?.name,
-        r.patient?.uhid,
-        r.purpose_label,
-        r.channel,
-        r.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-  rows = [...rows]
-    .map(withPurposeLabels)
-    .sort(
-      (a, b) => new Date(b.granted_at).getTime() - new Date(a.granted_at).getTime(),
-    );
-  return delay(rows);
+  const q = filters.query?.trim().toLowerCase() ?? "";
+  return rows.filter((row) => {
+    if (status !== "all" && row.status !== status) return false;
+    if (!q) return true;
+    return [row.id, row.purpose_code, row.guardian_name, row.channel]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
 }
 
-export async function getConsent(id: string): Promise<ConsentRecord | null> {
-  const found = getConsentStore().find((r) => r.id === id);
-  return delay(found ? withPurposeLabels(found) : null);
+/** GET /consent/patients/{patient_id}/records/{consent_id}. */
+export async function getConsent(
+  patientId: string,
+  consentId: string,
+): Promise<ConsentRecord> {
+  return api<ConsentRecord>(`/consent/patients/${patientId}/records/${consentId}`);
 }
 
-/** POST /consent/patients/{patient_id}/records */
-export async function createConsentRecord(
+/** POST /consent/patients/{patient_id}/records. */
+export function createConsentRecord(
   patientId: string,
   body: ConsentRecordCreate,
 ): Promise<ConsentRecord> {
-  const purpose = getPurposeStore().find((p) => p.id === body.purpose_id);
-  if (!purpose || !purpose.is_active) throw new Error("Unknown or inactive purpose");
-
-  const now = new Date().toISOString();
-  const status = body.status ?? "granted";
-  const row: ConsentRecord = withPurposeLabels({
-    id: newId(),
-    patient_id: patientId,
-    visit_id: body.visit_id ?? null,
-    purpose_id: body.purpose_id,
-    granted_by_type: body.granted_by_type,
-    granted_by_user_id: body.granted_by_user_id ?? null,
-    guardian_name: body.guardian_name ?? null,
-    guardian_relationship: body.guardian_relationship ?? null,
-    granted_at: now,
-    expires_at: body.expires_at ?? null,
-    scope: body.scope ?? null,
-    channel: body.channel,
-    consent_artefact_id: body.consent_artefact_id ?? null,
-    consent_artefact_signature: body.consent_artefact_signature ?? null,
-    status,
-    status_changed_at: now,
-    created_by: body.granted_by_user_id ?? "00000000-0000-4000-8000-000000000210",
-    updated_by: null,
-    created_at: now,
-    updated_at: now,
+  return api<ConsentRecord>(`/consent/patients/${patientId}/records`, {
+    method: "POST",
+    idempotencyKey: null,
+    body: JSON.stringify(body),
   });
-
-  setConsentStore([row, ...getConsentStore()]);
-  return delay(row);
 }
 
-/** PATCH /consent/records/{consent_id}/status — requested → granted|denied only */
-export async function transitionConsentStatus(
+/**
+ * PATCH /consent/records/{consent_id}/status — requested -> granted|denied.
+ *
+ * Only from `requested`, and only to those two. That transition exists for the
+ * ABDM consent-manager flow, where a request is raised and answered
+ * asynchronously; every other channel grants immediately at creation. The
+ * server enforces it — not duplicated here.
+ */
+export function transitionConsentStatus(
   consentId: string,
   body: ConsentStatusTransitionIn,
 ): Promise<ConsentRecord> {
-  const store = getConsentStore();
-  const idx = store.findIndex((r) => r.id === consentId);
-  if (idx < 0) throw new Error("Consent not found");
-  const current = store[idx];
-  if (current.status !== "requested") {
-    throw new Error("Only requested consents can transition via status PATCH");
-  }
-  const now = new Date().toISOString();
-  const next: ConsentRecord = withPurposeLabels({
-    ...current,
-    status: body.status,
-    status_changed_at: now,
-    updated_at: now,
+  return api<ConsentRecord>(`/consent/records/${consentId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
   });
-  const copy = [...store];
-  copy[idx] = next;
-  setConsentStore(copy);
-  return delay(next);
 }
 
-/** POST /consent/records/{consent_id}/withdraw → revoked */
-export async function withdrawConsent(
+/**
+ * POST /consent/records/{consent_id}/withdraw — granted -> revoked.
+ *
+ * A withdrawal is recorded, not applied by deleting the consent: the record of
+ * having consented, and then having withdrawn, is the DPDP artefact. Erasing
+ * the original would destroy the evidence that processing was lawful while it
+ * lasted.
+ */
+export function withdrawConsent(
   consentId: string,
   body: ConsentWithdrawalCreate,
 ): Promise<ConsentRecord> {
-  void body;
-  const store = getConsentStore();
-  const idx = store.findIndex((r) => r.id === consentId);
-  if (idx < 0) throw new Error("Consent not found");
-  const current = store[idx];
-  if (current.status !== "granted") {
-    throw new Error("Only granted consents can be withdrawn");
-  }
-  const now = new Date().toISOString();
-  const next: ConsentRecord = withPurposeLabels({
-    ...current,
-    status: "revoked",
-    status_changed_at: now,
-    updated_at: now,
+  return api<ConsentRecord>(`/consent/records/${consentId}/withdraw`, {
+    method: "POST",
+    idempotencyKey: null,
+    body: JSON.stringify(body),
   });
-  const copy = [...store];
-  copy[idx] = next;
-  setConsentStore(copy);
-  return delay(next);
 }
 
+/**
+ * GET /audit/data-access — who read this patient's data, under what purpose.
+ *
+ * Lives on the audit router rather than consent, because it is the same ledger
+ * the compliance console reads. Auditor/admin gated.
+ */
 export async function listDataAccessLogs(
   filters: DataAccessFilters = {},
 ): Promise<DataAccessLog[]> {
-  const q = filters.query?.trim().toLowerCase() ?? "";
-  let rows = getDataAccessStore();
-  if (filters.consent_id) {
-    rows = rows.filter((r) => r.consent_id === filters.consent_id);
-  }
-  if (filters.patient_id) {
-    rows = rows.filter((r) => r.patient_id === filters.patient_id);
-  }
-  if (q) {
-    rows = rows.filter((r) => {
-      const hay = [
-        r.id,
-        r.user_id,
-        r.user_display,
-        r.resource_type,
-        r.purpose_code,
-        r.access_channel,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-  rows = [...rows].sort(
-    (a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime(),
+  const params = new URLSearchParams({ page: "1", page_size: "100" });
+  if (filters.consent_id) params.set("consent_id", filters.consent_id);
+  if (filters.patient_id) params.set("patient_id", filters.patient_id);
+
+  const response = await api<{ items: DataAccessLog[] }>(
+    `/audit/data-access?${params.toString()}`,
   );
-  return delay(rows);
+  return response.items;
+}
+
+/**
+ * data_access_log is append-only.
+ *
+ * The fixture simulated a rejected mutation to demonstrate it. There is nothing
+ * to call — no update or delete endpoint exists, and a database trigger blocks
+ * the write regardless. The absence IS the property.
+ */
+export async function attemptMutateDataAccessLog(): Promise<never> {
+  throw new Error(
+    "data_access_log is append-only — no update or delete endpoint exists, and " +
+      "a database trigger rejects the write. It is the record of who looked at " +
+      "what; an editable one would be worthless.",
+  );
 }
