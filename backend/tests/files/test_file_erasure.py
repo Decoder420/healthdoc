@@ -28,12 +28,15 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.audit.actions import AuditAction
 from app.common.enums import FileAction
 from app.files import service
 from app.files.models import FileRecord
+from app.files.schemas import FileEraseRequest
 
 
 @pytest.fixture
@@ -93,6 +96,16 @@ async def test_the_file_row_cannot_simply_be_deleted(session_factory, facility_i
         assert "foreign key" in str(caught.value).lower()
 
 
+@pytest.mark.parametrize("reason", ["", " ", "\t\n"])
+def test_erasure_reason_cannot_be_blank(reason):
+    with pytest.raises(ValidationError):
+        FileEraseRequest(reason=reason)
+
+
+def test_erasure_reason_is_trimmed():
+    assert FileEraseRequest(reason="  DPDP request GRV-41  ").reason == "DPDP request GRV-41"
+
+
 async def test_erasure_destroys_the_data_and_keeps_the_trail(
     session_factory, facility_id, user_id, no_minio
 ):
@@ -121,6 +134,28 @@ async def test_erasure_destroys_the_data_and_keeps_the_trail(
         )).scalars().all()
         assert "upload" in actions, "the original access record survives erasure"
         assert FileAction.ERASE.value in actions, "and the erasure is itself logged"
+
+        audit = (await db.execute(
+            text("""
+                SELECT action, resource_type, resource_id, user_id, reason,
+                       old_value, new_value, ip_address::text
+                FROM audit_logs
+                WHERE facility_id = :facility_id
+                  AND resource_type = 'files'
+                  AND resource_id = :file_id
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"facility_id": facility_id, "file_id": file_id},
+        )).mappings().one()
+        assert audit["action"] == AuditAction.ERASE
+        assert audit["resource_id"] == file_id
+        assert audit["user_id"] == user_id
+        assert audit["reason"] == "DPDP erasure request GRV-2026-0041"
+        assert audit["old_value"] == {"erased_at": None, "content_present": True}
+        assert audit["new_value"]["content_present"] is False
+        assert audit["new_value"]["erased_at"] is not None
+        assert audit["ip_address"] == "10.0.0.9/32"
 
 
 async def test_the_erasure_is_logged_as_erase_not_as_a_refused_delete(

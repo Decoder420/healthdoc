@@ -26,6 +26,7 @@ class AuditAction:
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+    ERASE = "erase"
 
     # Auth -- NOT a row change, must be called manually (see events.py)
     LOGIN = "login"

@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class FileOut(BaseModel):
@@ -45,7 +45,16 @@ class FileOut(BaseModel):
 class FileEraseRequest(BaseModel):
     #: Free text, required. The CHECK constraint refuses an erased row without
     #: one, because "why" is the only part of an erasure a regulator asks about.
-    reason: str
+    reason: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("reason")
+    @classmethod
+    def reason_must_not_be_blank(cls, value: str) -> str:
+        """Reject whitespace-only justifications and store the normalized text."""
+        reason = value.strip()
+        if not reason:
+            raise ValueError("Erasure reason must not be blank")
+        return reason
 
 
 class FileDownloadUrlOut(BaseModel):

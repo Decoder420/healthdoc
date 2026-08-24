@@ -120,5 +120,5 @@ async def erase_file(
             ip_address=_extract_ip(request),
         )
     except service.FileAlreadyErased:
-        raise HTTPException(409, "File has already been erased")
+        raise HTTPException(409, "File has already been erased") from None
     return FileOut.model_validate(record)

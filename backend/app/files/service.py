@@ -25,12 +25,11 @@ not done here. Wiring that up means editing app/audit/listeners.py's shared
 AUDITABLE_MODULE_PREFIXES allowlist, a file this PR doesn't touch; uses the
 same manual audited_mutation() path consent's service.py uses instead.
 
-file_access_log is a SEPARATE table from audit_logs, and only upload goes
-through audited_mutation() (an audit_logs row, matching every other
-mutation in this codebase). view/download-url write ONLY a file_access_log
-row -- reads don't get an audit_logs row anywhere else in this codebase
-either (consent's access_log.py writes data_access_log, not audit_logs, for
-the same reason).
+file_access_log is a SEPARATE table from audit_logs. Upload and erasure go
+through audited_mutation() because they change state; view/download-url write
+ONLY a file_access_log row because reads don't get an audit_logs row anywhere
+else in this codebase either (consent's access_log.py writes data_access_log,
+not audit_logs, for the same reason).
 
 NOT BUILT HERE, ON PURPOSE: log-even-on-a-later-403 for file_access_log.
 consent's data_access_log needed that because a route could be rejected by
@@ -48,7 +47,7 @@ import asyncio
 import hashlib
 import io
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
@@ -292,23 +291,42 @@ async def erase_file(
 
     await asyncio.to_thread(_remove)
 
-    record.erased_at = datetime.now(timezone.utc)
-    record.erased_by = user_id
-    record.erasure_reason = reason
-    # Cleared because each is itself personal data or a means of confirming it:
-    # original_name routinely carries the patient's name, and sha256 would let
-    # anyone holding a suspected copy prove it was this file.
-    record.object_key = None
-    record.sha256 = None
-    record.original_name = None
+    async with audited_mutation(
+        db,
+        facility_id=facility_id,
+        action=AuditAction.ERASE,
+        resource_type="files",
+        user_id=user_id,
+        patient_id=record.patient_id,
+        ip_address=ip_address,
+    ) as audit:
+        record.erased_at = datetime.now(UTC)
+        record.erased_by = user_id
+        record.erasure_reason = reason
+        # Cleared because each is itself personal data or a means of confirming it:
+        # original_name routinely carries the patient's name, and sha256 would let
+        # anyone holding a suspected copy prove it was this file.
+        record.object_key = None
+        record.sha256 = None
+        record.original_name = None
 
-    db.add(
-        FileAccessLog(
-            file_id=file_id,
-            user_id=user_id,
-            action=FileAction.ERASE.value,
-            ip_address=ip_address,
+        audit.resource_id = record.id
+        # Do not copy the filename, object key, or digest into the permanent
+        # audit ledger: retaining them there would defeat the erasure itself.
+        audit.old_value = {"erased_at": None, "content_present": True}
+        audit.new_value = {
+            "erased_at": record.erased_at.isoformat(),
+            "content_present": False,
+        }
+        audit.reason = reason
+
+        db.add(
+            FileAccessLog(
+                file_id=file_id,
+                user_id=user_id,
+                action=FileAction.ERASE.value,
+                ip_address=ip_address,
+            )
         )
-    )
-    await db.flush()
+        await db.flush()
     return record
