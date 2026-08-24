@@ -1,12 +1,10 @@
 export {
   listInvoices,
   getInvoice,
-  updateInvoiceDraft,
-  addInvoiceItem,
-  updateInvoiceItem,
-  removeInvoiceItem,
+  getInvoiceDetail,
   issueInvoice,
 } from "./invoices";
+export type { InvoiceDetail } from "./invoices";
 
 export {
   listPayments,
@@ -15,14 +13,9 @@ export {
   collectPayment,
   createRefund,
   attemptMutatePayment,
-  enrichInvoiceWithPayments,
 } from "./payments";
 
-export {
-  listChargeMaster,
-  getChargeMaster,
-  resolveTariff,
-} from "./chargeMaster";
+export { listChargeMaster, getChargeMaster } from "./chargeMaster";
 export type { ChargeMasterListFilters } from "./chargeMaster";
 
 export {

@@ -1,3 +1,12 @@
+// FACILITY_* re-exported MOCK_FACILITY_*. Receipts now take the facility
+// name from GET /users/me — a receipt naming the wrong hospital is a
+// document a patient keeps. Removed (P1.1); never send a facility from the
+// browser.
+//
+// MOCK_CASHIER_USER_ID / MOCK_SUPERVISOR_USER_ID below are still referenced
+// by receipt display; collected_by/approved_by come from the token on the
+// write path, so these are cosmetic and go when the receipt shows the real
+// collector.
 import type {
   ChargeCategory,
   InvoiceStatus,
@@ -6,15 +15,7 @@ import type {
   SchemeOptionCode,
 } from "./types";
 
-import {
-  MOCK_FACILITY_CODE,
-  MOCK_FACILITY_ID,
-  MOCK_FACILITY_NAME,
-} from "@/lib/mock/facility";
 
-export const FACILITY_CODE = MOCK_FACILITY_CODE;
-export const FACILITY_ID = MOCK_FACILITY_ID;
-export const FACILITY_DISPLAY_NAME = MOCK_FACILITY_NAME;
 
 /** Mock user UUIDs for payments.collected_by / refunds.approved_by. */
 export const MOCK_CASHIER_USER_ID = "00000000-0000-4000-8000-000000000101";

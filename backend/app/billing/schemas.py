@@ -121,6 +121,31 @@ class PaymentOut(BaseModel):
     collected_at: str
 
 
+class RefundOnPaymentOut(BaseModel):
+    """A reversal against one receipt.
+
+    Refunds were WRITE-ONLY: POST /billing/payments/{id}/refunds created them and
+    no endpoint anywhere read one back. A billing screen that cannot show a
+    reversal shows a patient a balance that disagrees with their receipt.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    refund_number: str
+    payment_id: uuid.UUID
+    amount: Money
+    reason: str
+    approved_by: uuid.UUID
+    refunded_at: datetime
+
+
+class PaymentWithRefundsOut(PaymentOut):
+    """A receipt with its reversals nested, for the invoice detail screen."""
+
+    refunds: list[RefundOnPaymentOut] = []
+
+
 class InvoiceLineOut(BaseModel):
     """One invoice_items row. No created_by/updated_by: InvoiceItem is
     `(UUIDPk, Base)` — it carries neither the Blame nor the Timestamps mixin,
@@ -175,7 +200,7 @@ class InvoiceDetailOut(BaseModel):
     created_at: datetime
 
     lines: list[InvoiceLineOut]
-    payments: list[PaymentOut]
+    payments: list[PaymentWithRefundsOut]
     total_paid: Money
     total_refunded: Money
     balance_due: Money

@@ -63,7 +63,7 @@ from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
 from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.billing import service
-from app.billing.models import Invoice, InvoiceItem, Payment
+from app.billing.models import Invoice, InvoiceItem, Payment, Refund
 from app.billing.schemas import (
     DailyRevenueResponse,
     InvoiceBuildRequest,
@@ -72,6 +72,8 @@ from app.billing.schemas import (
     InvoiceLineOut,
     InvoiceListItemOut,
     InvoiceListOut,
+    PaymentWithRefundsOut,
+    RefundOnPaymentOut,
     InvoicePreviewResponse,
     PaymentCreate,
     PaymentOut,
@@ -328,6 +330,24 @@ async def get_invoice(
         .all()
     )
 
+    # Refunds nested per receipt. They were write-only before this — created by
+    # POST /billing/payments/{id}/refunds and readable nowhere — so a screen
+    # could show a payment while silently omitting its reversal, and the
+    # balance would disagree with the receipt in the patient's hand.
+    refunds_by_payment: dict = {}
+    if payments:
+        refund_rows = (
+            await db.execute(
+                select(Refund)
+                .where(Refund.payment_id.in_([p.id for p in payments]))
+                .order_by(Refund.refunded_at)
+            )
+        ).scalars().all()
+        for r in refund_rows:
+            refunds_by_payment.setdefault(r.payment_id, []).append(
+                RefundOnPaymentOut.model_validate(r)
+            )
+
     # The same helper record_payment uses to decide partially_paid vs paid.
     # Deliberately not reimplemented here: two versions of this arithmetic
     # would eventually disagree, and the one on screen is the one a patient is
@@ -353,10 +373,11 @@ async def get_invoice(
         created_at=invoice.created_at,
         lines=[InvoiceLineOut.model_validate(line) for line in lines],
         payments=[
-            PaymentOut(
+            PaymentWithRefundsOut(
                 id=p.id, receipt_number=p.receipt_number, invoice_id=p.invoice_id,
                 amount=p.amount, currency=p.currency, mode=p.mode, status=p.status,
                 collected_at=p.collected_at.isoformat(),
+                refunds=refunds_by_payment.get(p.id, []),
             )
             for p in payments
         ],

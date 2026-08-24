@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  addInvoiceItem,
-  issueInvoice,
-  removeInvoiceItem,
-  updateInvoiceDraft,
-  updateInvoiceItem,
-} from "../api";
+import { issueInvoice } from "../api";
 import { fromMoney, toMoney } from "../lib/money";
 import { recomputeInvoiceTotals } from "../lib/calculations";
 import { toast } from "@/components/ui/toast";
@@ -96,35 +90,28 @@ export function useInvoiceEditor(
     [applyTotals, canEdit, draft],
   );
 
+  /**
+   * Draft-level fields (scheme_code, discount, scheme adjustment) have no
+   * update endpoint, and after review they should not: the schema treats an
+   * invoice's financial fields as derived from what was billed, frozen at
+   * issue, and corrected only by cancel-and-reissue. Kept as an explicit
+   * refusal rather than removed, so the button surfaces the reason instead of
+   * vanishing without explanation.
+   */
   const saveDraft = useCallback(async () => {
-    if (!draft || !canEdit) return;
-    setBusy(true);
-    try {
-      const saved = await updateInvoiceDraft(draft.id, {
-        scheme_code: draft.scheme_code,
-        discount_amount: draft.discount_amount,
-        scheme_adjustment: draft.scheme_adjustment,
-      });
-      setDraft(saved);
-      onSaved?.(saved);
-      toast.success("Draft saved", saved.invoice_number);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [canEdit, draft, onSaved]);
+    toast.error(
+      "Invoice amounts are not editable. Charges come from the departments " +
+        "via Build; corrections are cancel-and-reissue.",
+    );
+  }, []);
 
   const issue = useCallback(async () => {
     if (!draft || !canEdit) return;
     setBusy(true);
     try {
-      await updateInvoiceDraft(draft.id, {
-        scheme_code: draft.scheme_code,
-        discount_amount: draft.discount_amount,
-        scheme_adjustment: draft.scheme_adjustment,
-      });
-      const issued = await issueInvoice(draft.id);
+      // row_version is the concurrency guard: the server refuses a stale one
+      // rather than freezing an invoice that gained a charge line since load.
+      const issued = await issueInvoice(draft.id, draft.row_version ?? 1);
       setDraft(issued);
       onSaved?.(issued);
       toast.success("Invoice issued", "Financial fields are now frozen");
@@ -136,63 +123,36 @@ export function useInvoiceEditor(
     }
   }, [canEdit, draft, onSaved]);
 
-  const addItem = useCallback(
-    async (body: AddInvoiceItemInput) => {
-      if (!draft || !canEdit) return;
-      setBusy(true);
-      try {
-        const next = await addInvoiceItem(draft.id, body);
-        setDraft(next);
-        onSaved?.(next);
-        toast.success("Line added", body.description);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not add item");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [canEdit, draft, onSaved],
-  );
+  /**
+   * addItem / patchItem / removeItem: manual line editing, refused.
+   *
+   * No endpoint backs any of these and none should. Charges are aggregated onto
+   * the draft by POST /billing/visits/{id}/invoice/build from what the lab,
+   * radiology and pharmacy modules actually recorded — a line typed by hand
+   * bills for work no department logged, and bypasses the accrual guard in
+   * `_already_billed_reference_ids` that stops the same item being billed twice.
+   *
+   * Kept as explicit refusals rather than deleted so the buttons explain
+   * themselves. Delete them once LineItemsEditor is read-only everywhere.
+   */
+  const refuseEdit = useCallback(() => {
+    toast.error(
+      "Invoice lines come from the departments. Use Build to pull in unbilled " +
+        "charges; a line cannot be added or edited by hand.",
+    );
+  }, []);
 
+  const addItem = useCallback(async (_body: AddInvoiceItemInput) => refuseEdit(), [refuseEdit]);
   const patchItem = useCallback(
     async (
-      itemId: string,
-      patch: Partial<
+      _itemId: string,
+      _patch: Partial<
         Pick<AddInvoiceItemInput, "quantity" | "unit_price" | "description" | "charge_category">
       >,
-    ) => {
-      if (!draft || !canEdit) return;
-      setBusy(true);
-      try {
-        const next = await updateInvoiceItem(draft.id, itemId, patch);
-        setDraft(next);
-        onSaved?.(next);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not update item");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [canEdit, draft, onSaved],
+    ) => refuseEdit(),
+    [refuseEdit],
   );
-
-  const removeItem = useCallback(
-    async (itemId: string) => {
-      if (!draft || !canEdit) return;
-      setBusy(true);
-      try {
-        const next = await removeInvoiceItem(draft.id, itemId);
-        setDraft(next);
-        onSaved?.(next);
-        toast.info("Line removed");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not remove item");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [canEdit, draft, onSaved],
-  );
+  const removeItem = useCallback(async (_itemId: string) => refuseEdit(), [refuseEdit]);
 
   return {
     draft,
