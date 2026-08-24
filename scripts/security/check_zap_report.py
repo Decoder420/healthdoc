@@ -30,10 +30,14 @@ def summarize(report: dict[str, Any]) -> tuple[Counter[str], list[dict[str, Any]
                 raise InvalidZapReport("alert is not an object")
             risk = str(alert.get("riskdesc", "Unknown")).split()[0]
             severities[risk] += 1
+            if "riskcode" not in alert:
+                raise InvalidZapReport("alert has no riskcode")
             try:
-                risk_code = int(str(alert.get("riskcode", "0")))
+                risk_code = int(str(alert["riskcode"]))
             except ValueError as exc:
                 raise InvalidZapReport("alert riskcode is not an integer") from exc
+            if risk_code < 0 or risk_code > 4:
+                raise InvalidZapReport("alert riskcode is outside the supported range 0..4")
             if risk_code >= 3:  # ZAP: 3=High; retain >=4 for future Critical levels.
                 blockers.append(alert)
     return severities, blockers

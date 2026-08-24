@@ -33,6 +33,11 @@ jobs:
         if: always()
         with:
           name: authenticated-zap-api-report
-          path: ${{ runner.temp }}/healthdoc-zap
+          path: |
+            ${{ runner.temp }}/healthdoc-zap/zap-report.json
+            ${{ runner.temp }}/healthdoc-zap/zap-report.html
+            ${{ runner.temp }}/healthdoc-zap/zap-report.md
+            ${{ runner.temp }}/healthdoc-zap/high-critical-summary.txt
+            ${{ runner.temp }}/healthdoc-zap/e2e
           if-no-files-found: error
           retention-days: 14

@@ -39,7 +39,16 @@ def test_high_and_future_critical_alerts_block_release(riskcode):
     assert len(blockers) == 1
 
 
-@pytest.mark.parametrize("report", [{}, {"site": []}, {"site": [{"alerts": {}}]}])
+@pytest.mark.parametrize(
+    "report",
+    [
+        {},
+        {"site": []},
+        {"site": [{"alerts": {}}]},
+        {"site": [{"alerts": [{"riskdesc": "High"}]}]},
+        {"site": [{"alerts": [{"riskcode": "9", "riskdesc": "Unknown"}]}]},
+    ],
+)
 def test_missing_or_malformed_scan_evidence_cannot_pass(report):
     with pytest.raises(MODULE.InvalidZapReport):
         MODULE.summarize(report)

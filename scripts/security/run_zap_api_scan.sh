@@ -54,7 +54,8 @@ fi
 # curl reads the sensitive header from a 0600 file, so the token never appears
 # in process arguments or logs. This proves the scan identity maps to a real
 # users row before a long active scan is allowed to begin.
-HTTP_STATUS="$(curl -sk -o /dev/null -w '%{http_code}' -H "@$AUTH_HEADER_FILE" https://localhost/api/v1/users/me)"
+HTTP_STATUS="$(curl -sk --max-time 20 -o /dev/null -w '%{http_code}' \
+  -H "@$AUTH_HEADER_FILE" https://localhost/api/v1/users/me)"
 if [ "$HTTP_STATUS" != "200" ]; then
   echo "ERROR: authenticated preflight returned HTTP $HTTP_STATUS, expected 200." >&2
   exit 1
