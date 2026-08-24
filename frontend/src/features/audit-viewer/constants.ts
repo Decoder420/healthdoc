@@ -1,11 +1,7 @@
+// FACILITY_ID / FACILITY_CODE re-exported MOCK_FACILITY_* and had no
+// consumers once the audit endpoints started scoping server-side from the
+// token. Removed (P1.1) — never send a facility from the browser.
 import type { AccessChannel, AuditAction, FileAccessAction, VerificationStatus } from "./types";
-import {
-  MOCK_FACILITY_CODE,
-  MOCK_FACILITY_ID,
-} from "@/lib/mock/facility";
-
-export const FACILITY_ID = MOCK_FACILITY_ID;
-export const FACILITY_CODE = MOCK_FACILITY_CODE;
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   create: "Create",

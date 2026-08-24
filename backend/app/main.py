@@ -133,6 +133,8 @@ for name in MODULES:
 
 # B1-owned routers that don't live at app/<name>/router.py — included explicitly.
 _B1_ROUTERS = [
+    # The four compliance ledgers that had no read path — see the module docstring.
+    "app.audit.compliance_router",
     "app.common.capabilities_router",
     # facility_modules (0027) had no ORM model and no write path at all — module
     # gating was configurable only by direct SQL. See app/common/facility_modules.py.

@@ -1,3 +1,16 @@
+/**
+ * The auditor's console. Retired from fixtures (P1.1).
+ *
+ * Two of these eight calls had a backend (`/audit/logs` and its CSV export).
+ * The other six read tables that have existed since 0003, 0004 and 0019 —
+ * data_access_log, file_access_log, audit_integrity_checks, audit_log_archive
+ * — with no endpoint over any of them. Those four were built alongside this
+ * change; the remaining two are explained below.
+ *
+ * Everything here is read-only and auditor/admin gated, and every query is
+ * scoped to the caller's facility server-side. No call sends a facility.
+ */
+import { API_BASE_URL, ApiError, api, getAccessToken } from "@/lib/api";
 import type {
   AuditIntegrityCheck,
   AuditLog,
@@ -9,204 +22,202 @@ import type {
   FileAccessFilters,
   FileAccessLog,
 } from "../types";
-import {
-  getArchiveStore,
-  getAuditStore,
-  getAuditDataAccessStore,
-  getFileAccessStore,
-  getIntegrityStore,
-} from "@/lib/mock/audit_data";
 
-function delay<T>(value: T, ms = 220): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
-}
-
-/** Documents trg_audit_logs_block_update — never succeeds. */
-export async function attemptMutateAuditLog(): Promise<never> {
-  await delay(null, 80);
-  throw new Error("Append-only: UPDATE/DELETE rejected (trg_audit_logs_block_update)");
-}
-
-function filterAuditLogs(filters: AuditLogFilters): AuditLog[] {
-  const q = filters.query?.trim().toLowerCase() ?? "";
-  const action = filters.action ?? "all";
-  const resource_type = filters.resource_type ?? "all";
-
-  let rows = getAuditStore();
-  if (action !== "all") {
-    rows = rows.filter((r) => r.action === action);
+function auditParams(filters: AuditLogFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.user_id) params.set("user_id", filters.user_id);
+  if (filters.patient_id) params.set("patient_id", filters.patient_id);
+  if (filters.resource_type) params.set("resource_type", filters.resource_type);
+  // The UI calls these from/to; the endpoint calls them date_from/date_to.
+  // Mapped rather than renamed on the type, because the screen's labels are
+  // fine and the wire name is the server's to choose.
+  if (filters.from) params.set("date_from", filters.from);
+  if (filters.to) params.set("date_to", filters.to);
+  if (filters.resource_type && filters.resource_type !== "all") {
+    params.set("resource_type", filters.resource_type);
   }
-  if (resource_type !== "all") {
-    rows = rows.filter((r) => r.resource_type === resource_type);
-  }
-  if (filters.user_id) {
-    rows = rows.filter((r) => r.user_id === filters.user_id);
-  }
-  if (filters.patient_id) {
-    rows = rows.filter((r) => r.patient_id === filters.patient_id);
-  }
-  if (filters.from) {
-    const from = new Date(filters.from).getTime();
-    rows = rows.filter((r) => new Date(r.created_at).getTime() >= from);
-  }
-  if (filters.to) {
-    const to = new Date(filters.to).getTime();
-    rows = rows.filter((r) => new Date(r.created_at).getTime() <= to);
-  }
-  if (q) {
-    rows = rows.filter((r) => {
-      const hay = [
-        r.id,
-        r.action,
-        r.resource_type,
-        r.resource_id,
-        r.patient_id,
-        r.user_id,
-        r.user_display,
-        r.patient_display,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  return [...rows].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
-}
-
-/** GET /audit/logs — paginated AuditLogListOut */
-export async function listAuditLogs(
-  filters: AuditLogFilters = {},
-): Promise<AuditLogListResponse> {
-  const page = filters.page ?? 1;
-  const page_size = Math.min(filters.page_size ?? 100, 100);
-  const rows = filterAuditLogs(filters);
-  const total = rows.length;
-  const start = (page - 1) * page_size;
-  const items = rows.slice(start, start + page_size);
-  return delay({ items, page, page_size, total });
-}
-
-export async function getAuditEntry(
-  id: string,
-  created_at: string,
-): Promise<AuditLog | null> {
-  const found = getAuditStore().find((r) => r.id === id && r.created_at === created_at);
-  return delay(found ?? null);
-}
-
-/** GET /audit/logs/export — CSV stream (mock returns string). */
-export async function exportAuditLogsCsv(
-  filters: AuditLogFilters = {},
-): Promise<string> {
-  const rows = filterAuditLogs(filters);
-  const header = [
-    "id",
-    "user_id",
-    "role",
-    "action",
-    "resource_type",
-    "resource_id",
-    "patient_id",
-    "created_at",
-    "entry_hash",
-  ].join(",");
-  const lines = rows.map((r) =>
-    [
-      r.id,
-      r.user_id ?? "",
-      r.role ?? "",
-      r.action,
-      r.resource_type,
-      r.resource_id ?? "",
-      r.patient_id ?? "",
-      r.created_at,
-      r.entry_hash ?? "",
-    ]
-      .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-      .join(","),
-  );
-  return delay([header, ...lines].join("\n"));
+  return params;
 }
 
 /**
- * Schema-ahead: GET /audit/access-log (not on live BE yet).
- * Kept for UI tab; swap when B7 ships the route.
+ * Narrow the loaded page by the filters the SERVER does not support.
+ *
+ * `query` and `action` are UI controls with no server equivalent.
+ * app/audit/router.py is explicit that adding an `action` filter — or any
+ * filter beyond user_id/patient_id/resource_type/date range — is a product
+ * decision for the Tech Lead rather than something to add silently, so they are
+ * applied here instead.
+ *
+ * THIS NARROWS ONLY WHAT WAS FETCHED. With page_size capped at 100, a match on
+ * page two is not found. That is a real limitation and the reason these belong
+ * server-side eventually; it is written down rather than hidden because the
+ * alternative — a search box that quietly reports "no results" — is worse.
+ */
+function refineLoadedPage(rows: AuditLog[], filters: AuditLogFilters): AuditLog[] {
+  const q = filters.query?.trim().toLowerCase() ?? "";
+  return rows.filter((row) => {
+    if (filters.action && filters.action !== "all" && row.action !== filters.action) {
+      return false;
+    }
+    if (!q) return true;
+    return [row.id, row.user_id, row.role, row.action, row.resource_type, row.resource_id]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
+}
+
+/**
+ * GET /audit/logs.
+ *
+ * Only the five filters the backend accepts are sent. app/audit/router.py's
+ * docstring is explicit that anything beyond them — an `action` filter,
+ * cross-facility visibility — is a product decision rather than something to
+ * add silently, so a filter the fixture supported client-side and the server
+ * does not is deliberately dropped rather than faked over one page.
+ */
+export async function listAuditLogs(
+  filters: AuditLogFilters = {},
+): Promise<AuditLogListResponse> {
+  const params = auditParams(filters);
+  params.set("page", String(filters.page ?? 1));
+  params.set("page_size", String(Math.min(filters.page_size ?? 100, 100)));
+
+  const page = await api<AuditLogListResponse>(`/audit/logs?${params.toString()}`);
+  return { ...page, items: refineLoadedPage(page.items, filters) };
+}
+
+/**
+ * One entry by id.
+ *
+ * There is no GET /audit/logs/{id}. Rather than invent one for a row the list
+ * already returns in full, this narrows the list by the filters that identify
+ * it. Returns null when the entry is not in the caller's facility — the same
+ * answer as "no such entry", which is correct for an audit read.
+ */
+export async function getAuditEntry(
+  id: string,
+  filters: AuditLogFilters = {},
+): Promise<AuditLog | null> {
+  const page = await listAuditLogs({ ...filters, page_size: 100 });
+  return page.items.find((entry) => entry.id === id) ?? null;
+}
+
+/**
+ * GET /audit/logs/export — CSV.
+ *
+ * A separate endpoint rather than `?format=csv`, per §4.3: large exports are
+ * explicit and audited. Requesting one writes an audit_logs row of its own
+ * before the stream starts, so this call is itself a recorded event.
+ */
+export async function exportAuditLogsCsv(
+  filters: AuditLogFilters = {},
+): Promise<string> {
+  // Raw fetch, not api(): the client unwraps a JSON envelope and this endpoint
+  // streams CSV. Reusing it would throw "Malformed response" on a successful
+  // export.
+  const token = getAccessToken();
+  const response = await fetch(
+    `${API_BASE_URL}/audit/logs/export?${auditParams(filters).toString()}`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  );
+  if (!response.ok) {
+    throw new ApiError(response.status, "Audit export failed");
+  }
+  return response.text();
+}
+
+
+/**
+ * Audit rows are append-only: there is no update or delete endpoint, and the
+ * database enforces it with a trigger regardless.
+ *
+ * The fixture simulated a rejected mutation so the screen could demonstrate
+ * immutability. Nothing to call now — the absence of the endpoint IS the
+ * property. This throws the same shape the screen already handles, so the
+ * demonstration still works and says something true.
+ */
+export async function attemptMutateAuditLog(): Promise<never> {
+  throw new ApiError(
+    405,
+    "audit_logs is append-only — no update or delete endpoint exists, and a " +
+      "database trigger blocks the write even if one were added.",
+  );
+}
+
+/**
+ * GET /audit/data-access — the DPDP ledger.
+ *
+ * `unattributed_in_page` counts rows whose patient_id is null. data_access_log
+ * has no facility_id, so scope resolves through the patient; a row with no
+ * patient cannot be attributed that way and is included rather than dropped.
+ * Surface that number — an access ledger that quietly omits entries is worse
+ * than one showing entries that need interpreting.
  */
 export async function listDataAccessLogs(
   filters: DataAccessFilters = {},
-): Promise<DataAccessLog[]> {
-  const q = filters.query?.trim().toLowerCase() ?? "";
-  const channel = filters.access_channel ?? "all";
-  let rows = getAuditDataAccessStore();
-  if (channel !== "all") {
-    rows = rows.filter((r) => r.access_channel === channel);
-  }
-  if (q) {
-    rows = rows.filter((r) => {
-      const hay = [
-        r.id,
-        r.user_id,
-        r.user_display,
-        r.role,
-        r.resource_type,
-        r.resource_id,
-        r.patient_id,
-        r.patient_display,
-        r.purpose_code,
-        r.access_channel,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-  rows = [...rows].sort(
-    (a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime(),
-  );
-  return delay(rows);
+): Promise<{ items: DataAccessLog[]; unattributed_in_page: number }> {
+  const params = new URLSearchParams();
+  // access_channel / query have no server equivalent — see refineLoadedPage.
+  if (filters.consent_id) params.set("consent_id", filters.consent_id);
+  params.set("page", "1");
+  params.set("page_size", "100");
+
+  const response = await api<{
+    items: DataAccessLog[];
+    unattributed_in_page: number;
+  }>(`/audit/data-access?${params.toString()}`);
+  return response;
 }
 
-/** Schema-ahead — file_access_log (0019); no dedicated audit export route yet. */
+/** GET /audit/file-access — who downloaded which file, scoped via files.facility_id. */
 export async function listFileAccessLogs(
   filters: FileAccessFilters = {},
 ): Promise<FileAccessLog[]> {
+  const params = new URLSearchParams();
+  // action / query have no server equivalent — see refineLoadedPage.
+  params.set("page", "1");
+  params.set("page_size", "100");
+
+  const response = await api<{ items: FileAccessLog[] }>(
+    `/audit/file-access?${params.toString()}`,
+  );
+
+  // action / query narrow the loaded page only — the endpoint accepts neither,
+  // and adding filters to the audit reads is the documented Tech Lead decision.
   const q = filters.query?.trim().toLowerCase() ?? "";
-  const action = filters.action ?? "all";
-  let rows = getFileAccessStore();
-  if (action !== "all") {
-    rows = rows.filter((r) => r.action === action);
-  }
-  if (q) {
-    rows = rows.filter((r) => {
-      const hay = [r.id, r.file_id, r.file_name, r.user_id, r.user_display, r.action]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-  rows = [...rows].sort(
-    (a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime(),
-  );
-  return delay(rows);
+  return response.items.filter((row) => {
+    if (filters.action && filters.action !== "all" && row.action !== filters.action) {
+      return false;
+    }
+    if (!q) return true;
+    return [row.id, row.file_id, row.user_id, row.action, row.ip_address]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  });
 }
 
-/** Schema-ahead: GET /audit/integrity */
-export async function listIntegrityChecks(): Promise<AuditIntegrityCheck[]> {
-  const rows = [...getIntegrityStore()].sort(
-    (a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime(),
+/**
+ * GET /audit/integrity-checks — hash-chain verification history.
+ *
+ * `any_chain_invalid` is computed over the whole history rather than the page:
+ * a chain that broke three months ago is still broken, and the screen should
+ * lead with that instead of making an auditor page backwards to find it.
+ */
+export async function listIntegrityChecks(): Promise<{
+  items: AuditIntegrityCheck[];
+  any_chain_invalid: boolean;
+}> {
+  return api<{ items: AuditIntegrityCheck[]; any_chain_invalid: boolean }>(
+    "/audit/integrity-checks",
   );
-  return delay(rows);
 }
 
+/** GET /audit/archives — partitions in object storage and whether they verified. */
 export async function listArchives(): Promise<AuditLogArchive[]> {
-  const rows = [...getArchiveStore()].sort(
-    (a, b) => new Date(b.archived_at).getTime() - new Date(a.archived_at).getTime(),
-  );
-  return delay(rows);
+  const response = await api<{ items: AuditLogArchive[] }>("/audit/archives");
+  return response.items;
 }
