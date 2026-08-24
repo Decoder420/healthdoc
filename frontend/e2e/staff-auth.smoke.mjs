@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import puppeteer from "puppeteer";
+import { AxePuppeteer } from "@axe-core/puppeteer";
 
 const baseUrl = process.env.E2E_BASE_URL ?? "https://localhost";
 const artifactDir = process.env.E2E_ARTIFACT_DIR ?? "/tmp/healthdoc-e2e";
@@ -226,6 +227,35 @@ async function exerciseRole(browser, role) {
       throw new Error(`${role.api.method} ${role.api.path} returned ${result.status}`);
     }
 
+    const accessibility = await new AxePuppeteer(page)
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    const blockingViolations = accessibility.violations.filter(
+      (violation) => violation.impact === "critical" || violation.impact === "serious",
+    );
+    if (blockingViolations.length > 0) {
+      throw new Error(
+        `WCAG gate found ${blockingViolations.length} blocking violation(s): ${blockingViolations
+          .map((violation) => `${violation.id} (${violation.nodes.length})`)
+          .join(", ")}`,
+      );
+    }
+
+    await page.evaluate(() => {
+      document.body.tabIndex = -1;
+      document.body.focus();
+      window.scrollTo(0, 0);
+    });
+    await page.keyboard.press("Tab");
+    const skipLinkFocused = await page.evaluate(() =>
+      document.activeElement?.classList.contains("skip-link"),
+    );
+    if (!skipLinkFocused) throw new Error("keyboard focus did not start on the skip link");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => document.activeElement?.id === "main-content", {
+      timeout: 5_000,
+    });
+
     await page.goto(`${baseUrl}${role.forbiddenPath}`, {
       waitUntil: "domcontentloaded",
       timeout: 30_000,
@@ -262,7 +292,7 @@ async function exerciseRole(browser, role) {
     }
 
     console.log(
-      `PASS ${role.name} login -> ${role.landingPath} -> bearer ${role.api.method} ${role.api.path} (200); forbidden ${role.forbiddenPath} redirected; silent SSO (200)`,
+      `PASS ${role.name} login -> ${role.landingPath} -> bearer ${role.api.method} ${role.api.path} (200); WCAG serious/critical 0; keyboard skip link; forbidden ${role.forbiddenPath} redirected; silent SSO (200)`,
     );
   } catch (error) {
     await mkdir(artifactDir, { recursive: true });

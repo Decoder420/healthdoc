@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { api, formatDateTime } from "@/lib/api";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/AsyncState";
 
 interface PrescriptionQueueItem {
   prescription_id: string;
@@ -49,20 +50,24 @@ export function PrescriptionQueue({ dispenseMode = false }: { dispenseMode?: boo
   }, []);
 
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>{dispenseMode ? "Dispense prescriptions" : "Prescription queue"}</h1>
+    <section aria-labelledby="pharmacy-queue-heading" style={{ padding: "2rem" }}>
+      <h1 id="pharmacy-queue-heading">{dispenseMode ? "Dispense prescriptions" : "Prescription queue"}</h1>
       <p>{loading ? "Loading live prescriptions…" : `${total} prescription${total === 1 ? "" : "s"}`}</p>
       {dispenseMode ? (
         <p>Dispensing mutations remain unavailable until a prescription-item detail contract is connected.</p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-      {!loading && !error && rows.length === 0 ? <p>No prescriptions are waiting.</p> : null}
+      {loading ? <LoadingState label="Loading live prescriptions" /> : null}
+      {error ? <ErrorState message={error} /> : null}
+      {!loading && !error && rows.length === 0 ? (
+        <EmptyState title="Queue clear" description="No prescriptions are waiting for pharmacy." />
+      ) : null}
       {rows.length > 0 ? (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <caption className="sr-only">Prescription queue</caption>
             <thead>
               <tr>
-                {['Patient', 'Identifier', 'Items', 'Dispense status', 'Prescribed', ''].map((label, index) => (
+                {['Patient', 'Identifier', 'Items', 'Dispense status', 'Prescribed', 'Actions'].map((label, index) => (
                   <th key={`${label}-${index}`} scope="col" style={{ textAlign: "left", padding: "0.75rem", borderBottom: "1px solid #d7dde5" }}>{label}</th>
                 ))}
               </tr>
@@ -84,6 +89,6 @@ export function PrescriptionQueue({ dispenseMode = false }: { dispenseMode?: boo
           </table>
         </div>
       ) : null}
-    </main>
+    </section>
   );
 }

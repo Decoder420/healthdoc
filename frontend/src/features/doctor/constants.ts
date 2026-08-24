@@ -11,10 +11,6 @@ import type {
   QueuePriority,
 } from "./types";
 
-/** Print header fallback until the facility profile endpoint supplies branding. */
-export const FACILITY_DISPLAY_NAME =
-  process.env.NEXT_PUBLIC_FACILITY_NAME ?? "HealthDoc Hospital";
-
 /**
  * break_glass_grants.justification — the schema annotates it "≥20 chars,
  * mandatory", but as a comment, not a CHECK constraint. Enforced here so the

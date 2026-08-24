@@ -35,6 +35,7 @@ import { KpiLatestTable } from "./KpiLatestTable";
 import { KpiSparklineCard } from "./KpiSparklinePanel";
 import { KpiSummaryBar } from "./KpiSummaryBar";
 import { KpiTrendChart } from "./KpiTrendChart";
+import "../mis-print.css";
 
 const KPI_ICONS: Record<CoreKpiCode, React.ReactNode> = {
   avg_opd_wait_minutes: <AccessTimeOutlinedIcon />,
@@ -93,6 +94,10 @@ export function MisDashboard() {
       toast.error("Nothing to export for this period");
       return;
     }
+    if (format === "pdf") {
+      window.print();
+      return;
+    }
     const csv = snapshotsToCsv(items);
     const stamp = new Date().toISOString().slice(0, 10);
     downloadTextFile(
@@ -101,12 +106,12 @@ export function MisDashboard() {
       "text/csv;charset=utf-8",
     );
     if (format === "csv") toast.success("CSV downloaded");
-    else if (format === "xlsx") toast.success("Downloaded as CSV (client-side)");
-    else toast.success("Exported CSV (PDF endpoint not in schema)");
+    else toast.success("Downloaded as CSV (Excel-compatible)");
   };
 
   return (
     <Box
+      id="mis-print-root"
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -275,7 +280,7 @@ export function MisDashboard() {
             ) : null}
             <ExportButton
               onExport={handleExport}
-              formats={["csv", "xlsx", "pdf"]}
+              formats={["csv", "pdf"]}
               size="small"
               disabled={loading || items.length === 0}
               sx={{
