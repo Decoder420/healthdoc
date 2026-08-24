@@ -31,4 +31,4 @@ def test_demo_seed_ids_are_stable_and_unique() -> None:
         for name, value in vars(seed_demo_251).items()
         if name.endswith("_ID") and name != "FACILITY_ID"
     }
-    assert len(ids) == 11
+    assert len(ids) == 13

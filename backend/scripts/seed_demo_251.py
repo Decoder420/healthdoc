@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
 
 from sqlalchemy import select
@@ -34,6 +34,7 @@ from app.common.enums import (
     VisitStatus,
     VisitType,
 )
+from app.consent.models import ConsentPurpose, ConsentRecord
 from app.departments.models import Department, Room
 from app.nursing.models import Vitals
 from app.opd.models import Visit
@@ -53,6 +54,8 @@ WARD_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-ward")
 BED_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-bed")
 ADMISSION_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-admission")
 VITALS_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-vitals")
+CONSENT_PURPOSE_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-consent-purpose")
+CONSENT_ID = uuid.uuid5(uuid.NAMESPACE_URL, "healthdoc:demo-251-consent")
 
 _ALLOWED_ENVIRONMENTS = {"dev", "demo", "local", "test"}
 ModelT = TypeVar("ModelT")
@@ -148,6 +151,25 @@ async def seed() -> None:
             initial_priority=QueuePriority.NORMAL.value,
             priority=QueuePriority.NORMAL.value, priority_rank=6,
             status=QueueTokenStatus.WAITING.value, called_at=None, completed_at=None,
+        )
+        consent_purpose = (
+            await session.execute(
+                select(ConsentPurpose).where(ConsentPurpose.purpose_code == "clinical_review")
+            )
+        ).scalar_one_or_none()
+        if consent_purpose is None:
+            consent_purpose = await _upsert(
+                session, ConsentPurpose, CONSENT_PURPOSE_ID,
+                purpose_code="clinical_review", description="Direct clinical care demo consent",
+                default_expiry_days=30, requires_explicit_consent=True, is_active=True,
+            )
+        await _upsert(
+            session, ConsentRecord, CONSENT_ID,
+            patient_id=PATIENT_ID, visit_id=OPD_VISIT_ID, purpose_id=consent_purpose.id,
+            granted_by_type="patient", granted_by_user_id=None, channel="written",
+            granted_at=now, expires_at=now + timedelta(days=30),
+            scope=["clinical_record"], status="granted", status_changed_at=now,
+            created_by=receptionist.id, updated_by=receptionist.id,
         )
         await _upsert(
             session, Visit, IPD_VISIT_ID,
