@@ -14,12 +14,15 @@ get_current_actor_dependency each do their own lookup).
 """
 
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.deps import get_current_actor_dependency
 from app.auth.deps import CurrentDbUser, CurrentUser, require_roles
+from app.common.db import get_db
+from app.common.enums import AccessChannel
 from app.consent import service
 from app.consent.access_log import log_patient_data_access
 from app.consent.schemas import (
@@ -30,10 +33,9 @@ from app.consent.schemas import (
     ConsentWithdrawalCreate,
     ConsentWithdrawalOut,
 )
-from app.common.db import get_db
-from app.common.enums import AccessChannel
 
 router = APIRouter(prefix="/consent", tags=["consent"])
+DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 # Role lists unconfirmed — best guess, confirm before merge.
 _CONSENT_VIEW_ROLES = ("auditor", "admin", "doctor")
@@ -52,7 +54,7 @@ async def ping() -> dict:
 )
 async def list_consent_purposes(
     user: CurrentUser,  # open to any authenticated user — same as /departments
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> list[ConsentPurposeOut]:
     purposes = await service.list_consent_purposes(db)
     return [ConsentPurposeOut.model_validate(p) for p in purposes]
@@ -79,7 +81,7 @@ async def list_consent_purposes(
 async def list_patient_consent_records(
     patient_id: uuid.UUID,
     user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> list[ConsentRecordOut]:
     records = await service.list_consent_records_for_patient(
         db, patient_id, facility_id=user.facility_id
@@ -109,7 +111,7 @@ async def get_consent_record(
     patient_id: uuid.UUID,
     consent_id: uuid.UUID,
     user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> ConsentRecordOut:
     record = await service.get_consent_record(db, consent_id, facility_id=user.facility_id)
     if record.patient_id != patient_id:
@@ -130,7 +132,7 @@ async def create_consent_record(
     patient_id: uuid.UUID,
     payload: ConsentRecordCreate,
     user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> ConsentRecordOut:
     record = await service.create_consent_record(
         db,
@@ -155,7 +157,7 @@ async def transition_consent_status(
     consent_id: uuid.UUID,
     payload: ConsentStatusTransitionIn,
     user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> ConsentRecordOut:
     record = await service.transition_consent_status(
         db,
@@ -182,7 +184,7 @@ async def withdraw_consent(
     consent_id: uuid.UUID,
     payload: ConsentWithdrawalCreate,
     user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> ConsentWithdrawalOut:
     withdrawal = await service.withdraw_consent(
         db,
@@ -193,44 +195,3 @@ async def withdraw_consent(
         facility_id=user.facility_id,
     )
     return ConsentWithdrawalOut.model_validate(withdrawal)
-
-
-# ---------------------------------------------------------------------------
-# [#228] Patient portal — patient views their own consent records
-# ---------------------------------------------------------------------------
-
-@router.get(
-    "/me/records",
-    response_model=list[ConsentRecordOut],
-    dependencies=[
-        Depends(
-            log_patient_data_access(
-                resource_type="consent_records",
-                purpose_code="self_review",
-                access_channel=AccessChannel.API.value,
-                consent_required=False,
-            )
-        ),
-        Depends(require_roles("patient")),
-    ],
-    summary="[#228] Patient views their own consent records (self-service portal)",
-)
-async def list_my_consent_records(
-    user: CurrentDbUser,
-    db: AsyncSession = Depends(get_db),
-) -> list[ConsentRecordOut]:
-    """Patient views their own consent records.
-
-    patient_id is sourced from the authenticated user's token — a patient
-    can only ever see their own records, never another patient's.
-    Requires patient_id to be set on the user record (portal users only).
-    """
-    if not hasattr(user, "patient_id") or user.patient_id is None:
-        raise HTTPException(403, {
-            "code": "not_a_patient_user",
-            "message": "This endpoint is for patient portal users only",
-        })
-    records = await service.list_consent_records_for_patient(
-        db, user.patient_id, facility_id=user.facility_id
-    )
-    return [ConsentRecordOut.model_validate(r) for r in records]
