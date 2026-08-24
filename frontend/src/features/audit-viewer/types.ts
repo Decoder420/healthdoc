@@ -120,6 +120,10 @@ export type FileAccessFilters = {
 };
 
 export type DataAccessFilters = {
+  /** Client-side over the loaded page — no server equivalent. */
   query?: string;
+  /** Client-side over the loaded page — no server equivalent. */
   access_channel?: AccessChannel | "all";
+  /** Real server filter: GET /audit/data-access?consent_id=. */
+  consent_id?: string;
 };

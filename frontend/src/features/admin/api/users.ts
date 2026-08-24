@@ -1,3 +1,13 @@
+/**
+ * Staff account administration. Retired from fixtures (P1.1).
+ *
+ * Every route here is admin-only and scoped to the caller's own facility,
+ * server-side. That scoping is not decoration: this module was cross-tenant in
+ * five separate ways before P0.4, including a `facility_id` query parameter on
+ * the list that returned every staff account in the deployment when omitted.
+ * Nothing here sends a facility — the token carries it.
+ */
+import { api } from "@/lib/api";
 import type {
   Paginated,
   User,
@@ -5,114 +15,80 @@ import type {
   UserListFilters,
   UserUpdateInput,
 } from "../types";
-import {
-  getUsers,
-  isoNow,
-  newId,
-  setUsers,
-} from "@/lib/mock/admin_data";
 
-function delay<T>(value: T, ms = 200): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), ms));
-}
-
+/**
+ * GET /users — staff at the caller's facility.
+ *
+ * `search` is a real server-side parameter matching username, full name or
+ * employee id. The fixture filtered client-side, which over a paginated list
+ * means searching only the page you happen to be on: an admin looking for
+ * someone on page three is told they do not exist.
+ *
+ * `facility_id` in the filters type is ignored on purpose — see the module
+ * note. It is left in the type only because callers still pass it; the server
+ * would refuse it anyway.
+ */
 export async function listUsers(
   filters: UserListFilters = {},
 ): Promise<Paginated<User>> {
-  const page = filters.page ?? 1;
-  const page_size = Math.min(filters.page_size ?? 20, 100);
-  const q = filters.query?.trim().toLowerCase() ?? "";
-
-  let rows = getUsers();
-  if (filters.facility_id) {
-    rows = rows.filter((u) => u.facility_id === filters.facility_id);
-  }
-  if (filters.is_active !== undefined && filters.is_active !== null) {
-    rows = rows.filter((u) => u.is_active === filters.is_active);
-  }
-  if (q) {
-    rows = rows.filter((u) => {
-      const hay = [u.username, u.full_name, u.email, u.employee_id, u.designation]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
+  const params = new URLSearchParams();
+  params.set("page", String(filters.page ?? 1));
+  params.set("page_size", String(Math.min(filters.page_size ?? 20, 100)));
+  if (filters.query?.trim()) params.set("search", filters.query.trim());
+  if (filters.is_active !== null && filters.is_active !== undefined) {
+    params.set("is_active", String(filters.is_active));
   }
 
-  const total = rows.length;
-  void total;
-  const start = (page - 1) * page_size;
-  const items = rows.slice(start, start + page_size);
-  // Match live GET /users: { items, page, page_size } — no total
-  return delay({ items, page, page_size });
+  // No `total`: GET /users does not return one, and adding it would cost a
+  // second COUNT on every page load for a value nothing renders.
+  return api<Paginated<User>>(`/users?${params.toString()}`);
 }
 
-export async function getUser(id: string): Promise<User | null> {
-  const found = getUsers().find((u) => u.id === id) ?? null;
-  return delay(found);
+/** GET /users/{id}. 404 for another facility's user — indistinguishable from
+ *  a nonexistent id, so the endpoint cannot be used to enumerate staff. */
+export async function getUser(id: string): Promise<User> {
+  return api<User>(`/users/${id}`);
 }
 
+/**
+ * POST /users — creates the Keycloak account and the profile row.
+ *
+ * The account is created at the authenticated admin's facility. Sending
+ * `facility_id` is refused 403, which is why UserCreateInput no longer has the
+ * field: the only caller used to fill it from a hardcoded mock constant.
+ */
 export async function createUser(payload: UserCreateInput): Promise<User> {
-  const store = getUsers();
-  if (store.some((u) => u.username === payload.username)) {
-    throw new Error(`Username '${payload.username}' already exists`);
-  }
-  const t = isoNow();
-  const user: User = {
-    id: newId(),
-    keycloak_sub: `kc-${payload.username}`,
-    username: payload.username,
-    full_name: payload.full_name,
-    email: payload.email ?? null,
-    mobile: payload.mobile ?? null,
-    designation: payload.designation ?? null,
-    employee_id: payload.employee_id ?? null,
-    registration_number: payload.registration_number ?? null,
-    qualification: payload.qualification ?? null,
-    facility_id: payload.facility_id,
-    department_id: payload.department_id ?? null,
-    is_active: true,
-    created_at: t,
-    updated_at: t,
-  };
-  // roles + temporary_password go to Keycloak only — not persisted on users row
-  void payload.roles;
-  void payload.temporary_password;
-  setUsers([user, ...store]);
-  return delay(user);
+  return api<User>("/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
+/** PATCH /users/{id}. facility_id is not updateable here — moving a staff
+ *  account between facilities is a transfer with its own approval. */
 export async function updateUser(id: string, patch: UserUpdateInput): Promise<User> {
-  const store = getUsers();
-  const idx = store.findIndex((u) => u.id === id);
-  if (idx < 0) throw new Error("User not found");
-  const next: User = {
-    ...store[idx],
-    ...Object.fromEntries(
-      Object.entries(patch).filter(([, v]) => v !== undefined),
-    ),
-    updated_at: isoNow(),
-  } as User;
-  store[idx] = next;
-  setUsers(store);
-  return delay(next);
+  return api<User>(`/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
+/**
+ * POST /users/{id}/deactivate — disables the Keycloak account too.
+ *
+ * Not a local flag flip: the profile row and the credential are separate
+ * systems, and deactivating one without the other leaves a working login for a
+ * disabled member of staff.
+ */
 export async function deactivateUser(id: string): Promise<{ id: string; is_active: false }> {
-  const store = getUsers();
-  const idx = store.findIndex((u) => u.id === id);
-  if (idx < 0) throw new Error("User not found");
-  store[idx] = { ...store[idx], is_active: false, updated_at: isoNow() };
-  setUsers(store);
-  return delay({ id, is_active: false as const });
+  return api<{ id: string; is_active: false }>(`/users/${id}/deactivate`, {
+    method: "POST",
+  });
 }
 
+/** POST /users/{id}/activate — re-enables Keycloak and the profile row. */
 export async function activateUser(id: string): Promise<{ id: string; is_active: true }> {
-  const store = getUsers();
-  const idx = store.findIndex((u) => u.id === id);
-  if (idx < 0) throw new Error("User not found");
-  store[idx] = { ...store[idx], is_active: true, updated_at: isoNow() };
-  setUsers(store);
-  return delay({ id, is_active: true as const });
+  return api<{ id: string; is_active: true }>(`/users/${id}/activate`, {
+    method: "POST",
+  });
 }

@@ -38,8 +38,13 @@ async def test_create_order(db, encounter):
         db, OrderCreate(encounter_id=e.id, patient_id=patient.id, created_by=doctor.id, order_type="lab"),
     )
 
+    # ORD-<FACILITYCODE>-<YYYYMMDD>-<SEQ6>. Parsed from the END, not by fixed
+    # index: the facility code was added to the front to stop two facilities
+    # colliding on a global unique order_number, and an index-from-the-start
+    # assertion silently starts checking the wrong segment when that happens.
     assert order.order_number.startswith("ORD-")
-    assert order.order_number.split("-")[2].isdigit() and len(order.order_number.split("-")[2]) == 6
+    assert order.order_number.split("-")[-1].isdigit()
+    assert len(order.order_number.split("-")[-1]) == 6
     assert order.status == "placed"
     assert order.priority == "routine"
     assert order.facility_id == e.facility_id
@@ -54,8 +59,8 @@ async def test_order_sequence_is_gapless_per_day(db, encounter):
         db, OrderCreate(encounter_id=e.id, patient_id=patient.id, created_by=doctor.id, order_type="radiology"),
     )
 
-    seq1 = int(o1.order_number.split("-")[2])
-    seq2 = int(o2.order_number.split("-")[2])
+    seq1 = int(o1.order_number.split("-")[-1])
+    seq2 = int(o2.order_number.split("-")[-1])
     assert seq2 == seq1 + 1
     assert o1.order_number != o2.order_number
 
@@ -118,4 +123,7 @@ async def test_business_date_uses_encounters_own_facility_timezone(db, seed):
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
     expected_date = dt.now(ZoneInfo("America/New_York")).date()
-    assert order.order_number == f"ORD-{expected_date:%Y%m%d}-000001"
+    # The facility code is other_facility's, for the same reason the date is:
+    # one facility in play, the resource's. It is also what keeps this number
+    # unique against another facility allocating seq=1 on the same date.
+    assert order.order_number == f"ORD-OTH01-{expected_date:%Y%m%d}-000001"

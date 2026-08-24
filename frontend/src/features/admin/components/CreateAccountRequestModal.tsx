@@ -15,7 +15,7 @@ import Typography from "@mui/material/Typography";
 import { toast } from "@/components/ui/toast";
 import { meridian } from "@/styles/theme";
 import { createAccountRequest } from "../api";
-import { FACILITY_ID, REALM_ROLES, REALM_ROLE_LABELS } from "../constants";
+import { REALM_ROLES, REALM_ROLE_LABELS } from "../constants";
 import type { RealmRole, UserAccountRequest } from "../types";
 
 type Props = {
@@ -55,7 +55,8 @@ export function CreateAccountRequestModal({ open, onClose, onCreated }: Props) {
     setBusy(true);
     try {
       const row = await createAccountRequest({
-        facility_id: FACILITY_ID,
+        // No facility_id: the request is raised at the authenticated user's own
+        // facility, derived server-side. This used to send a mock constant.
         requested_for_full_name: requested_for_full_name.trim(),
         requested_username: requested_username.trim(),
         requested_roles: roles,

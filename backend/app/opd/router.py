@@ -110,14 +110,23 @@ async def create_visit(
     return visit_out
 
 
-@router.get("/{visit_id}", response_model=VisitOut)
+@router.get(
+    "/{visit_id}",
+    response_model=VisitOut,
+    # This route carried no role dependency at all — only get_current_user — so
+    # any authenticated account of any role could read any visit in the
+    # deployment by id, including its patient_id and visit_number.
+    dependencies=[Depends(require_roles("doctor", "nurse", "receptionist", "admin"))],
+)
 async def get_visit(
     visit_id: UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
 ):
     visit = await service.get_visit(db, visit_id)
-    if visit is None:
+    # 404 rather than 403 for a visit at another facility: 403 confirms the id
+    # exists, which is enough to enumerate another hospital's visits.
+    if visit is None or visit.facility_id != current_db_user.facility_id:
         raise HTTPException(status_code=404, detail="Visit not found")
     return visit
 
@@ -135,7 +144,9 @@ async def update_visit_status(
     if_match: str | None = Header(default=None, alias="If-Match"),
 ):
     visit = await service.get_visit(db, visit_id)
-    if visit is None:
+    # Same scope as the GET above. This one is a write: without it, a
+    # receptionist could move another facility's visit to cancelled or lwbs.
+    if visit is None or visit.facility_id != current_db_user.facility_id:
         raise HTTPException(status_code=404, detail="Visit not found")
 
     if if_match is None:

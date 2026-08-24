@@ -24,7 +24,6 @@ export {
   getReviewsForItem,
   createDoctorReview,
   updateDoctorReview,
-  REVIEW_ENCOUNTER_ID,
 } from "./results";
 export {
   checkRecordAccess,

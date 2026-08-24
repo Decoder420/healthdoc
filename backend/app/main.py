@@ -120,12 +120,25 @@ def _include(module_path: str, *, optional_name: str | None = None) -> None:
     app.include_router(module.router, prefix=settings.api_prefix)
 
 
+# Registered BEFORE the MODULES loop, and the order is load-bearing.
+# app.users.router declares GET /users/{user_id}; whichever of the two is
+# included first wins the match for "/users/me". Registered after, "me" is
+# parsed as a UUID and the endpoint 422s — a failure that reads like a
+# validation bug rather than a routing one. Keep this above the loop.
+_include("app.users.me")
+_include("app.users.account_request_router")
+
 for name in MODULES:
     _include(f"app.{name}.router", optional_name=name)
 
 # B1-owned routers that don't live at app/<name>/router.py — included explicitly.
 _B1_ROUTERS = [
+    # The four compliance ledgers that had no read path — see the module docstring.
+    "app.audit.compliance_router",
     "app.common.capabilities_router",
+    # facility_modules (0027) had no ORM model and no write path at all — module
+    # gating was configurable only by direct SQL. See app/common/facility_modules.py.
+    "app.common.facility_modules",
     "app.integrations.abdm.identity.router",  # ABHA capture (W6-01)
     # Break-glass (#391). This sat unregistered behind a note saying
     # break_glass_grants / data_access_log (0004) and notification_history (0020)

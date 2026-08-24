@@ -75,6 +75,30 @@ class PatientOut(BaseModel):
     created_at: datetime
 
 
+class PatientDetailOut(PatientOut):
+    """PatientOut plus the fields a single-record read needs.
+
+    Kept separate rather than widening PatientOut, which is the response for
+    POST and PATCH and is consumed by the registration flow — this is additive
+    where it is wanted and unchanged where it is not.
+
+    `row_version` is here because PATCH /patients/{id} increments it for
+    optimistic concurrency (0035) and the If-Match check is staged as a
+    follow-up. When that lands, the client needs a way to have read the value
+    first; without a GET there was none.
+
+    `merged_from_patient_id` is set when the caller asked for an id that has
+    since been merged away. The body describes the surviving record, and this
+    field says which id was asked for — otherwise a screen would silently show
+    a different patient than the one requested.
+    """
+
+    status: str
+    merged_into_patient_id: uuid.UUID | None = None
+    merged_from_patient_id: uuid.UUID | None = None
+    row_version: int
+
+
 class PatientSearchRequest(BaseModel):
     full_name: str | None = None
     dob: date | None = None

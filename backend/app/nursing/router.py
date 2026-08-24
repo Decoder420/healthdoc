@@ -408,6 +408,7 @@ async def review_incident(
             reviewed_by=current_db_user.id,
             root_cause=payload.root_cause,
             corrective_action=payload.corrective_action,
+            caller_facility_id=current_db_user.facility_id,
         )
     except incidents.IncidentNotFound:
         raise HTTPException(http_status.HTTP_404_NOT_FOUND, "incident_not_found")

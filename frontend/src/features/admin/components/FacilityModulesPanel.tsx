@@ -17,7 +17,7 @@ import { ModuleEnabledChip } from "./ModuleEnabledChip";
 type Props = {
   modules: FacilityModule[];
   loading: boolean;
-  busyId: string | null;
+  busyCode: string | null;
   onToggle: (
     id: string,
     is_enabled: boolean,
@@ -49,7 +49,7 @@ function ModuleCard({
 
   useEffect(() => {
     setReason(m.disabled_reason ?? "");
-  }, [m.disabled_reason, m.id]);
+  }, [m.disabled_reason, m.module_code]);
 
   return (
     <Box
@@ -108,10 +108,17 @@ function ModuleCard({
             checked={m.is_enabled}
             disabled={busy}
             onChange={(_, checked) => {
+              // module_code, not m.id — a module with no stored row has no
+              // id until somebody disables it for the first time.
+              //
+              // No "Disabled by admin" fallback: the server rejects a blank
+              // reason, and a placeholder is the non-answer that requirement
+              // exists to prevent. An empty box now surfaces the 422 instead
+              // of quietly writing something meaningless.
               void onToggle(
-                m.id,
+                m.module_code,
                 checked,
-                checked ? null : reason.trim() || m.disabled_reason || "Disabled by admin",
+                checked ? null : reason.trim() || m.disabled_reason,
               );
             }}
           />
@@ -130,7 +137,7 @@ function ModuleCard({
             onBlur={() => {
               const next = reason.trim();
               if (next && next !== (m.disabled_reason ?? "")) {
-                void onToggle(m.id, false, next);
+                void onToggle(m.module_code, false, next);
               }
             }}
             helperText="Saved on blur · facility_modules.disabled_reason"
@@ -145,7 +152,7 @@ function ModuleCard({
   );
 }
 
-export function FacilityModulesPanel({ modules, loading, busyId, onToggle }: Props) {
+export function FacilityModulesPanel({ modules, loading, busyCode, onToggle }: Props) {
   return (
     <Box sx={adminPanelSx}>
       <Typography
@@ -232,9 +239,9 @@ export function FacilityModulesPanel({ modules, loading, busyId, onToggle }: Pro
         <Stack spacing={1.25}>
           {modules.map((m) => (
             <ModuleCard
-              key={m.id}
+              key={m.module_code}
               m={m}
-              busy={busyId === m.id}
+              busy={busyCode === m.module_code}
               onToggle={onToggle}
             />
           ))}

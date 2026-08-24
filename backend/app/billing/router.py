@@ -52,6 +52,7 @@ pulled in locally.
 """
 
 import uuid
+from decimal import Decimal
 from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -62,11 +63,13 @@ from app.audit.context import AuditActor
 from app.audit.deps import get_current_actor_dependency
 from app.auth.deps import AuthUser, CurrentDbUser, require_roles
 from app.billing import service
-from app.billing.models import Invoice
+from app.billing.models import Invoice, InvoiceItem, Payment
 from app.billing.schemas import (
     DailyRevenueResponse,
     InvoiceBuildRequest,
     InvoiceBuildResponse,
+    InvoiceDetailOut,
+    InvoiceLineOut,
     InvoiceListItemOut,
     InvoiceListOut,
     InvoicePreviewResponse,
@@ -108,6 +111,59 @@ def _require_idempotency_key(idempotency_key: str | None) -> str:
 @router.get("/ping")
 async def ping() -> dict:
     return {"module": "billing", "status": "stub"}
+
+
+# ---------------------------------------------------------------------
+# Facility scoping (P0.4)
+#
+# list_invoices scopes correctly because it was written after CurrentDbUser
+# existed. The by-id endpoints below predate it and compared nothing: a clerk
+# at facility A could preview and BUILD an invoice for another facility's
+# visit, record a PAYMENT against another facility's invoice, and record a
+# REFUND against another facility's payment. The last two move money.
+#
+# 404 rather than 403 — 403 confirms the id exists, which is enough to
+# enumerate another facility's invoices and payments.
+# ---------------------------------------------------------------------
+
+_NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not_found")
+
+
+async def _assert_visit_in_facility(db: AsyncSession, visit_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    from app.opd.models import Visit
+
+    found = (
+        await db.execute(
+            select(Visit.id).where(Visit.id == visit_id, Visit.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
+
+
+async def _assert_invoice_in_facility(db: AsyncSession, invoice_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    found = (
+        await db.execute(
+            select(Invoice.id).where(Invoice.id == invoice_id, Invoice.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
+
+
+async def _assert_payment_in_facility(db: AsyncSession, payment_id: uuid.UUID, facility_id: uuid.UUID) -> None:
+    """payments has no facility_id — it is reached through its invoice."""
+    from app.billing.models import Payment
+
+    found = (
+        await db.execute(
+            select(Payment.id)
+            .join(Invoice, Invoice.id == Payment.invoice_id)
+            .where(Payment.id == payment_id, Invoice.facility_id == facility_id)
+        )
+    ).scalar_one_or_none()
+    if found is None:
+        raise _NOT_FOUND
 
 
 @router.get(
@@ -164,9 +220,11 @@ async def list_invoices(
 )
 async def preview_visit_invoice(
     visit_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     _user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
 ) -> InvoicePreviewResponse:
+    await _assert_visit_in_facility(db, visit_id, current_db_user.facility_id)
     return await service.preview_invoice(db, visit_id)
 
 
@@ -178,11 +236,13 @@ async def preview_visit_invoice(
 )
 async def build_visit_invoice(
     visit_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     body: InvoiceBuildRequest = InvoiceBuildRequest(),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> InvoiceBuildResponse:
+    await _assert_visit_in_facility(db, visit_id, current_db_user.facility_id)
     # §4A.1 lists "orders" but not invoices/invoice_items explicitly —
     # not adding Idempotency-Key enforcement here until that's confirmed
     # with whoever owns the reliability contract. Flag for review.
@@ -209,6 +269,179 @@ async def get_pmjay_eligibility(
     return service.check_pmjay_eligibility(patient_id=patient_id, visit_id=visit_id)
 
 
+@router.get(
+    "/invoices/{invoice_id}",
+    response_model=InvoiceDetailOut,
+    dependencies=[Depends(require_roles(*_BILLING_ROLES))],
+    summary="One invoice with its charge lines, receipts and remaining balance",
+)
+async def get_invoice(
+    invoice_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceDetailOut:
+    """Replaces three frontend mocks that had no backend at all — getInvoice,
+    listPayments and getInvoiceBalance.
+
+    One endpoint rather than three because it is one screen, and because a
+    balance assembled in the browser from separate calls can show a total that
+    never existed at any single moment.
+
+    Declared before /invoices/{invoice_id}/issue is irrelevant to matching —
+    the paths differ — but note it must stay below the literal /invoices route.
+    """
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
+
+    row = (
+        await db.execute(
+            select(Invoice, Patient.full_name, Patient.uhid, Patient.thid)
+            .join(Patient, Patient.id == Invoice.patient_id)
+            .where(Invoice.id == invoice_id)
+        )
+    ).one_or_none()
+    if row is None:
+        # _assert_invoice_in_facility already passed, so this is a patient row
+        # that vanished — not a scoping failure.
+        raise HTTPException(status_code=404, detail={"code": "invoice_not_found"})
+    invoice, patient_full_name, uhid, thid = row
+
+    lines = (
+        (
+            await db.execute(
+                select(InvoiceItem)
+                .where(InvoiceItem.invoice_id == invoice_id)
+                .order_by(InvoiceItem.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    payments = (
+        (
+            await db.execute(
+                select(Payment)
+                .where(Payment.invoice_id == invoice_id)
+                .order_by(Payment.collected_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    # The same helper record_payment uses to decide partially_paid vs paid.
+    # Deliberately not reimplemented here: two versions of this arithmetic
+    # would eventually disagree, and the one on screen is the one a patient is
+    # asked to settle.
+    total_paid, total_refunded = await service._payment_totals_for_invoice(db, invoice_id)
+    balance_due = Decimal(invoice.net_amount) - (total_paid - total_refunded)
+
+    return InvoiceDetailOut(
+        id=invoice.id,
+        invoice_number=invoice.invoice_number,
+        visit_id=invoice.visit_id,
+        patient_id=invoice.patient_id,
+        patient_full_name=patient_full_name,
+        patient_identifier=uhid or thid or "—",
+        facility_id=invoice.facility_id,
+        status=invoice.status,
+        gross_amount=invoice.gross_amount,
+        discount_amount=invoice.discount_amount,
+        scheme_adjustment=invoice.scheme_adjustment,
+        net_amount=invoice.net_amount,
+        scheme_code=invoice.scheme_code,
+        row_version=invoice.row_version,
+        created_at=invoice.created_at,
+        lines=[InvoiceLineOut.model_validate(line) for line in lines],
+        payments=[
+            PaymentOut(
+                id=p.id, receipt_number=p.receipt_number, invoice_id=p.invoice_id,
+                amount=p.amount, currency=p.currency, mode=p.mode, status=p.status,
+                collected_at=p.collected_at.isoformat(),
+            )
+            for p in payments
+        ],
+        total_paid=total_paid,
+        total_refunded=total_refunded,
+        balance_due=balance_due,
+    )
+
+
+@router.post(
+    "/invoices/{invoice_id}/issue",
+    response_model=InvoiceListItemOut,
+    status_code=status.HTTP_200_OK,
+    summary="Issue a draft invoice, making it payable and freezing its amounts",
+)
+async def issue_invoice(
+    invoice_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
+    db: AsyncSession = Depends(get_db),
+    if_match: str | None = Header(None, alias="If-Match"),
+    user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
+    _actor: AuditActor = Depends(get_current_actor_dependency),
+) -> InvoiceListItemOut:
+    """The missing half of the billing journey.
+
+    build -> **issue** -> pay. Without this step `record_payment` rejects every
+    invoice the application builds, because build creates 'draft' and payment
+    requires 'issued'. See service.issue_invoice for how that stayed hidden.
+
+    If-Match carries the row_version read from the invoice. It is required, not
+    optional: issuing freezes the amounts, and a stale client would freeze an
+    invoice that is missing a charge line appended since it loaded.
+    """
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
+
+    if if_match is None:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "code": "if_match_required",
+                "message": "If-Match: <row_version> is required to issue an invoice",
+            },
+        )
+    try:
+        expected_row_version = int(if_match)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "invalid_if_match",
+                "message": "If-Match must be an integer row_version",
+            },
+        )
+
+    actor_id = await service.resolve_actor_user_id(
+        db, keycloak_sub=user.sub, fallback_id=current_db_user.id
+    )
+    invoice = await service.issue_invoice(
+        db,
+        invoice_id=invoice_id,
+        updated_by=actor_id,
+        expected_row_version=expected_row_version,
+    )
+    await db.commit()
+    await db.refresh(invoice)
+
+    patient = await db.get(Patient, invoice.patient_id)
+    return InvoiceListItemOut(
+        id=invoice.id,
+        invoice_number=invoice.invoice_number,
+        visit_id=invoice.visit_id,
+        patient_id=invoice.patient_id,
+        patient_full_name=patient.full_name if patient else "",
+        # Same fallback chain as list_invoices above — a THID-only patient has
+        # no UHID, and the two must not disagree between the list and this row.
+        patient_identifier=(patient.uhid or patient.thid or "—") if patient else "—",
+        status=invoice.status,
+        gross_amount=invoice.gross_amount,
+        net_amount=invoice.net_amount,
+        scheme_code=invoice.scheme_code,
+        row_version=invoice.row_version,
+        created_at=invoice.created_at,
+    )
+
+
 # ---------------------------------------------------------------------
 # Payments / refunds — B7-W3-01 (#188). Keyed by invoice_id/payment_id
 # per schema doc §4.4's contract table, not visit_id like the two
@@ -225,11 +458,13 @@ async def get_pmjay_eligibility(
 async def record_invoice_payment(
     invoice_id: uuid.UUID,
     body: PaymentCreate,
+    current_db_user: CurrentDbUser,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_BILLING_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> PaymentOut:
+    await _assert_invoice_in_facility(db, invoice_id, current_db_user.facility_id)
     key = _require_idempotency_key(idempotency_key)
     endpoint = "POST /billing/invoices/{invoice_id}/payments"
     request_body = {"invoice_id": str(invoice_id), **body.model_dump(mode="json")}
@@ -257,11 +492,13 @@ async def record_invoice_payment(
 async def record_payment_refund(
     payment_id: uuid.UUID,
     body: RefundCreate,
+    current_db_user: CurrentDbUser,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_REFUND_APPROVAL_ROLES)),
     _actor: AuditActor = Depends(get_current_actor_dependency),
 ) -> RefundOut:
+    await _assert_payment_in_facility(db, payment_id, current_db_user.facility_id)
     key = _require_idempotency_key(idempotency_key)
     endpoint = "POST /billing/payments/{payment_id}/refunds"
     request_body = {"payment_id": str(payment_id), **body.model_dump(mode="json")}
@@ -415,6 +652,7 @@ async def create_tariff(
 )
 async def deactivate_tariff(
     tariff_id: uuid.UUID,
+    current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
     user: AuthUser = Depends(require_roles(*_TARIFF_ADMIN_ROLES)),
 ) -> None:
@@ -423,7 +661,9 @@ async def deactivate_tariff(
     actor_id = await service.resolve_actor_user_id(
         db, keycloak_sub=user.sub, fallback_id=getattr(user, "id", None)
     )
-    if not await service.deactivate_tariff(db, tariff_id, updated_by=actor_id):
+    if not await service.deactivate_tariff(
+        db, tariff_id, updated_by=actor_id, facility_id=current_db_user.facility_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="tariff not found or already inactive",

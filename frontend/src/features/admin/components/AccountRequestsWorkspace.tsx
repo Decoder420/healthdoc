@@ -24,6 +24,12 @@ export function AccountRequestsWorkspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [rejection_reason, setRejectionReason] = useState("");
+  /**
+   * Approval creates the Keycloak account, so it needs the temporary password
+   * the new member of staff will first sign in with. The fixture needed none
+   * because it created nothing — this field is new with the real endpoint.
+   */
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   const selected: UserAccountRequest | null =
@@ -31,10 +37,15 @@ export function AccountRequestsWorkspace() {
 
   const onApprove = async () => {
     if (!selected) return;
+    if (temporaryPassword.trim().length < 8) {
+      toast.error("A temporary password of at least 8 characters is required");
+      return;
+    }
     setBusy(true);
     try {
-      await approveAccountRequest(selected.id);
-      toast.success("Request approved", "Keycloak + users row created");
+      await approveAccountRequest(selected.id, temporaryPassword);
+      toast.success("Request approved", "Keycloak account + users row created");
+      setTemporaryPassword("");
       setSelectedId(null);
       void refresh();
     } catch (e) {
@@ -250,14 +261,26 @@ export function AccountRequestsWorkspace() {
               </Typography>
 
               {selected.status === "pending" ? (
-                <TextField
-                  label="Rejection reason"
-                  size="small"
-                  fullWidth
-                  value={rejection_reason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  helperText="Required when rejecting"
-                />
+                <>
+                  <TextField
+                    label="Temporary password"
+                    type="password"
+                    size="small"
+                    fullWidth
+                    value={temporaryPassword}
+                    onChange={(e) => setTemporaryPassword(e.target.value)}
+                    helperText="Required when approving — this creates the Keycloak account. Minimum 8 characters."
+                    sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    label="Rejection reason"
+                    size="small"
+                    fullWidth
+                    value={rejection_reason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    helperText="Required when rejecting"
+                  />
+                </>
               ) : null}
             </Box>
 

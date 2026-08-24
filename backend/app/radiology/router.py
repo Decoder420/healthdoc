@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import write_audit_log
-from app.auth.deps import CurrentDbUser, get_current_db_user, get_current_user, require_roles
+from app.auth.deps import CurrentDbUser, require_roles
 from app.common.accession import RADIOLOGY, allocate_accession_number
 from app.common.db import get_db
 from app.radiology.fhir import build_diagnostic_report_bundle
@@ -23,6 +23,7 @@ from app.radiology.schemas import (
     RadiologyOrderItemListOut,
     RadiologyOrderItemOut,
     RadiologyReportCreate,
+    RadiologyReportHistoryOut,
     RadiologyReportOut,
     RadiologyReportSignOff,
     ScanCompletionRequest,
@@ -35,6 +36,41 @@ router = APIRouter(prefix="/radiology", tags=["radiology"])
 @router.get("/ping")
 async def ping() -> dict:
     return {"module": "radiology", "status": "stub"}
+
+
+async def _scoped_item(
+    db: AsyncSession, item_id: uuid.UUID, caller_facility_id
+) -> RadiologyOrderItem:
+    """One radiology order item, or 404 — including when it belongs elsewhere.
+
+    `radiology_order_items` has no `facility_id` of its own. It reaches one only
+    through `order_id -> orders.facility_id`, and before this every handler in
+    the module fetched by id with `db.get()` and compared nothing: scheduling,
+    scan-complete, drafting a report, signing one off, and the FHIR bundle.
+
+    The audit trail made it worse rather than better. `_write_audit_log` stamps
+    `facility_id=current_db_user.facility_id`, so a cross-facility write
+    recorded itself against the *caller's* facility — the row that should have
+    exposed the act instead filed it under the wrong hospital.
+
+    404 rather than 403: 403 confirms the id exists, which is enough to
+    enumerate another facility's scans by accession.
+    """
+    from app.orders.models import Order
+
+    item = (
+        await db.execute(
+            select(RadiologyOrderItem)
+            .join(Order, Order.id == RadiologyOrderItem.order_id)
+            .where(
+                RadiologyOrderItem.id == item_id,
+                Order.facility_id == caller_facility_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Radiology order item not found")
+    return item
 
 
 @router.post("/order-items", response_model=RadiologyOrderItemOut, status_code=201)
@@ -53,7 +89,10 @@ async def create_radiology_order_item(
 
     if Order is not None:
         order = await db.get(Order, order_id)
-        if order is None:
+        # The facility comparison was missing: an order at another hospital
+        # would accept a new scan item, and the accession number below is
+        # allocated from *our* counter, so their scan would carry our sequence.
+        if order is None or order.facility_id != current_db_user.facility_id:
             raise HTTPException(status_code=404, detail="Order not found")
 
     # One allocation, no retry loop — accession_counters (0020a) is atomic.
@@ -90,9 +129,7 @@ async def mark_scan_complete(
     current_user=Depends(require_roles("radiology_tech")),
 
 ):
-    item = await db.get(RadiologyOrderItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Radiology order item not found")
+    item = await _scoped_item(db, item_id, current_db_user.facility_id)
     if item.status != "scheduled":
         raise HTTPException(status_code=409, detail="Item must be scheduled before marking scan complete")
 
@@ -108,13 +145,25 @@ async def mark_scan_complete(
 
 @router.get("/order-items", response_model=RadiologyOrderItemListOut)
 async def list_radiology_order_items(
+    current_db_user: CurrentDbUser,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    # Was `get_current_user` with no role dependency, so any authenticated
+    # account of any role could page the worklist.
+    current_user=Depends(require_roles("doctor", "radiology_tech", "admin")),
 ):
-    query = select(RadiologyOrderItem)
+    from app.orders.models import Order
+
+    # `select(RadiologyOrderItem)` with no join returned every radiology item in
+    # the deployment, paged and filterable by status — a worklist of every
+    # hospital's scans, with accession numbers.
+    query = (
+        select(RadiologyOrderItem)
+        .join(Order, Order.id == RadiologyOrderItem.order_id)
+        .where(Order.facility_id == current_db_user.facility_id)
+    )
     if status:
         query = query.where(RadiologyOrderItem.status == status)
 
@@ -127,6 +176,45 @@ async def list_radiology_order_items(
     return RadiologyOrderItemListOut(items=rows, page=page, page_size=page_size, total=total)
 
 
+@router.get("/order-items/{item_id}/reports", response_model=RadiologyReportHistoryOut)
+async def list_radiology_reports(
+    current_db_user: CurrentDbUser,
+    item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_roles("doctor", "radiology_tech", "admin")),
+):
+    """Every version of the report for this scan, newest first.
+
+    This did not exist. A radiologist could draft a report (POST) and sign it
+    off (PUT), but nothing could read one back: the ordering doctor's only route
+    to the findings was the FHIR bundle, which returns just the current version
+    inside a DiagnosticReport document. Pathology has carried the equivalent
+    (`/results/history`) since #218 — the asymmetry was an oversight, not a
+    decision.
+
+    Version history rather than the current row alone, for the same reason
+    pathology keeps it: a preliminary read that was revised on final is what a
+    treating doctor needs to see, and `is_current` cannot show that it changed.
+
+    Empty list, not 404, when the scan exists but has no report yet — "not
+    reported" is a legitimate state of a real order, distinct from "no such
+    order".
+    """
+    await _scoped_item(db, item_id, current_db_user.facility_id)
+
+    rows = (
+        await db.execute(
+            select(RadiologyReport)
+            .where(RadiologyReport.radiology_order_item_id == item_id)
+            .order_by(RadiologyReport.version.desc())
+        )
+    ).scalars().all()
+
+    return RadiologyReportHistoryOut(
+        items=[RadiologyReportOut.model_validate(r) for r in rows]
+    )
+
+
 @router.post("/order-items/{item_id}/reports", response_model=RadiologyReportOut, status_code=201)
 async def draft_radiology_report(
     current_db_user: CurrentDbUser,
@@ -136,9 +224,7 @@ async def draft_radiology_report(
     current_user=Depends(require_roles("doctor")),
 
 ):
-    item = await db.get(RadiologyOrderItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Radiology order item not found")
+    item = await _scoped_item(db, item_id, current_db_user.facility_id)
 
     if payload.pacs_study_uid:
         item.pacs_study_uid = payload.pacs_study_uid
@@ -172,6 +258,13 @@ async def sign_off_radiology_report(
     current_user=Depends(require_roles("doctor")),
 
 ):
+    # Scoped before the report is read, not after. This is the most serious of
+    # the six: it writes a *final*, signed radiology report — the version a
+    # clinician acts on — and the old code reached the item by bare id only to
+    # set its status, several statements after the report had already been
+    # superseded.
+    item = await _scoped_item(db, item_id, current_db_user.facility_id)
+
     current = (await db.execute(
         select(RadiologyReport)
         .where(RadiologyReport.radiology_order_item_id == item_id, RadiologyReport.is_current.is_(True))
@@ -194,7 +287,6 @@ async def sign_off_radiology_report(
     )
     db.add(new_report)
 
-    item = await db.get(RadiologyOrderItem, item_id)
     item.status = "released"
 
     await _write_audit_log(db, table_name="radiology_reports", row_id=new_report.id,
@@ -211,13 +303,15 @@ async def sign_off_radiology_report(
 
 @router.get("/order-items/{item_id}/fhir-bundle")
 async def get_fhir_bundle(
+    current_db_user: CurrentDbUser,
     item_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    # No role dependency and no facility scope, on an endpoint that returns a
+    # FHIR DiagnosticReport: patient demographics, findings and impression in
+    # one document. Any authenticated account of any role, by item id.
+    current_user=Depends(require_roles("doctor", "radiology_tech", "admin")),
 ):
-    item = await db.get(RadiologyOrderItem, item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Radiology order item not found")
+    item = await _scoped_item(db, item_id, current_db_user.facility_id)
 
     current_report = (await db.execute(
         select(RadiologyReport)

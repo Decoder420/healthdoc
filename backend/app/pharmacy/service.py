@@ -133,7 +133,11 @@ async def search_medicines(
     (earliest expiry first) in-stock batches at this facility's locations.
     """
     items_sql = text("""
-        SELECT id, name, generic_name, strength, form, is_controlled_drug
+        -- ingredient_code is the key app/allergies/service.check_prescription_item
+        -- matches on. Without it in this response the prescribing screen has
+        -- nothing to pass to the allergy pre-check, so every item comes back
+        -- 'uncheckable' — a missing column reading as a missing allergy check.
+        SELECT id, name, generic_name, ingredient_code, strength, form, is_controlled_drug
         FROM inventory_items
         WHERE item_type = 'medicine'
           AND is_active
@@ -186,6 +190,7 @@ async def search_medicines(
                 item_id=row["id"],
                 name=row["name"],
                 generic_name=row["generic_name"],
+                ingredient_code=row["ingredient_code"],
                 strength=row["strength"],
                 form=row["form"],
                 is_controlled_drug=row["is_controlled_drug"],

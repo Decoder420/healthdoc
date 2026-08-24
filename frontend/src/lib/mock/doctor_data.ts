@@ -18,7 +18,6 @@ import type {
   IcdConcept,
   Medicine,
   Patient,
-  PatientHistoryEntry,
   QueueToken,
   VitalsInput,
 } from "@/features/doctor/types";
@@ -74,19 +73,15 @@ export const mockDoctorQueue: QueueToken[] = [
   { id: "3b0c9e17-5a44-4d2e-8c31-a10000000047", queue_id: "5a000000-0000-4000-8000-00000000a001", sequence: 7, token_display: "MED-047", visit_id: "7c2e5f90-1b33-4a77-9d05-b20000000007", patient_id: mockPatientRecords[6].id, status: "completed", priority: "normal", created_at: minutesAgo(80), completed_at: minutesAgo(35), full_name: "Suresh Nair", uhid: "IN-RJ-JPR001-2026-000047-8", age_years: 61, sex: "male" },
 ];
 
-// --- Patient history (GET /patients/{id}/history) --------------------------
-
-export const mockPatientHistory: Record<string, PatientHistoryEntry[]> = {
-  [mockPatientRecords[0].id]: [
-    { visit_id: "3a000000-0000-4000-8000-00000000e001", visit_number: "VST-JPR001-20260418-00121", visit_date: "2026-04-18", department: "General Medicine", diagnoses: ["Essential hypertension", "Type 2 diabetes mellitus"] },
-  ],
-  [mockPatientRecords[2].id]: [
-    { visit_id: "3a000000-0000-4000-8000-00000000e002", visit_number: "VST-JPR001-20260418-00133", visit_date: "2026-04-18", department: "General Medicine", diagnoses: ["Allergic rhinitis"] },
-  ],
-  [mockPatientRecords[3].id]: [
-    { visit_id: "3a000000-0000-4000-8000-00000000e003", visit_number: "VST-JPR001-20260322-00098", visit_date: "2026-03-22", department: "General Medicine", diagnoses: ["Iron deficiency anaemia"] },
-  ],
-};
+// --- Patient history -------------------------------------------------------
+// mockPatientHistory was deleted when features/doctor/api/patients.ts was
+// wired to the real GET /patients/{id}/history (P1.1). It had invented a
+// `department` field the endpoint does not return and the visits table does
+// not carry, so every department shown on the summary sidebar was fabricated.
+//
+// mockPatientRecords and mockAllergies below are still live: prescriptions.ts
+// (checkAllergies) has no backend yet, and mockAllergies is built from
+// mockPatientRecords.
 
 // --- Allergies (allergies, schema 0032) ------------------------------------
 // Matching is on ingredient_code. A row without one is "unknown", never "clear".

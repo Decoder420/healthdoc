@@ -940,6 +940,99 @@ async def _payment_totals_for_invoice(db: AsyncSession, invoice_id: uuid.UUID) -
     return total_paid, total_refunded
 
 
+async def issue_invoice(
+    db: AsyncSession,
+    *,
+    invoice_id: uuid.UUID,
+    updated_by: uuid.UUID,
+    expected_row_version: int,
+) -> Invoice:
+    """Move a draft invoice to 'issued' — the only transition that makes it payable.
+
+    This did not exist. `build_invoice` creates the row with status='draft'
+    (see above), `record_payment` refuses anything outside
+    _PAYABLE_INVOICE_STATUSES = ("issued", "partially_paid"), and the only two
+    assignments to `invoice.status` in the entire application are inside
+    record_payment and create_refund — both of which require the invoice to be
+    payable already. Nothing bridged draft -> issued, so **no invoice built by
+    the application could ever be paid**.
+
+    It looked healthy because tests/integration/test_billing_journey.py carries
+    a `_issue_invoice()` helper that opens its own engine and runs
+    `UPDATE invoices SET status='issued'` in raw SQL. The billing journey test
+    passed by performing, itself, the one step the product was missing.
+
+    Issuing is irreversible in effect: once status leaves 'draft' the
+    trg_invoices_freeze trigger blocks edits to everything but status, and the
+    documented correction path is "cancel and raise a new invoice", never an
+    edit. So this is the commit point, and it is guarded accordingly:
+
+    * `expected_row_version` is required, not optional. Departments append
+      charge lines to a draft as work completes, so a clerk who loaded the
+      invoice before radiology posted its charge would otherwise freeze an
+      invoice missing that line — unbillable revenue with no way to amend. This
+      is exactly the race the row_version column was added for.
+    * An invoice with no line items is refused. A zero-line invoice cannot be
+      meaningfully paid and freezing one is not recoverable by editing.
+    """
+    invoice = await db.get(Invoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "invoice_not_found", "message": "Invoice not found"},
+        )
+
+    if invoice.status != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "invoice_not_draft",
+                "message": (
+                    f"Invoice {invoice.invoice_number} is '{invoice.status}' — "
+                    "only a draft invoice can be issued."
+                ),
+            },
+        )
+
+    if invoice.row_version != expected_row_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "stale_write",
+                "message": (
+                    "The invoice changed since you loaded it — a charge line may "
+                    "have been appended. Reload and check the total before issuing."
+                ),
+                "current_row_version": invoice.row_version,
+            },
+        )
+
+    line_count = (
+        await db.execute(
+            sa.select(sa.func.count())
+            .select_from(InvoiceItem)
+            .where(InvoiceItem.invoice_id == invoice_id)
+        )
+    ).scalar_one()
+    if line_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "invoice_has_no_items",
+                "message": (
+                    f"Invoice {invoice.invoice_number} has no charge lines. "
+                    "Build the invoice before issuing it."
+                ),
+            },
+        )
+
+    invoice.status = "issued"
+    invoice.updated_by = updated_by
+    invoice.row_version = invoice.row_version + 1
+    await db.flush()
+    return invoice
+
+
 def _invoice_status_for_balance(net_amount: Decimal, net_paid: Decimal) -> str:
     if net_paid <= Decimal("0"):
         return "issued"
@@ -1552,17 +1645,27 @@ async def create_tariff(
 
 
 async def deactivate_tariff(
-    db: AsyncSession, tariff_id: uuid.UUID, *, updated_by: uuid.UUID
+    db: AsyncSession, tariff_id: uuid.UUID, *, updated_by: uuid.UUID, facility_id: uuid.UUID
 ) -> bool:
     """Retire a tariff. Sets is_active = false; never deletes.
 
     The row stays because invoice_items.charge_master_id points at it, and a
     line whose tariff has vanished cannot be explained to a patient or an
     auditor.
+
+    facility_id is required, not optional. Without it an admin could retire
+    another facility's tariff — and retiring their REGISTRATION row stops that
+    hospital registering patients at all, because create_registration_invoice
+    refuses rather than raising a zero-rupee invoice. A cross-facility denial
+    of service through a single admin endpoint.
     """
     result = await db.execute(
         sa.update(charge_master_t)
-        .where(charge_master_t.c.id == tariff_id, charge_master_t.c.is_active.is_(True))
+        .where(
+            charge_master_t.c.id == tariff_id,
+            charge_master_t.c.facility_id == facility_id,
+            charge_master_t.c.is_active.is_(True),
+        )
         .values(is_active=False, updated_by=updated_by)
     )
     await db.flush()

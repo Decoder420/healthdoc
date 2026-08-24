@@ -10,12 +10,17 @@ export function useDataAccessLogs(
 ) {
   const [filters, setFilters] = useState<DataAccessFilters>(initial);
   const [rows, setRows] = useState<DataAccessLog[]>([]);
+  /** Rows in the loaded page with no patient_id, so not facility-attributable.
+   *  Surfaced rather than dropped — see the endpoint's docstring. */
+  const [unattributed, setUnattributed] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setRows(await listDataAccessLogs(filters));
+      const response = await listDataAccessLogs(filters);
+      setRows(response.items);
+      setUnattributed(response.unattributed_in_page);
     } finally {
       setLoading(false);
     }
@@ -27,6 +32,7 @@ export function useDataAccessLogs(
 
   return {
     rows,
+    unattributed,
     loading,
     filters,
     setQuery: (query: string) => setFilters((f) => ({ ...f, query })),

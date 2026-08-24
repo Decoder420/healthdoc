@@ -77,12 +77,21 @@ export interface Patient {
   photo_file_id?: string;
 }
 
-/** A prior visit as returned by GET /patients/{id}/history. */
+/**
+ * A prior visit, projected from GET /patients/{id}/history.
+ *
+ * `department` was removed when this was retired from fixtures: the history
+ * endpoint does not return it and the visits table does not carry a department
+ * — the fixture had invented the field, so every value shown for it was made
+ * up. Add it back only alongside a real column and a real projection.
+ *
+ * `diagnoses` is empty for roles below the "full" history tier (nurse,
+ * receptionist). That is a role boundary, not missing data.
+ */
 export interface PatientHistoryEntry {
   visit_id: string;
   visit_number: string;
   visit_date: string;
-  department: string;
   diagnoses: string[];
 }
 
@@ -562,6 +571,15 @@ export interface ResultWorklistItem {
   id: string;
   order_id: string;
   order_number: string;
+  /**
+   * The encounter the order was placed in.
+   *
+   * doctor_reviews belong to an encounter, so a review opened from this list
+   * has to be filed against this id. The fixture omitted it, which is why the
+   * review lifecycle used to file everything against one hardcoded
+   * REVIEW_ENCOUNTER_ID.
+   */
+  encounter_id: string;
   order_type: "lab" | "radiology";
   accession_number: string;
   patient_id: string;
