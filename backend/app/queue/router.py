@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.deps import AuditActor, get_current_actor_dependency
-from app.auth.deps import CurrentDbUser, CurrentUser, require_roles
+from app.auth.deps import CurrentDbUser, CurrentUser, DbUser, require_roles
 from app.common.business_date import get_business_date
 from app.common.db import get_db
 from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
@@ -26,6 +26,7 @@ from app.queue.schemas import (
     DoctorWorklistOut,
     EmergencyEscalationOut,
     HodDashboardOverviewOut,
+    PendingApprovalOut,
     PendingLabOrderOut,
     QueueCreate,
     QueueOut,
@@ -39,12 +40,31 @@ from app.queue.schemas import (
     RosterOut,
     TokenPriorityElevate,
     TokenReassign,
-    DepartmentWorkloadOut,
-    EmergencyEscalationOut,
-    PendingApprovalOut,
 )
 
 router = APIRouter(prefix="/queue", tags=["queue"])
+
+
+def _require_hod_dashboard_department(
+    current_db_user: DbUser,
+    requested_department_id: uuid.UUID,
+) -> None:
+    """HODs may read only their own department; admins remain facility-wide.
+
+    Facility scoping alone is insufficient here: two departments in the same
+    hospital share a facility id. The frontend deliberately has no department
+    picker, but authorization cannot depend on an honest browser.
+    """
+    if "admin" in current_db_user.roles:
+        return
+    if current_db_user.department_id != requested_department_id:
+        raise HTTPException(
+            403,
+            detail={
+                "code": "hod_department_scope_violation",
+                "message": "HOD dashboard access is limited to the caller's department",
+            },
+        )
 
 
 @router.get(
@@ -465,6 +485,7 @@ async def get_hod_dashboard_overview(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _require_hod_dashboard_department(current_db_user, department_id)
     overview = await service.get_hod_dashboard_overview(
         db, department_id, overview_date, current_db_user.facility_id
     )
@@ -481,6 +502,7 @@ async def get_pending_lab_orders(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _require_hod_dashboard_department(current_db_user, department_id)
     items = await service.get_pending_lab_orders(db, department_id, current_db_user.facility_id)
     return {"items": [PendingLabOrderOut(**item).model_dump(mode="json") for item in items]}
 
@@ -523,6 +545,7 @@ async def get_department_workload(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _require_hod_dashboard_department(current_db_user, department_id)
     workload = await service.get_department_workload(
         db, department_id, workload_date, current_db_user.facility_id
     )
@@ -539,6 +562,7 @@ async def get_emergency_escalations(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _require_hod_dashboard_department(current_db_user, department_id)
     escalations = await service.get_emergency_escalations(db, department_id, current_db_user.facility_id)
     return {"items": [EmergencyEscalationOut(**item).model_dump(mode="json") for item in escalations]}
 
@@ -553,5 +577,6 @@ async def get_pending_approvals(
     current_db_user: CurrentDbUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    _require_hod_dashboard_department(current_db_user, department_id)
     approvals = await service.get_pending_approvals(db, department_id, current_db_user.facility_id)
     return {"items": [PendingApprovalOut(**item).model_dump(mode="json") for item in approvals]}

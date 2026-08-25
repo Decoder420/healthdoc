@@ -6,25 +6,39 @@ import { ModuleCapabilityGate } from "@/components/common/ModuleCapabilityGate";
 import { ExpiryTracker } from "@/features/pharmacy/ExpiryTracker";
 import { AdjustmentWorkspace } from "@/features/inventory/AdjustmentWorkspace";
 import { GrnWorkspace } from "@/features/inventory/GrnWorkspace";
+import { PurchaseOrderWorkspace } from "@/features/inventory/PurchaseOrderWorkspace";
+import { StockTransferWorkspace } from "@/features/inventory/StockTransferWorkspace";
 import { IndentWorkspace } from "@/features/inventory/IndentWorkspace";
 import { listReorderAlerts } from "@/features/pharmacy/api";
 import type { ReorderAlertItem } from "@/features/pharmacy/types";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 
-type StockTab = "grn" | "indents" | "adjustments";
+type StockTab = "purchase-orders" | "grn" | "transfers" | "indents" | "adjustments";
 
+// Ordered as the goods move: ordered -> received -> moved between stores ->
+// requested by a ward -> corrected. A storekeeper reading left to right is
+// following the same path the stock takes.
 const STOCK_TABS: Array<{ id: StockTab; label: string }> = [
+  { id: "purchase-orders", label: "Purchase orders" },
   { id: "grn", label: "Goods receipt" },
+  { id: "transfers", label: "Transfers" },
   { id: "indents", label: "Indents" },
   { id: "adjustments", label: "Adjustments" },
 ];
 
 function Inventory() {
-  const [tab, setTab] = useState<StockTab>("grn");
+  const { user, isLoading: authLoading } = useAuth();
+  const isHod = user?.role === "hod";
+  const [tab, setTab] = useState<StockTab>("purchase-orders");
   const [alerts, setAlerts] = useState<ReorderAlertItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // HODs come here for their one exclusive action: deciding department
+    // indents. Reorder, expiry, purchasing and receiving reads are deliberately
+    // pharmacist/admin-only and must never be mounted for an HOD.
+    if (authLoading || isHod) return;
     try {
       const response = await listReorderAlerts();
       setAlerts(response.items);
@@ -32,11 +46,30 @@ function Inventory() {
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Could not load inventory alerts");
     }
-  }, []);
+  }, [authLoading, isHod]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (authLoading) {
+    return <p className="p-6 text-sm text-muted-foreground">Loading…</p>;
+  }
+
+  if (isHod) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-3xl font-semibold">Department indents</h1>
+          <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+            Review requests awaiting head-of-department approval. Purchasing,
+            receiving, stock transfers and adjustments remain with the store.
+          </p>
+        </div>
+        <IndentWorkspace />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 p-6">
@@ -113,8 +146,9 @@ function Inventory() {
         <div>
           <h2 className="text-xl font-semibold">Stock movement</h2>
           <p className="text-sm text-muted-foreground">
-            Receiving, department indents and adjustments. Every step here is
-            reviewed by someone other than the person who started it.
+            Ordering, receiving, moving, requesting and correcting — in the order
+            the stock itself travels. Every step is reviewed or countersigned by
+            someone other than the person who started it.
           </p>
         </div>
 
@@ -135,7 +169,9 @@ function Inventory() {
           ))}
         </div>
 
+        {tab === "purchase-orders" ? <PurchaseOrderWorkspace /> : null}
         {tab === "grn" ? <GrnWorkspace /> : null}
+        {tab === "transfers" ? <StockTransferWorkspace /> : null}
         {tab === "indents" ? <IndentWorkspace /> : null}
         {tab === "adjustments" ? <AdjustmentWorkspace /> : null}
       </section>

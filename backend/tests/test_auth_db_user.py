@@ -17,11 +17,12 @@ from app.auth.deps import AuthUser, get_current_db_user
 
 
 class _Row:
-    def __init__(self, *, is_active=True, facility_id=None):
+    def __init__(self, *, is_active=True, facility_id=None, department_id=None):
         self.id = uuid.uuid4()
         self.keycloak_sub = "kc-sub-123"
         self.username = "r.kumar"
         self.facility_id = facility_id or uuid.uuid4()
+        self.department_id = department_id
         self.is_active = is_active
 
 
@@ -70,6 +71,17 @@ async def test_facility_id_comes_from_the_database_row():
     row = _Row()
     user = await get_current_db_user(_jwt_user(), _FakeSession(row))
     assert user.facility_id == row.facility_id
+
+
+@pytest.mark.asyncio
+async def test_department_id_comes_from_the_database_row():
+    """HOD routes use this value to prevent same-facility department hopping."""
+    department_id = uuid.uuid4()
+    row = _Row(department_id=department_id)
+
+    user = await get_current_db_user(_jwt_user(), _FakeSession(row))
+
+    assert user.department_id == department_id
 
 
 @pytest.mark.asyncio

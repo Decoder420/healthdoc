@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import CurrentDbUser
 from app.common.db import get_db
+from app.departments.models import Department
 from app.users.models import Facility, User
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -54,6 +55,21 @@ class FacilityOut(BaseModel):
     code: str
     name: str
     timezone: str
+
+
+class DepartmentOut(BaseModel):
+    """The caller's home department, or null.
+
+    Null for facility-wide roles — admin and auditor belong to no one
+    department — and for any staff member whose row predates the column.
+    Callers must handle null rather than assume a department exists.
+    """
+
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    code: str
+    name: str
 
 
 class MeOut(BaseModel):
@@ -72,6 +88,18 @@ class MeOut(BaseModel):
     full_name: str
     roles: list[str]
     facility: FacilityOut
+    #: Added for the HOD dashboard, which is per-department.
+    #:
+    #: Without this the screen would need a department picker, and a picker
+    #: would be WRONG: the hod-dashboard endpoints are gated on the role and
+    #: scoped only to the caller's FACILITY, so a picker would let the head of
+    #: Medicine read Surgery's workload and pending approvals. The department a
+    #: person belongs to is not theirs to choose.
+    #:
+    #: Still narrow per this class's own rule — id, code and name, which is what
+    #: a screen needs to scope and label itself. Nothing about the department's
+    #: staff or configuration.
+    department: DepartmentOut | None
 
 
 @router.get("/me", response_model=MeOut)
@@ -83,8 +111,12 @@ async def get_me(
     role needs this, and it can only ever return the caller's own record."""
     row = (
         await db.execute(
-            select(User, Facility)
+            # OUTER join on departments: users.department_id is nullable, and an
+            # inner join would make /users/me 404 for every admin and auditor —
+            # turning "has no department" into "has no account".
+            select(User, Facility, Department)
             .join(Facility, Facility.id == User.facility_id)
+            .outerjoin(Department, Department.id == User.department_id)
             .where(User.id == current_db_user.id)
         )
     ).one_or_none()
@@ -95,7 +127,7 @@ async def get_me(
         # caller's own account genuinely no longer exists.
         raise HTTPException(status_code=404, detail="user_not_found")
 
-    user, facility = row
+    user, facility, department = row
     return MeOut(
         id=user.id,
         username=user.username,
@@ -104,4 +136,5 @@ async def get_me(
         # and the app's copy can lag a realm change until the next login.
         roles=current_db_user.roles,
         facility=FacilityOut.model_validate(facility),
+        department=DepartmentOut.model_validate(department) if department else None,
     )
