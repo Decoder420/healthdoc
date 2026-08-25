@@ -1,0 +1,150 @@
+"""`_verify_with_gateway` — the call that had never once succeeded.
+
+There were no tests on this function. That is not incidental to the bug, it is
+the whole explanation: the old implementation sent `abdm_client_secret` as a
+Bearer token, 401'd on every call, swallowed it in `except Exception`, and
+logged "proceeding offline". Nothing distinguished that from a rural facility
+with no internet, and nothing asserted otherwise.
+
+So these tests are written against the DISTINCTIONS rather than the happy path.
+The happy path was never the thing at risk.
+
+NO CREDENTIALS ANYWHERE IN HERE. The client is stubbed; nothing reaches a
+network. CI must never hold ABDM credentials, and these tests must stay mocked.
+"""
+from __future__ import annotations
+
+import logging
+
+import pytest
+
+pytestmark = pytest.mark.asyncio
+
+
+class _StubClient:
+    """Stands in for AbdmClient. Records whether it was called at all."""
+
+    def __init__(self, *, configured: bool = True, raises=None, body=None, status=200):
+        self.is_configured = configured
+        self._raises = raises
+        self._body = body
+        self._status = status
+        self.calls: list[tuple[str, str, object]] = []
+
+    async def request(self, method, path, *, json=None, **kwargs):
+        self.calls.append((method, path, json))
+        if self._raises is not None:
+            raise self._raises
+        from app.integrations.abdm.client import AbdmResponse
+
+        return AbdmResponse(self._status, self._body, "test-request-id")
+
+
+def _install(monkeypatch, client, *, path="/v3/some/verify"):
+    from app.integrations.abdm.identity import router as mod
+
+    monkeypatch.setattr(mod, "get_abdm_client", lambda: client)
+    monkeypatch.setattr(mod, "_VERIFY_PATH", path)
+    return mod
+
+
+async def test_unset_path_makes_no_network_call(monkeypatch):
+    """The shipped state: no confirmed v3 path, so nothing is attempted.
+
+    This is the test that would have caught the original bug's sibling — code
+    that fires a request built from a path nobody verified.
+    """
+    client = _StubClient()
+    mod = _install(monkeypatch, client, path=None)
+
+    assert await mod._verify_with_gateway("91123456789012") is None
+    assert client.calls == [], "a request was built despite _VERIFY_PATH being None"
+
+
+async def test_unconfigured_never_puts_the_secret_on_the_wire(monkeypatch):
+    """The credential half of the original defect.
+
+    `is_configured` is False while the .env placeholders are in place. The old
+    code sent the placeholder anyway, in an Authorization header.
+    """
+    client = _StubClient(configured=False)
+    mod = _install(monkeypatch, client)
+
+    assert await mod._verify_with_gateway("91123456789012") is None
+    assert client.calls == [], "called the gateway without usable credentials"
+
+
+async def test_auth_failure_logs_at_error_not_as_offline(monkeypatch, caplog):
+    """The distinction the old code destroyed.
+
+    An AbdmAuthError is OUR fault — wrong credentials — and must not be
+    reported the way an unreachable gateway is. The old bare `except Exception`
+    logged both as "proceeding offline", which is precisely why a permanently
+    broken integration survived in the tree.
+    """
+    from app.integrations.abdm.client import AbdmAuthError
+
+    client = _StubClient(raises=AbdmAuthError("rejected"))
+    mod = _install(monkeypatch, client)
+
+    with caplog.at_level(logging.DEBUG, logger="healthdoc.abdm"):
+        assert await mod._verify_with_gateway("91123456789012") is None
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors, "credential failure was not logged at ERROR"
+    assert "offline" not in errors[0].getMessage().lower(), (
+        "a credentials fault is being reported as an offline facility"
+    )
+
+
+async def test_unavailable_gateway_is_the_real_degradation_case(monkeypatch, caplog):
+    """A genuinely unreachable gateway must still not break registration."""
+    from app.integrations.abdm.client import AbdmUnavailable
+
+    client = _StubClient(raises=AbdmUnavailable("unreachable"))
+    mod = _install(monkeypatch, client)
+
+    with caplog.at_level(logging.DEBUG, logger="healthdoc.abdm"):
+        assert await mod._verify_with_gateway("91123456789012") is None
+
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR], (
+        "an offline facility was logged as an error"
+    )
+
+
+async def test_rejection_does_not_log_the_body(monkeypatch, caplog):
+    """AbdmRejected carries a gateway body, which can carry PHI. Status only."""
+    from app.integrations.abdm.client import AbdmRejected
+
+    secret_in_body = {"name": "Test Patient", "abhaNumber": "91123456789012"}
+    client = _StubClient(raises=AbdmRejected(422, secret_in_body, "rid"))
+    mod = _install(monkeypatch, client)
+
+    with caplog.at_level(logging.DEBUG, logger="healthdoc.abdm"):
+        assert await mod._verify_with_gateway("91123456789012") is None
+
+    logged = " ".join(r.getMessage() for r in caplog.records)
+    assert "Test Patient" not in logged
+    assert "91123456789012" not in logged, "the ABHA number was written to the log"
+
+
+@pytest.mark.parametrize("body", [None, "", [], 0])
+async def test_2xx_with_a_non_object_body_is_not_a_verification(monkeypatch, body):
+    """`gateway_result is not None` is what the caller keys on.
+
+    A 200 carrying `null` or an empty string would otherwise be truthy enough
+    to mark a patient verified on the strength of an empty answer.
+    """
+    client = _StubClient(body=body)
+    mod = _install(monkeypatch, client)
+
+    assert await mod._verify_with_gateway("91123456789012") is None
+
+
+async def test_verified_response_is_returned(monkeypatch):
+    """The happy path, for completeness — a dict body means verified."""
+    client = _StubClient(body={"status": "ACTIVE"})
+    mod = _install(monkeypatch, client)
+
+    assert await mod._verify_with_gateway("91123456789012") == {"status": "ACTIVE"}
+    assert client.calls == [("POST", "/v3/some/verify", {"abhaNumber": "91123456789012"})]
