@@ -13,7 +13,7 @@ thin wiring and the actual behavior is verified here.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -67,6 +67,23 @@ async def _seed_purpose(engine: AsyncEngine, *, code: str) -> uuid.UUID:
             {"id": pid, "code": code},
         )
     return pid
+
+
+async def _seed_consent_manager(engine: AsyncEngine) -> uuid.UUID:
+    manager_id = uuid.uuid4()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO consent_managers "
+                "(id, cm_registration_id, name, is_active) "
+                "VALUES (:id, :registration_id, 'Test Consent Manager', true)"
+            ),
+            {
+                "id": manager_id,
+                "registration_id": f"CM-{uuid.uuid4().hex}",
+            },
+        )
+    return manager_id
 
 
 class TestCreateConsentRecord:
@@ -144,6 +161,7 @@ class TestTransitionConsentStatus:
         self, session_factory, engine: AsyncEngine, facility_id, user_id, purpose_id
     ):
         patient_id = await _seed_patient(engine, facility_id=facility_id, created_by=user_id)
+        consent_manager_id = await _seed_consent_manager(engine)
         async with session_factory() as db:
             record = await service.create_consent_record(
                 db,
@@ -154,6 +172,7 @@ class TestTransitionConsentStatus:
                 granted_by_type="patient",
                 channel="abdm_consent_manager",
                 status="requested",
+                consent_manager_id=consent_manager_id,
             )
             await db.commit()
             consent_id = record.id
@@ -462,11 +481,13 @@ class TestFindActiveConsent:
         purpose_code = f"direct_treatment_{uuid.uuid4().hex[:8]}"
         purpose = await _seed_purpose(engine, code=purpose_code)
         patient_id = await _seed_patient(engine, facility_id=facility_id, created_by=user_id)
+        consent_manager_id = await _seed_consent_manager(engine)
         async with session_factory() as db:
             await service.create_consent_record(
                 db, patient_id=patient_id, facility_id=facility_id, created_by=user_id,
                 purpose_id=purpose, granted_by_type="patient", channel="abdm_consent_manager",
                 status="requested",
+                consent_manager_id=consent_manager_id,
             )
             await db.commit()
 
@@ -486,7 +507,7 @@ class TestFindActiveConsent:
             await service.create_consent_record(
                 db, patient_id=patient_id, facility_id=facility_id, created_by=user_id,
                 purpose_id=purpose, granted_by_type="patient", channel="verbal",
-                expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+                expires_at=datetime.now(UTC) - timedelta(days=1),
             )
             await db.commit()
 

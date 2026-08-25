@@ -250,17 +250,18 @@ class PharmacyMisReport(BaseModel):
 
 class GrnItemCreate(BaseModel):
     item_id: UUID
-    batch_number: str | None = None
+    batch_number: str | None = Field(default=None, min_length=1, max_length=50)
     expiry_date: date | None = None
-    quantity: Decimal
-    unit_price: Decimal | None = None
+    quantity: Decimal = Field(gt=0)
+    unit_price: Decimal | None = Field(default=None, ge=0)
 
 
 class GrnCreate(BaseModel):
     supplier_id: UUID
+    purchase_order_id: UUID | None = None
     invoice_number: str | None = None
     received_date: date
-    items: list[GrnItemCreate]
+    items: list[GrnItemCreate] = Field(min_length=1)
 
 
 class GrnItemOut(BaseModel):
@@ -275,6 +276,7 @@ class GrnItemOut(BaseModel):
 class GrnOut(BaseModel):
     id: UUID
     supplier_id: UUID
+    purchase_order_id: UUID | None
     invoice_number: str | None
     received_date: date
     status: str
@@ -413,6 +415,7 @@ class StockLocationListOut(BaseModel):
 class GrnListItem(BaseModel):
     id: UUID
     supplier_id: UUID
+    purchase_order_id: UUID | None
     supplier_name: str
     invoice_number: str | None
     received_date: date

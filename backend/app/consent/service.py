@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 from fastapi import HTTPException
@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.actions import AuditAction
 from app.audit.service import audited_mutation
-from app.common.enums import ConsentStatus
+from app.common.enums import ConsentChannel, ConsentStatus
 from app.consent.models import (
     BreakGlassGrant,
     ConsentPurpose,
@@ -39,6 +39,7 @@ from app.consent.models import (
     ConsentRenewalReminder,
     ConsentWithdrawal,
 )
+from app.dpdp.models import ConsentManager
 from app.patients.models import Patient
 
 # requested -> {granted, denied} only. granted has no entry here at all
@@ -178,7 +179,7 @@ async def evaluate_clinical_access(
     elif (
         latest.status == ConsentStatus.EXPIRED.value
         or latest.expires_at is not None
-        and latest.expires_at <= datetime.now(timezone.utc)
+        and latest.expires_at <= datetime.now(UTC)
     ):
         reason = "consent_expired"
     else:
@@ -220,10 +221,37 @@ async def create_consent_record(
     scope: list[str] | None = None,
     consent_artefact_id: str | None = None,
     consent_artefact_signature: str | None = None,
+    consent_manager_id: uuid.UUID | None = None,
 ) -> ConsentRecord:
     purpose = await db.get(ConsentPurpose, purpose_id)
     if purpose is None:
         raise HTTPException(404, "Consent purpose not found")
+    is_abdm_manager_channel = channel == ConsentChannel.ABDM_CONSENT_MANAGER.value
+    if is_abdm_manager_channel and consent_manager_id is None:
+        raise HTTPException(
+            422,
+            detail={
+                "code": "consent_manager_required",
+                "message": "ABDM consent-manager records require consent_manager_id",
+            },
+        )
+    if not is_abdm_manager_channel and consent_manager_id is not None:
+        raise HTTPException(
+            422,
+            detail={
+                "code": "consent_manager_channel_mismatch",
+                "message": "consent_manager_id requires channel=abdm_consent_manager",
+            },
+        )
+    if consent_manager_id is not None:
+        manager = await db.get(ConsentManager, consent_manager_id)
+        if manager is None:
+            raise HTTPException(404, "Consent manager not found")
+        if not manager.is_active:
+            raise HTTPException(
+                409,
+                detail={"code": "consent_manager_inactive"},
+            )
 
     async with audited_mutation(
         db,
@@ -247,6 +275,7 @@ async def create_consent_record(
             channel=channel,
             consent_artefact_id=consent_artefact_id,
             consent_artefact_signature=consent_artefact_signature,
+            consent_manager_id=consent_manager_id,
             status=status,
             created_by=created_by,
         )
@@ -259,7 +288,14 @@ async def create_consent_record(
         await db.refresh(record)
 
         audit.resource_id = record.id
-        audit.new_value = {"purpose_id": str(purpose_id), "channel": channel, "status": status}
+        audit.new_value = {
+            "purpose_id": str(purpose_id),
+            "channel": channel,
+            "status": status,
+            "consent_manager_id": str(consent_manager_id)
+            if consent_manager_id
+            else None,
+        }
 
     return record
 
@@ -297,7 +333,7 @@ async def transition_consent_status(
         audit.old_value = {"status": record.status}
 
         record.status = new_status
-        record.status_changed_at = datetime.now(timezone.utc)
+        record.status_changed_at = datetime.now(UTC)
         record.updated_by = updated_by
 
         audit.new_value = {"status": new_status}
@@ -329,7 +365,7 @@ async def withdraw_consent(
         patient_id=record.patient_id,
         visit_id=record.visit_id,
     ) as audit:
-        withdrawn_at = datetime.now(timezone.utc)
+        withdrawn_at = datetime.now(UTC)
         cascaded_actions = _build_cascade_plan(record.scope)
         withdrawal = ConsentWithdrawal(
             id=uuid.uuid4(),

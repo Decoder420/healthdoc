@@ -5,21 +5,32 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allergies.service import AllergyConflict
 from app.auth.deps import CurrentDbUser, require_roles
 from app.common.db import get_db
 from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
-from app.allergies.service import AllergyConflict
 from app.orders import results_worklist, service
 from app.orders.schemas import (
+    ExternalResultCreate,
+    ExternalResultListOut,
+    ExternalResultOut,
+    OrderCreate,
+    OrderListOut,
+    OrderOut,
+    PrescriptionCreate,
+    PrescriptionItemOut,
+    PrescriptionOut,
     ResultWorklistItemOut,
     ResultWorklistOut,
-    OrderCreate, OrderListOut, OrderOut, PrescriptionCreate, PrescriptionItemOut, PrescriptionOut,
 )
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+DbSession = Annotated[AsyncSession, Depends(get_db)]
+_EXTERNAL_RESULT_ROLES = ("doctor", "nurse", "admin")
 
 
 @router.post("", response_model=OrderOut, status_code=http_status.HTTP_201_CREATED,
@@ -127,6 +138,97 @@ async def get_results_worklist(
     )
     return ResultWorklistOut(
         items=[ResultWorklistItemOut(**row) for row in rows]
+    )
+
+
+@router.post(
+    "/{order_id}/external-results",
+    response_model=ExternalResultOut,
+    status_code=http_status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles(*_EXTERNAL_RESULT_ROLES))],
+)
+async def create_external_result(
+    order_id: UUID,
+    payload: ExternalResultCreate,
+    current_db_user: CurrentDbUser,
+    db: DbSession,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key")
+    ] = None,
+) -> ExternalResultOut:
+    if not idempotency_key:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="Idempotency-Key header is required",
+        )
+    endpoint = f"POST /orders/{order_id}/external-results"
+    request_hash = hash_request_body(payload)
+    cached = await check_idempotency(
+        db, idempotency_key, endpoint, request_hash, current_db_user.id
+    )
+    if cached is not None:
+        return ExternalResultOut.model_validate(cached.response_body)
+
+    try:
+        result = await service.record_external_result(
+            db,
+            order_id=order_id,
+            payload=payload,
+            facility_id=current_db_user.facility_id,
+            recorded_by=current_db_user.id,
+        )
+    except service.ExternalResultOrderNotFound:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="order_not_found"
+        ) from None
+    except service.ExternalResultConflict as exc:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail={"code": exc.code},
+        ) from exc
+    except service.ExternalResultFileInvalid as exc:
+        if exc.code == "result_file_not_found":
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="result_file_not_found",
+            ) from exc
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": exc.code},
+        ) from exc
+
+    response = ExternalResultOut.model_validate(result)
+    await record_idempotent_response(
+        db,
+        idempotency_key,
+        endpoint,
+        http_status.HTTP_201_CREATED,
+        response.model_dump(mode="json"),
+        current_db_user.id,
+    )
+    return response
+
+
+@router.get(
+    "/{order_id}/external-results",
+    response_model=ExternalResultListOut,
+    dependencies=[Depends(require_roles(*_EXTERNAL_RESULT_ROLES))],
+)
+async def get_external_results(
+    order_id: UUID,
+    current_db_user: CurrentDbUser,
+    db: DbSession,
+) -> ExternalResultListOut:
+    try:
+        rows = await service.list_external_results(
+            db, order_id=order_id, facility_id=current_db_user.facility_id
+        )
+    except service.ExternalResultOrderNotFound:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="order_not_found"
+        ) from None
+    return ExternalResultListOut(
+        items=[ExternalResultOut.model_validate(row) for row in rows]
     )
 
 

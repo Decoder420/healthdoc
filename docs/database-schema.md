@@ -170,6 +170,9 @@ do not merge out of order.**
 | 0049 | file_erasure | ALTER files: erased_at, erased_by, erasure_reason, object_key, sha256; ALTER file_access_log: action | Security (#368) — `file_access_log.file_id` is NOT NULL ondelete=RESTRICT, so a DPDP erasure could only be satisfied by deleting the record of who read the file. Files are now tombstoned, never deleted: the bytes go, the row and its access trail stay. RESTRICT is kept deliberately — it now states the real rule. `object_key`/`sha256` become nullable for erased rows only, guarded by a CHECK. Does NOT set a retention floor; when erasure is *permitted* is a privacy decision. |
 | 0050 | performance_indexes | INDEXES only | W7 (#241) — add supporting indexes for every previously uncovered foreign key and the missing `lab_results.result_data` `jsonb_path_ops` GIN index. A PostgreSQL catalog test enforces the complete FK and named hot-path strategy on every build. |
 | 0051 | patient_portal_bindings | patient_portal_bindings | B2/F1 (#228, #234) — append-only, audited proof linking one active Keycloak-backed user to one active patient after ABHA OTP or in-person document verification. Revocation retains the verification history; portal requests never accept a patient id. |
+| 0052 | external_results_append_only | order_external_results | B3 (#450) — trigger only; outside-result corrections append a new row and UPDATE/DELETE cannot rewrite history. |
+| 0053 | grievance_counters | grievance_counters; ALTER patient_grievances: grievance_number varchar(50) | B7 (#451) — atomic per-facility/day server numbering without truncating a permitted 20-character facility code. |
+| 0054 | inventory_reservations | ALTER inventory_batches: reserved_quantity numeric(12,2) | B6 (#452) — durable source-batch reservation between transfer dispatch and receipt; every stock-out path uses quantity minus reservations. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -946,6 +949,8 @@ batch_number varchar(50) NOT NULL
 expiry_date date NOT NULL                        -- NO CHECK against CURRENT_DATE (Riya: that
                                                  -- check breaks old rows; expiry is a query/logic concern)
 quantity numeric(12,2) NOT NULL CHECK (quantity >= 0)
+reserved_quantity numeric(12,2) NOT NULL DEFAULT 0
+  CHECK (reserved_quantity >= 0 AND reserved_quantity <= quantity) -- 0054; in-transit stock
 purchase_rate numeric(12,2) · issue_rate_mrp numeric(12,2)
 stock_location_id UUID NOT NULL → stock_locations
 UNIQUE (item_id, batch_number, stock_location_id)
@@ -991,8 +996,8 @@ expiry_override_reason text NULL                -- 0013. trg_pharmacy_dispense_i
                                                 -- unless overridden; the override is named and reasoned.
 ```
 
-**grn** `[Blame]` — `facility_id UUID NOT NULL → facilities · supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled) · purchase_order_id UUID NOT NULL`
-> `purchase_order_id` (0024) is NOT mapped by the ORM — see the §3-end note on unmapped columns.
+**grn** `[Blame]` — `facility_id UUID NOT NULL → facilities · supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled) · purchase_order_id UUID NULL → purchase_orders`
+> `purchase_order_id` remains optional for donations and emergency local purchases. When set, the API enforces facility, supplier, ordered-item and remaining-quantity agreement; verification advances the PO deterministically to `partially_received` or `received`.
 **grn_items** — `grn_id → grn CASCADE · item_id → inventory_items · batch_number · expiry_date · quantity numeric CHECK (>0) · unit_price numeric(12,2)`
 **indents** `[Blame]` — `facility_id UUID NOT NULL → facilities · department_id → departments · status varchar(30) (requested|approved|rejected|issued) · approved_by UUID NULL → users`
 **indent_items** — `indent_id → indents CASCADE · item_id → inventory_items · quantity_requested numeric CHECK (>0)`
@@ -1280,9 +1285,19 @@ patient_id UUID NOT NULL → patients · facility_id UUID NOT NULL → facilitie
 grievance_type varchar(50) NOT NULL               -- access|correction|erasure|consent|breach|other
 description text NOT NULL
 status varchar(50) NOT NULL DEFAULT 'pending'     -- pending|under_review|resolved|escalated_dpb|closed
-assigned_to UUID NULL → users · due_at timestamptz NOT NULL   -- created_at + 90 days, app-set
+assigned_to UUID NULL → users · due_at timestamptz NOT NULL   -- explicitly supplied until each facility approves an SLA
 resolution text · resolved_at timestamptz · escalation_reason text
 INDEX ix_patient_grievances_status_due_at (status, due_at)
+```
+The legal workflow is `pending → under_review → resolved → closed`; a pending
+or under-review grievance may instead move to `escalated_dpb`, then to
+`resolved → closed`. Resolution text is mandatory on `resolved`, escalation
+reason is mandatory on `escalated_dpb`, and `closed` is terminal.
+
+**grievance_counters** (0053, B7)
+```
+facility_id UUID NOT NULL → facilities · counter_date date NOT NULL
+last_value int NOT NULL CHECK (>0) · PRIMARY KEY (facility_id, counter_date)
 ```
 
 **data_breach_notifications** (0022a, B7) — append-only after status closes
@@ -1447,14 +1462,23 @@ Each leg writes `stock_ledger` (`transfer` out / in). **Damage write-offs are NO
 table** — 0024 adds `adjustments.adjustment_type varchar(30)`
 (`damage|expiry|count_error|other`); the dual-signoff flow already covers them.
 
+Migration 0054 adds a durable reservation to each source batch. Dispatch locks
+the batch and reserves only uncommitted stock; receipt releases the reservation
+and writes equal negative/source and positive/destination ledger legs in one
+transaction. Cancellation of an in-transit transfer releases the reservation.
+
 **machine_maintenance_logs** (0024, B6/B5) `[Blame]` — radiology/lab equipment
 ```
 machine_id varchar(50) NOT NULL · department_id UUID NULL → departments
 maintenance_type varchar(50) (preventive|breakdown|calibration|qa_check)
-performed_at timestamptz NOT NULL · performed_by_vendor text · downtime_minutes int · notes text
-notes        text NOT NULL                      -- 0024. NOT mapped by the ORM; the table has no
-                                                -- model at all — see §3-end note.
+performed_at timestamptz NOT NULL · performed_by_vendor text NULL
+downtime_minutes int NULL · notes text NULL
 ```
+
+The API requires `department_id` for new records and scopes reads through that
+department's facility. Migration 0024 left the column nullable and provided no
+facility column; rows with a NULL department therefore cannot be assigned to a
+tenant safely and are deliberately not exposed by the API.
 
 **staff_certifications / staff_training_records** (0025, B1) `[Blame]` — NABH HRM
 ```
@@ -1892,11 +1916,8 @@ with a pointer here.
 | Column | Migration | Note |
 |---|---|---|
 | `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
-| `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
-| `consent_records.consent_manager_id` | 0022a | `UUID` nullable. DPDP Rules 2025 consent-manager linkage; `consent_managers` exists but nothing populates either side. |
-| `machine_maintenance_logs.notes` | 0024 | `text` nullable — and the whole TABLE has no ORM model or code. |
 
-> **One row left this table.** `orders.fulfilment_mode` was here until it was
+> **Historical cleanup note.** `orders.fulfilment_mode` was listed here until it was
 > mapped and wired: §2 v3.3 rule 1 says an order for a disabled module is
 > created as `external_referral` rather than refused, and that behaviour was
 > documented but unimplemented, so a facility with lab switched off recorded lab
@@ -1905,43 +1926,18 @@ with a pointer here.
 
 ### 3-end (b) — tables with no model and no code at all
 
-Beyond the individual columns above, **eight whole tables** are created by a
-migration and referenced by no application code whatsoever. Not "unmapped but
-used via raw SQL" — `accession_counters` and `policies` are unmapped and heavily
-used, and are correctly absent from this list. These eight are touched by
-nothing.
+There are now **zero whole tables** in this category. Purchase orders and stock
+transfers left the list in #452 when their facility-scoped state machines,
+PO-linked receiving, batch reservations, balanced transfer ledger entries and
+HTTP APIs were implemented.
 
-| Table | Migration | What it was meant to be |
-|---|---|---|
-| `data_protection_officers` | 0022a | DPDP Rules 2025 require a named DPO whose contact is published to data principals. |
-| `patient_grievances` | 0022a | DPDP requires a grievance-redressal mechanism. `GrievanceType` enum exists, including `erasure`. |
-| `consent_managers` | 0022a | DPDP consent-manager registry; `consent_records.consent_manager_id` points here and is always null. |
-| `purchase_orders` | 0024 | Procurement upstream of GRN. `grn.purchase_order_id` points here and is always null, so goods are received against no order. |
-| `purchase_order_items` | 0024 | Lines of the above. |
-| `stock_transfers` | 0024 | Inter-location stock movement. |
-| `stock_transfer_items` | 0024 | Lines of the above. |
-| `machine_maintenance_logs` | 0024 | NABH equipment-maintenance record. |
+The DPDP DPO, grievance, and consent-manager tables left this list in #451 when
+their facility-scoped workflows were implemented. Production population still
+requires the hospital's real DPO identity and approved grievance SLA; neither is
+seeded or fabricated by the application.
 
-**Why this matters more than it looks.** Three of the eight are DPDP compliance
-obligations, not conveniences: a published DPO and a grievance channel are
-things the Act requires a data fiduciary to *have*. The schema was written as
-though they exist. Anyone auditing the database would conclude they do.
-
-None of this breaks a running system — every dependent column is nullable, so
-the product works with them empty. The risk is a reader, or an assessor,
-inferring capability from schema.
-
-Deciding which of these to build, and when, is a product and compliance call.
-Recorded here so the choice is explicit rather than discovered.
-
-This is the same shape as `kpi_snapshots` before the reports module was built:
-an unmapped table or column is a feature nobody finished, not a documentation
-gap. Deciding what each of these should do is a product question — recorded
-here rather than guessed at.
-
-**These are not release blockers.** Every one is either nullable or defaulted,
-so nothing fails today; the risk is a future reader assuming the feature exists
-because the column does.
+The remaining individual unmapped column above is explicit technical debt; it
+does not imply an otherwise missing whole workflow.
 
 
 ## 4. API field contract (backend → frontend)

@@ -1,4 +1,15 @@
-from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.common.db import Base
@@ -90,6 +101,33 @@ class Order(Base, UUIDPk, Timestamps, Blame):
         Index("ix_orders_patient_id", "patient_id"),
         Index("ix_orders_encounter_id", "encounter_id"),
     )
+
+
+class OrderExternalResult(Base, UUIDPk, Timestamps):
+    """Append-only outside result for an external-referral order.
+
+    Corrections are additional rows. Migration 0052 enforces the append-only
+    rule in PostgreSQL; the application deliberately exposes no update/delete
+    primitive.
+    """
+
+    __tablename__ = "order_external_results"
+
+    order_id = Column(
+        UUID(as_uuid=True), ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False
+    )
+    provider_name = Column(Text, nullable=True)
+    summary = Column(Text, nullable=False)
+    result_file_id = Column(
+        UUID(as_uuid=True), ForeignKey("files.id", ondelete="RESTRICT"), nullable=True
+    )
+    observed_on = Column(Date, nullable=True)
+    recorded_by = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_at = Column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_order_external_results_order_id", "order_id"),)
 
 
 class Prescription(Base, UUIDPk, Timestamps, Blame):

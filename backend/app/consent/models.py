@@ -90,6 +90,15 @@ class ConsentRecord(UUIDPk, Blame, Timestamps, Base):
     channel: Mapped[str] = mapped_column(String(50), nullable=False)  # ConsentChannel enum
     consent_artefact_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     consent_artefact_signature: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consent_manager_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "consent_managers.id",
+            ondelete="RESTRICT",
+            name="fk_consent_records_consent_manager_id",
+        ),
+        nullable=True,
+    )
 
     status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="granted")  # ConsentStatus enum
     status_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -100,6 +109,7 @@ class ConsentRecord(UUIDPk, Blame, Timestamps, Base):
         Index("ix_consent_records_granted_by_user_id", "granted_by_user_id"),
         Index("ix_consent_records_created_by", "created_by"),
         Index("ix_consent_records_updated_by", "updated_by"),
+        Index("ix_consent_records_consent_manager_id", "consent_manager_id"),
         CheckConstraint(
             "granted_by_type IN ('patient', 'guardian', 'nominee')",
             name="granted_by_type",

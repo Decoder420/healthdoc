@@ -6,7 +6,7 @@ auto-logging, safer than trusting client input)."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -15,13 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.allergies.interactions import check_interactions
 from app.allergies.service import AllergyConflict, check_prescription_item
 from app.audit.service import write_audit_log
-from app.inventory.models import InventoryItem
+from app.common.enums import FulfilmentMode, OrderStatus
 from app.common.facility_modules import FacilityModule
+from app.files.models import FileRecord
+from app.inventory.models import InventoryItem
 from app.opd.models import Encounter, Visit
 from app.opd.service import _business_date
 from app.orders import order_number
-from app.orders.models import Order, Prescription, PrescriptionItem
-from app.orders.schemas import OrderCreate, PrescriptionCreate
+from app.orders.models import Order, OrderExternalResult, Prescription, PrescriptionItem
+from app.orders.schemas import ExternalResultCreate, OrderCreate, PrescriptionCreate
 from app.users.models import Facility
 
 
@@ -33,6 +35,20 @@ class EncounterNotFound(Exception):
 class PatientMismatch(Exception):
     def __init__(self, expected_patient_id: UUID):
         self.expected_patient_id = expected_patient_id
+
+
+class ExternalResultOrderNotFound(Exception):
+    pass
+
+
+class ExternalResultConflict(Exception):
+    def __init__(self, code: str) -> None:
+        self.code = code
+
+
+class ExternalResultFileInvalid(Exception):
+    def __init__(self, code: str) -> None:
+        self.code = code
 
 
 #: Which optional module fulfils each order type (§2 v3.3, ModuleCode).
@@ -123,7 +139,7 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
         order_type=payload.order_type,
         priority=payload.priority,
         status="placed",
-        ordered_at=payload.ordered_at or datetime.now(timezone.utc),
+        ordered_at=payload.ordered_at or datetime.now(UTC),
         created_by=payload.created_by,
         # The resource's facility, consistent with every other field here.
         fulfilment_mode=await _fulfilment_mode(
@@ -149,6 +165,107 @@ async def list_orders_for_encounter(
         .order_by(Order.ordered_at.desc(), Order.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def _external_result_order(
+    db: AsyncSession, *, order_id: UUID, facility_id: UUID, lock: bool = False
+) -> Order:
+    statement = select(Order).where(
+        Order.id == order_id,
+        Order.facility_id == facility_id,
+    )
+    if lock:
+        statement = statement.with_for_update()
+    order = (await db.execute(statement)).scalar_one_or_none()
+    if order is None:
+        raise ExternalResultOrderNotFound
+    return order
+
+
+async def record_external_result(
+    db: AsyncSession,
+    *,
+    order_id: UUID,
+    payload: ExternalResultCreate,
+    facility_id: UUID,
+    recorded_by: UUID,
+) -> OrderExternalResult:
+    """Append an outside report and close the referred order on first receipt."""
+    order = await _external_result_order(
+        db, order_id=order_id, facility_id=facility_id, lock=True
+    )
+    if order.fulfilment_mode != FulfilmentMode.EXTERNAL_REFERRAL.value:
+        raise ExternalResultConflict("order_not_external_referral")
+    if order.status == OrderStatus.CANCELLED.value:
+        raise ExternalResultConflict("order_cancelled")
+
+    if payload.result_file_id is not None:
+        file_record = await db.get(FileRecord, payload.result_file_id)
+        if file_record is None or file_record.facility_id != facility_id:
+            raise ExternalResultFileInvalid("result_file_not_found")
+        if file_record.patient_id != order.patient_id:
+            raise ExternalResultFileInvalid("result_file_not_for_order_patient")
+        if file_record.is_erased:
+            raise ExternalResultFileInvalid("result_file_erased")
+
+    now = datetime.now(UTC)
+    result = OrderExternalResult(
+        id=uuid.uuid4(),
+        order_id=order.id,
+        provider_name=payload.provider_name,
+        summary=payload.summary,
+        result_file_id=payload.result_file_id,
+        observed_on=payload.observed_on,
+        recorded_by=recorded_by,
+        recorded_at=now,
+    )
+    db.add(result)
+    await db.flush()
+
+    if order.completed_at is None:
+        # Local import avoids a module cycle: nursing.service itself maps Order.
+        from app.nursing.service import complete_order
+
+        await complete_order(
+            db,
+            order.id,
+            completed_by=recorded_by,
+            note="External result recorded",
+        )
+
+    await write_audit_log(
+        db,
+        facility_id=facility_id,
+        action="create",
+        resource_type="order_external_results",
+        resource_id=result.id,
+        user_id=recorded_by,
+        patient_id=order.patient_id,
+        new_value={
+            "order_id": str(order.id),
+            "provider_name": payload.provider_name,
+            "result_file_id": str(payload.result_file_id) if payload.result_file_id else None,
+            "observed_on": payload.observed_on.isoformat() if payload.observed_on else None,
+        },
+    )
+    await db.refresh(result)
+    return result
+
+
+async def list_external_results(
+    db: AsyncSession, *, order_id: UUID, facility_id: UUID
+) -> list[OrderExternalResult]:
+    await _external_result_order(db, order_id=order_id, facility_id=facility_id)
+    rows = await db.execute(
+        select(OrderExternalResult)
+        .where(OrderExternalResult.order_id == order_id)
+        .order_by(
+            OrderExternalResult.recorded_at.asc(),
+            OrderExternalResult.created_at.asc(),
+            OrderExternalResult.id.asc(),
+        )
+    )
+    return list(rows.scalars().all())
 
 
 async def create_prescription(

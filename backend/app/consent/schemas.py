@@ -43,6 +43,7 @@ class ConsentRecordOut(BaseModel):
     channel: str
     consent_artefact_id: str | None
     consent_artefact_signature: str | None
+    consent_manager_id: uuid.UUID | None
     status: str
     status_changed_at: datetime
     created_by: uuid.UUID
@@ -77,6 +78,7 @@ class ConsentRecordCreate(BaseModel):
     channel: ConsentChannel
     consent_artefact_id: str | None = None
     consent_artefact_signature: str | None = None
+    consent_manager_id: uuid.UUID | None = None
     # Only valid starting states -- 'requested' is for the abdm_consent_
     # manager async flow, every other channel grants immediately.
     status: Literal[ConsentStatus.GRANTED, ConsentStatus.REQUESTED] = ConsentStatus.GRANTED

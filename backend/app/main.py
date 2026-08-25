@@ -24,8 +24,8 @@ log = logging.getLogger("healthdoc")
 
 MODULES = [
     "allergies", "audit", "billing", "blood_bank", "consent", "departments",
-    "diagnoses", "emergency", "encounters", "files", "inventory", "ipd", "notifications",
-    "nursing", "opd", "orders", "ot", "outbox", "pathology", "patients", "procedures",
+    "diagnoses", "dpdp", "emergency", "encounters", "files", "inventory", "ipd", "notifications",
+    "maintenance", "nursing", "opd", "orders", "ot", "outbox", "pathology", "patients", "procedures",
     "pharmacy", "queue", "radiology", "registration", "reports",
     "security_audit", "users", "wards",
 ]
