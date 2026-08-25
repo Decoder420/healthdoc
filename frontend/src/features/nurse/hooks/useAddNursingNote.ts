@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addNursingNote } from "@/features/nurse/services/nurse.service";
+import { addNursingNote } from "@/features/nurse/api/nursing";
 import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursingNoteForm/validation";
 
 export function useAddNursingNote() {

@@ -14,33 +14,43 @@ import type { VitalRecord } from "@/components/VitalsTimeline/VitalsTimeline.typ
 import type {
   Discharge,
   DischargeSummary,
-} from "@/features/ipd/services/ipd.service";
+} from "@/features/ipd/api/ipd";
 import {
   getActiveAdmissions,
   getBeds,
   getDischarges,
   getWards,
-} from "@/features/ipd/services/ipd.service";
+} from "@/features/ipd/api/ipd";
+import AddHandoverForm from "@/features/nurse/components/AddHandoverForm";
 import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
 import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
+import HandoverNotes from "@/features/nurse/components/HandoverNotes";
+import type { HandoverNote } from "@/features/nurse/components/HandoverNotes/HandoverNotes.types";
+import IncidentReportForm from "@/features/nurse/components/IncidentReportForm";
+import { IncidentListPanel } from "@/features/nurse/components/IncidentListPanel";
 import TaskQueue, { type Order } from "@/features/nurse/components/TaskQueue";
 import WardSelector from "@/features/nurse/components/WardSelector";
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
+import { useAddHandover } from "@/features/nurse/hooks/useAddHandover";
 import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
 import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
+import { useIncidents } from "@/features/nurse/hooks/useIncidents";
+import type { HandoverRecipientOption } from "@/features/nurse/types";
 import {
+  acceptNursingTask,
   completeNursingTask,
   getAdmissionFluidBalance,
+  getAdmissionHandoverNotes,
   getAdmissionMedicationAdministrations,
   getAdmissionSummary,
   getNursingTasks,
   getPatientVitals,
   type FluidBalance,
   type NursingTask,
-} from "@/features/nurse/services/nurse.service";
+} from "@/features/nurse/api/nursing";
 import { formatDateTime } from "@/lib/api";
 
-type PatientAction = "vitals" | "fluid" | "transfer" | null;
+type PatientAction = "vitals" | "fluid" | "transfer" | "handover" | "incident" | null;
 
 function toOrder(task: NursingTask): Order {
   return {
@@ -51,6 +61,11 @@ function toOrder(task: NursingTask): Order {
     priority: task.priority,
     status: task.status,
     ordered_at: task.ordered_at,
+    accepted_at: task.accepted_at,
+    accepted_by: task.accepted_by,
+    completed_at: task.completed_at,
+    completed_by: task.completed_by,
+    completion_note: task.completion_note,
   };
 }
 
@@ -79,6 +94,7 @@ export default function Page() {
   const [vitals, setVitals] = useState<VitalRecord[]>([]);
   const [fluidBalance, setFluidBalance] = useState<FluidBalance | null>(null);
   const [medications, setMedications] = useState<MedicationRecord[]>([]);
+  const [handoverNotes, setHandoverNotes] = useState<HandoverNote[]>([]);
   const [summary, setSummary] = useState<DischargeSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -88,6 +104,31 @@ export default function Page() {
   const { submitIntakeOutput, isSubmitting: isSubmittingFluid } = useAddIntakeOutput();
   const { submitPatientMovement, isSubmitting: isSubmittingTransfer } =
     useAddPatientMovement();
+  const { submitHandover, isSubmitting: isSubmittingHandover } = useAddHandover();
+
+  const selectedPatientId = useMemo(
+    () =>
+      allBeds.find((bed) => bed.bed_id === selectedBedId)?.occupant?.patient_id ?? null,
+    [allBeds, selectedBedId],
+  );
+  const {
+    incidents,
+    loading: incidentsLoading,
+    error: incidentsError,
+    refresh: refreshIncidents,
+  } = useIncidents(selectedPatientId);
+
+  const handoverRecipients = useMemo<HandoverRecipientOption[]>(() => {
+    const seen = new Map<string, HandoverRecipientOption>();
+    for (const note of handoverNotes) {
+      if (!note.handed_over_to || seen.has(note.handed_over_to)) continue;
+      seen.set(note.handed_over_to, {
+        value: note.handed_over_to,
+        label: `Prior recipient · ${note.handed_over_to.slice(0, 8)}`,
+      });
+    }
+    return [...seen.values()];
+  }, [handoverNotes]);
 
   const loadBase = useCallback(async () => {
     setLoadError(null);
@@ -132,23 +173,31 @@ export default function Page() {
       setVitals([]);
       setFluidBalance(null);
       setMedications([]);
+      setHandoverNotes([]);
       setSummary(null);
       setDetailError(null);
       return;
     }
     setDetailLoading(true);
     setDetailError(null);
-    const [vitalsResult, fluidResult, emarResult, summaryResult] = await Promise.allSettled([
-      getPatientVitals(bed.occupant.patient_id),
-      getAdmissionFluidBalance(bed.occupant.admission_id),
-      getAdmissionMedicationAdministrations(bed.occupant.admission_id),
-      getAdmissionSummary(bed.occupant.admission_id),
-    ]);
+    const [vitalsResult, fluidResult, emarResult, summaryResult, handoverResult] =
+      await Promise.allSettled([
+        getPatientVitals(bed.occupant.patient_id),
+        getAdmissionFluidBalance(bed.occupant.admission_id),
+        getAdmissionMedicationAdministrations(bed.occupant.admission_id),
+        getAdmissionSummary(bed.occupant.admission_id),
+        getAdmissionHandoverNotes(bed.occupant.admission_id),
+      ]);
     setVitals(vitalsResult.status === "fulfilled" ? vitalsResult.value : []);
     setFluidBalance(fluidResult.status === "fulfilled" ? fluidResult.value : null);
     setMedications(emarResult.status === "fulfilled" ? emarResult.value : []);
     setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
-    if ([vitalsResult, fluidResult, emarResult, summaryResult].some((entry) => entry.status === "rejected")) {
+    setHandoverNotes(handoverResult.status === "fulfilled" ? handoverResult.value : []);
+    if (
+      [vitalsResult, fluidResult, emarResult, summaryResult, handoverResult].some(
+        (entry) => entry.status === "rejected",
+      )
+    ) {
       setDetailError("Some live patient panels could not be loaded. Retry before acting on this chart.");
     }
     setDetailLoading(false);
@@ -167,6 +216,18 @@ export default function Page() {
   function selectBed(bed: Bed) {
     setSelectedBedId(bed.bed_id);
     setActiveAction(null);
+  }
+
+  async function acceptOrder(orderId: string) {
+    try {
+      const accepted = await acceptNursingTask(orderId);
+      setOrders((current) =>
+        current.map((order) => (order.id === accepted.id ? toOrder(accepted) : order)),
+      );
+    } catch (reason) {
+      console.error("Unable to accept nursing task", reason);
+      setTaskQueueStatus("error");
+    }
   }
 
   async function checkOff(orderId: string) {
@@ -200,18 +261,34 @@ export default function Page() {
         <div>
           <h1 className="text-3xl font-bold text-primary">Nurse ward dashboard</h1>
           <p className="mt-2 text-muted-foreground">
-            Live bed occupancy, observations, fluid balance, eMAR and outstanding orders.
+            Live bed occupancy, observations, fluid balance, eMAR, handover, incidents and orders.
           </p>
         </div>
-        <button type="button" onClick={() => void loadBase()} className="text-sm underline">
-          Refresh ward
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="rounded-md border border-border px-3 py-2 text-sm"
+            onClick={() => setActiveAction(activeAction === "incident" ? null : "incident")}
+          >
+            Report incident
+          </button>
+          <button type="button" onClick={() => void loadBase()} className="text-sm underline">
+            Refresh ward
+          </button>
+        </div>
       </section>
 
       {loadError ? (
         <p role="alert" className="rounded-md bg-danger-muted p-4 text-sm text-danger">
           {loadError}
         </p>
+      ) : null}
+
+      {activeAction === "incident" && !occupant ? (
+        <IncidentReportForm
+          wardId={selectedWard || undefined}
+          onSuccess={() => setActiveAction(null)}
+        />
       ) : null}
 
       {wards.length > 0 ? (
@@ -238,7 +315,8 @@ export default function Page() {
         <div>
           <h2 className="text-xl font-semibold">Pending doctor orders</h2>
           <p className="text-sm text-muted-foreground">
-            Completing an order records the authenticated nurse and completion time.
+            Accept records ownership (`accepted_at` / `accepted_by`). Complete records
+            check-off (`completed_at` / `completed_by`).
           </p>
         </div>
         <p
@@ -250,7 +328,7 @@ export default function Page() {
             ? "Unable to load nursing tasks. Check the API connection and retry."
             : `Nursing API ${taskQueueStatus}`}
         </p>
-        <TaskQueue orders={orders} onCheckOff={checkOff} />
+        <TaskQueue orders={orders} onAccept={acceptOrder} onCheckOff={checkOff} />
       </section>
 
       <section className="space-y-4">
@@ -432,16 +510,76 @@ export default function Page() {
           </section>
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold">Outstanding orders for this patient</h2>
-            <TaskQueue orders={patientOrders} onCheckOff={checkOff} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Shift handover (SBAR)</h2>
+                <p className="text-sm text-muted-foreground">
+                  Append-only notes on `nursing_handover_notes` for this admission.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "handover" ? null : "handover")}
+              >
+                Add handover
+              </button>
+            </div>
+            <HandoverNotes admissionId={occupant.admission_id} notes={handoverNotes} />
+            {activeAction === "handover" ? (
+              <AddHandoverForm
+                admissionId={occupant.admission_id}
+                recipientOptions={handoverRecipients}
+                isSubmitting={isSubmittingHandover}
+                onSubmit={async (data) => {
+                  const ok = await submitHandover(data);
+                  if (ok) {
+                    setHandoverNotes(await getAdmissionHandoverNotes(occupant.admission_id));
+                    setActiveAction(null);
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
           </section>
 
-          <section className="surface-card border border-warning p-5 text-sm">
-            <h2 className="font-semibold">Handover and procedure assistance</h2>
-            <p className="mt-2 text-muted-foreground">
-              These panels are intentionally unavailable: the backend has no published read/write
-              contract for them. No TypeScript fixture is shown as clinical history.
-            </p>
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Clinical incident</h2>
+                <p className="text-sm text-muted-foreground">
+                  File against this patient/admission on `clinical_incidents` (0046).
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "incident" ? null : "incident")}
+              >
+                Report incident
+              </button>
+            </div>
+            <IncidentListPanel
+              incidents={incidents}
+              loading={incidentsLoading}
+              error={incidentsError}
+            />
+            {activeAction === "incident" ? (
+              <IncidentReportForm
+                patientId={occupant.patient_id}
+                admissionId={occupant.admission_id}
+                wardId={selectedWard || undefined}
+                onSuccess={() => {
+                  setActiveAction(null);
+                  void refreshIncidents();
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">Outstanding orders for this patient</h2>
+            <TaskQueue orders={patientOrders} onAccept={acceptOrder} onCheckOff={checkOff} />
           </section>
         </>
       )}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addProcedureAssistance } from "@/features/nurse/services/nurse.service";
+import { addProcedureAssistance } from "@/features/nurse/api/nursing";
 import type { AddProcedureAssistanceSchema } from "@/features/nurse/components/AddProcedureAssistanceForm/validation";
 
 export function useAddProcedureAssistance() {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addIntakeOutput } from "@/features/nurse/services/nurse.service";
+import { addIntakeOutput } from "@/features/nurse/api/nursing";
 import type { AddIntakeOutputSchema } from "@/features/nurse/components/AddIntakeOutputForm/validation";
 
 export function useAddIntakeOutput() {

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { dischargePatient } from "../services/ipd.service";
-import type { AddDischargeSchema } from "@/features/ipd/DischargeForm/validation";
+import { dischargePatient } from "../api/ipd";
+import type { AddDischargeSchema } from "@/features/ipd/components/DischargeForm/validation";
 
 export function useAddDischarge() {
   const [isSubmitting, setIsSubmitting] = useState(false);

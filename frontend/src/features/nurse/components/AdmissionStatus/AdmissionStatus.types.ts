@@ -1,4 +1,4 @@
-import type { AdmissionStatus } from "@/features/ipd/services/ipd.service";
+import type { AdmissionStatus } from "@/features/ipd/api/ipd";
 
 export type { AdmissionStatus };
 

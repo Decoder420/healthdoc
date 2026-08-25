@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { admitPatient } from "../services/ipd.service";
-import type { AddAdmissionSchema } from "@/features/ipd/AdmissionForm/validation";
+import { admitPatient } from "../api/ipd";
+import type { AddAdmissionSchema } from "@/features/ipd/components/AdmissionForm/validation";
 
 export function useAddAdmission() {
   const [isSubmitting, setIsSubmitting] = useState(false);

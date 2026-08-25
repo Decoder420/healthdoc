@@ -65,9 +65,13 @@ export default function AddNursingNoteForm({
   return (
     <FormSection
       title="Add Nursing Note"
-      description="Record nursing observations for the selected patient."
+      description="Not available — clinical notes write path is not published for nursing UI."
     >
-      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+      <p className="mb-4 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        Disabled in this build. Free-text nursing notes require the Mongo clinical_notes
+        contract before they can be filed from this screen.
+      </p>
+      <form onSubmit={(e) => e.preventDefault()} className="pointer-events-none space-y-6 opacity-50">
         <div className="grid gap-5 md:grid-cols-2">
           <SelectField
             label="Category"

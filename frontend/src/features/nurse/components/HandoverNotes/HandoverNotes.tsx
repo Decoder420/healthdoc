@@ -73,22 +73,22 @@ export default function HandoverNotes({
             <div className="mt-5 space-y-3">
               <div className="rounded-lg bg-muted p-4">
                 <p className="text-xs text-muted-foreground">Situation</p>
-                <p className="mt-1 text-sm leading-6">{note.situation}</p>
+                <p className="mt-1 text-sm leading-6">{note.situation ?? "—"}</p>
               </div>
 
               <div className="rounded-lg bg-muted p-4">
                 <p className="text-xs text-muted-foreground">Background</p>
-                <p className="mt-1 text-sm leading-6">{note.background}</p>
+                <p className="mt-1 text-sm leading-6">{note.background ?? "—"}</p>
               </div>
 
               <div className="rounded-lg bg-muted p-4">
                 <p className="text-xs text-muted-foreground">Assessment</p>
-                <p className="mt-1 text-sm leading-6">{note.assessment}</p>
+                <p className="mt-1 text-sm leading-6">{note.assessment ?? "—"}</p>
               </div>
 
               <div className="rounded-lg bg-muted p-4">
                 <p className="text-xs text-muted-foreground">Recommendation</p>
-                <p className="mt-1 text-sm leading-6">{note.recommendation}</p>
+                <p className="mt-1 text-sm leading-6">{note.recommendation ?? "—"}</p>
               </div>
             </div>
           </div>

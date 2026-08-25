@@ -10,6 +10,7 @@ import SelectField from "@/components/forms/SelectField";
 import DateTimeField from "@/components/forms/DateTimeField";
 import TextAreaField from "@/components/forms/TextAreaField";
 import FormActions from "@/components/forms/FormActions";
+import TextField from "@/components/forms/TextField";
 
 import { DischargeFormProps } from "./DischargeForm.types";
 import { DEFAULT_VALUES, DISCHARGE_TYPE_LABELS, MODULE_LABELS } from "./constants";
@@ -83,15 +84,22 @@ export default function DischargeForm({
           </div>
         )}
 
-        {dischargeType === "transferred" && (
-          <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-            Discharge type &quot;transferred&quot; means the patient is leaving
-            this facility for another facility. It is not an in-hospital ward or
-            bed move (use Ward transfer / patient movement for that). Destination
-            facility fields are not in the published discharges schema, so they
-            are not collected here.
-          </div>
-        )}
+     {dischargeType === "transferred" && (
+  <>
+    <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+      Discharge type &quot;transferred&quot; means the patient is leaving
+      this facility for another facility. It is not an in-hospital ward or
+      bed move (use Ward transfer / patient movement for that).
+    </div>
+
+    <TextField
+      label="Destination facility name"
+      placeholder="Name of the facility the patient is being sent to"
+      registration={register("destination_facility_name")}
+      error={errors.destination_facility_name}
+    />
+  </>
+)}
 
         <DateTimeField
           label="Discharged At"
