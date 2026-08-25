@@ -32,12 +32,28 @@ import {
 } from "./api";
 import type { ConsentManager, Dpo, Grievance, GrievanceStatus } from "./types";
 
-const NEXT_STATUS: Array<{ value: GrievanceStatus; label: string }> = [
-  { value: "under_review", label: "Take under review" },
-  { value: "resolved", label: "Resolve" },
-  { value: "escalated_dpb", label: "Escalate to the Data Protection Board" },
-  { value: "closed", label: "Close" },
-];
+type TransitionOption = { value: GrievanceStatus; label: string };
+
+/** Mirrors the backend state machine in app/dpdp/service.py.
+ *
+ * This is intentionally keyed by the CURRENT status. Rendering every status
+ * except the current one offered buttons the server correctly rejected with
+ * `illegal_grievance_transition` — a screen that loaded cleanly but failed as
+ * soon as its primary controls were used.
+ */
+const NEXT_STATUS: Record<GrievanceStatus, readonly TransitionOption[]> = {
+  pending: [
+    { value: "under_review", label: "Take under review" },
+    { value: "escalated_dpb", label: "Escalate to the Data Protection Board" },
+  ],
+  under_review: [
+    { value: "resolved", label: "Resolve" },
+    { value: "escalated_dpb", label: "Escalate to the Data Protection Board" },
+  ],
+  escalated_dpb: [{ value: "resolved", label: "Resolve" }],
+  resolved: [{ value: "closed", label: "Close" }],
+  closed: [],
+};
 
 function statusTone(status: string): string {
   if (status === "resolved" || status === "closed") return "bg-green-100 text-green-800";
@@ -53,7 +69,7 @@ function isOverdue(grievance: Grievance): boolean {
 }
 
 export function DpdpGovernance() {
-  const { user } = useCurrentUser();
+  const { user, loading: sessionLoading } = useCurrentUser();
   const isAdmin = (user?.roles ?? []).includes("admin");
 
   const [dpo, setDpo] = useState<Dpo | null>(null);
@@ -74,6 +90,7 @@ export function DpdpGovernance() {
   const [cmEndpoint, setCmEndpoint] = useState("");
 
   const load = useCallback(async () => {
+    if (sessionLoading) return;
     try {
       // The DPO read 404s when none has ever been appointed. That is an ANSWER,
       // not an error — handled separately so it does not poison the rest of the
@@ -91,7 +108,10 @@ export function DpdpGovernance() {
         listDpoHistory(),
         listGrievances(),
         listConsentManagers(),
-        listUsers({ page_size: 100 }),
+        // GET /users is admin-only. Auditors can read this governance screen,
+        // but granting them the facility staff directory just to turn a UUID
+        // into a label would widen their access for a cosmetic convenience.
+        isAdmin ? listUsers({ page_size: 100 }) : Promise.resolve(null),
       ]);
 
       setDpo(dpoResult);
@@ -99,12 +119,12 @@ export function DpdpGovernance() {
       setHistory(historyResult);
       setGrievances(grievanceResult);
       setManagers(managerResult);
-      setStaff(staffPage.items);
+      setStaff(staffPage?.items ?? []);
       setError(null);
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Could not load DPDP governance");
     }
-  }, []);
+  }, [isAdmin, sessionLoading]);
 
   useEffect(() => {
     void load();
@@ -142,6 +162,45 @@ export function DpdpGovernance() {
 
   const nameOf = (userId: string) =>
     staff.find((candidate) => candidate.id === userId)?.full_name ?? userId;
+
+  const submitTransition = (
+    grievance: Grievance,
+    target: GrievanceStatus,
+  ): void => {
+    let resolution: string | null = null;
+    let escalationReason: string | null = null;
+
+    if (target === "resolved") {
+      const entered = window.prompt("How was this resolved?");
+      if (entered === null) return;
+      resolution = entered.trim();
+      if (!resolution) {
+        setError("A resolution is required before a grievance can be resolved.");
+        return;
+      }
+    }
+
+    if (target === "escalated_dpb") {
+      const entered = window.prompt("Why is this being escalated?");
+      if (entered === null) return;
+      escalationReason = entered.trim();
+      if (!escalationReason) {
+        setError("An escalation reason is required before sending a grievance to the Board.");
+        return;
+      }
+    }
+
+    void act(
+      () =>
+        transitionGrievance(grievance.id, {
+          status: target,
+          resolution,
+          escalation_reason: escalationReason,
+          assigned_to: null,
+        }),
+      "Could not update the grievance",
+    );
+  };
 
   return (
     <div className="space-y-8 p-6">
@@ -315,41 +374,19 @@ export function DpdpGovernance() {
                   </p>
                 ) : null}
 
-                {grievance.status !== "closed" ? (
+                {NEXT_STATUS[grievance.status].length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {NEXT_STATUS.filter((option) => option.value !== grievance.status).map(
-                      (option) => (
+                    {NEXT_STATUS[grievance.status].map((option) => (
                         <button
                           key={option.value}
                           type="button"
                           disabled={busy}
-                          onClick={() =>
-                            void act(
-                              () =>
-                                transitionGrievance(grievance.id, {
-                                  status: option.value,
-                                  resolution:
-                                    option.value === "resolved"
-                                      ? window.prompt("How was this resolved?")
-                                      : null,
-                                  // The Board is a regulator, not an internal
-                                  // queue. "Why" is the first question anyone
-                                  // will ask about an escalation.
-                                  escalation_reason:
-                                    option.value === "escalated_dpb"
-                                      ? window.prompt("Why is this being escalated?")
-                                      : null,
-                                  assigned_to: null,
-                                }),
-                              "Could not update the grievance",
-                            )
-                          }
+                          onClick={() => submitTransition(grievance, option.value)}
                           className="rounded border border-gray-300 px-3 py-1 text-xs disabled:opacity-50"
                         >
                           {option.label}
                         </button>
-                      ),
-                    )}
+                      ))}
                   </div>
                 ) : null}
               </li>

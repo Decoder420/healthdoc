@@ -88,6 +88,26 @@ const ROLE_DASHBOARDS = [
     ],
   },
   {
+    name: "lab_tech",
+    username: "dev.labtech",
+    landingPath: "/lab",
+    dashboards: [
+      { path: "/lab", expectCalls: true },
+      // Maintenance is explicitly writable by lab technicians; testing only
+      // the admin path would leave that advertised role unproved.
+      { path: "/admin/maintenance", expectCalls: true },
+    ],
+  },
+  {
+    name: "radiology_tech",
+    username: "dev.radiology",
+    landingPath: "/radiology",
+    dashboards: [
+      { path: "/radiology", expectCalls: true },
+      { path: "/admin/maintenance", expectCalls: true },
+    ],
+  },
+  {
     name: "pharmacist",
     username: "dev.pharmacist",
     landingPath: "/pharmacy/prescription-queue",
@@ -111,7 +131,6 @@ const ROLE_DASHBOARDS = [
       // ROLES.HOD gained the /inventory prefix — without it the one action
       // only a department head can perform had no route.
       { path: "/inventory", expectCalls: true },
-      { path: "/reports", expectCalls: true },
     ],
   },
   {
@@ -124,7 +143,9 @@ const ROLE_DASHBOARDS = [
       { path: "/admin/departments", expectCalls: true },
       { path: "/admin/permissions", expectCalls: true },
       { path: "/admin/account-requests", expectCalls: true },
-      { path: "/admin/abdm-sync", expectCalls: true },
+      // Search-driven: the API is intentionally not called until an admin
+      // supplies a patient identifier. A zero-call mount is correct here.
+      { path: "/admin/abdm-sync", expectCalls: false },
       { path: "/audit-viewer", expectCalls: true },
       {
         path: "/admin/data-protection",
@@ -137,6 +158,22 @@ const ROLE_DASHBOARDS = [
       { path: "/admin/maintenance", expectCalls: true },
       { path: "/reports", expectCalls: true },
       { path: "/billing", expectCalls: true },
+    ],
+  },
+  {
+    name: "auditor",
+    username: "dev.auditor",
+    landingPath: "/audit-viewer",
+    dashboards: [
+      { path: "/audit-viewer", expectCalls: true },
+      {
+        path: "/admin/data-protection",
+        expectCalls: true,
+        // Same legitimate absence as the admin view. The auditor must not need
+        // admin-only GET /users merely to load this register.
+        expected404: ["/api/v1/dpdp/dpo"],
+      },
+      { path: "/reports", expectCalls: true },
     ],
   },
 ];

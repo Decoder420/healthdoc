@@ -110,6 +110,9 @@ class DbUser(BaseModel):
     keycloak_sub: str
     username: str
     facility_id: uuid.UUID
+    # Department-scoped roles (notably HOD) must not trust a department id
+    # supplied in a route. Nullable for facility-wide roles such as admin.
+    department_id: uuid.UUID | None = None
     roles: list[str] = []
 
 
@@ -136,7 +139,14 @@ async def get_current_db_user(
 
     row = (
         await db.execute(
-            select(User.id, User.keycloak_sub, User.username, User.facility_id, User.is_active)
+            select(
+                User.id,
+                User.keycloak_sub,
+                User.username,
+                User.facility_id,
+                User.department_id,
+                User.is_active,
+            )
             .where(User.keycloak_sub == jwt_user.sub)
         )
     ).first()
@@ -158,6 +168,7 @@ async def get_current_db_user(
         keycloak_sub=row.keycloak_sub,
         username=row.username,
         facility_id=row.facility_id,
+        department_id=row.department_id,
         roles=jwt_user.roles,
     )
 

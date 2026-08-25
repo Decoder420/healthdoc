@@ -9,8 +9,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.sql.elements import TextClause
 
 from app.common.db import SessionLocal
 
@@ -36,9 +39,78 @@ DISPLAY_NAMES = {
     "dev.radiology": "Dev Radiology Technician",
     "dev.pharmacist": "Dev Pharmacist",
     "dev.admin": "Dev Admin",
+    "dev.auditor": "Dev Auditor",
     "dev.patient": "Dev Patient",
     "dev.hod": "Dev Head of Department",
 }
+
+
+UPDATE_USER = text(
+    """
+    UPDATE users
+       SET keycloak_sub = :subject,
+           username = :username,
+           full_name = :full_name,
+           email = :email,
+           facility_id = :facility_id,
+           department_id = :department_id,
+           is_active = true,
+           updated_at = now()
+     WHERE id = :id
+    """
+)
+
+UPSERT_USER = text(
+    """
+    INSERT INTO users
+        (id, keycloak_sub, username, full_name, email, facility_id,
+         department_id, is_active)
+    VALUES
+        (:id, :subject, :username, :full_name, :email, :facility_id,
+         :department_id, true)
+    ON CONFLICT (keycloak_sub) DO UPDATE SET
+        username = EXCLUDED.username,
+        full_name = EXCLUDED.full_name,
+        email = EXCLUDED.email,
+        facility_id = EXCLUDED.facility_id,
+        department_id = EXCLUDED.department_id,
+        is_active = true,
+        updated_at = now()
+    """
+)
+
+
+def _user_parameters(
+    username: str,
+    subject: str,
+    user_id: uuid.UUID,
+    department_id: uuid.UUID | None,
+) -> dict[str, Any]:
+    """One parameter shape shared by both the UPDATE and INSERT paths."""
+    return {
+        "id": user_id,
+        "subject": subject,
+        "username": username,
+        "full_name": DISPLAY_NAMES.get(username, username),
+        "email": f"{username}@healthdoc.local",
+        "facility_id": FACILITY_ID,
+        "department_id": department_id,
+    }
+
+
+def _assert_exact_bind_parameters(
+    statement: TextClause, parameters: Mapping[str, Any]
+) -> None:
+    """Fail at the seed call site if SQL placeholders and parameters drift."""
+    expected = set(statement._bindparams)
+    actual = set(parameters)
+    if expected != actual:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise ValueError(
+            "seed SQL bind mismatch: "
+            f"missing={missing or 'none'}, unexpected={unexpected or 'none'}"
+        )
 
 
 def parse_user(value: str) -> tuple[str, str]:
@@ -95,61 +167,18 @@ async def seed(users: list[tuple[str, str]]) -> None:
                     {"username": username},
                 )
             ).scalar_one_or_none()
-            if existing:
-                await session.execute(
-                    text(
-                        """
-                        UPDATE users
-                           SET keycloak_sub = :subject,
-                               full_name = :full_name,
-                               email = :email,
-                               facility_id = :facility_id,
-                               department_id = :department_id,
-                               is_active = true,
-                               updated_at = now()
-                         WHERE id = :id
-                        """
-                    ),
-                    {
-                        "id": existing,
-                        "subject": subject,
-                        "full_name": DISPLAY_NAMES.get(username, username),
-                        "email": f"{username}@healthdoc.local",
-                        "facility_id": FACILITY_ID,
-                        "department_id": department_id,
-                    },
-                )
-                continue
-
-            await session.execute(
-                text(
-                    """
-                    INSERT INTO users
-                        (id, keycloak_sub, username, full_name, email, facility_id,
-                         department_id, is_active)
-                    VALUES
-                        (:id, :subject, :username, :full_name, :email, :facility_id,
-                         :department_id, true)
-                    ON CONFLICT (keycloak_sub) DO UPDATE SET
-                        username = EXCLUDED.username,
-                        full_name = EXCLUDED.full_name,
-                        email = EXCLUDED.email,
-                        facility_id = EXCLUDED.facility_id,
-                        department_id = EXCLUDED.department_id,
-                        is_active = true,
-                        updated_at = now()
-                    """
-                ),
-                {
-                    "id": uuid.uuid5(uuid.NAMESPACE_URL, f"healthdoc:{username}"),
-                    "subject": subject,
-                    "username": username,
-                    "full_name": DISPLAY_NAMES.get(username, username),
-                    "email": f"{username}@healthdoc.local",
-                    "facility_id": FACILITY_ID,
-                    "department_id": department_id,
-                },
+            statement = UPDATE_USER if existing else UPSERT_USER
+            parameters = _user_parameters(
+                username,
+                subject,
+                existing or uuid.uuid5(uuid.NAMESPACE_URL, f"healthdoc:{username}"),
+                department_id,
             )
+            # SQLAlchemy eventually reports a missing bind, but only after the
+            # branch is reached inside Docker. This guard makes a half-edited
+            # statement fail here and names both sides of the mismatch.
+            _assert_exact_bind_parameters(statement, parameters)
+            await session.execute(statement, parameters)
 
         patient_user_id = (
             await session.execute(

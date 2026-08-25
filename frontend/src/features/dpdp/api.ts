@@ -8,7 +8,8 @@
  *   read the DPO and its history    admin, auditor
  *   raise a grievance               admin, auditor, receptionist
  *   read / transition a grievance   admin, auditor
- *   consent managers (all)          admin
+ *   read consent managers           admin, auditor
+ *   change consent managers         admin
  *
  * Receptionist can RAISE a grievance but not read the queue — front desk is
  * where a patient complains, and the register is the DPO's to work.
@@ -103,8 +104,10 @@ export function transitionGrievance(
 /* ------------------------------------------------------ consent managers */
 
 export async function listConsentManagers(): Promise<ConsentManager[]> {
-  const response = await api<{ items: ConsentManager[] }>("/dpdp/consent-managers");
-  return response.items;
+  // The backend response_model is list[ConsentManagerOut], not a paginated
+  // object. Treating it as {items} returned undefined and the page crashed on
+  // managers.length even though the request itself was a clean 200.
+  return api<ConsentManager[]>("/dpdp/consent-managers");
 }
 
 export function registerConsentManager(

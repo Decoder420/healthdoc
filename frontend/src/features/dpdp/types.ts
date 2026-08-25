@@ -62,9 +62,9 @@ export interface Grievance {
   grievance_number: string;
   patient_id: string;
   facility_id: string;
-  grievance_type: string;
+  grievance_type: GrievanceType;
   description: string;
-  status: string;
+  status: GrievanceStatus;
   assigned_to: string | null;
   /** The SLA deadline. Supplied at creation — the Act sets response periods
    *  and this system does not invent one. */

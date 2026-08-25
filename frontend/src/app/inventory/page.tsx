@@ -12,6 +12,7 @@ import { IndentWorkspace } from "@/features/inventory/IndentWorkspace";
 import { listReorderAlerts } from "@/features/pharmacy/api";
 import type { ReorderAlertItem } from "@/features/pharmacy/types";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 
 type StockTab = "purchase-orders" | "grn" | "transfers" | "indents" | "adjustments";
 
@@ -27,11 +28,17 @@ const STOCK_TABS: Array<{ id: StockTab; label: string }> = [
 ];
 
 function Inventory() {
+  const { user, isLoading: authLoading } = useAuth();
+  const isHod = user?.role === "hod";
   const [tab, setTab] = useState<StockTab>("purchase-orders");
   const [alerts, setAlerts] = useState<ReorderAlertItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // HODs come here for their one exclusive action: deciding department
+    // indents. Reorder, expiry, purchasing and receiving reads are deliberately
+    // pharmacist/admin-only and must never be mounted for an HOD.
+    if (authLoading || isHod) return;
     try {
       const response = await listReorderAlerts();
       setAlerts(response.items);
@@ -39,11 +46,30 @@ function Inventory() {
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Could not load inventory alerts");
     }
-  }, []);
+  }, [authLoading, isHod]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (authLoading) {
+    return <p className="p-6 text-sm text-muted-foreground">Loading…</p>;
+  }
+
+  if (isHod) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-3xl font-semibold">Department indents</h1>
+          <p className="mt-2 max-w-prose text-sm text-muted-foreground">
+            Review requests awaiting head-of-department approval. Purchasing,
+            receiving, stock transfers and adjustments remain with the store.
+          </p>
+        </div>
+        <IndentWorkspace />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 p-6">

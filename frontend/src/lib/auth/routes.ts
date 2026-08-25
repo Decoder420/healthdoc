@@ -51,7 +51,7 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   // `require_roles("hod")` — HOD ONLY — and the approve/reject buttons live on
   // Inventory -> Indents. Without this prefix the one action only a department
   // head can perform was unreachable by every department head.
-  [ROLES.HOD]: ["/hod", "/reports", "/queue-display", "/inventory"],
+  [ROLES.HOD]: ["/hod", "/queue-display", "/inventory"],
   [ROLES.AUDITOR]: ["/audit-viewer", "/reports", "/admin/data-protection"],
   [ROLES.PATIENT]: ["/patient-portal"],
   [ROLES.SUPERADMIN]: ["/admin", "/reports"],
