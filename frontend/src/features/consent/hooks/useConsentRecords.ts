@@ -11,6 +11,18 @@ export function useConsentRecords(initial: ConsentListFilters = { status: "all" 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // The dashboard starts with no patient and supplies one after the shared
+  // patient picker resolves. useState(initial) reads `initial` only once, so
+  // without this sync the hook kept patient_id=undefined forever and rendered
+  // an honest-looking empty ledger without making the records request at all.
+  useEffect(() => {
+    setFilters((current) =>
+      current.patient_id === initial.patient_id
+        ? current
+        : { ...current, patient_id: initial.patient_id },
+    );
+  }, [initial.patient_id]);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);

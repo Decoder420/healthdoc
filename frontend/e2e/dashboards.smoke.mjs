@@ -20,10 +20,11 @@
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  *
- * Drive workflows. Raising an indent and approving it needs seeded data per
- * role and a run long enough that CI time becomes a real cost. This is the
- * cheap gate that catches "wired to nothing"; the journey tests in
- * backend/tests/integration cover the flows.
+ * Drive mutating workflows. Raising an indent and approving it needs seeded
+ * data per role and a run long enough that CI time becomes a real cost. The
+ * consent screen does perform a read-only patient selection so its lazy API
+ * wiring is covered. This is the cheap gate that catches "wired to nothing";
+ * the journey tests in backend/tests/integration cover the state changes.
  *
  * A 404 from a LIST endpoint is a failure here. A 404 on a detail route for a
  * record that does not exist in the seed would not be — so no dashboard below
@@ -44,10 +45,10 @@ const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined;
  * calls is the shell failure this file exists to catch, so a dashboard listed
  * here must prove it talked to the backend at all.
  *
- * `expected404` names EXACT paths whose absence is a legitimate answer the
- * screen renders — not a general tolerance for 4xx. Each entry needs a reason,
- * and it matches one path: a blanket "ignore 404s" would excuse precisely the
- * missing-endpoint failure this file exists to catch.
+ * `expectedResponses` names an exact method, path and status whose response is
+ * a legitimate answer the screen renders. Each entry needs a reason. A path-
+ * only or blanket 404 exception would excuse precisely the missing-endpoint
+ * failure this file exists to catch.
  */
 const ROLE_DASHBOARDS = [
   {
@@ -59,7 +60,15 @@ const ROLE_DASHBOARDS = [
       { path: "/receptionist/patient-search", expectCalls: false },
       { path: "/receptionist/queue", expectCalls: true },
       { path: "/billing", expectCalls: true },
-      { path: "/consent", expectCalls: false },
+      {
+        path: "/consent",
+        expectCalls: true,
+        exercise: "patientConsent",
+        requiredRequests: [
+          { method: "POST", path: "/api/v1/patients/search" },
+          { method: "GET", pathPrefix: "/api/v1/consent/patients/", pathSuffix: "/records" },
+        ],
+      },
     ],
   },
   {
@@ -68,6 +77,11 @@ const ROLE_DASHBOARDS = [
     landingPath: "/doctor/dashboard",
     dashboards: [
       { path: "/doctor/dashboard", expectCalls: true },
+      {
+        path: "/doctor/consultation",
+        expectCalls: false,
+        expectedText: "Open a patient from the live OPD queue",
+      },
       { path: "/doctor/orders", expectCalls: true },
       { path: "/doctor/prescriptions", expectCalls: true },
       { path: "/doctor/results", expectCalls: true },
@@ -75,6 +89,15 @@ const ROLE_DASHBOARDS = [
       { path: "/lab", expectCalls: true },
       { path: "/radiology", expectCalls: true },
       { path: "/ipd", expectCalls: true },
+      {
+        path: "/consent",
+        expectCalls: true,
+        exercise: "patientConsent",
+        requiredRequests: [
+          { method: "POST", path: "/api/v1/patients/search" },
+          { method: "GET", pathPrefix: "/api/v1/consent/patients/", pathSuffix: "/records" },
+        ],
+      },
     ],
   },
   {
@@ -85,6 +108,15 @@ const ROLE_DASHBOARDS = [
       { path: "/nurse/ward-dashboard", expectCalls: true },
       { path: "/nurse/emar", expectCalls: true },
       { path: "/ipd", expectCalls: true },
+      {
+        path: "/consent",
+        expectCalls: true,
+        exercise: "patientConsent",
+        requiredRequests: [
+          { method: "POST", path: "/api/v1/patients/search" },
+          { method: "GET", pathPrefix: "/api/v1/consent/patients/", pathSuffix: "/records" },
+        ],
+      },
     ],
   },
   {
@@ -120,6 +152,24 @@ const ROLE_DASHBOARDS = [
     ],
   },
   {
+    name: "emergency",
+    username: "dev.emergency",
+    landingPath: "/emergency",
+    dashboards: [
+      {
+        path: "/emergency",
+        expectCalls: false,
+        expectedText: "Emergency registration",
+      },
+    ],
+  },
+  {
+    name: "supervisor",
+    username: "dev.supervisor",
+    landingPath: "/reports",
+    dashboards: [{ path: "/reports", expectCalls: true }],
+  },
+  {
     name: "hod",
     username: "dev.hod",
     landingPath: "/hod",
@@ -153,11 +203,19 @@ const ROLE_DASHBOARDS = [
         // A facility that has never appointed a DPO genuinely has none, and
         // the screen says so in a warning rather than an error. The other
         // three reads on this page must still succeed.
-        expected404: ["/api/v1/dpdp/dpo"],
+        expectedResponses: [
+          {
+            method: "GET",
+            path: "/api/v1/dpdp/dpo",
+            status: 404,
+            reason: "No DPO has been appointed at the seeded facility",
+          },
+        ],
       },
       { path: "/admin/maintenance", expectCalls: true },
       { path: "/reports", expectCalls: true },
       { path: "/billing", expectCalls: true },
+      { path: "/hod", expectCalls: true },
     ],
   },
   {
@@ -171,9 +229,36 @@ const ROLE_DASHBOARDS = [
         expectCalls: true,
         // Same legitimate absence as the admin view. The auditor must not need
         // admin-only GET /users merely to load this register.
-        expected404: ["/api/v1/dpdp/dpo"],
+        expectedResponses: [
+          {
+            method: "GET",
+            path: "/api/v1/dpdp/dpo",
+            status: 404,
+            reason: "No DPO has been appointed at the seeded facility",
+          },
+        ],
       },
       { path: "/reports", expectCalls: true },
+    ],
+  },
+  {
+    name: "patient",
+    username: "dev.patient",
+    landingPath: "/patient-portal",
+    dashboards: [{ path: "/patient-portal", expectCalls: true }],
+  },
+  {
+    name: "superadmin",
+    username: "dev.superadmin",
+    landingPath: "/workspace-unavailable",
+    unsupportedReason:
+      "Cloud platform-management APIs and UI do not exist; facility admin is forbidden",
+    dashboards: [
+      {
+        path: "/workspace-unavailable",
+        expectCalls: false,
+        expectedText: "Workspace not available",
+      },
     ],
   },
 ];
@@ -188,7 +273,7 @@ if (selectedRoles.length === 0) {
 }
 
 async function signIn(page, role) {
-  await page.goto(`${baseUrl}/login`, { waitUntil: "networkidle2", timeout: 30_000 });
+  await page.goto(`${baseUrl}/login`, { waitUntil: "domcontentloaded", timeout: 30_000 });
 
   // SSR paints before AuthProvider finishes silent SSO. Waiting for an enabled
   // button keeps this from becoming an inert pre-hydration click — the same
@@ -216,92 +301,304 @@ async function signIn(page, role) {
     { timeout: 60_000 },
     role.landingPath,
   );
+  // The pathname changes before silent SSO has restored the in-memory token.
+  // #main-content exists only after MainLayout knows this role is authenticated.
+  await page.waitForSelector("#main-content", { timeout: 60_000 });
+}
+
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function exercisePatientConsent(page) {
+  await page.waitForSelector("#main-content form input", { timeout: 30_000 });
+  await page.type("#main-content form input", "Dev Patient");
+  const searchClicked = await page.evaluate(() => {
+    const button = [...document.querySelectorAll("#main-content form button")].find(
+      (candidate) => candidate.textContent?.trim() === "Search",
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  if (!searchClicked) throw new Error("patient search button was not rendered");
+
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll("#main-content button")].some(
+        (candidate) => candidate.textContent?.trim() === "View consents",
+      ),
+    { timeout: 30_000 },
+  );
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll("#main-content button")].find(
+      (candidate) => candidate.textContent?.trim() === "View consents",
+    );
+    button?.click();
+  });
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#main-content")?.textContent?.includes("Dev Patient") &&
+      document.querySelector("#main-content")?.textContent?.includes("change patient"),
+    { timeout: 30_000 },
+  );
+}
+
+async function runConfiguredExercise(page, dashboard) {
+  if (!dashboard.exercise) return;
+  if (dashboard.exercise === "patientConsent") {
+    await exercisePatientConsent(page);
+    return;
+  }
+  throw new Error(`unknown dashboard exercise ${dashboard.exercise}`);
+}
+
+function isExpectedResponse(dashboard, request, url, status) {
+  return (dashboard.expectedResponses ?? []).find(
+    (expected) =>
+      expected.method === request.method() &&
+      expected.path === url.pathname &&
+      expected.status === status,
+  );
+}
+
+async function waitForApiSettlement(observed, expectCalls) {
+  const firstCallDeadline = Date.now() + 15_000;
+  while (expectCalls && observed.started === 0 && Date.now() < firstCallDeadline) {
+    await delay(100);
+  }
+
+  // Wait until every started request has either produced headers or failed,
+  // and the count has stayed still for a beat. Unlike networkidle2 this works
+  // with HMR, SSE and other intentionally long-lived browser connections.
+  const completionDeadline = Date.now() + 30_000;
+  let lastStarted = observed.started;
+  let stableSince = Date.now();
+  while (Date.now() < completionDeadline) {
+    if (observed.started !== lastStarted) {
+      lastStarted = observed.started;
+      stableSince = Date.now();
+    }
+    if (
+      observed.responded + observed.requestFailed >= observed.started &&
+      Date.now() - stableSince >= 750
+    ) {
+      break;
+    }
+    await delay(100);
+  }
+}
+
+async function openDashboard(page, role, dashboard) {
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await page.goto(`${baseUrl}${dashboard.path}`, {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await page.waitForFunction(
+        (expected) => window.location.pathname === expected,
+        { timeout: 60_000 },
+        dashboard.path,
+      );
+      await page.waitForSelector("#main-content", { timeout: 60_000 });
+      await page.waitForFunction(
+        () => (document.querySelector("#main-content")?.textContent?.trim().length ?? 0) > 0,
+        { timeout: 60_000 },
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) break;
+      console.warn(
+        `[${role.name}] ${dashboard.path} — navigation did not settle; retrying once ` +
+          `(the Next.js development server can restart after compiling many routes)`,
+      );
+      await delay(1_500);
+    }
+  }
+  throw lastError;
+}
+
+async function exerciseDashboard(context, role, dashboard) {
+  const page = await context.newPage();
+  const failures = [];
+  const expectedSeen = new Set();
+  const observed = {
+    started: 0,
+    responded: 0,
+    requestFailed: 0,
+    bad: [],
+    missingBearer: [],
+    requests: [],
+  };
+  let active = true;
+
+  page.on("request", (request) => {
+    if (!active) return;
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith("/api/v1")) return;
+    observed.started += 1;
+    observed.requests.push({ method: request.method(), path: url.pathname });
+    if (!request.headers().authorization?.startsWith("Bearer ")) {
+      observed.missingBearer.push(`${request.method()} ${url.pathname}`);
+    }
+  });
+  page.on("response", (response) => {
+    if (!active) return;
+    const request = response.request();
+    const url = new URL(response.url());
+    if (!url.pathname.startsWith("/api/v1")) return;
+    observed.responded += 1;
+    const expected = isExpectedResponse(dashboard, request, url, response.status());
+    if (expected) expectedSeen.add(`${expected.method} ${expected.path} ${expected.status}`);
+    if (response.status() >= 400 && !expected) {
+      observed.bad.push(`${response.status()} ${request.method()} ${url.pathname}`);
+    }
+  });
+  page.on("requestfailed", (request) => {
+    if (!active) return;
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith("/api/v1")) return;
+    observed.requestFailed += 1;
+    observed.bad.push(
+      `request failed ${request.method()} ${url.pathname}: ${request.failure()?.errorText ?? "unknown"}`,
+    );
+  });
+  page.on("pageerror", (error) => {
+    if (active) failures.push(`${dashboard.path}: uncaught ${error.message}`);
+  });
+
+  try {
+    await openDashboard(page, role, dashboard);
+
+    const landed = await page.evaluate(() => window.location.pathname);
+    if (landed !== dashboard.path) {
+      failures.push(`${dashboard.path}: role ${role.name} was redirected to ${landed}`);
+      return { failures, observed, offeredNavigation: [] };
+    }
+
+    if (dashboard.expectedText) {
+      const hasExpectedText = await page.$eval(
+        "#main-content",
+        (node, expected) => node.textContent?.includes(expected),
+        dashboard.expectedText,
+      );
+      if (!hasExpectedText) {
+        failures.push(`${dashboard.path}: did not render ${JSON.stringify(dashboard.expectedText)}`);
+      }
+    }
+
+    await runConfiguredExercise(page, dashboard);
+    await waitForApiSettlement(observed, dashboard.expectCalls);
+
+    const alerts = await page.$$eval('[role="alert"]', (nodes) =>
+      nodes.map((node) => node.textContent?.trim()).filter(Boolean),
+    );
+    if (alerts.length > 0) {
+      failures.push(`${dashboard.path}: rendered an error — ${alerts.join(" | ")}`);
+    }
+    if (observed.bad.length > 0) {
+      failures.push(`${dashboard.path}: ${observed.bad.join(", ")}`);
+    }
+    if (observed.missingBearer.length > 0) {
+      failures.push(
+        `${dashboard.path}: API request(s) had no Bearer token — ${observed.missingBearer.join(", ")}`,
+      );
+    }
+    if (dashboard.expectCalls && observed.started === 0) {
+      failures.push(
+        `${dashboard.path}: made NO /api/v1 calls — a screen wired to nothing ` +
+          "renders exactly like a working one",
+      );
+    }
+    if (observed.responded + observed.requestFailed < observed.started) {
+      failures.push(
+        `${dashboard.path}: ${observed.started - observed.responded - observed.requestFailed} ` +
+          "API request(s) never produced a response",
+      );
+    }
+    for (const expected of dashboard.expectedResponses ?? []) {
+      const key = `${expected.method} ${expected.path} ${expected.status}`;
+      if (!expectedSeen.has(key)) {
+        failures.push(
+          `${dashboard.path}: did not observe expected ${key} (${expected.reason})`,
+        );
+      }
+    }
+    for (const required of dashboard.requiredRequests ?? []) {
+      const seen = observed.requests.some(
+        (request) =>
+          request.method === required.method &&
+          (required.path ? request.path === required.path : true) &&
+          (required.pathPrefix ? request.path.startsWith(required.pathPrefix) : true) &&
+          (required.pathSuffix ? request.path.endsWith(required.pathSuffix) : true),
+      );
+      if (!seen) {
+        failures.push(
+          `${dashboard.path}: did not make required ${required.method} ` +
+            `${required.path ?? `${required.pathPrefix ?? ""}*${required.pathSuffix ?? ""}`}`,
+        );
+      }
+    }
+
+    if (!dashboard.expectCalls) {
+      const interactiveCount = await page.$$eval(
+        "#main-content a[href], #main-content button, #main-content input, #main-content select, #main-content textarea",
+        (nodes) => nodes.length,
+      );
+      if (interactiveCount === 0 && !dashboard.expectedText) {
+        failures.push(`${dashboard.path}: rendered no API data and no interactive control`);
+      }
+    }
+
+    const offeredNavigation = await page.$$eval("#workspace-sidebar a[href]", (links) =>
+      [...new Set(links.map((link) => new URL(link.href).pathname))].sort(),
+    );
+    console.log(
+      `[${role.name}] ${dashboard.path} — ${observed.responded}/${observed.started} API ` +
+        `response(s), ${observed.bad.length} failed`,
+    );
+    return { failures, observed, offeredNavigation };
+  } finally {
+    active = false;
+    await page.close();
+  }
 }
 
 async function exerciseRole(browser, role) {
   const context = await browser.createBrowserContext();
-  const page = await context.newPage();
   const failures = [];
-
-  let current = null;
-  let currentExpected404 = null;
-  const calls = new Map();
-
-  page.on("response", (response) => {
-    if (!current) return;
-    const url = new URL(response.url());
-    if (!url.pathname.startsWith("/api/v1")) return;
-
-    const entry = calls.get(current) ?? { total: 0, bad: [] };
-    entry.total += 1;
-    const tolerated =
-      response.status() === 404 && (currentExpected404 ?? []).includes(url.pathname);
-    if (response.status() >= 400 && !tolerated) {
-      entry.bad.push(`${response.status()} ${response.request().method()} ${url.pathname}`);
-    }
-    calls.set(current, entry);
-  });
-
-  page.on("pageerror", (error) => {
-    if (current) failures.push(`${current}: uncaught ${error.message}`);
-  });
-
   try {
-    await signIn(page, role);
+    const authPage = await context.newPage();
+    try {
+      await signIn(authPage, role);
+    } finally {
+      await authPage.close();
+    }
 
+    let offeredNavigation = null;
     for (const dashboard of role.dashboards) {
-      current = dashboard.path;
-      currentExpected404 = dashboard.expected404 ?? [];
-      calls.set(current, { total: 0, bad: [] });
-
-      await page.goto(`${baseUrl}${dashboard.path}`, {
-        waitUntil: "networkidle2",
-        timeout: 60_000,
-      });
-
-      // networkidle2 can settle before a fetch fired in an effect resolves.
-      // A short settle is the difference between observing the calls and
-      // reporting a screen made none.
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
-
-      // Did the guard bounce us? A dashboard listed for a role must be
-      // reachable by that role — this is what would have caught the HOD who
-      // could not open /inventory.
-      const landed = await page.evaluate(() => window.location.pathname);
-      if (landed !== dashboard.path) {
-        failures.push(`${dashboard.path}: role ${role.name} was redirected to ${landed}`);
-        continue;
-      }
-
-      // The screen's own error state. Every dashboard renders failures into
-      // role="alert", so this asks the page whether IT thinks it is broken
-      // rather than inferring from pixels.
-      const alerts = await page.$$eval('[role="alert"]', (nodes) =>
-        nodes.map((node) => node.textContent?.trim()).filter(Boolean),
-      );
-      if (alerts.length > 0) {
-        failures.push(`${dashboard.path}: rendered an error — ${alerts.join(" | ")}`);
-      }
-
-      const observed = calls.get(dashboard.path) ?? { total: 0, bad: [] };
-      if (observed.bad.length > 0) {
-        failures.push(`${dashboard.path}: ${observed.bad.join(", ")}`);
-      }
-      if (dashboard.expectCalls && observed.total === 0) {
+      try {
+        const result = await exerciseDashboard(context, role, dashboard);
+        failures.push(...result.failures);
+        offeredNavigation ??= result.offeredNavigation;
+      } catch (error) {
         failures.push(
-          `${dashboard.path}: made NO /api/v1 calls — a screen wired to nothing ` +
-            "renders exactly like a working one",
+          `${dashboard.path}: smoke could not finish — ${error instanceof Error ? error.message : error}`,
         );
       }
-
-      console.log(
-        `[${role.name}] ${dashboard.path} — ${observed.total} call(s), ` +
-          `${observed.bad.length} failed`,
-      );
     }
+
+    const testedPaths = new Set(role.dashboards.map((dashboard) => dashboard.path));
+    const uncoveredNavigation = (offeredNavigation ?? []).filter((path) => !testedPaths.has(path));
+    if (uncoveredNavigation.length > 0) {
+      failures.push(`sidebar screen(s) have no smoke: ${uncoveredNavigation.join(", ")}`);
+    }
+    if (role.unsupportedReason) {
+      console.log(`[${role.name}] explicit unsupported gap — ${role.unsupportedReason}`);
+    }
+  } catch (error) {
+    failures.push(`login failed — ${error instanceof Error ? error.message : error}`);
   } finally {
-    current = null;
-    currentExpected404 = null;
     await context.close();
   }
 
@@ -317,6 +614,19 @@ const browser = await puppeteer.launch({
 
 const allFailures = [];
 try {
+  const preflight = await browser.newPage();
+  try {
+    const response = await preflight.goto(`${baseUrl}/api/v1/health`, {
+      waitUntil: "domcontentloaded",
+      timeout: 15_000,
+    });
+    if (!response || response.status() !== 200) {
+      throw new Error(`dashboard smoke preflight returned ${response?.status() ?? "no response"}`);
+    }
+  } finally {
+    await preflight.close();
+  }
+
   for (const role of selectedRoles) {
     console.log(`\n=== ${role.name} ===`);
     const failures = await exerciseRole(browser, role);
@@ -332,4 +642,4 @@ if (allFailures.length > 0) {
   process.exit(1);
 }
 
-console.log("\nAll dashboards loaded and every API call succeeded.");
+console.log("\nEvery available dashboard loaded, rendered, and completed its bearer API calls.");
