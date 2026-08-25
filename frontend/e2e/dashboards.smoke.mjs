@@ -43,6 +43,11 @@ const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined;
  * `expectCalls` is the floor, not the ceiling: a screen that makes ZERO API
  * calls is the shell failure this file exists to catch, so a dashboard listed
  * here must prove it talked to the backend at all.
+ *
+ * `expected404` names EXACT paths whose absence is a legitimate answer the
+ * screen renders — not a general tolerance for 4xx. Each entry needs a reason,
+ * and it matches one path: a blanket "ignore 404s" would excuse precisely the
+ * missing-endpoint failure this file exists to catch.
  */
 const ROLE_DASHBOARDS = [
   {
@@ -121,6 +126,15 @@ const ROLE_DASHBOARDS = [
       { path: "/admin/account-requests", expectCalls: true },
       { path: "/admin/abdm-sync", expectCalls: true },
       { path: "/audit-viewer", expectCalls: true },
+      {
+        path: "/admin/data-protection",
+        expectCalls: true,
+        // A facility that has never appointed a DPO genuinely has none, and
+        // the screen says so in a warning rather than an error. The other
+        // three reads on this page must still succeed.
+        expected404: ["/api/v1/dpdp/dpo"],
+      },
+      { path: "/admin/maintenance", expectCalls: true },
       { path: "/reports", expectCalls: true },
       { path: "/billing", expectCalls: true },
     ],
@@ -173,6 +187,7 @@ async function exerciseRole(browser, role) {
   const failures = [];
 
   let current = null;
+  let currentExpected404 = null;
   const calls = new Map();
 
   page.on("response", (response) => {
@@ -182,7 +197,9 @@ async function exerciseRole(browser, role) {
 
     const entry = calls.get(current) ?? { total: 0, bad: [] };
     entry.total += 1;
-    if (response.status() >= 400) {
+    const tolerated =
+      response.status() === 404 && (currentExpected404 ?? []).includes(url.pathname);
+    if (response.status() >= 400 && !tolerated) {
       entry.bad.push(`${response.status()} ${response.request().method()} ${url.pathname}`);
     }
     calls.set(current, entry);
@@ -197,6 +214,7 @@ async function exerciseRole(browser, role) {
 
     for (const dashboard of role.dashboards) {
       current = dashboard.path;
+      currentExpected404 = dashboard.expected404 ?? [];
       calls.set(current, { total: 0, bad: [] });
 
       await page.goto(`${baseUrl}${dashboard.path}`, {
@@ -246,6 +264,7 @@ async function exerciseRole(browser, role) {
     }
   } finally {
     current = null;
+    currentExpected404 = null;
     await context.close();
   }
 

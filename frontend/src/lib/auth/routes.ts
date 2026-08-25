@@ -38,8 +38,8 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   [ROLES.RECEPTIONIST]: ["/receptionist", "/billing", "/consent"],
   [ROLES.DOCTOR]: ["/doctor", "/consent", "/ipd", "/lab", "/radiology"],
   [ROLES.NURSE]: ["/nurse", "/ipd", "/consent"],
-  [ROLES.LAB_TECH]: ["/lab"],
-  [ROLES.RADIOLOGY_TECH]: ["/radiology"],
+  [ROLES.LAB_TECH]: ["/lab", "/admin/maintenance"],
+  [ROLES.RADIOLOGY_TECH]: ["/radiology", "/admin/maintenance"],
   [ROLES.PHARMACIST]: ["/pharmacy", "/inventory"],
   [ROLES.EMERGENCY]: ["/emergency"],
   [ROLES.SUPERVISOR]: ["/consent", "/reports", "/emergency"],
@@ -52,7 +52,7 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   // Inventory -> Indents. Without this prefix the one action only a department
   // head can perform was unreachable by every department head.
   [ROLES.HOD]: ["/hod", "/reports", "/queue-display", "/inventory"],
-  [ROLES.AUDITOR]: ["/audit-viewer", "/reports"],
+  [ROLES.AUDITOR]: ["/audit-viewer", "/reports", "/admin/data-protection"],
   [ROLES.PATIENT]: ["/patient-portal"],
   [ROLES.SUPERADMIN]: ["/admin", "/reports"],
 };
