@@ -171,6 +171,7 @@ do not merge out of order.**
 | 0050 | performance_indexes | INDEXES only | W7 (#241) — add supporting indexes for every previously uncovered foreign key and the missing `lab_results.result_data` `jsonb_path_ops` GIN index. A PostgreSQL catalog test enforces the complete FK and named hot-path strategy on every build. |
 | 0051 | patient_portal_bindings | patient_portal_bindings | B2/F1 (#228, #234) — append-only, audited proof linking one active Keycloak-backed user to one active patient after ABHA OTP or in-person document verification. Revocation retains the verification history; portal requests never accept a patient id. |
 | 0052 | external_results_append_only | order_external_results | B3 (#450) — trigger only; outside-result corrections append a new row and UPDATE/DELETE cannot rewrite history. |
+| 0053 | grievance_counters | grievance_counters; ALTER patient_grievances: grievance_number varchar(50) | B7 (#451) — atomic per-facility/day server numbering without truncating a permitted 20-character facility code. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -1281,9 +1282,19 @@ patient_id UUID NOT NULL → patients · facility_id UUID NOT NULL → facilitie
 grievance_type varchar(50) NOT NULL               -- access|correction|erasure|consent|breach|other
 description text NOT NULL
 status varchar(50) NOT NULL DEFAULT 'pending'     -- pending|under_review|resolved|escalated_dpb|closed
-assigned_to UUID NULL → users · due_at timestamptz NOT NULL   -- created_at + 90 days, app-set
+assigned_to UUID NULL → users · due_at timestamptz NOT NULL   -- explicitly supplied until each facility approves an SLA
 resolution text · resolved_at timestamptz · escalation_reason text
 INDEX ix_patient_grievances_status_due_at (status, due_at)
+```
+The legal workflow is `pending → under_review → resolved → closed`; a pending
+or under-review grievance may instead move to `escalated_dpb`, then to
+`resolved → closed`. Resolution text is mandatory on `resolved`, escalation
+reason is mandatory on `escalated_dpb`, and `closed` is terminal.
+
+**grievance_counters** (0053, B7)
+```
+facility_id UUID NOT NULL → facilities · counter_date date NOT NULL
+last_value int NOT NULL CHECK (>0) · PRIMARY KEY (facility_id, counter_date)
 ```
 
 **data_breach_notifications** (0022a, B7) — append-only after status closes
@@ -1898,9 +1909,8 @@ with a pointer here.
 |---|---|---|
 | `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
 | `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
-| `consent_records.consent_manager_id` | 0022a | `UUID` nullable. DPDP Rules 2025 consent-manager linkage; `consent_managers` exists but nothing populates either side. |
 
-> **One row left this table.** `orders.fulfilment_mode` was here until it was
+> **Historical cleanup note.** `orders.fulfilment_mode` was listed here until it was
 > mapped and wired: §2 v3.3 rule 1 says an order for a disabled module is
 > created as `external_referral` rather than refused, and that behaviour was
 > documented but unimplemented, so a facility with lab switched off recorded lab
@@ -1909,26 +1919,23 @@ with a pointer here.
 
 ### 3-end (b) — tables with no model and no code at all
 
-Beyond the individual columns above, **seven whole tables** are created by a
+Beyond the individual columns above, **four whole tables** are created by a
 migration and referenced by no application code whatsoever. Not "unmapped but
 used via raw SQL" — `accession_counters` and `policies` are unmapped and heavily
-used, and are correctly absent from this list. These seven are touched by
+used, and are correctly absent from this list. These four are touched by
 nothing.
 
 | Table | Migration | What it was meant to be |
 |---|---|---|
-| `data_protection_officers` | 0022a | DPDP Rules 2025 require a named DPO whose contact is published to data principals. |
-| `patient_grievances` | 0022a | DPDP requires a grievance-redressal mechanism. `GrievanceType` enum exists, including `erasure`. |
-| `consent_managers` | 0022a | DPDP consent-manager registry; `consent_records.consent_manager_id` points here and is always null. |
 | `purchase_orders` | 0024 | Procurement upstream of GRN. `grn.purchase_order_id` points here and is always null, so goods are received against no order. |
 | `purchase_order_items` | 0024 | Lines of the above. |
 | `stock_transfers` | 0024 | Inter-location stock movement. |
 | `stock_transfer_items` | 0024 | Lines of the above. |
 
-**Why this matters more than it looks.** Three of the seven are DPDP compliance
-obligations, not conveniences: a published DPO and a grievance channel are
-things the Act requires a data fiduciary to *have*. The schema was written as
-though they exist. Anyone auditing the database would conclude they do.
+The DPDP DPO, grievance, and consent-manager tables left this list in #451 when
+their facility-scoped workflows were implemented. Production population still
+requires the hospital's real DPO identity and approved grievance SLA; neither is
+seeded or fabricated by the application.
 
 None of this breaks a running system — every dependent column is nullable, so
 the product works with them empty. The risk is a reader, or an assessor,
