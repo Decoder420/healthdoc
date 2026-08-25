@@ -2,7 +2,7 @@ from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Inde
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.common.db import Base
-from app.common.enums import OrderPriority, OrderStatus, OrderType
+from app.common.enums import FulfilmentMode, OrderPriority, OrderStatus, OrderType
 from app.common.models import Blame, Timestamps, UUIDPk
 
 
@@ -44,6 +44,19 @@ class Order(Base, UUIDPk, Timestamps, Blame):
     priority = Column(String(50), nullable=False, server_default=OrderPriority.ROUTINE.value)
     status = Column(String(50), nullable=False, server_default=OrderStatus.PLACED.value)
     ordered_at = Column(DateTime(timezone=True), nullable=False)
+
+    # 0027 — who will actually fulfil this order.
+    #
+    # The column has existed since 0027 and was NOT mapped here, so no code path
+    # could read or set it and every order defaulted to 'internal'. §2 v3.3
+    # rule 1 says an order for a module the facility has switched off is created
+    # as 'external_referral' rather than refused; that behaviour was documented
+    # and never implemented, which meant a facility with lab disabled recorded
+    # lab orders claiming it would run them in-house. See
+    # orders/service._fulfilment_mode.
+    fulfilment_mode = Column(
+        String(50), nullable=False, server_default=FulfilmentMode.INTERNAL.value
+    )
 
     # 0045 — check-off evidence. status alone recorded THAT an order was done
     # and lost who and when, which is what #210's nurse task queue needs. Serves

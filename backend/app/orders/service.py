@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.allergies.interactions import check_interactions
@@ -32,6 +32,57 @@ class EncounterNotFound(Exception):
 class PatientMismatch(Exception):
     def __init__(self, expected_patient_id: UUID):
         self.expected_patient_id = expected_patient_id
+
+
+#: Which optional module fulfils each order type (§2 v3.3, ModuleCode).
+#:
+#: `procedure` is absent ON PURPOSE and must stay absent. ProcedureSetting is
+#: explicitly decoupled from the OT module so a minor procedure is recordable at
+#: a facility with no theatre — mapping it to `ot` would make every OPD dressing
+#: an external referral at such a facility.
+_FULFILLING_MODULE = {
+    "lab": "lab",
+    "radiology": "radiology",
+    "pharmacy": "pharmacy",
+    "blood": "blood_bank",
+}
+
+
+async def _fulfilment_mode(db: AsyncSession, *, facility_id: uuid.UUID, order_type: str) -> str:
+    """internal, or external_referral when the fulfilling module is switched off.
+
+    §2 v3.3 rule 1: "Ordering never disappears. A doctor can always record what
+    the patient needs — clinical completeness is not conditional on the hospital
+    owning the equipment. The order is created with
+    fulfilment_mode='external_referral' instead of being refused."
+
+    That rule was documented and never implemented. POST /orders is not
+    module-gated, so the order WAS created — but fulfilment_mode was never set
+    by any code path, so it defaulted to 'internal'. A facility with lab
+    disabled therefore recorded lab orders claiming the hospital would run them
+    in-house, with no module to pick them up and no accession ever generated.
+    Silently mislabelling a clinical instruction is worse than refusing it.
+
+    Absent row means enabled — the same convention require_module() uses.
+    Keeping both in one shape matters: if they ever disagreed, an order could be
+    marked internal by one rule and refused by the other.
+    """
+    module_code = _FULFILLING_MODULE.get(order_type)
+    if module_code is None:
+        return "internal"
+
+    row = await db.execute(
+        text("""
+            SELECT is_enabled FROM facility_modules
+            WHERE facility_id = :facility_id AND module_code = :module_code
+        """),
+        # facility_id passed as a UUID, not str(): the shared test fixture is
+        # SQLite, where a stringified UUID does not compare equal to the stored
+        # value, while PostgreSQL accepts either. Letting SQLAlchemy adapt the
+        # bind keeps one code path correct on both.
+        {"facility_id": facility_id, "module_code": module_code},
+    )
+    return "internal" if row.scalar_one_or_none() is not False else "external_referral"
 
 
 async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
@@ -71,6 +122,10 @@ async def create_order(db: AsyncSession, payload: OrderCreate) -> Order:
         status="placed",
         ordered_at=payload.ordered_at or datetime.now(timezone.utc),
         created_by=payload.created_by,
+        # The resource's facility, consistent with every other field here.
+        fulfilment_mode=await _fulfilment_mode(
+            db, facility_id=encounter.facility_id, order_type=payload.order_type
+        ),
     )
     db.add(order)
     await db.flush()

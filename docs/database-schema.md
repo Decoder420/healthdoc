@@ -672,9 +672,11 @@ completed_at   timestamptz NULL                 -- 0045. carry the evidence; nul
 completed_by   UUID NULL → users                -- 0045. corresponding transition occurs.
 completion_note text NULL                       -- 0045. Optional remark recorded at completion.
 fulfilment_mode varchar(50) NOT NULL DEFAULT 'internal'  -- 0027. FulfilmentMode enum.
-                                                -- NOT mapped by the ORM and read by no code
-                                                -- path, so every order is 'internal'
-                                                -- — see §3-end note.
+                                                -- Set by orders/service._fulfilment_mode:
+                                                -- 'external_referral' when the module that
+                                                -- would fulfil this order type is disabled
+                                                -- at the facility (§2 v3.3 rule 1). The
+                                                -- order is created either way, never refused.
 ```
 
 **drug_interactions** (0040, B6) — pairwise interaction rules, read on every dispense
@@ -1889,11 +1891,17 @@ with a pointer here.
 
 | Column | Migration | Note |
 |---|---|---|
-| `orders.fulfilment_mode` | 0027 | `varchar(50) NOT NULL DEFAULT 'internal'`. §2's v3.3 changelog describes "external-referral fulfilment on orders" as delivered, but nothing reads or writes this column — every order is `internal` and no code path can set anything else. |
 | `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
 | `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
 | `consent_records.consent_manager_id` | 0022a | `UUID` nullable. DPDP Rules 2025 consent-manager linkage; `consent_managers` exists but nothing populates either side. |
 | `machine_maintenance_logs.notes` | 0024 | `text` nullable — and the whole TABLE has no ORM model or code. |
+
+> **One row left this table.** `orders.fulfilment_mode` was here until it was
+> mapped and wired: §2 v3.3 rule 1 says an order for a disabled module is
+> created as `external_referral` rather than refused, and that behaviour was
+> documented but unimplemented, so a facility with lab switched off recorded lab
+> orders claiming it would run them in-house. Now set by
+> `orders/service._fulfilment_mode`.
 
 ### 3-end (b) — tables with no model and no code at all
 
