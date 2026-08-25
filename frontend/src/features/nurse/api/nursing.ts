@@ -9,7 +9,6 @@ import type { AddNursingNoteSchema } from "@/features/nurse/components/AddNursin
 import type { VitalRecord } from "@/components/VitalsTimeline/VitalsTimeline.types";
 import type { MedicationRecord } from "@/components/tables/EMARTable/EMARTable.types";
 import type { DischargeSummary } from "@/features/ipd/api/ipd";
-import type { HandoverNote } from "@/features/nurse/components/HandoverNotes/HandoverNotes.types";
 import type {
   AdmissionTransferResult,
   ClinicalIncident,
@@ -63,9 +62,9 @@ export async function getAdmissionMedicationAdministrations(admissionId: string)
 }
 
 export async function getAdmissionHandoverNotes(admissionId: string) {
-  return api<HandoverNote[]>(
-    `/nursing/admissions/${admissionId}/handover-notes`,
-  );
+  void admissionId;
+  // Table exists (0023) but no published FastAPI read route yet.
+  throw new UnsupportedWorkflowError("Handover notes list");
 }
 
 export async function getAdmissionSummary(admissionId: string) {
@@ -109,11 +108,9 @@ export async function addVitals(data: AddVitalsSchema) {
 }
 
 export async function addHandover(data: AddHandoverSchema) {
-  return api<NursingHandoverNote>("/nursing/handover-notes", {
-    method: "POST",
-    body: JSON.stringify(data),
-    idempotencyKey: newIdempotencyKey(),
-  });
+  void data;
+  // Table exists (0023) but no published FastAPI write route yet.
+  throw new UnsupportedWorkflowError("Handover note entry");
 }
 
 export async function reportIncident(data: ReportIncidentPayload) {

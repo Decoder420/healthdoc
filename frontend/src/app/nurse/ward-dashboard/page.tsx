@@ -40,7 +40,6 @@ import {
   acceptNursingTask,
   completeNursingTask,
   getAdmissionFluidBalance,
-  getAdmissionHandoverNotes,
   getAdmissionMedicationAdministrations,
   getAdmissionSummary,
   getNursingTasks,
@@ -180,21 +179,20 @@ export default function Page() {
     }
     setDetailLoading(true);
     setDetailError(null);
-    const [vitalsResult, fluidResult, emarResult, summaryResult, handoverResult] =
+    setHandoverNotes([]);
+    const [vitalsResult, fluidResult, emarResult, summaryResult] =
       await Promise.allSettled([
         getPatientVitals(bed.occupant.patient_id),
         getAdmissionFluidBalance(bed.occupant.admission_id),
         getAdmissionMedicationAdministrations(bed.occupant.admission_id),
         getAdmissionSummary(bed.occupant.admission_id),
-        getAdmissionHandoverNotes(bed.occupant.admission_id),
       ]);
     setVitals(vitalsResult.status === "fulfilled" ? vitalsResult.value : []);
     setFluidBalance(fluidResult.status === "fulfilled" ? fluidResult.value : null);
     setMedications(emarResult.status === "fulfilled" ? emarResult.value : []);
     setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
-    setHandoverNotes(handoverResult.status === "fulfilled" ? handoverResult.value : []);
     if (
-      [vitalsResult, fluidResult, emarResult, summaryResult, handoverResult].some(
+      [vitalsResult, fluidResult, emarResult, summaryResult].some(
         (entry) => entry.status === "rejected",
       )
     ) {
@@ -514,7 +512,7 @@ export default function Page() {
               <div>
                 <h2 className="text-xl font-semibold">Shift handover (SBAR)</h2>
                 <p className="text-sm text-muted-foreground">
-                  Append-only notes on `nursing_handover_notes` for this admission.
+                  Disabled until FastAPI publishes handover-notes read/write contracts.
                 </p>
               </div>
               <button
@@ -522,7 +520,7 @@ export default function Page() {
                 className="rounded-md border border-border px-3 py-2 text-sm"
                 onClick={() => setActiveAction(activeAction === "handover" ? null : "handover")}
               >
-                Add handover
+                View handover form
               </button>
             </div>
             <HandoverNotes admissionId={occupant.admission_id} notes={handoverNotes} />
@@ -531,14 +529,7 @@ export default function Page() {
                 admissionId={occupant.admission_id}
                 recipientOptions={handoverRecipients}
                 isSubmitting={isSubmittingHandover}
-                onSubmit={async (data) => {
-                  const ok = await submitHandover(data);
-                  if (ok) {
-                    setHandoverNotes(await getAdmissionHandoverNotes(occupant.admission_id));
-                    setActiveAction(null);
-                  }
-                  return ok;
-                }}
+                onSubmit={submitHandover}
               />
             ) : null}
           </section>

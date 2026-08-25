@@ -19,13 +19,11 @@ export default function AddHandoverForm({
   admissionId,
   isSubmitting = false,
   recipientOptions = [],
-  onSubmit,
 }: AddHandoverFormProps) {
   const [useManualUuid, setUseManualUuid] = useState(recipientOptions.length === 0);
 
   const {
     register,
-    handleSubmit,
     reset,
     setValue,
     watch,
@@ -65,17 +63,19 @@ export default function AddHandoverForm({
     setUseManualUuid(recipientOptions.length === 0);
   };
 
-  const submitHandler = async (data: AddHandoverSchema) => {
-    const success = await onSubmit(data);
-    if (success) handleReset();
-  };
-
   return (
     <FormSection
       title="Patient Handover"
-      description="Record shift handover details (SBAR). Receiving nurse must be a users.id UUID."
+      description="Not available — no published nurse handover read/write contract."
     >
-      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+      <p className="mb-4 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        Disabled in this build. Shift handover (SBAR) needs FastAPI routes for
+        `nursing_handover_notes` before it can be filed from this screen.
+      </p>
+      <form
+        onSubmit={(e) => e.preventDefault()}
+        className="pointer-events-none space-y-6 opacity-50"
+      >
         <div className="grid gap-5 md:grid-cols-2">
           <SelectField
             label="Shift"
@@ -115,20 +115,6 @@ export default function AddHandoverForm({
                 registration={register("handed_over_to")}
                 error={errors.handed_over_to}
               />
-              {recipientOptions.length > 0 ? (
-                <button
-                  type="button"
-                  className="text-xs underline text-muted-foreground"
-                  onClick={() => setUseManualUuid(false)}
-                >
-                  Pick from prior recipients
-                </button>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Staff directory is admin-only. Paste the receiving nurse&apos;s user UUID,
-                  or reuse a recipient from earlier handovers on this admission.
-                </p>
-              )}
             </div>
           )}
         </div>

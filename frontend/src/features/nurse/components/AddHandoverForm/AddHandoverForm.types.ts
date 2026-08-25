@@ -6,5 +6,5 @@ export interface AddHandoverFormProps {
   isSubmitting?: boolean;
   /** Prior recipients on this admission (FE-only picker; /users is admin-only). */
   recipientOptions?: HandoverRecipientOption[];
-  onSubmit: (data: AddHandoverSchema) => Promise<boolean> | boolean;
+  onSubmit?: (data: AddHandoverSchema) => Promise<boolean> | boolean;
 }
