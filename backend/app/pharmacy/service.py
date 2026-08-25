@@ -165,12 +165,13 @@ async def search_medicines(
 
     batches_sql = text("""
         SELECT ib.item_id, ib.id AS batch_id, ib.batch_number, ib.expiry_date,
-               ib.quantity, ib.stock_location_id, ib.issue_rate_mrp
+               (ib.quantity - ib.reserved_quantity) AS quantity,
+               ib.stock_location_id, ib.issue_rate_mrp
         FROM inventory_batches ib
         JOIN stock_locations sl ON sl.id = ib.stock_location_id
         JOIN facilities fac ON fac.id = sl.facility_id
         WHERE ib.item_id = ANY(:item_ids)
-          AND ib.quantity > 0
+          AND ib.quantity > ib.reserved_quantity
           AND sl.facility_id = :facility_id
           AND ib.expiry_date >= (now() AT TIME ZONE fac.timezone)::date
         ORDER BY ib.item_id, ib.expiry_date ASC
@@ -233,12 +234,13 @@ async def _fefo_allocate(
     
    
     candidates_sql = text("""
-        SELECT ib.id, ib.batch_number, ib.expiry_date, ib.quantity
+        SELECT ib.id, ib.batch_number, ib.expiry_date,
+               (ib.quantity - ib.reserved_quantity) AS quantity
         FROM inventory_batches ib
         JOIN stock_locations sl ON sl.id = ib.stock_location_id
         JOIN facilities fac ON fac.id = sl.facility_id
         WHERE ib.item_id = :item_id
-          AND ib.quantity > 0
+          AND ib.quantity > ib.reserved_quantity
           AND sl.facility_id = :facility_id
           AND ib.expiry_date >= (now() AT TIME ZONE fac.timezone)::date
         ORDER BY ib.expiry_date ASC
@@ -540,7 +542,8 @@ async def create_dispense(
             batch = (
                 await db.execute(
                     text("""
-                        SELECT ib.id, ib.batch_number, ib.expiry_date, ib.quantity,
+                        SELECT ib.id, ib.batch_number, ib.expiry_date,
+                               (ib.quantity - ib.reserved_quantity) AS quantity,
                                ib.expiry_date >= (now() AT TIME ZONE fac.timezone)::date AS not_expired
                         FROM inventory_batches ib
                         JOIN stock_locations sl ON sl.id = ib.stock_location_id
@@ -648,7 +651,7 @@ async def create_dispense(
     # use a counters row instead (app/common/accession.py, billing_counters).
     next_version = (
         await db.execute(
-            text("SELECT COALESCE(MAX(version), 0) + 1 FROM pharmacy_dispenses "
+            text("SELECT COALESCE(MAX(version), 0) + 1 FROM pharmacy_dispenses "  # pr-check: ignore — parent prescription row locked above
                  "WHERE prescription_id = :id"),
             {"id": str(payload.prescription_id)},
         )
@@ -1298,6 +1301,100 @@ async def get_pharmacy_mis_report(
 
 # -- B6-W5-01: GRN --------------------------------------------------------
 
+async def _validate_grn_purchase_order(
+    db: AsyncSession,
+    payload: GrnCreate,
+    *,
+    facility_id: UUID,
+    lock: bool = False,
+) -> None:
+    """Validate both optional receiving and PO-linked receiving.
+
+    A PO is deliberately optional for donations and emergency purchases.  If
+    supplied, however, the PO is the receiving contract: tenant, supplier,
+    lifecycle, item set and remaining quantities must all agree.
+    """
+    supplier = (
+        await db.execute(
+            text("""
+                SELECT id FROM suppliers
+                WHERE id = :id AND facility_id = :facility_id AND is_active = true
+            """),
+            {"id": str(payload.supplier_id), "facility_id": str(facility_id)},
+        )
+    ).first()
+    if supplier is None:
+        raise HTTPException(status_code=404, detail="Active supplier not found")
+    for item in payload.items:
+        inventory_item = (
+            await db.execute(
+                text("""
+                    SELECT ii.id FROM inventory_items ii
+                    LEFT JOIN departments d ON d.id = ii.owning_department_id
+                    WHERE ii.id = :id AND ii.is_active = true
+                      AND (ii.owning_department_id IS NULL OR d.facility_id = :facility_id)
+                """),
+                {"id": str(item.item_id), "facility_id": str(facility_id)},
+            )
+        ).first()
+        if inventory_item is None:
+            raise HTTPException(status_code=404, detail=f"Active item {item.item_id} not found")
+    if payload.purchase_order_id is None:
+        return
+
+    lock_clause = " FOR UPDATE" if lock else ""
+    po = (
+        await db.execute(
+            text("""
+                SELECT id, supplier_id, status FROM purchase_orders
+                WHERE id = :id AND facility_id = :facility_id
+            """ + lock_clause),
+            {"id": str(payload.purchase_order_id), "facility_id": str(facility_id)},
+        )
+    ).mappings().first()
+    if po is None:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+    if po["supplier_id"] != payload.supplier_id:
+        raise HTTPException(status_code=409, detail="GRN supplier does not match purchase order")
+    if po["status"] not in {"approved", "sent", "partially_received"}:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Purchase order in status '{po['status']}' cannot receive stock",
+        )
+    lines = (
+        await db.execute(
+            text("""
+                SELECT poi.item_id, poi.quantity,
+                       COALESCE(SUM(CASE WHEN g.status = 'verified'
+                           THEN gi.quantity ELSE 0 END), 0) AS received_quantity
+                FROM purchase_order_items poi
+                LEFT JOIN grn g ON g.purchase_order_id = poi.purchase_order_id
+                LEFT JOIN grn_items gi ON gi.grn_id = g.id AND gi.item_id = poi.item_id
+                WHERE poi.purchase_order_id = :id
+                GROUP BY poi.id
+            """),
+            {"id": str(payload.purchase_order_id)},
+        )
+    ).mappings().all()
+    by_item = {line["item_id"]: line for line in lines}
+    requested_by_item: dict[UUID, Decimal] = {}
+    for item in payload.items:
+        requested_by_item[item.item_id] = (
+            requested_by_item.get(item.item_id, Decimal("0")) + item.quantity
+        )
+    for item_id, requested_quantity in requested_by_item.items():
+        line = by_item.get(item_id)
+        if line is None:
+            raise HTTPException(
+                status_code=409, detail=f"Item {item_id} is not on the purchase order"
+            )
+        remaining = line["quantity"] - line["received_quantity"]
+        if requested_quantity > remaining:
+            raise HTTPException(
+                status_code=409,
+                detail=f"GRN quantity exceeds remaining purchase order quantity for {item_id}",
+            )
+
 async def create_grn(
     db: AsyncSession,
     payload: GrnCreate,
@@ -1305,19 +1402,23 @@ async def create_grn(
     current_user_id: UUID,
     facility_id: UUID,
 ) -> GrnOut:
+    await _validate_grn_purchase_order(db, payload, facility_id=facility_id)
     grn_id = uuid4()
     await db.execute(
         text("""
             INSERT INTO grn
-                (id, facility_id, supplier_id, invoice_number, received_date,
-                 status, created_by, updated_by)
+                (id, facility_id, supplier_id, purchase_order_id, invoice_number,
+                 received_date, status, created_by, updated_by)
             VALUES
-                (:id, :facility_id, :supplier_id, :invoice_number, :received_date,
-                 'draft', :user_id, :user_id)
+                (:id, :facility_id, :supplier_id, :purchase_order_id, :invoice_number,
+                 :received_date, 'draft', :user_id, :user_id)
         """),
         {
             "id": str(grn_id), "facility_id": str(facility_id),
             "supplier_id": str(payload.supplier_id),
+            "purchase_order_id": (
+                str(payload.purchase_order_id) if payload.purchase_order_id else None
+            ),
             "invoice_number": payload.invoice_number,
             "received_date": payload.received_date,
             "user_id": str(current_user_id),
@@ -1348,11 +1449,18 @@ async def create_grn(
     await write_audit_log(
         db, facility_id=facility_id, user_id=current_user_id, action="create",
         resource_type="grn", resource_id=grn_id,
-        new_value={"supplier_id": str(payload.supplier_id), "item_count": len(items_out)},
+        new_value={
+            "supplier_id": str(payload.supplier_id),
+            "purchase_order_id": (
+                str(payload.purchase_order_id) if payload.purchase_order_id else None
+            ),
+            "item_count": len(items_out),
+        },
     )
 
     return GrnOut(
-        id=grn_id, supplier_id=payload.supplier_id, invoice_number=payload.invoice_number,
+        id=grn_id, supplier_id=payload.supplier_id,
+        purchase_order_id=payload.purchase_order_id, invoice_number=payload.invoice_number,
         received_date=payload.received_date, status="draft", items=items_out,
     )
 
@@ -1368,7 +1476,7 @@ async def verify_grn(
     grn_row = (
         await db.execute(
             text("""
-                SELECT id, supplier_id, invoice_number, received_date, status
+                SELECT id, supplier_id, purchase_order_id, invoice_number, received_date, status
                 FROM grn WHERE id = :id AND facility_id = :facility_id FOR UPDATE
             """),
             {"id": str(grn_id), "facility_id": str(facility_id)},
@@ -1399,6 +1507,32 @@ async def verify_grn(
     ).mappings().all()
     if not grn_items:
         raise HTTPException(status_code=409, detail="GRN has no items")
+    if any(item["batch_number"] is None or item["expiry_date"] is None for item in grn_items):
+        raise HTTPException(
+            status_code=409,
+            detail="Every GRN line needs a batch number and expiry date before verification",
+        )
+
+    if grn_row["purchase_order_id"] is not None:
+        validation_payload = GrnCreate(
+            supplier_id=grn_row["supplier_id"],
+            purchase_order_id=grn_row["purchase_order_id"],
+            invoice_number=grn_row["invoice_number"],
+            received_date=grn_row["received_date"],
+            items=[
+                {
+                    "item_id": item["item_id"],
+                    "batch_number": item["batch_number"],
+                    "expiry_date": item["expiry_date"],
+                    "quantity": item["quantity"],
+                    "unit_price": item["unit_price"],
+                }
+                for item in grn_items
+            ],
+        )
+        await _validate_grn_purchase_order(
+            db, validation_payload, facility_id=facility_id, lock=True
+        )
 
     items_out: list[GrnItemOut] = []
     for gi in grn_items:
@@ -1465,6 +1599,48 @@ async def verify_grn(
         {"user_id": str(current_user_id), "id": str(grn_id)},
     )
 
+    if grn_row["purchase_order_id"] is not None:
+        receipt = (
+            await db.execute(
+                text("""
+                    SELECT bool_and(received_quantity >= ordered_quantity) AS complete
+                    FROM (
+                        SELECT poi.quantity AS ordered_quantity,
+                               COALESCE(SUM(CASE WHEN g.status = 'verified'
+                                   THEN gi.quantity ELSE 0 END), 0) AS received_quantity
+                        FROM purchase_order_items poi
+                        LEFT JOIN grn g ON g.purchase_order_id = poi.purchase_order_id
+                        LEFT JOIN grn_items gi
+                          ON gi.grn_id = g.id AND gi.item_id = poi.item_id
+                        WHERE poi.purchase_order_id = :id
+                        GROUP BY poi.id
+                    ) receipt_totals
+                """),
+                {"id": str(grn_row["purchase_order_id"])},
+            )
+        ).mappings().one()
+        po_status = "received" if receipt["complete"] else "partially_received"
+        await db.execute(
+            text("""
+                UPDATE purchase_orders SET status = :status, updated_by = :user_id,
+                    updated_at = now() WHERE id = :id
+            """),
+            {
+                "status": po_status,
+                "user_id": str(current_user_id),
+                "id": str(grn_row["purchase_order_id"]),
+            },
+        )
+        await write_audit_log(
+            db,
+            facility_id=facility_id,
+            user_id=current_user_id,
+            action="update",
+            resource_type="purchase_orders",
+            resource_id=grn_row["purchase_order_id"],
+            new_value={"status": po_status, "grn_id": str(grn_id)},
+        )
+
     await write_audit_log(
         db, facility_id=facility_id, user_id=current_user_id, action="verify",
         resource_type="grn", resource_id=grn_id,
@@ -1472,7 +1648,8 @@ async def verify_grn(
     )
 
     return GrnOut(
-        id=grn_id, supplier_id=grn_row["supplier_id"], invoice_number=grn_row["invoice_number"],
+        id=grn_id, supplier_id=grn_row["supplier_id"],
+        purchase_order_id=grn_row["purchase_order_id"], invoice_number=grn_row["invoice_number"],
         received_date=grn_row["received_date"], status="verified", items=items_out,
     )
 
@@ -1655,10 +1832,11 @@ async def issue_indent(
         batches = (
             await db.execute(
                 text("""
-                    SELECT ib.id, ib.quantity FROM inventory_batches ib
+                    SELECT ib.id, (ib.quantity - ib.reserved_quantity) AS quantity
+                    FROM inventory_batches ib
                     JOIN stock_locations sl ON sl.id = ib.stock_location_id
                     WHERE ib.item_id = :item_id AND sl.facility_id = :facility_id
-                      AND ib.quantity > 0
+                      AND ib.quantity > ib.reserved_quantity
                     ORDER BY ib.expiry_date ASC
                     FOR UPDATE
                 """),
@@ -1859,6 +2037,22 @@ async def approve_adjustment(
             detail="The second approver must be different from both the creator and the first approver",
         )
 
+    if payload.approve and adj_row["quantity_change"] < 0:
+        available = (
+            await db.execute(
+                text("""
+                    SELECT quantity - reserved_quantity AS available
+                    FROM inventory_batches WHERE id = :id FOR UPDATE
+                """),
+                {"id": str(adj_row["batch_id"])},
+            )
+        ).scalar_one()
+        if available + adj_row["quantity_change"] < 0:
+            raise HTTPException(
+                status_code=409,
+                detail="Adjustment would consume stock reserved for an in-transit transfer",
+            )
+
     new_status = "approved" if payload.approve else "rejected"
     await db.execute(
         text("""
@@ -2012,7 +2206,7 @@ async def list_grns(
     rows = (
         await db.execute(
             text("""
-                SELECT g.id, g.supplier_id, s.name AS supplier_name,
+                SELECT g.id, g.supplier_id, g.purchase_order_id, s.name AS supplier_name,
                        g.invoice_number, g.received_date, g.status,
                        COUNT(gi.id) AS line_count, g.created_at, g.updated_at
                 FROM grn g

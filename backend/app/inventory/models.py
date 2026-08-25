@@ -132,6 +132,9 @@ class InventoryBatch(Base, UUIDPk, Timestamps):
     batch_number: Mapped[str] = mapped_column(String(50), nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    reserved_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), nullable=False, default=Decimal("0"), server_default="0"
+    )
     purchase_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     issue_rate_mrp: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     stock_location_id: Mapped[uuid.UUID] = mapped_column(
@@ -141,6 +144,10 @@ class InventoryBatch(Base, UUIDPk, Timestamps):
 
     __table_args__ = (
         CheckConstraint("quantity >= 0", name="quantity"),
+        CheckConstraint(
+            "reserved_quantity >= 0 AND reserved_quantity <= quantity",
+            name="reserved_quantity",
+        ),
         UniqueConstraint(
             "item_id", "batch_number", "stock_location_id",
         ),
@@ -185,4 +192,106 @@ class StockLedger(Base, UUIDPk):
         Index("ix_stock_ledger_item_id", "item_id"),
         Index("ix_stock_ledger_batch_id", "batch_id"),
         Index("ix_stock_ledger_performed_by", "performed_by"),
+    )
+
+
+class PurchaseOrder(Base, UUIDPk, Timestamps):
+    __tablename__ = "purchase_orders"
+
+    po_number: Mapped[str] = mapped_column(String(30), nullable=False, unique=True)
+    supplier_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    expected_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    facility_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("facilities.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft','approved','sent','partially_received','received','cancelled')",
+            name="status",
+        ),
+        Index("ix_purchase_orders_supplier_id", "supplier_id"),
+        Index("ix_purchase_orders_facility_id", "facility_id"),
+    )
+
+
+class PurchaseOrderItem(Base, UUIDPk, Timestamps):
+    __tablename__ = "purchase_order_items"
+
+    purchase_order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("purchase_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="quantity_positive"),
+        Index("ix_purchase_order_items_purchase_order_id", "purchase_order_id"),
+    )
+
+
+class StockTransfer(Base, UUIDPk, Timestamps):
+    __tablename__ = "stock_transfers"
+
+    from_location_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_locations.id", ondelete="RESTRICT"), nullable=False
+    )
+    to_location_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stock_locations.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="requested")
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('requested','in_transit','received','cancelled')", name="status"
+        ),
+        CheckConstraint("from_location_id <> to_location_id", name="distinct_locations"),
+        Index("ix_stock_transfers_from_location_id", "from_location_id"),
+        Index("ix_stock_transfers_to_location_id", "to_location_id"),
+    )
+
+
+class StockTransferItem(Base, UUIDPk, Timestamps):
+    __tablename__ = "stock_transfer_items"
+
+    stock_transfer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("stock_transfers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_batches.id", ondelete="RESTRICT"), nullable=True
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="quantity_positive"),
+        Index("ix_stock_transfer_items_stock_transfer_id", "stock_transfer_id"),
+        Index("ix_stock_transfer_items_batch_id", "batch_id"),
     )

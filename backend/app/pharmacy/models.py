@@ -135,6 +135,9 @@ class Grn(Base, UUIDPk, Timestamps, Blame):
     supplier_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("suppliers.id"), nullable=False
     )
+    purchase_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("purchase_orders.id", ondelete="RESTRICT"), nullable=True
+    )
     invoice_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     received_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -146,6 +149,7 @@ class Grn(Base, UUIDPk, Timestamps, Blame):
         ),
         Index("ix_grn_facility_id", "facility_id"),
         Index("ix_grn_supplier_id", "supplier_id"),
+        Index("ix_grn_purchase_order_id", "purchase_order_id"),
         Index("ix_grn_created_by", "created_by"),
         Index("ix_grn_updated_by", "updated_by"),
     )

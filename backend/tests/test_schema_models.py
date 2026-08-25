@@ -11,6 +11,10 @@ def test_inventory_and_pharmacy_models_registered_in_metadata():
         "stock_locations",
         "inventory_batches",
         "stock_ledger",
+        "purchase_orders",
+        "purchase_order_items",
+        "stock_transfers",
+        "stock_transfer_items",
         "pharmacy_dispenses",
         "pharmacy_dispense_items",
         "grn",
@@ -28,8 +32,10 @@ def test_inventory_batches_columns_and_constraints():
     t = Base.metadata.tables["inventory_batches"]
     assert "row_version" in t.columns
     assert "quantity" in t.columns
+    assert "reserved_quantity" in t.columns
     ck_names = [c.name for c in t.constraints if hasattr(c, "name") and c.name]
     assert "ck_inventory_batches_quantity" in ck_names
+    assert "ck_inventory_batches_reserved_quantity" in ck_names
     uq_names = [c.name for c in t.constraints if hasattr(c, "name") and c.name]
     assert "uq_inventory_batches_item_id_batch_number_stock_location_id" in uq_names
 
@@ -104,6 +110,7 @@ def test_grn_constraint_names():
     t = Base.metadata.tables["grn"]
     ck_names = [c.name for c in t.constraints if hasattr(c, "name") and c.name]
     assert "ck_grn_status" in ck_names
+    assert "purchase_order_id" in t.columns
 
 
 def test_indents_constraint_names():
