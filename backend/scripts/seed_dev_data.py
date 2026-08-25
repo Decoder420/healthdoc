@@ -42,6 +42,9 @@ DISPLAY_NAMES = {
     "dev.auditor": "Dev Auditor",
     "dev.patient": "Dev Patient",
     "dev.hod": "Dev Head of Department",
+    "dev.emergency": "Dev Emergency Registrar",
+    "dev.supervisor": "Dev Records Supervisor",
+    "dev.superadmin": "Dev Platform Superadmin",
 }
 
 
