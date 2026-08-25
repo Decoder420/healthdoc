@@ -55,8 +55,8 @@ migrate:          ## Apply DB migrations
 revision:         ## New migration: make revision m="add foo table"
 	$(COMPOSE) exec backend alembic revision --autogenerate -m "$(m)"
 
-test:             ## Backend tests
-	$(COMPOSE) exec backend pytest -q
+test:             ## Backend tests: make test p=tests/foo.py k=test_name
+	$(COMPOSE) exec backend pytest $(if $(k),-k "$(k)",) $(if $(p),$(p),) -q
 
 test-db:          ## Create + migrate the test database (idempotent)
 	@$(COMPOSE) exec -T postgres psql -U $(POSTGRES_USER) -d postgres -tc \

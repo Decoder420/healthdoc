@@ -133,6 +133,23 @@ services:
         condition: service_healthy
     volumes:
       - ../backend:/code
+      # Read-only, and NOT for the application — app/ must never reach outside
+      # /code. This exists for two tests that exercise deploy/security scripts
+      # living at the repo root: tests/test_render_keycloak_realm.py and
+      # tests/test_zap_report_gate.py both load their subject via
+      # `Path(__file__).parents[2] / "scripts" / ...`.
+      #
+      # On the CI runner and on the host venv that resolves to the repo root and
+      # both tests run. In here /code/tests/x.py has parents[2] == "/", so they
+      # looked for /scripts, raised FileNotFoundError AT IMPORT, and took the
+      # ENTIRE collection down with them — `make test` could not run a single
+      # test, including unrelated ones.
+      #
+      # Mounted rather than skipped on purpose. A module-level skip would have
+      # made two security-gate tests quietly disappear from every local run,
+      # which is the same "failure that looks like nothing happened" this repo
+      # keeps paying for.
+      - ../scripts:/scripts:ro
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
