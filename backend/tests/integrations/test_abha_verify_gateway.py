@@ -81,6 +81,14 @@ async def test_auth_failure_logs_at_error_not_as_offline(monkeypatch, caplog):
     reported the way an unreachable gateway is. The old bare `except Exception`
     logged both as "proceeding offline", which is precisely why a permanently
     broken integration survived in the tree.
+
+    ASSERTED ON LEVEL, NOT WORDING. The first version of this test checked
+    `"offline" not in message` and failed against a message reading "DOWN, not
+    offline" — it matched the very word the message uses to DENY the thing
+    being tested. Log prose is not an interface; the level is. An operator
+    filtering at ERROR is the actual mechanism that separates "our credentials
+    are wrong" from "the gateway is down", so that separation is what gets
+    asserted here and in the sibling test below.
     """
     from app.integrations.abdm.client import AbdmAuthError
 
@@ -92,9 +100,10 @@ async def test_auth_failure_logs_at_error_not_as_offline(monkeypatch, caplog):
 
     errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert errors, "credential failure was not logged at ERROR"
-    assert "offline" not in errors[0].getMessage().lower(), (
-        "a credentials fault is being reported as an offline facility"
-    )
+    # The one piece of wording that IS load-bearing: the old code's phrasing.
+    # "proceeding offline" is what made this indistinguishable from a rural
+    # facility, so its exact reappearance is worth catching.
+    assert "proceeding offline" not in errors[0].getMessage().lower()
 
 
 async def test_unavailable_gateway_is_the_real_degradation_case(monkeypatch, caplog):
