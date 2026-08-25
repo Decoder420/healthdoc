@@ -1452,10 +1452,14 @@ table** — 0024 adds `adjustments.adjustment_type varchar(30)`
 ```
 machine_id varchar(50) NOT NULL · department_id UUID NULL → departments
 maintenance_type varchar(50) (preventive|breakdown|calibration|qa_check)
-performed_at timestamptz NOT NULL · performed_by_vendor text · downtime_minutes int · notes text
-notes        text NOT NULL                      -- 0024. NOT mapped by the ORM; the table has no
-                                                -- model at all — see §3-end note.
+performed_at timestamptz NOT NULL · performed_by_vendor text NULL
+downtime_minutes int NULL · notes text NULL
 ```
+
+The API requires `department_id` for new records and scopes reads through that
+department's facility. Migration 0024 left the column nullable and provided no
+facility column; rows with a NULL department therefore cannot be assigned to a
+tenant safely and are deliberately not exposed by the API.
 
 **staff_certifications / staff_training_records** (0025, B1) `[Blame]` — NABH HRM
 ```
@@ -1895,7 +1899,6 @@ with a pointer here.
 | `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
 | `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
 | `consent_records.consent_manager_id` | 0022a | `UUID` nullable. DPDP Rules 2025 consent-manager linkage; `consent_managers` exists but nothing populates either side. |
-| `machine_maintenance_logs.notes` | 0024 | `text` nullable — and the whole TABLE has no ORM model or code. |
 
 > **One row left this table.** `orders.fulfilment_mode` was here until it was
 > mapped and wired: §2 v3.3 rule 1 says an order for a disabled module is
@@ -1906,10 +1909,10 @@ with a pointer here.
 
 ### 3-end (b) — tables with no model and no code at all
 
-Beyond the individual columns above, **eight whole tables** are created by a
+Beyond the individual columns above, **seven whole tables** are created by a
 migration and referenced by no application code whatsoever. Not "unmapped but
 used via raw SQL" — `accession_counters` and `policies` are unmapped and heavily
-used, and are correctly absent from this list. These eight are touched by
+used, and are correctly absent from this list. These seven are touched by
 nothing.
 
 | Table | Migration | What it was meant to be |
@@ -1921,9 +1924,8 @@ nothing.
 | `purchase_order_items` | 0024 | Lines of the above. |
 | `stock_transfers` | 0024 | Inter-location stock movement. |
 | `stock_transfer_items` | 0024 | Lines of the above. |
-| `machine_maintenance_logs` | 0024 | NABH equipment-maintenance record. |
 
-**Why this matters more than it looks.** Three of the eight are DPDP compliance
+**Why this matters more than it looks.** Three of the seven are DPDP compliance
 obligations, not conveniences: a published DPO and a grievance channel are
 things the Act requires a data fiduciary to *have*. The schema was written as
 though they exist. Anyone auditing the database would conclude they do.
