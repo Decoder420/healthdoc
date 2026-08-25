@@ -172,6 +172,7 @@ do not merge out of order.**
 | 0051 | patient_portal_bindings | patient_portal_bindings | B2/F1 (#228, #234) — append-only, audited proof linking one active Keycloak-backed user to one active patient after ABHA OTP or in-person document verification. Revocation retains the verification history; portal requests never accept a patient id. |
 | 0052 | external_results_append_only | order_external_results | B3 (#450) — trigger only; outside-result corrections append a new row and UPDATE/DELETE cannot rewrite history. |
 | 0053 | grievance_counters | grievance_counters; ALTER patient_grievances: grievance_number varchar(50) | B7 (#451) — atomic per-facility/day server numbering without truncating a permitted 20-character facility code. |
+| 0054 | inventory_reservations | ALTER inventory_batches: reserved_quantity numeric(12,2) | B6 (#452) — durable source-batch reservation between transfer dispatch and receipt; every stock-out path uses quantity minus reservations. |
 
 Because you're working in parallel: if the previous migration isn't merged yet, set
 `down_revision` to its number anyway and coordinate merge order in the team channel.
@@ -948,6 +949,8 @@ batch_number varchar(50) NOT NULL
 expiry_date date NOT NULL                        -- NO CHECK against CURRENT_DATE (Riya: that
                                                  -- check breaks old rows; expiry is a query/logic concern)
 quantity numeric(12,2) NOT NULL CHECK (quantity >= 0)
+reserved_quantity numeric(12,2) NOT NULL DEFAULT 0
+  CHECK (reserved_quantity >= 0 AND reserved_quantity <= quantity) -- 0054; in-transit stock
 purchase_rate numeric(12,2) · issue_rate_mrp numeric(12,2)
 stock_location_id UUID NOT NULL → stock_locations
 UNIQUE (item_id, batch_number, stock_location_id)
@@ -993,8 +996,8 @@ expiry_override_reason text NULL                -- 0013. trg_pharmacy_dispense_i
                                                 -- unless overridden; the override is named and reasoned.
 ```
 
-**grn** `[Blame]` — `facility_id UUID NOT NULL → facilities · supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled) · purchase_order_id UUID NOT NULL`
-> `purchase_order_id` (0024) is NOT mapped by the ORM — see the §3-end note on unmapped columns.
+**grn** `[Blame]` — `facility_id UUID NOT NULL → facilities · supplier_id → suppliers · invoice_number varchar(50) · received_date date NOT NULL · status varchar(30) (draft|received|verified|cancelled) · purchase_order_id UUID NULL → purchase_orders`
+> `purchase_order_id` remains optional for donations and emergency local purchases. When set, the API enforces facility, supplier, ordered-item and remaining-quantity agreement; verification advances the PO deterministically to `partially_received` or `received`.
 **grn_items** — `grn_id → grn CASCADE · item_id → inventory_items · batch_number · expiry_date · quantity numeric CHECK (>0) · unit_price numeric(12,2)`
 **indents** `[Blame]` — `facility_id UUID NOT NULL → facilities · department_id → departments · status varchar(30) (requested|approved|rejected|issued) · approved_by UUID NULL → users`
 **indent_items** — `indent_id → indents CASCADE · item_id → inventory_items · quantity_requested numeric CHECK (>0)`
@@ -1459,6 +1462,11 @@ Each leg writes `stock_ledger` (`transfer` out / in). **Damage write-offs are NO
 table** — 0024 adds `adjustments.adjustment_type varchar(30)`
 (`damage|expiry|count_error|other`); the dual-signoff flow already covers them.
 
+Migration 0054 adds a durable reservation to each source batch. Dispatch locks
+the batch and reserves only uncommitted stock; receipt releases the reservation
+and writes equal negative/source and positive/destination ledger legs in one
+transaction. Cancellation of an in-transit transfer releases the reservation.
+
 **machine_maintenance_logs** (0024, B6/B5) `[Blame]` — radiology/lab equipment
 ```
 machine_id varchar(50) NOT NULL · department_id UUID NULL → departments
@@ -1908,7 +1916,6 @@ with a pointer here.
 | Column | Migration | Note |
 |---|---|---|
 | `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
-| `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
 
 > **Historical cleanup note.** `orders.fulfilment_mode` was listed here until it was
 > mapped and wired: §2 v3.3 rule 1 says an order for a disabled module is
@@ -1919,39 +1926,18 @@ with a pointer here.
 
 ### 3-end (b) — tables with no model and no code at all
 
-Beyond the individual columns above, **four whole tables** are created by a
-migration and referenced by no application code whatsoever. Not "unmapped but
-used via raw SQL" — `accession_counters` and `policies` are unmapped and heavily
-used, and are correctly absent from this list. These four are touched by
-nothing.
-
-| Table | Migration | What it was meant to be |
-|---|---|---|
-| `purchase_orders` | 0024 | Procurement upstream of GRN. `grn.purchase_order_id` points here and is always null, so goods are received against no order. |
-| `purchase_order_items` | 0024 | Lines of the above. |
-| `stock_transfers` | 0024 | Inter-location stock movement. |
-| `stock_transfer_items` | 0024 | Lines of the above. |
+There are now **zero whole tables** in this category. Purchase orders and stock
+transfers left the list in #452 when their facility-scoped state machines,
+PO-linked receiving, batch reservations, balanced transfer ledger entries and
+HTTP APIs were implemented.
 
 The DPDP DPO, grievance, and consent-manager tables left this list in #451 when
 their facility-scoped workflows were implemented. Production population still
 requires the hospital's real DPO identity and approved grievance SLA; neither is
 seeded or fabricated by the application.
 
-None of this breaks a running system — every dependent column is nullable, so
-the product works with them empty. The risk is a reader, or an assessor,
-inferring capability from schema.
-
-Deciding which of these to build, and when, is a product and compliance call.
-Recorded here so the choice is explicit rather than discovered.
-
-This is the same shape as `kpi_snapshots` before the reports module was built:
-an unmapped table or column is a feature nobody finished, not a documentation
-gap. Deciding what each of these should do is a product question — recorded
-here rather than guessed at.
-
-**These are not release blockers.** Every one is either nullable or defaulted,
-so nothing fails today; the risk is a future reader assuming the feature exists
-because the column does.
+The remaining individual unmapped column above is explicit technical debt; it
+does not imply an otherwise missing whole workflow.
 
 
 ## 4. API field contract (backend → frontend)
