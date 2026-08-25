@@ -2,7 +2,7 @@
  
 import { useState } from "react";
  
-import { addHandover } from "@/features/nurse/services/nurse.service";
+import { addHandover } from "@/features/nurse/api/nursing";
 import type { AddHandoverSchema } from "@/features/nurse/components/AddHandoverForm/validation";
  
 export function useAddHandover() {

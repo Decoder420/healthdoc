@@ -69,9 +69,13 @@ export default function AddProcedureAssistanceForm({
   return (
     <FormSection
       title="Procedure Assistance"
-      description="Record a procedure this nurse assisted with."
+      description="Not available — no published nurse procedure-assistance write contract."
     >
-      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+      <p className="mb-4 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        Disabled in this build. Use doctor procedure orders for bedside documentation.
+        The form fields below are kept for schema shape only and will not submit.
+      </p>
+      <form onSubmit={(e) => e.preventDefault()} className="pointer-events-none space-y-6 opacity-50">
         <div className="grid gap-5 md:grid-cols-2">
           <TextField
             label="Procedure Name"

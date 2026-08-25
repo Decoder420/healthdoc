@@ -134,6 +134,7 @@ def backend_routes() -> dict[tuple[str, str], str]:
 REMEDIATIONS = (
     ("POST /vitals", "Fixed", "POST /nursing/vitals"),
     ("POST /nursing/handover-notes", "Disabled", "No published write contract"),
+    ("GET /nursing/admissions/{param}/handover-notes", "Disabled", "No published read contract"),
     ("POST /nursing/movement", "Fixed", "POST /admissions/{admission_id}/transfer"),
     ("POST /procedures", "Fixed", "Facility-scoped, idempotent procedure record contract added"),
     ("POST /nursing/notes", "Disabled", "No published write contract"),

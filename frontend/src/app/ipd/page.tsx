@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 
-import AdmissionForm from "@/features/ipd/AdmissionForm";
-import DischargeForm from "@/features/ipd/DischargeForm";
+import AdmissionForm from "@/features/ipd/components/AdmissionForm";
+import DischargeForm from "@/features/ipd/components/DischargeForm";
 import AddPatientMovementForm from "@/components/AddPatientMovementForm";
 
 import { useAddAdmission, useAddDischarge } from "@/features/ipd/hooks";
@@ -15,19 +15,11 @@ import {
   getDischarges,
   type Admission,
   type Discharge,
-} from "@/features/ipd/services/ipd.service";
-import { MODULE_LABELS } from "@/features/ipd/DischargeForm/constants";
-import type { TargetModule } from "@/features/ipd/DischargeForm/DischargeForm.types";
+} from "@/features/ipd/api/ipd";
+import { DEFAULT_NOTIFICATION_PREVIEW } from "@/features/ipd/constants";
 
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
 import { flattenBedGrids, type Bed } from "@/components/BedGrid/BedGrid.types";
-
-// Static preview: all modules always get notified on discharge, all start
-// 'queued' (discharge_notifications default, migration 0026). No
-// per-admission preview endpoint is documented, so this is a fixed list.
-const DEFAULT_NOTIFICATION_PREVIEW = (Object.keys(MODULE_LABELS) as TargetModule[]).map(
-  (mod) => ({ target_module: mod, status: "queued" as const })
-);
 
 type Tab = "dashboard" | "admit" | "transfer" | "discharge";
 

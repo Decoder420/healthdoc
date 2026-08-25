@@ -4,11 +4,11 @@ export interface HandoverNote {
   id: string;
   admission_id: string;
   shift: Shift;
-  situation: string;
-  background: string;
-  assessment: string;
-  recommendation: string;
-  handed_over_to: string; 
+  situation: string | null;
+  background: string | null;
+  assessment: string | null;
+  recommendation: string | null;
+  handed_over_to: string;
   created_by?: string;
   created_at?: string;
 }
