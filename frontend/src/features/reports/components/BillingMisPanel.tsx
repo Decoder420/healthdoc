@@ -24,7 +24,10 @@ import type {
 
 /**
  * Live BE surface: GET /billing/mis/*
- * (Separate from kpi_snapshots / GET /reports/kpis — schema-documented but not implemented on BE yet.)
+ * Separate from GET /reports/kpis, which IS implemented and is what MisDashboard
+ * uses. The distinction is deliberate: billing MIS computes LIVE because a
+ * cashier closing the till needs today's number, while a KPI snapshot is a
+ * value committed for a period that has ended and must not move when reopened.
  */
 export function BillingMisPanel() {
   const [revenue, setRevenue] = useState<DailyRevenueResponse | null>(null);

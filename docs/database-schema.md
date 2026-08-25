@@ -671,8 +671,9 @@ accepted_by    UUID NULL → users                -- 0045. happened and lost who
 completed_at   timestamptz NULL                 -- 0045. carry the evidence; null until the
 completed_by   UUID NULL → users                -- 0045. corresponding transition occurs.
 completion_note text NULL                       -- 0045. Optional remark recorded at completion.
-fulfilment_mode varchar(50) NOT NULL DEFAULT 'in_house'  -- 0027. in_house | external_referral.
-                                                -- NOT mapped by the ORM and read by no code path
+fulfilment_mode varchar(50) NOT NULL DEFAULT 'internal'  -- 0027. FulfilmentMode enum.
+                                                -- NOT mapped by the ORM and read by no code
+                                                -- path, so every order is 'internal'
                                                 -- — see §3-end note.
 ```
 
@@ -1888,11 +1889,42 @@ with a pointer here.
 
 | Column | Migration | Note |
 |---|---|---|
-| `orders.fulfilment_mode` | 0027 | NOT NULL with a server default. §2's v3.3 changelog describes "external-referral fulfilment on orders" as delivered, but nothing reads this column — every order is `in_house` by default and no code can set anything else. |
-| `adjustments.adjustment_type` | 0024 | NOT NULL. The adjustment workflow works without it because of the server default. |
-| `grn.purchase_order_id` | 0024 | NOT NULL. There is no `purchase_orders` table, so this references nothing. |
-| `consent_records.consent_manager_id` | 0022a | NOT NULL. DPDP Rules 2025 consent-manager linkage; the consent module does not populate it. |
-| `machine_maintenance_logs.notes` | 0024 | The whole TABLE has no ORM model. |
+| `orders.fulfilment_mode` | 0027 | `varchar(50) NOT NULL DEFAULT 'internal'`. §2's v3.3 changelog describes "external-referral fulfilment on orders" as delivered, but nothing reads or writes this column — every order is `internal` and no code path can set anything else. |
+| `adjustments.adjustment_type` | 0024 | `varchar(30)` nullable. The adjustment workflow never sets it. |
+| `grn.purchase_order_id` | 0024 | `UUID` nullable, FK → `purchase_orders` ON DELETE RESTRICT. The target table exists (0024) but has no model and no code, so this is always null — goods are received without a purchase order. |
+| `consent_records.consent_manager_id` | 0022a | `UUID` nullable. DPDP Rules 2025 consent-manager linkage; `consent_managers` exists but nothing populates either side. |
+| `machine_maintenance_logs.notes` | 0024 | `text` nullable — and the whole TABLE has no ORM model or code. |
+
+### 3-end (b) — tables with no model and no code at all
+
+Beyond the individual columns above, **eight whole tables** are created by a
+migration and referenced by no application code whatsoever. Not "unmapped but
+used via raw SQL" — `accession_counters` and `policies` are unmapped and heavily
+used, and are correctly absent from this list. These eight are touched by
+nothing.
+
+| Table | Migration | What it was meant to be |
+|---|---|---|
+| `data_protection_officers` | 0022a | DPDP Rules 2025 require a named DPO whose contact is published to data principals. |
+| `patient_grievances` | 0022a | DPDP requires a grievance-redressal mechanism. `GrievanceType` enum exists, including `erasure`. |
+| `consent_managers` | 0022a | DPDP consent-manager registry; `consent_records.consent_manager_id` points here and is always null. |
+| `purchase_orders` | 0024 | Procurement upstream of GRN. `grn.purchase_order_id` points here and is always null, so goods are received against no order. |
+| `purchase_order_items` | 0024 | Lines of the above. |
+| `stock_transfers` | 0024 | Inter-location stock movement. |
+| `stock_transfer_items` | 0024 | Lines of the above. |
+| `machine_maintenance_logs` | 0024 | NABH equipment-maintenance record. |
+
+**Why this matters more than it looks.** Three of the eight are DPDP compliance
+obligations, not conveniences: a published DPO and a grievance channel are
+things the Act requires a data fiduciary to *have*. The schema was written as
+though they exist. Anyone auditing the database would conclude they do.
+
+None of this breaks a running system — every dependent column is nullable, so
+the product works with them empty. The risk is a reader, or an assessor,
+inferring capability from schema.
+
+Deciding which of these to build, and when, is a product and compliance call.
+Recorded here so the choice is explicit rather than discovered.
 
 This is the same shape as `kpi_snapshots` before the reports module was built:
 an unmapped table or column is a feature nobody finished, not a documentation
