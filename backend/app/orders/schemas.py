@@ -1,10 +1,10 @@
 """backend/app/orders/schemas.py -- request/response models for order creation. Field names match DB columns (schema doc §4.2)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OrderCreate(BaseModel):
@@ -41,6 +41,47 @@ class OrderOut(BaseModel):
 
 class OrderListOut(BaseModel):
     items: list[OrderOut]
+
+
+class ExternalResultCreate(BaseModel):
+    provider_name: str | None = Field(default=None, max_length=500)
+    summary: str = Field(min_length=1, max_length=10_000)
+    result_file_id: UUID | None = None
+    observed_on: date | None = None
+
+    @field_validator("provider_name", "summary")
+    @classmethod
+    def strip_non_blank_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("must not be blank")
+        return normalized
+
+    @field_validator("observed_on")
+    @classmethod
+    def observed_date_cannot_be_future(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("observed_on cannot be in the future")
+        return value
+
+
+class ExternalResultOut(BaseModel):
+    id: UUID
+    order_id: UUID
+    provider_name: str | None
+    summary: str
+    result_file_id: UUID | None
+    observed_on: date | None
+    recorded_by: UUID
+    recorded_at: datetime
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ExternalResultListOut(BaseModel):
+    items: list[ExternalResultOut]
 
 
 class PrescriptionItemCreate(BaseModel):
