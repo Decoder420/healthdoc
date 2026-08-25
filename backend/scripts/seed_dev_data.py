@@ -79,6 +79,16 @@ async def seed(users: list[tuple[str, str]]) -> None:
         )
 
         for username, subject in users:
+            # Computed once and used by BOTH branches below.
+            #
+            # The first version of this repeated the ternary inside each
+            # parameter dict and I added it to only one of them — the two dicts
+            # are indented differently, so a find-and-replace matched the UPDATE
+            # and missed the INSERT, and `make setup` died on "A value is
+            # required for bind parameter 'department_id'". One expression, two
+            # readers: they cannot disagree.
+            department_id = DEPARTMENT_ID if username in DEPARTMENTAL_USERS else None
+
             existing = (
                 await session.execute(
                     text("SELECT id FROM users WHERE username = :username"),
@@ -106,9 +116,7 @@ async def seed(users: list[tuple[str, str]]) -> None:
                         "full_name": DISPLAY_NAMES.get(username, username),
                         "email": f"{username}@healthdoc.local",
                         "facility_id": FACILITY_ID,
-                        "department_id": (
-                            DEPARTMENT_ID if username in DEPARTMENTAL_USERS else None
-                        ),
+                        "department_id": department_id,
                     },
                 )
                 continue
@@ -139,6 +147,7 @@ async def seed(users: list[tuple[str, str]]) -> None:
                     "full_name": DISPLAY_NAMES.get(username, username),
                     "email": f"{username}@healthdoc.local",
                     "facility_id": FACILITY_ID,
+                    "department_id": department_id,
                 },
             )
 
