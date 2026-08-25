@@ -45,7 +45,10 @@ export type AuditLogListResponse = {
   total: number;
 };
 
-/** Schema §4.4 data_access_log — GET /audit/access-log (not implemented on BE yet). */
+/** Schema §4.4 data_access_log — GET /audit/data-access. The endpoint is live
+ *  (audit/compliance_router.py); this comment previously said 'not implemented
+ *  on BE yet' while the file's own filter comment 20 lines below already
+ *  described the real server parameter. */
 export type DataAccessLog = {
   id: string;
   user_id: string;
