@@ -1,7 +1,14 @@
-﻿export default function Page() {
+"use client";
+
+import Box from "@mui/material/Box";
+
+import { AuditTrailDashboard } from "@/features/audit-viewer";
+
+/** Auditor workplace — not nested under Admin. */
+export default function Page() {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Audit Viewer</h1>
-    </main>
+    <Box sx={{ mx: "auto", maxWidth: 1280, px: { xs: 2, md: 3 }, py: 3 }}>
+      <AuditTrailDashboard />
+    </Box>
   );
 }

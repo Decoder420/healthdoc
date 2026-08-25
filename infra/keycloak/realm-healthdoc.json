@@ -4,13 +4,20 @@
   "sslRequired": "external",
   "registrationAllowed": false,
   "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 900,
+  "maxFailureWaitSeconds": 900,
+  "permanentLockout": false,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
   "accessTokenLifespan": 900,
   "ssoSessionIdleTimeout": 1800,
   "roles": {
     "realm": [
       {
         "name": "superadmin",
-        "description": "Cloud-only platform owner: facilities, facility admins, DPO appointments, cross-facility MIS. No clinical data access."
+        "description": "Cloud-only platform owner: facilities, facility admins, DPO appointments, cross-facility MIS. NEVER patient/clinical data \u2014 including no merge/unmerge."
       },
       {
         "name": "receptionist",
@@ -41,12 +48,16 @@
         "description": "Emergency / THID fast registration"
       },
       {
+        "name": "hod",
+        "description": "Head of Department: runs ONE department (roster, queue oversight/reassignment, indent approval, dept dashboard). Scoped by users.department_id. MFA required."
+      },
+      {
         "name": "supervisor",
-        "description": "THID merge approval, overrides"
+        "description": "Records authority: THID\u2192UHID merge approval, unmerge, identity overrides. MFA required. Deliberately NOT a department manager."
       },
       {
         "name": "admin",
-        "description": "Users, departments, registration-payment config, MIS"
+        "description": "Facility configuration: users + account approvals, departments/rooms, assigns HODs, module toggles, billing config, facility MIS. Not a clinical or records authority."
       },
       {
         "name": "auditor",
@@ -73,6 +84,19 @@
       "webOrigins": [
         "https://localhost",
         "http://localhost:3000"
+      ],
+      "protocolMappers": [
+        {
+          "name": "Authentication Method Reference",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
@@ -120,6 +144,74 @@
       ],
       "realmRoles": [
         "doctor"
+      ]
+    },
+    {
+      "username": "dev.nurse",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Nurse",
+      "email": "dev.nurse@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "nurse"
+      ]
+    },
+    {
+      "username": "dev.labtech",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Lab Technician",
+      "email": "dev.labtech@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "lab_tech"
+      ]
+    },
+    {
+      "username": "dev.radiology",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Radiology Technician",
+      "email": "dev.radiology@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "radiology_tech"
+      ]
+    },
+    {
+      "username": "dev.pharmacist",
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Pharmacist",
+      "email": "dev.pharmacist@healthdoc.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "devpass",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "pharmacist"
       ]
     },
     {

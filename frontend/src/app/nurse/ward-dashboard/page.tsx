@@ -1,7 +1,450 @@
-﻿export default function Page() {
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import AddPatientMovementForm from "@/components/AddPatientMovementForm";
+import { useAddPatientMovement } from "@/components/AddPatientMovementForm/useAddPatientMovement";
+import BedGrid from "@/components/BedGrid";
+import { flattenBedGrids, type Bed } from "@/components/BedGrid/BedGrid.types";
+import EMARTable from "@/components/tables/EMARTable";
+import type { MedicationRecord } from "@/components/tables/EMARTable/EMARTable.types";
+import VitalsTimeline, { VitalsChart } from "@/components/VitalsTimeline";
+import type { VitalRecord } from "@/components/VitalsTimeline/VitalsTimeline.types";
+import type {
+  Discharge,
+  DischargeSummary,
+} from "@/features/ipd/services/ipd.service";
+import {
+  getActiveAdmissions,
+  getBeds,
+  getDischarges,
+  getWards,
+} from "@/features/ipd/services/ipd.service";
+import AddIntakeOutputForm from "@/features/nurse/components/AddIntakeOutputForm";
+import AddVitalsForm from "@/features/nurse/components/AddVitalsForm";
+import TaskQueue, { type Order } from "@/features/nurse/components/TaskQueue";
+import WardSelector from "@/features/nurse/components/WardSelector";
+import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
+import { useAddIntakeOutput } from "@/features/nurse/hooks/useAddIntakeOutput";
+import { useAddVitals } from "@/features/nurse/hooks/useAddVitals";
+import {
+  completeNursingTask,
+  getAdmissionFluidBalance,
+  getAdmissionMedicationAdministrations,
+  getAdmissionSummary,
+  getNursingTasks,
+  getPatientVitals,
+  type FluidBalance,
+  type NursingTask,
+} from "@/features/nurse/services/nurse.service";
+import { formatDateTime } from "@/lib/api";
+
+type PatientAction = "vitals" | "fluid" | "transfer" | null;
+
+function toOrder(task: NursingTask): Order {
+  return {
+    id: task.id,
+    encounter_id: task.encounter_id,
+    patient_id: task.patient_id,
+    order_type: task.order_type,
+    priority: task.priority,
+    status: task.status,
+    ordered_at: task.ordered_at,
+  };
+}
+
+function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Nurse / Ward Dashboard</h1>
+    <div className="surface-card p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+export default function Page() {
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [allBeds, setAllBeds] = useState<Bed[]>([]);
+  const [selectedWard, setSelectedWard] = useState("");
+  const [selectedBedId, setSelectedBedId] = useState<string | null>(null);
+  const [discharges, setDischarges] = useState<Discharge[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [taskQueueStatus, setTaskQueueStatus] = useState<
+    "loading" | "connected" | "error"
+  >("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [vitals, setVitals] = useState<VitalRecord[]>([]);
+  const [fluidBalance, setFluidBalance] = useState<FluidBalance | null>(null);
+  const [medications, setMedications] = useState<MedicationRecord[]>([]);
+  const [summary, setSummary] = useState<DischargeSummary | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<PatientAction>(null);
+
+  const { submitVitals, isSubmitting: isSubmittingVitals } = useAddVitals();
+  const { submitIntakeOutput, isSubmitting: isSubmittingFluid } = useAddIntakeOutput();
+  const { submitPatientMovement, isSubmitting: isSubmittingTransfer } =
+    useAddPatientMovement();
+
+  const loadBase = useCallback(async () => {
+    setLoadError(null);
+    setTaskQueueStatus("loading");
+    try {
+      const wardRows = await getWards();
+      const [bedGrids, admissionRows, dischargeRows, taskRows] = await Promise.all([
+        Promise.all(wardRows.map((ward) => getBeds(ward.id))),
+        getActiveAdmissions(),
+        getDischarges(),
+        getNursingTasks(),
+      ]);
+      void admissionRows;
+      setWards(wardRows);
+      setAllBeds(flattenBedGrids(bedGrids));
+      setDischarges(dischargeRows);
+      setOrders(taskRows.map(toOrder));
+      setSelectedWard((current) =>
+        wardRows.some((ward) => ward.id === current) ? current : (wardRows[0]?.id ?? ""),
+      );
+      setTaskQueueStatus("connected");
+    } catch (reason) {
+      console.error("Unable to load live ward data", reason);
+      setLoadError("Unable to load live ward data. Check the API connection and retry.");
+      setTaskQueueStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBase();
+  }, [loadBase]);
+
+  const selectedBed = useMemo(
+    () => allBeds.find((bed) => bed.bed_id === selectedBedId) ?? null,
+    [allBeds, selectedBedId],
+  );
+  const occupant = selectedBed?.occupant ?? null;
+  const wardBeds = allBeds.filter((bed) => bed.ward_id === selectedWard);
+
+  const loadPatientDetail = useCallback(async (bed: Bed | null) => {
+    if (!bed?.occupant) {
+      setVitals([]);
+      setFluidBalance(null);
+      setMedications([]);
+      setSummary(null);
+      setDetailError(null);
+      return;
+    }
+    setDetailLoading(true);
+    setDetailError(null);
+    const [vitalsResult, fluidResult, emarResult, summaryResult] = await Promise.allSettled([
+      getPatientVitals(bed.occupant.patient_id),
+      getAdmissionFluidBalance(bed.occupant.admission_id),
+      getAdmissionMedicationAdministrations(bed.occupant.admission_id),
+      getAdmissionSummary(bed.occupant.admission_id),
+    ]);
+    setVitals(vitalsResult.status === "fulfilled" ? vitalsResult.value : []);
+    setFluidBalance(fluidResult.status === "fulfilled" ? fluidResult.value : null);
+    setMedications(emarResult.status === "fulfilled" ? emarResult.value : []);
+    setSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+    if ([vitalsResult, fluidResult, emarResult, summaryResult].some((entry) => entry.status === "rejected")) {
+      setDetailError("Some live patient panels could not be loaded. Retry before acting on this chart.");
+    }
+    setDetailLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadPatientDetail(selectedBed);
+  }, [loadPatientDetail, selectedBed]);
+
+  function changeWard(wardId: string) {
+    setSelectedWard(wardId);
+    setSelectedBedId(null);
+    setActiveAction(null);
+  }
+
+  function selectBed(bed: Bed) {
+    setSelectedBedId(bed.bed_id);
+    setActiveAction(null);
+  }
+
+  async function checkOff(orderId: string) {
+    try {
+      const completed = await completeNursingTask(orderId);
+      setOrders((current) =>
+        current.map((order) => (order.id === completed.id ? toOrder(completed) : order)),
+      );
+    } catch (reason) {
+      console.error("Unable to complete nursing task", reason);
+      setTaskQueueStatus("error");
+    }
+  }
+
+  const today = new Date().toDateString();
+  const dischargesToday = discharges.filter(
+    (discharge) => new Date(discharge.discharged_at).toDateString() === today,
+  ).length;
+  const patientOrders = occupant
+    ? orders.filter((order) => order.patient_id === occupant.patient_id)
+    : [];
+
+  const wardName = (wardId: string | null) =>
+    wards.find((ward) => ward.id === wardId)?.name ?? (wardId ? wardId.slice(0, 8) : "—");
+  const bedName = (bedId: string | null) =>
+    allBeds.find((bed) => bed.bed_id === bedId)?.bed_number ?? (bedId ? bedId.slice(0, 8) : "—");
+
+  return (
+    <main className="mx-auto max-w-screen-2xl space-y-8 px-6 py-8">
+      <section className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Nurse ward dashboard</h1>
+          <p className="mt-2 text-muted-foreground">
+            Live bed occupancy, observations, fluid balance, eMAR and outstanding orders.
+          </p>
+        </div>
+        <button type="button" onClick={() => void loadBase()} className="text-sm underline">
+          Refresh ward
+        </button>
+      </section>
+
+      {loadError ? (
+        <p role="alert" className="rounded-md bg-danger-muted p-4 text-sm text-danger">
+          {loadError}
+        </p>
+      ) : null}
+
+      {wards.length > 0 ? (
+        <WardSelector wards={wards} selectedWard={selectedWard} onChange={changeWard} />
+      ) : (
+        <div className="surface-card p-6 text-sm text-muted-foreground">Loading wards…</div>
+      )}
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        <Metric
+          label="Occupied beds"
+          value={wardBeds.filter((bed) => bed.status === "occupied").length}
+          detail="Live admissions in this ward"
+        />
+        <Metric
+          label="Vacant beds"
+          value={wardBeds.filter((bed) => bed.status === "vacant").length}
+          detail="Available now"
+        />
+        <Metric label="Discharges today" value={dischargesToday} detail="Facility-wide" />
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Pending doctor orders</h2>
+          <p className="text-sm text-muted-foreground">
+            Completing an order records the authenticated nurse and completion time.
+          </p>
+        </div>
+        <p
+          data-testid="nursing-api-status"
+          data-status={taskQueueStatus}
+          className={taskQueueStatus === "error" ? "text-sm text-danger" : "sr-only"}
+        >
+          {taskQueueStatus === "error"
+            ? "Unable to load nursing tasks. Check the API connection and retry."
+            : `Nursing API ${taskQueueStatus}`}
+        </p>
+        <TaskQueue orders={orders} onCheckOff={checkOff} />
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Ward overview</h2>
+          <p className="text-sm text-muted-foreground">
+            Occupants come directly from the active admission attached to each bed.
+          </p>
+        </div>
+        <BedGrid beds={wardBeds} selectedBedId={selectedBedId} onBedClick={selectBed} />
+      </section>
+
+      {!selectedBed ? (
+        <section className="surface-card p-6 text-sm text-muted-foreground">
+          Select a bed to open its live clinical panels.
+        </section>
+      ) : !occupant ? (
+        <section className="surface-card p-6 text-sm text-muted-foreground">
+          Bed {selectedBed.bed_number} has no active occupant.
+        </section>
+      ) : (
+        <>
+          <section className="surface-card space-y-3 p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">{occupant.patient_name ?? "Unnamed patient"}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {occupant.uhid ?? occupant.patient_id} · Bed {selectedBed.bed_number}
+                </p>
+              </div>
+              <span className="rounded-full bg-info-muted px-3 py-1 text-sm text-info">
+                Admitted {formatDateTime(occupant.admitted_at)}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Admission <span className="font-mono">{occupant.admission_id}</span>
+            </p>
+          </section>
+
+          {detailLoading ? <p className="text-sm text-muted-foreground">Loading patient chart…</p> : null}
+          {detailError ? (
+            <p role="alert" className="rounded-md bg-danger-muted p-4 text-sm text-danger">
+              {detailError}
+            </p>
+          ) : null}
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Vitals</h2>
+                <p className="text-sm text-muted-foreground">All recorded observations for this patient.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "vitals" ? null : "vitals")}
+              >
+                Record vitals
+              </button>
+            </div>
+            <VitalsTimeline records={vitals} />
+            <VitalsChart records={vitals} />
+            {activeAction === "vitals" ? (
+              <AddVitalsForm
+                patientId={occupant.patient_id}
+                admissionId={occupant.admission_id}
+                isSubmitting={isSubmittingVitals}
+                onSubmit={async (data) => {
+                  const ok = await submitVitals(data);
+                  if (ok) {
+                    setVitals(await getPatientVitals(occupant.patient_id));
+                    setActiveAction(null);
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Fluid balance</h2>
+                <p className="text-sm text-muted-foreground">Running admission totals from recorded intake/output.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "fluid" ? null : "fluid")}
+              >
+                Add intake/output
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Metric label="Intake" value={fluidBalance?.total_intake_ml ?? 0} detail="mL" />
+              <Metric label="Output" value={fluidBalance?.total_output_ml ?? 0} detail="mL" />
+              <Metric label="Net" value={fluidBalance?.net_ml ?? 0} detail="mL" />
+            </div>
+            {activeAction === "fluid" ? (
+              <AddIntakeOutputForm
+                admissionId={occupant.admission_id}
+                isSubmitting={isSubmittingFluid}
+                onSubmit={async (data) => {
+                  const ok = await submitIntakeOutput(data);
+                  if (ok) {
+                    setFluidBalance(await getAdmissionFluidBalance(occupant.admission_id));
+                    setActiveAction(null);
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">eMAR</h2>
+                <p className="text-sm text-muted-foreground">Recorded doses for this admission only.</p>
+              </div>
+              <Link href="/nurse/emar" className="text-sm underline">
+                Open full eMAR
+              </Link>
+            </div>
+            <EMARTable medications={medications} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold">Movement history</h2>
+                <p className="text-sm text-muted-foreground">Audited ward and bed changes for this admission.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setActiveAction(activeAction === "transfer" ? null : "transfer")}
+              >
+                Transfer patient
+              </button>
+            </div>
+            <div className="surface-card p-5">
+              {summary?.movements.length ? (
+                <ol className="space-y-3 text-sm">
+                  {summary.movements.map((movement) => (
+                    <li key={movement.id} className="border-b border-border pb-3 last:border-none last:pb-0">
+                      <strong>{wardName(movement.to_ward_id)} · Bed {bedName(movement.to_bed_id)}</strong>
+                      <span className="ml-2 text-muted-foreground">{formatDateTime(movement.moved_at)}</span>
+                      {movement.from_ward_id ? (
+                        <span className="mt-1 block text-muted-foreground">
+                          From {wardName(movement.from_ward_id)} · Bed {bedName(movement.from_bed_id)}
+                        </span>
+                      ) : null}
+                      {movement.reason ? <span className="mt-1 block">{movement.reason}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">No transfers recorded for this admission.</p>
+              )}
+            </div>
+            {activeAction === "transfer" ? (
+              <AddPatientMovementForm
+                admissionId={occupant.admission_id}
+                wards={wards}
+                beds={allBeds}
+                isSubmitting={isSubmittingTransfer}
+                onSubmit={async (data) => {
+                  const ok = await submitPatientMovement(data);
+                  if (ok) {
+                    setSelectedBedId(null);
+                    setActiveAction(null);
+                    await loadBase();
+                  }
+                  return ok;
+                }}
+              />
+            ) : null}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold">Outstanding orders for this patient</h2>
+            <TaskQueue orders={patientOrders} onCheckOff={checkOff} />
+          </section>
+
+          <section className="surface-card border border-warning p-5 text-sm">
+            <h2 className="font-semibold">Handover and procedure assistance</h2>
+            <p className="mt-2 text-muted-foreground">
+              These panels are intentionally unavailable: the backend has no published read/write
+              contract for them. No TypeScript fixture is shown as clinical history.
+            </p>
+          </section>
+        </>
+      )}
     </main>
   );
 }

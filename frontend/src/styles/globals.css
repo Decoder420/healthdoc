@@ -33,17 +33,6 @@
   --info: #001f54;
   --info-muted: #e8eef5;
 
-  /* Legacy aliases used by earlier Meridian wiring */
-  --color-brand-teal: var(--primary);
-  --color-brand-deep: #001536;
-  --color-canvas: var(--background);
-  --color-surface: var(--card);
-  --color-text-primary: var(--foreground);
-  --color-text-secondary: var(--muted-foreground);
-  --color-text-muted: var(--muted-foreground);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
 }
 
 .dark {
@@ -100,13 +89,14 @@
   --color-info: var(--info);
   --color-info-muted: var(--info-muted);
 
-  --color-brand-teal: var(--color-brand-teal);
-  --color-brand-deep: var(--color-brand-deep);
-  --color-canvas: var(--color-canvas);
-  --color-surface: var(--color-surface);
-  --color-text-primary: var(--color-text-primary);
-  --color-text-secondary: var(--color-text-secondary);
-  --color-text-muted: var(--color-text-muted);
+  /* Legacy Meridian aliases — must NOT self-reference (that breaks CSS vars) */
+  --color-brand-teal: var(--primary);
+  --color-brand-deep: #001536;
+  --color-canvas: var(--background);
+  --color-surface: var(--card);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-muted: var(--muted-foreground);
 
   --font-sans: var(--font-ibm-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
@@ -137,9 +127,9 @@
     @apply font-sans font-semibold tracking-tight text-foreground;
   }
 
+  /* Mono for dense UI chrome only — do not bind to size utilities (.text-sm),
+     or Tailwind text-sm body copy becomes monospace and looks broken. */
   small,
-  .text-xs,
-  .text-sm,
   label,
   th,
   caption {
@@ -176,6 +166,23 @@
 }
 
 @layer components {
+  .skip-link {
+    position: fixed;
+    left: 1rem;
+    top: 0.5rem;
+    z-index: 100;
+    transform: translateY(-160%);
+    border-radius: 0.5rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    padding: 0.625rem 1rem;
+    font-weight: 700;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
   .surface-card {
     @apply rounded-xl border border-border bg-card text-card-foreground shadow-sm;
   }

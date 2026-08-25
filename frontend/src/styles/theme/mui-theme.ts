@@ -2,7 +2,9 @@ import { createTheme } from "@mui/material/styles";
 import { meridian } from "./meridian";
 
 export const muiTheme = createTheme({
-  modularCssLayers: true,
+  // String form pins layer order so Tailwind @layer base (preflight) cannot
+  // zero-out MUI button/table padding — that was causing "merged" controls.
+  modularCssLayers: "@layer theme, base, mui, components, utilities;",
   palette: {
     mode: "light",
     primary: {

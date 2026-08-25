@@ -1,7 +1,402 @@
-﻿export default function Page() {
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { ModuleCapabilityGate } from "@/components/common/ModuleCapabilityGate";
+import {
+  draftRadiologyReport,
+  getRadiologyReports,
+  listRadiologyWork,
+  markScanComplete,
+  scheduleScan,
+  signOffRadiologyReport,
+} from "@/features/radiology/api";
+import type {
+  RadiologyOrderItem,
+  RadiologyReport,
+} from "@/features/radiology/types";
+import { ApiError, formatDateTime } from "@/lib/api";
+
+/**
+ * The radiology department screen. Was a title-only shell.
+ *
+ * Ordered by the workflow it drives — placed, scheduled, scanned, reporting,
+ * released — because that is how the department reads its own day: what is
+ * waiting to be booked, what is booked, what has been imaged and needs a
+ * radiologist.
+ */
+const WORKFLOW: { status: string; label: string; hint: string }[] = [
+  { status: "placed", label: "To schedule", hint: "Ordered, not yet booked onto a machine" },
+  { status: "scheduled", label: "Booked", hint: "Slot assigned; patient not yet imaged" },
+  { status: "scanned", label: "To report", hint: "Imaged, awaiting a radiologist" },
+  { status: "reporting", label: "Preliminary", hint: "Drafted, not signed off" },
+  { status: "released", label: "Released", hint: "Signed and available to the ordering doctor" },
+];
+
+function StatusChip({ status }: { status: string }) {
+  const tone =
+    status === "released"
+      ? "bg-success-muted text-success"
+      : status === "reporting"
+        ? "bg-warning-muted text-warning"
+        : status === "cancelled"
+          ? "bg-danger-muted text-danger"
+          : "bg-muted text-muted-foreground";
+  return <span className={`rounded-full px-2 py-1 text-xs font-medium ${tone}`}>{status}</span>;
+}
+
+function RadiologyPage() {
+  const [items, setItems] = useState<RadiologyOrderItem[]>([]);
+  const [filter, setFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selected, setSelected] = useState<RadiologyOrderItem | null>(null);
+  const [reports, setReports] = useState<RadiologyReport[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  // Scheduling
+  const [slot, setSlot] = useState("");
+  const [machine, setMachine] = useState("");
+  // Reporting
+  const [findings, setFindings] = useState("");
+  const [impression, setImpression] = useState("");
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await listRadiologyWork(filter);
+      setItems(response.items);
+      setError(null);
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.isModuleDisabled
+          ? "Radiology is not enabled at this facility."
+          : e instanceof Error
+            ? e.message
+            : "Could not load the radiology worklist",
+      );
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const openItem = useCallback(async (item: RadiologyOrderItem) => {
+    setSelected(item);
+    setSlot("");
+    setMachine(item.machine_id ?? "");
+    setFindings("");
+    setImpression("");
+    try {
+      const history = await getRadiologyReports(item.id);
+      setReports(history.items);
+      // Pre-fill from the current version so a sign-off amends rather than
+      // retypes. Sending empty fields keeps the draft's text server-side, but
+      // showing the radiologist a blank box invites them to rewrite from
+      // memory.
+      const current = history.items.find((r) => r.is_current);
+      if (current) {
+        setFindings(current.findings);
+        setImpression(current.impression);
+      }
+    } catch {
+      setReports([]);
+    }
+  }, []);
+
+  const run = useCallback(
+    async (action: () => Promise<unknown>, failure: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await action();
+        await refresh();
+        if (selected) {
+          const history = await getRadiologyReports(selected.id);
+          setReports(history.items);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : failure);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh, selected],
+  );
+
+  const counts = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    for (const item of items) byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
+    return byStatus;
+  }, [items]);
+
+  const currentReport = reports.find((r) => r.is_current) ?? null;
+
   return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Radiology</h1>
-    </main>
+    <ModuleCapabilityGate module="radiology">
+      <main className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold">Radiology</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Booked, imaged, reported, signed. A preliminary read stays visible
+            after a final one supersedes it — a revised finding is a clinical
+            event, not something to overwrite.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`rounded-md border px-3 py-1 text-sm ${
+              filter === "all" ? "border-primary text-primary" : "border-border"
+            }`}
+          >
+            All
+          </button>
+          {WORKFLOW.map((stage) => (
+            <button
+              key={stage.status}
+              type="button"
+              title={stage.hint}
+              onClick={() => setFilter(stage.status)}
+              className={`rounded-md border px-3 py-1 text-sm ${
+                filter === stage.status ? "border-primary text-primary" : "border-border"
+              }`}
+            >
+              {stage.label}
+              {counts[stage.status] ? ` (${counts[stage.status]})` : ""}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+          <section className="surface-card overflow-hidden">
+            {loading ? (
+              <p className="p-6 text-sm text-muted-foreground">Loading worklist…</p>
+            ) : items.length === 0 ? (
+              <p className="p-6 text-sm text-muted-foreground">
+                Nothing in this stage.
+              </p>
+            ) : (
+              <table className="min-w-full border-collapse">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs">Accession</th>
+                    <th className="px-4 py-3 text-left text-xs">Scan</th>
+                    <th className="px-4 py-3 text-left text-xs">Slot</th>
+                    <th className="px-4 py-3 text-left text-xs">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr
+                      key={item.id}
+                      onClick={() => void openItem(item)}
+                      className={`cursor-pointer border-b border-border ${
+                        selected?.id === item.id ? "bg-muted" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs">{item.accession_number}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium">{item.scan_type}</div>
+                        <div className="text-xs uppercase text-muted-foreground">
+                          {item.modality}
+                          {item.machine_id ? ` · ${item.machine_id}` : ""}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {item.scheduled_at ? formatDateTime(item.scheduled_at) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusChip status={item.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          <section className="surface-card space-y-5 p-5">
+            {!selected ? (
+              <p className="text-sm text-muted-foreground">
+                Select a scan to schedule, complete or report it.
+              </p>
+            ) : (
+              <>
+                <div>
+                  <h2 className="text-lg font-semibold">{selected.scan_type}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {selected.accession_number} · <StatusChip status={selected.status} />
+                  </p>
+                </div>
+
+                {selected.status === "placed" && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Book a slot</p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-muted-foreground">Scheduled at</span>
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-md border border-border px-3 py-2"
+                        value={slot}
+                        onChange={(e) => setSlot(e.target.value)}
+                      />
+                    </label>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-muted-foreground">Machine</span>
+                      <input
+                        className="w-full rounded-md border border-border px-3 py-2"
+                        value={machine}
+                        onChange={(e) => setMachine(e.target.value)}
+                        placeholder="e.g. CT-01"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={busy || !slot || !machine.trim()}
+                      className="rounded-md bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                      onClick={() =>
+                        void run(
+                          () =>
+                            scheduleScan(
+                              selected.id,
+                              new Date(slot).toISOString(),
+                              machine.trim(),
+                            ),
+                          "Could not schedule",
+                        )
+                      }
+                    >
+                      Schedule
+                    </button>
+                  </div>
+                )}
+
+                {selected.status === "scheduled" && (
+                  <div className="space-y-2">
+                    <p className="text-sm">
+                      Booked for {selected.scheduled_at ? formatDateTime(selected.scheduled_at) : "—"}
+                      {selected.machine_id ? ` on ${selected.machine_id}` : ""}.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Marking complete starts the turnaround clock — report TAT is
+                      measured from this moment, so record it when the patient
+                      leaves the room rather than at end of shift.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="rounded-md bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                      onClick={() =>
+                        void run(() => markScanComplete(selected.id), "Could not complete")
+                      }
+                    >
+                      Mark scan complete
+                    </button>
+                  </div>
+                )}
+
+                {(selected.status === "scanned" ||
+                  selected.status === "reporting" ||
+                  selected.status === "released") && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">
+                      {selected.status === "scanned" ? "Draft report" : "Report"}
+                    </p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-muted-foreground">Findings</span>
+                      <textarea
+                        rows={5}
+                        className="w-full rounded-md border border-border px-3 py-2"
+                        value={findings}
+                        onChange={(e) => setFindings(e.target.value)}
+                        disabled={selected.status === "released"}
+                      />
+                    </label>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-muted-foreground">Impression</span>
+                      <textarea
+                        rows={3}
+                        className="w-full rounded-md border border-border px-3 py-2"
+                        value={impression}
+                        onChange={(e) => setImpression(e.target.value)}
+                        disabled={selected.status === "released"}
+                      />
+                    </label>
+
+                    {selected.status === "scanned" && (
+                      <button
+                        type="button"
+                        disabled={busy || !findings.trim() || !impression.trim()}
+                        className="rounded-md bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        onClick={() =>
+                          void run(
+                            () => draftRadiologyReport(selected.id, findings, impression),
+                            "Could not draft",
+                          )
+                        }
+                      >
+                        Save preliminary
+                      </button>
+                    )}
+
+                    {selected.status === "reporting" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="rounded-md bg-primary px-4 py-2 text-sm text-white disabled:opacity-50"
+                        onClick={() =>
+                          void run(
+                            () => signOffRadiologyReport(selected.id, findings, impression),
+                            "Could not sign off",
+                          )
+                        }
+                      >
+                        Sign off as final
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {reports.length > 0 && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-medium">Versions</p>
+                    <ul className="mt-2 space-y-1">
+                      {reports.map((report) => (
+                        <li key={report.id} className="text-xs text-muted-foreground">
+                          v{report.version} · {report.status}
+                          {report.is_current ? " · current" : " · superseded"}
+                          {report.tat_minutes != null ? ` · TAT ${report.tat_minutes}m` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                    {currentReport && !currentReport.is_current && (
+                      <p className="mt-2 text-xs text-warning">
+                        You are viewing a superseded version.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    </ModuleCapabilityGate>
   );
 }
+
+export default RadiologyPage;

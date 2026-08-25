@@ -1,7 +1,5 @@
-﻿export default function Page() {
-  return (
-    <main style={{ padding: "2rem" }}>
-      <h1>Billing</h1>
-    </main>
-  );
+import { LiveInvoiceQueue } from "@/features/billing/components/LiveInvoiceQueue";
+
+export default function Page() {
+  return <LiveInvoiceQueue />;
 }

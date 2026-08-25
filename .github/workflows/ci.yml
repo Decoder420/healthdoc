@@ -3,24 +3,312 @@ on:
   pull_request:
   push:
     branches: [staging, main]
+  # 03:00 UTC every Monday — the Electron shell job below. Cross-platform
+  # compilation breaks from dependency drift, not from our commits, so tying it
+  # to a push would mean discovering it at the worst possible moment.
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+# Every step here either passes or fails the build. No `|| true`, no
+# `|| echo "not yet created"`. A gate that reports success without running is
+# worse than no gate: it produces a green tick that people trust.
+#
+# This has bitten us three times — `pytest -q || echo "no tests yet"` swallowed
+# every test failure for weeks; `check_migration_integrity.py || true` hid a
+# forked revision chain; and the frontend showed green while `npm run build`
+# had never once succeeded (undeclared autoprefixer). If a step is genuinely
+# not ready, delete the step rather than neutering it.
+
 jobs:
+  release-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only staging may target main
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "staging" ]]; then
+            echo "Direct feature PRs to main are forbidden. Retarget this work to staging."
+            echo "Only the separately reviewed staging -> main promotion PR may target production."
+            exit 1
+          fi
+
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
+
+    # Real Postgres, so the DB-backed tests actually execute. Without this the
+    # audit chain-seq, partition and append-only-trigger tests error out on
+    # connection refused — which the old `|| echo` then reported as success.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: healthdoc
+          POSTGRES_PASSWORD: healthdoc
+          POSTGRES_DB: healthdoc_test
+        ports: ["5432:5432"]
+        # -d is not optional here: pg_isready defaults the database name to the
+        # username, so `-U healthdoc` probes for a database called "healthdoc" while
+        # POSTGRES_DB creates "healthdoc_test". The probe then fails forever with
+        # 'database "healthdoc" does not exist', the service never reports healthy,
+        # and the job dies before running a single step.
+        options: >-
+          --health-cmd "pg_isready -U healthdoc -d healthdoc_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      # tests/test_redis.py exercises the real pub/sub path that the queue
+      # display board depends on. Same reasoning as Postgres above: skipping
+      # these when Redis is unreachable would leave the one test that proves
+      # events actually reach subscribers permanently unrun.
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      # Real MinIO, for the same reason as real Postgres above. The files
+      # module's load-bearing guarantee is that content type is decided by
+      # sniffed magic bytes and sha256 is computed at upload — both only
+      # provable against an actual object store. Skipping these tests when
+      # MinIO is unreachable would leave the presigned-URL XSS defence
+      # (§4A.4) permanently unverified, which is the one thing in that
+      # module worth verifying.
+      #
+      # MinIO is NOT here — it is started as a step below. `services:` cannot
+      # supply a command, and minio/minio needs `server /data`; without it the
+      # entrypoint prints usage and exits, so the container would appear to
+      # start and every test would still get ECONNREFUSED. bitnami/minio,
+      # whose entrypoint does start a server, no longer publishes the tags
+      # this needed. A `docker run` step is explicit and does not depend on
+      # someone else's entrypoint.
+
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://healthdoc:healthdoc@localhost:5432/healthdoc_test
+      DATABASE_URL: postgresql+asyncpg://healthdoc:healthdoc@localhost:5432/healthdoc_test
+      REDIS_URL: redis://localhost:6379/0
+
+      # Read by backend/scripts/backup/*.sh (#244). CI has no .env — secrets are
+      # not committed — so the scripts take their configuration from the
+      # environment, the same way a deployed container does. Must match the
+      # postgres service above.
+      POSTGRES_USER: healthdoc
+      POSTGRES_PASSWORD: healthdoc
+      POSTGRES_DB: healthdoc_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+
+      # Must match the MINIO_ROOT_USER/PASSWORD on the service above.
+      MINIO_ENDPOINT: localhost:9000
+      MINIO_ROOT_USER: healthdoc
+      MINIO_ROOT_PASSWORD: healthdoc-test-secret
+      MINIO_BUCKET_FILES: hd-files
+      MINIO_BUCKET_REPORTS: hd-reports
+
+      # The app's lifespan validates these before serving traffic (B1 crypto
+      # fix): base64 of exactly 32 bytes, and not one of the known
+      # placeholders. Without them the app cannot start, so any test that
+      # enters TestClient as a context manager — i.e. runs lifespan — errors
+      # at setup. CI could not boot the application at all until this was set.
+      #
+      # These are deterministic test values, generated from a fixed seed and
+      # committed on purpose. They are not secrets and must never be used
+      # anywhere but CI; real deployments get real keys from the environment.
+      PII_ENCRYPTION_KEY: dkWUFyQpoVWEpmm4NovS1ketf25uP0WKr6z/sNC1ADk=
+      AADHAAR_HMAC_KEY: MYXTZ1OUDwLh3yYU63CgWnvqVib9FJHqEdLoi4IUrAA=
+
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install -r requirements.txt || echo "requirements.txt not yet created"
-      - run: pip install ruff pytest && ruff check . || true
-      - run: pytest -q || echo "no tests yet"
+
+      # pg_dump/pg_restore for the backup/restore tests (#244). Pinned to 16 to
+      # match the postgres service: pg_dump refuses to run against a server
+      # newer than itself, and the runner's bundled client trails the image.
+      # Without this the backup test either fails on a version mismatch or,
+      # worse, silently exercises a client nobody deploys with.
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sed -i 's|deb |deb [signed-by=/usr/share/keyrings/pgdg.gpg] |' /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          pg_dump --version
+
+      # requirements-dev.txt already -r's requirements.txt and pins the test
+      # toolchain. The old form hand-listed `ruff pytest pytest-asyncio`
+      # UNPINNED and never installed requirements-dev.txt at all, so CI ran a
+      # different toolchain from every developer's machine:
+      #   - aiosqlite was simply absent -> every tests/conftest.py test errored
+      #     with ModuleNotFoundError
+      #   - pytest-asyncio resolved to 1.x while the suite is written against
+      #     0.23, whose async-fixture teardown semantics differ
+      # Add test dependencies to requirements-dev.txt, not to this file.
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Started here rather than under `services:` because a service container
+      # cannot be given a command, and minio/minio does nothing without
+      # `server /data`. Real MinIO rather than skipping the files tests: the
+      # module's guarantees — content type from sniffed magic bytes, sha256
+      # computed at upload — are only provable against an actual object store,
+      # and a skipped test there is how the §4A.4 presigned-URL XSS defence
+      # quietly stops being verified.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=healthdoc \
+            -e MINIO_ROOT_PASSWORD=healthdoc-test-secret \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live >/dev/null; then
+              echo "MinIO ready after ${i} attempt(s)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "MinIO did not become ready — logs follow:"; docker logs minio; exit 1
+
+      - name: Lint (style only — does not block)
+        run: ruff check . || true
+
+      - name: Import check (the app must actually start)
+        run: python -c "import app.main; print('app imports OK')"
+
+      - name: Migration chain integrity
+        run: python scripts/check_migration_integrity.py
+
+      - name: Migrations must apply to a real database
+        run: alembic upgrade head
+
+      - name: Spec drift check (docs vs enums.py)
+        run: python scripts/spec_check.py ..
+
+      - name: Schema drift check (docs vs migrations)
+        run: python scripts/schema_drift_check.py
+
+      - name: Frontend/backend API contract matrix
+        run: python -m scripts.check_frontend_contracts
+
+      - name: PR convention check
+        run: |
+          git fetch --no-tags --depth=50 origin staging
+          python scripts/pr_check.py
+
+      - name: Tests
+        run: pytest -q
+
   frontend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: npm ci || npm install || echo "package.json not yet created"
+        with: { node-version: "22" }
+
+      - name: Install dependencies
+        run: npm ci
+
       - run: npm run lint --if-present
-      - run: npm run build --if-present
+
+      - name: Frontend convention check
+        run: node scripts/fe_check.mjs --all
+
+      - run: npm run test --if-present
+
+      # Not --if-present: the build is the point. main shipped for weeks with a
+      # build that had never succeeded because the script was "absent enough".
+      - name: Build
+        run: npm run build
+
+  # Keep this job id stable because it is an existing required check. The gate
+  # now covers every staff role seeded by `make setup`, not only nursing.
+  nurse-auth-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx puppeteer browsers install chrome
+
+      - name: Start the complete stack and seed linked identities
+        run: make setup
+
+      - name: Staff and patient authentication and bearer API gates
+        working-directory: frontend
+        env:
+          E2E_ARTIFACT_DIR: ${{ runner.temp }}/healthdoc-e2e
+        run: npm run test:e2e
+
+      - name: Chromium print/PDF gates
+        working-directory: frontend
+        run: npm run test:print
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail=200
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: staff-auth-e2e-failure
+          path: ${{ runner.temp }}/healthdoc-e2e
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------------ #148
+  # Electron shell — weekly cross-platform compile.
+  #
+  # WHAT THIS DOES: type-checks and compiles electron/main.ts on Windows and
+  # Linux, and builds the Next bundle the shell loads. The realistic failure
+  # here is dependency drift breaking the main process on one platform, and
+  # that is what this catches.
+  #
+  # WHAT THIS DOES NOT DO: produce installers. That needs electron-builder,
+  # which is not a dependency of this repo, plus decisions about targets, code
+  # signing and auto-update that nobody has made. #148 asked for a "test build";
+  # this is the compile half. Stated rather than implied, because a job named
+  # "electron" that quietly never packages anything is the kind of green tick
+  # the policy note at the top of this file exists to prevent.
+  #
+  # Schedule/dispatch only: it adds two runners and nothing about it depends on
+  # the contents of a pull request.
+  electron-shell:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false          # a Windows-only break must not hide a Linux one
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The main process. tsconfig has strict: true, so this is a real check,
+      # not a formality.
+      - name: Compile the Electron main process
+        run: npx tsc -p electron/tsconfig.json
+
+      - name: Verify the compiled entrypoint exists
+        run: node -e "require('fs').accessSync('dist/electron/main.js')"
+
+      # The shell loads this. A renderer that does not build makes a shell that
+      # compiles useless.
+      - name: Build the renderer
+        run: npm run build

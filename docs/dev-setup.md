@@ -1,7 +1,7 @@
 # Developer setup
 
 Prerequisites: Docker Desktop (or docker + compose v2), `openssl`, `make`, Git.
-Node 20 and Python 3.12 only needed if you run things outside Docker.
+Node 22 and Python 3.12 are only needed if you run things outside Docker.
 
 ## First run
 
@@ -22,7 +22,9 @@ Then open https://localhost (accept the self-signed cert warning).
 | Orthanc (PACS) | http://localhost:8042 | `.env` |
 | Postgres / Mongo / Redis | localhost 5432 / 27017 / 6379 | `.env` |
 
-Dev users (realm `healthdoc`, password `devpass`): `dev.receptionist`, `dev.doctor`, `dev.admin`.
+Dev users (realm `healthdoc`, password `devpass`): `dev.receptionist`,
+`dev.doctor`, `dev.nurse`, `dev.labtech`, `dev.radiology`, `dev.pharmacist`
+and `dev.admin`.
 
 ## Daily commands
 
@@ -71,3 +73,26 @@ Two fixes:
 **Stack half-started after a failed setup** — `make down`, fix the issue, `make setup` again. Data volumes survive `make down`.
 
 **Cert warning in browser** — expected in dev (self-signed). Click Advanced → Proceed.
+
+## Optional services (Compose profiles)
+
+Two containers are heavy and only needed at some facilities, so they run behind profiles
+and are **off by default**:
+
+| Profile | Container | Needed when |
+|---|---|---|
+| `radiology` | `orthanc` (PACS) | the facility has imaging equipment |
+| `icd11` | WHO ICD-API (several GB) | you want live ICD-11 search at this edge |
+
+```bash
+COMPOSE_PROFILES=radiology,icd11 make setup    # enable both
+make setup                                      # neither (default)
+```
+
+**Nothing breaks when they're off.** Radiology is simply a disabled module; ICD-11 search
+falls back to the seeded `icd_codes` catalog and the API returns
+`{"source": "local_catalog"}` instead of erroring. `/api/v1/health/deep` reports which
+mode ICD search is in (`ok` vs `catalog_only`).
+
+To point at a shared district ICD-11 instance instead of running your own:
+`ICD11_BASE_URL=http://icd-server.district.local` in `.env`.

@@ -4,11 +4,61 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 command -v docker >/dev/null || { echo "docker not found — install Docker Desktop first"; exit 1; }
+command -v openssl >/dev/null || { echo "openssl not found — install it first"; exit 1; }
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
   echo "Created .env from .env.example — edit passwords before staging/prod use."
 fi
+
+read_env_value() {
+  awk -F= -v key="$1" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' .env
+}
+
+set_env_value() {
+  local key="$1" value="$2" tmp
+  tmp=$(mktemp)
+  awk -F= -v key="$key" -v value="$value" '
+    BEGIN { found = 0 }
+    $1 == key { print key "=" value; found = 1; next }
+    { print }
+    END { if (!found) print key "=" value }
+  ' .env > "$tmp"
+  mv "$tmp" .env
+}
+
+ensure_random_key() {
+  local key="$1" current
+  current=$(read_env_value "$key")
+  case "$current" in
+    ""|change-me|change-me-in-env|placeholder|test|dev)
+      set_env_value "$key" "$(openssl rand -base64 32)"
+      echo "Generated local $key"
+      ;;
+  esac
+}
+
+ensure_default() {
+  local key="$1" value="$2" current
+  current=$(read_env_value "$key")
+  [[ -n "$current" ]] || set_env_value "$key" "$value"
+}
+
+ensure_random_key PII_ENCRYPTION_KEY
+ensure_random_key AADHAAR_HMAC_KEY
+
+# Correct the pre-auth-port issuer in existing local .env files without
+# overwriting a deliberately configured external issuer.
+case "$(read_env_value JWT_ISSUER)" in
+  ""|http://keycloak:8080/realms/healthdoc|http://keycloak:8080/auth/realms/healthdoc)
+    set_env_value JWT_ISSUER "https://localhost/auth/realms/healthdoc"
+    ;;
+esac
+ensure_default JWT_JWKS_URL \
+  "http://keycloak:8080/auth/realms/healthdoc/protocol/openid-connect/certs"
+ensure_default NEXT_PUBLIC_KEYCLOAK_URL "https://localhost/auth"
+ensure_default NEXT_PUBLIC_KEYCLOAK_REALM "healthdoc"
+ensure_default NEXT_PUBLIC_OIDC_CLIENT_ID "healthdoc-frontend"
 
 # shellcheck disable=SC1091
 set -a; source .env; set +a
@@ -55,19 +105,105 @@ if [[ ! -f infra/nginx/certs/dev.crt ]]; then
   ./infra/nginx/generate-dev-certs.sh
 fi
 
-docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+# Optional services run behind Compose profiles (schema §Module toggle behavior):
+#   radiology -> orthanc (PACS, large image)   icd11 -> WHO ICD-API (several GB)
+# Enable per facility:  COMPOSE_PROFILES=radiology,icd11 make setup
+# Without them the app still works: radiology is simply off, and ICD search
+# degrades to the local icd_codes catalog (never errors).
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
+if [[ -n "$COMPOSE_PROFILES" ]]; then
+  echo "Enabling optional profiles: $COMPOSE_PROFILES"
+fi
+docker compose -f infra/docker-compose.yml --env-file .env build
+# Renew the frontend's anonymous .next cache after a build. node_modules is a
+# named, nocopy volume and the container command refreshes it with npm ci;
+# applying -V to the whole stack would needlessly recreate data services.
+docker compose -f infra/docker-compose.yml --env-file .env up -d --renew-anon-volumes frontend
+docker compose -f infra/docker-compose.yml --env-file .env up -d
+# Nginx resolves Compose service names when its configuration is loaded. If a
+# rebuilt backend/frontend gets a new container IP, a pre-existing proxy keeps
+# the stale address until it is reloaded.
+docker compose -f infra/docker-compose.yml --env-file .env restart nginx
 
 HTTPS="${HTTPS_PORT:-443}"
 BASE="https://localhost"
 if [[ "$HTTPS" != "443" ]]; then BASE="https://localhost:$HTTPS"; fi
 echo "Waiting for backend..."
+BACKEND_READY=0
 for i in $(seq 1 60); do
-  curl -ksf "$BASE/api/v1/health" >/dev/null 2>&1 && break
+  if curl -ksf "$BASE/api/v1/health" >/dev/null 2>&1; then
+    BACKEND_READY=1
+    break
+  fi
   sleep 2
 done
+if [[ "$BACKEND_READY" != "1" ]]; then
+  echo "Backend did not become healthy. Recent logs:"
+  docker compose -f infra/docker-compose.yml --env-file .env logs --tail=100 backend
+  exit 1
+fi
 
-docker compose -f infra/docker-compose.yml --env-file .env exec -T backend alembic upgrade head || \
-  echo "Migration step failed — run 'make migrate' once backend is up."
+docker compose -f infra/docker-compose.yml --env-file .env exec -T backend alembic upgrade head
+
+echo "Waiting for Keycloak..."
+KEYCLOAK_READY=0
+for i in $(seq 1 60); do
+  if curl -sf "http://localhost:${KEYCLOAK_PORT:-8081}/auth/realms/healthdoc/.well-known/openid-configuration" >/dev/null 2>&1; then
+    KEYCLOAK_READY=1
+    break
+  fi
+  sleep 2
+done
+if [[ "$KEYCLOAK_READY" != "1" ]]; then
+  echo "Keycloak did not become ready."
+  exit 1
+fi
+
+kc() {
+  docker compose -f infra/docker-compose.yml --env-file .env exec -T keycloak \
+    /opt/keycloak/bin/kcadm.sh "$@"
+}
+
+kc config credentials --server http://localhost:8080/auth --realm master \
+  --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null
+
+ensure_keycloak_user() {
+  local username="$1" first_name="$2" last_name="$3" roles="$4" subject role
+  subject=$(kc get users -r healthdoc -q exact=true -q username="$username" \
+    --fields id --format csv --noquotes | tail -n 1)
+  if [[ -z "$subject" ]]; then
+    kc create users -r healthdoc -s username="$username" -s enabled=true \
+      -s firstName="$first_name" -s lastName="$last_name" \
+      -s email="$username@healthdoc.local" >/dev/null
+  fi
+  kc set-password -r healthdoc --username "$username" --new-password devpass >/dev/null
+  IFS=',' read -r -a role_list <<< "$roles"
+  for role in "${role_list[@]}"; do
+    kc add-roles -r healthdoc --uusername "$username" --rolename "$role" >/dev/null
+  done
+  kc get users -r healthdoc -q exact=true -q username="$username" \
+    --fields id --format csv --noquotes | tail -n 1
+}
+
+RECEPTIONIST_SUB=$(ensure_keycloak_user dev.receptionist Dev Receptionist receptionist)
+DOCTOR_SUB=$(ensure_keycloak_user dev.doctor Dev Doctor doctor)
+NURSE_SUB=$(ensure_keycloak_user dev.nurse Dev Nurse nurse)
+LAB_TECH_SUB=$(ensure_keycloak_user dev.labtech Dev "Lab Technician" lab_tech)
+RADIOLOGY_TECH_SUB=$(ensure_keycloak_user dev.radiology Dev "Radiology Technician" radiology_tech)
+PHARMACIST_SUB=$(ensure_keycloak_user dev.pharmacist Dev Pharmacist pharmacist)
+ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin,supervisor)
+PATIENT_SUB=$(ensure_keycloak_user dev.patient Dev Patient patient)
+
+docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
+  python -m scripts.seed_dev_data \
+    --user "dev.receptionist=$RECEPTIONIST_SUB" \
+    --user "dev.doctor=$DOCTOR_SUB" \
+    --user "dev.nurse=$NURSE_SUB" \
+    --user "dev.labtech=$LAB_TECH_SUB" \
+    --user "dev.radiology=$RADIOLOGY_TECH_SUB" \
+    --user "dev.pharmacist=$PHARMACIST_SUB" \
+    --user "dev.admin=$ADMIN_SUB" \
+    --user "dev.patient=$PATIENT_SUB"
 
 cat <<DONE
 
@@ -80,5 +216,7 @@ HealthDoc dev stack is up:
   Orthanc           http://localhost:${ORTHANC_PORT:-8042}
   Postgres localhost:${POSTGRES_PORT:-5432} · Mongo localhost:${MONGO_PORT:-27017} · Redis localhost:${REDIS_PORT:-6379}
 
-Dev logins (Keycloak realm 'healthdoc'): dev.receptionist / dev.doctor / dev.admin — password 'devpass'
+Dev logins (Keycloak realm 'healthdoc', password 'devpass'):
+  dev.receptionist / dev.doctor / dev.nurse / dev.labtech /
+  dev.radiology / dev.pharmacist / dev.admin / dev.patient
 DONE

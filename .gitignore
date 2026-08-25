@@ -9,8 +9,38 @@ out/
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.log
 .DS_Store
 postgres-data/
 mongo-data/
 minio-data/
+.vscode/
+.reviews/
+
+# Local working material — PR dumps, issue exports, one-off notes. Kept next
+# to the project so it is not scattered across the filesystem, but never
+# committed: large, regenerable from `gh`, and stale within a day.
+.local-archive/
+test_output.txt
+
+# project-intelligence skill output. Regenerated from the code on demand:
+#   python3 ~/Desktop/Projects/project-intelligence/scripts/analyze-project.py \
+#       --project-dir . --output-dir .project-intelligence
+#
+# Deliberately NOT committed, and deliberately NOT written into docs/.
+# docs/database-schema.md is hand-maintained and enforced by
+# backend/scripts/spec_check.py and check_migration_integrity.py — it is the
+# source of truth for the schema. A generated docs/database.md sitting beside it
+# would be a second, weaker answer to the same question, and whichever one a
+# reader happened to open would look authoritative. Committing generated docs
+# also guarantees they go stale between regenerations, which is the exact drift
+# this project has spent real time unpicking.
+.project-intelligence/
+graphify-out/
+AGENTS.md
+
+# Generated database backups (backup_postgres.sh, #244).
+# Root-anchored: a bare `backups/` would also ignore any nested directory of
+# that name anywhere in the tree.
+/backups/

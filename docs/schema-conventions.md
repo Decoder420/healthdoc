@@ -55,7 +55,7 @@ Stored as their own `UNIQUE NOT NULL` (or nullable, where stated) columns:
 | UHID | `patients.uhid` | `IN-<STATE>-<FACILITY>-<YEAR>-<SEQ6>-<CHECK>` e.g. `IN-RJ-JPR001-2026-000042-7` | UHID engine (B2-W1-02), Postgres sequence + check digit |
 | THID (temporary) | `patients.thid` | `TH-<FACILITY>-<YYMMDD>-<SEQ4>` e.g. `TH-JPR001-260714-0007` | Emergency registration; merged into UHID later (audited) |
 | Queue token | `queue_tokens.token_display` | `<DEPT_CODE>-<SEQ3>`, e.g. `MED-042`; uniqueness = `(queue_id, sequence)`, not the string | Queue service, per doctor-queue per day |
-| Order number | `orders.order_number` | `ORD-<YYYYMMDD>-<SEQ6>` | Orders module |
+| Order number | `orders.order_number` | `ORD-<FACILITYCODE>-<YYYYMMDD>-<SEQ6>` | Orders module |
 | Invoice number | `invoices.invoice_number` | `INV-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless — see 2.3) |
 | Receipt number | `payments.receipt_number` | `RCP-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless — see 2.3) |
 | Refund number | `refunds.refund_number` | `RFD-<FACILITY>-<YYYYMMDD>-<SEQ5>` | Billing (gapless) |
@@ -284,3 +284,21 @@ class Visit(Base, UUIDPk, Timestamps, Blame):
 - [ ] Deletion policy per §5; append-only tables have blocking triggers
 - [ ] Migration numbered per plan, has `downgrade()`, autogen diff reviewed
 - [ ] `make migrate && make revision m=check` yields an empty migration
+
+### Timestamps in models must be explicitly timezone-aware
+
+```python
+created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), ...)   # correct
+created_at: Mapped[datetime] = mapped_column(...)                            # WRONG
+```
+
+`Mapped[datetime]` with no explicit type infers a **naive** `DateTime`, while every
+migration creates `TIMESTAMPTZ`. The database stores an aware value, the ORM hands back
+a naive one, and every comparison in Python is then silently wrong by the facility's UTC
+offset — 5h30m in IST. Nothing errors; the numbers are just wrong.
+
+Always pass `DateTime(timezone=True)` explicitly, including for nullable columns
+(`sealed_at`, `verified_at`, `collected_at`, `accessed_at`, …).
+
+(Found independently in #276, #279 and #261 on the same day — it is a rule now, not a
+review comment.)
