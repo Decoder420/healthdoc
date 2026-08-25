@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "node e2e/staff-auth.smoke.mjs",
+    "test:dashboards": "node e2e/dashboards.smoke.mjs",
     "test:print": "node e2e/print-pdf.smoke.mjs",
     "demo:record": "node e2e/demo-recordings.mjs",
     "electron:dev": "tsc -p electron/tsconfig.json && electron dist/electron/main.js"

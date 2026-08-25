@@ -228,8 +228,7 @@
         }
       ],
       "realmRoles": [
-        "admin",
-        "supervisor"
+        "admin"
       ]
     }
   ]

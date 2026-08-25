@@ -37,8 +37,11 @@ from app.consent.schemas import (
 router = APIRouter(prefix="/consent", tags=["consent"])
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
-# Role lists unconfirmed — best guess, confirm before merge.
-_CONSENT_VIEW_ROLES = ("auditor", "admin", "doctor")
+# A role that records, transitions or withdraws a consent must also be able to
+# read the patient's current consent ledger first. The UI has always offered
+# this workflow to receptionists and nurses, while these GET routes denied the
+# read with 403 after patient selection.
+_CONSENT_VIEW_ROLES = ("auditor", "admin", "doctor", "receptionist", "nurse")
 _CONSENT_MUTATE_ROLES = ("receptionist", "nurse", "doctor", "admin")
 
 

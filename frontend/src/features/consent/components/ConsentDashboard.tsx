@@ -84,21 +84,26 @@ export function ConsentDashboard() {
       ) : (
         <>
           <Box sx={{ mt: 1, mb: 1 }}>
-        <Typography sx={{ fontSize: "0.875rem" }}>
-          {patient.full_name}
-          {" · "}
-          <button
-            type="button"
-            onClick={() => {
-              setPatient(null);
-              setSelectedId(null);
-            }}
-            style={{ textDecoration: "underline", background: "none", border: 0, cursor: "pointer" }}
-          >
-            change patient
-          </button>
-        </Typography>
-      </Box>
+            <Typography sx={{ fontSize: "0.875rem" }}>
+              {patient.full_name}
+              {" · "}
+              <button
+                type="button"
+                onClick={() => {
+                  setPatient(null);
+                  setSelectedId(null);
+                }}
+                style={{ textDecoration: "underline", background: "none", border: 0, cursor: "pointer" }}
+              >
+                change patient
+              </button>
+            </Typography>
+          </Box>
+          {list.error ? (
+            <Typography role="alert" sx={{ color: meridian.danger, fontSize: "0.875rem" }}>
+              {list.error}
+            </Typography>
+          ) : null}
           <Box
             sx={{
               display: "grid",

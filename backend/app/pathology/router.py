@@ -36,9 +36,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import write_audit_log
-from app.auth.deps import CurrentDbUser, require_roles
+from app.auth.deps import AuthUser, CurrentDbUser, get_current_db_user, require_roles
 from app.common.accession import LAB, allocate_accession_number
-from app.common.db import get_db
+from app.common.db import SessionLocal, get_db
 from app.common.idempotency import check_idempotency, hash_request_body, record_idempotent_response
 from app.orders.models import Order
 from app.pathology.models import LabOrderItem, LabResult
@@ -59,6 +59,7 @@ from app.pathology.schemas import (
 )
 
 router = APIRouter(prefix="/pathology", tags=["pathology"])
+DoctorUser = Annotated[AuthUser, Depends(require_roles("doctor"))]
 
 
 async def _get_scoped_lab_item(
@@ -632,10 +633,17 @@ async def _publish_critical_alert(db: AsyncSession, item: LabOrderItem,
 
 @router.get("/critical-alerts/stream")
 async def critical_alerts_stream(
-    current_db_user: CurrentDbUser,
-    current_user=Depends(require_roles("doctor")),
-
+    current_user: DoctorUser,
 ):
+    # Do not inject CurrentDbUser here. It depends on get_db(), and a yielded
+    # FastAPI dependency stays alive for the lifetime of a StreamingResponse.
+    # Every open doctor tab therefore held one SQLAlchemy connection forever;
+    # after five tabs the pool was exhausted and even /health stopped
+    # responding. Resolve the app user in a short, explicitly closed session
+    # before returning the stream instead.
+    async with SessionLocal() as db:
+        current_db_user = await get_current_db_user(current_user, db)
+
     # NOTE: key must be str(users.id) to match _publish_critical_alert's
     # str(doctor_id) lookup - doctor_id there comes from
     # encounter.provider_user_id, which is a users.id, not a Keycloak sub.
@@ -645,10 +653,19 @@ async def critical_alerts_stream(
 
     async def event_generator():
         try:
+            # Flush the response headers immediately. Without an initial frame,
+            # browsers and reverse proxies can leave fetch() pending until the
+            # first real critical result—which makes connection failures
+            # indistinguishable from a healthy, quiet laboratory.
+            yield ": connected\n\n"
             while True:
                 message = await queue.get()
                 yield f"data: {message}\n\n"
         finally:
-            _critical_alert_subscribers[subscriber_key].remove(queue)
+            subscribers = _critical_alert_subscribers.get(subscriber_key, [])
+            if queue in subscribers:
+                subscribers.remove(queue)
+            if not subscribers:
+                _critical_alert_subscribers.pop(subscriber_key, None)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

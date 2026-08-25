@@ -17,12 +17,21 @@ export interface Order {
   priority: OrderPriority;
   status: OrderStatus;
   ordered_at: string;
+  /** 0045 — when the ward took ownership (null until accept/complete). */
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  /** 0045 — check-off evidence. */
+  completed_at?: string | null;
+  completed_by?: string | null;
+  completion_note?: string | null;
 
   // Joined display field — not a column on `orders` (comes from
   // patients.full_name).
   patient_name?: string | null;
 }
+
 export interface TaskQueueProps {
   orders: Order[];
+  onAccept?: (orderId: string) => void | Promise<void>;
   onCheckOff: (orderId: string) => void | Promise<void>;
 }

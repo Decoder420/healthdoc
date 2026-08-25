@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addVitals } from "@/features/nurse/services/nurse.service";
+import { addVitals } from "@/features/nurse/api/nursing";
 import type { AddVitalsSchema } from "@/features/nurse/components/AddVitalsForm/validation";
 
 export function useAddVitals() {

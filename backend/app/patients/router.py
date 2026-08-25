@@ -152,7 +152,10 @@ async def register_patient(
 @router.post(
     "/search",
     response_model=PatientSearchResponse,
-    dependencies=[Depends(require_roles("receptionist", "admin"))],
+    # Doctor and nurse workspaces reuse the same masked, facility-scoped picker
+    # for consent. Advertising /consent to them while denying this prerequisite
+    # made the screen fail before it could request a single consent record.
+    dependencies=[Depends(require_roles("receptionist", "doctor", "nurse", "admin"))],
 )
 async def search_patients_endpoint(
     payload: PatientSearchRequest,

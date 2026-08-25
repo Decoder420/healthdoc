@@ -1,7 +1,7 @@
 import { api, newIdempotencyKey } from "@/lib/api";
 
-import type { AddAdmissionSchema } from "@/features/ipd/AdmissionForm/validation";
-import type { AddDischargeSchema } from "@/features/ipd/DischargeForm/validation";
+import type { AddAdmissionSchema } from "@/features/ipd/components/AdmissionForm/validation";
+import type { AddDischargeSchema } from "@/features/ipd/components/DischargeForm/validation";
 import type { Ward } from "@/features/nurse/components/WardSelector/WardSelector.types";
 import type { BedGridResponse } from "@/components/BedGrid/BedGrid.types";
 

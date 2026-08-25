@@ -168,7 +168,7 @@ kc config credentials --server http://localhost:8080/auth --realm master \
   --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD" >/dev/null
 
 ensure_keycloak_user() {
-  local username="$1" first_name="$2" last_name="$3" roles="$4" subject role
+  local username="$1" first_name="$2" last_name="$3" roles="$4" subject role assigned
   subject=$(kc get users -r healthdoc -q exact=true -q username="$username" \
     --fields id --format csv --noquotes | tail -n 1)
   if [[ -z "$subject" ]]; then
@@ -177,6 +177,18 @@ ensure_keycloak_user() {
       -s email="$username@healthdoc.local" >/dev/null
   fi
   kc set-password -r healthdoc --username "$username" --new-password devpass >/dev/null
+  # These are deterministic test identities, so their HealthDoc realm roles
+  # must be exact. Merely adding roles let dev.admin retain the old supervisor
+  # grant forever, which meant the "admin" smoke was also a records-authority
+  # token and could hide an authorization defect.
+  assigned=$(kc get-roles -r healthdoc --uusername "$username" \
+    --fields name --format csv --noquotes)
+  for role in superadmin receptionist doctor nurse lab_tech radiology_tech \
+    pharmacist emergency hod supervisor admin auditor patient; do
+    if [[ ",$roles," != *",$role,"* ]] && grep -Fxq "$role" <<< "$assigned"; then
+      kc remove-roles -r healthdoc --uusername "$username" --rolename "$role" >/dev/null
+    fi
+  done
   IFS=',' read -r -a role_list <<< "$roles"
   for role in "${role_list[@]}"; do
     kc add-roles -r healthdoc --uusername "$username" --rolename "$role" >/dev/null
@@ -191,8 +203,15 @@ NURSE_SUB=$(ensure_keycloak_user dev.nurse Dev Nurse nurse)
 LAB_TECH_SUB=$(ensure_keycloak_user dev.labtech Dev "Lab Technician" lab_tech)
 RADIOLOGY_TECH_SUB=$(ensure_keycloak_user dev.radiology Dev "Radiology Technician" radiology_tech)
 PHARMACIST_SUB=$(ensure_keycloak_user dev.pharmacist Dev Pharmacist pharmacist)
-ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin,supervisor)
+ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin)
+AUDITOR_SUB=$(ensure_keycloak_user dev.auditor Dev Auditor auditor)
 PATIENT_SUB=$(ensure_keycloak_user dev.patient Dev Patient patient)
+# The HOD role had eight backend endpoints, a dashboard, and no way to log in as
+# one — so none of it had ever been exercised by a human or a test.
+HOD_SUB=$(ensure_keycloak_user dev.hod Dev "Head of Department" hod)
+EMERGENCY_SUB=$(ensure_keycloak_user dev.emergency Dev "Emergency Registrar" emergency)
+SUPERVISOR_SUB=$(ensure_keycloak_user dev.supervisor Dev "Records Supervisor" supervisor)
+SUPERADMIN_SUB=$(ensure_keycloak_user dev.superadmin Dev "Platform Superadmin" superadmin)
 
 docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
   python -m scripts.seed_dev_data \
@@ -203,7 +222,12 @@ docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
     --user "dev.radiology=$RADIOLOGY_TECH_SUB" \
     --user "dev.pharmacist=$PHARMACIST_SUB" \
     --user "dev.admin=$ADMIN_SUB" \
-    --user "dev.patient=$PATIENT_SUB"
+    --user "dev.auditor=$AUDITOR_SUB" \
+    --user "dev.patient=$PATIENT_SUB" \
+    --user "dev.hod=$HOD_SUB" \
+    --user "dev.emergency=$EMERGENCY_SUB" \
+    --user "dev.supervisor=$SUPERVISOR_SUB" \
+    --user "dev.superadmin=$SUPERADMIN_SUB"
 
 cat <<DONE
 
@@ -218,5 +242,6 @@ HealthDoc dev stack is up:
 
 Dev logins (Keycloak realm 'healthdoc', password 'devpass'):
   dev.receptionist / dev.doctor / dev.nurse / dev.labtech /
-  dev.radiology / dev.pharmacist / dev.admin / dev.patient
+  dev.radiology / dev.pharmacist / dev.admin / dev.auditor / dev.patient / dev.hod /
+  dev.emergency / dev.supervisor / dev.superadmin
 DONE

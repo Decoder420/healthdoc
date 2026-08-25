@@ -55,6 +55,14 @@ async function readEventStream(response: Response, signal: AbortSignal) {
       }
     }
   } finally {
+    // Abort normally rejects the pending read, but explicitly cancelling the
+    // reader closes the HTTP body as well. Without it, dev-proxy buffering left
+    // upstream SSE requests alive after the page/context had been closed.
+    try {
+      await reader.cancel();
+    } catch {
+      // The fetch abort may already have closed the stream.
+    }
     reader.releaseLock();
   }
 }

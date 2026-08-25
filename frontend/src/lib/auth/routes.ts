@@ -22,10 +22,13 @@ const DEFAULT_ROUTES: Record<Role, string> = {
   [ROLES.EMERGENCY]: "/emergency",
   [ROLES.SUPERVISOR]: "/reports",
   [ROLES.ADMIN]: "/admin",
-  [ROLES.HOD]: "/reports",
+  [ROLES.HOD]: "/hod",
   [ROLES.AUDITOR]: "/audit-viewer",
   [ROLES.PATIENT]: "/patient-portal",
-  [ROLES.SUPERADMIN]: "/admin",
+  // Platform administration has not been built. Never redirect this cloud-only
+  // role into the facility-admin workspace: its realm contract explicitly
+  // bars access to facility clinical data.
+  [ROLES.SUPERADMIN]: "/workspace-unavailable",
 };
 
 /**
@@ -38,16 +41,27 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   [ROLES.RECEPTIONIST]: ["/receptionist", "/billing", "/consent"],
   [ROLES.DOCTOR]: ["/doctor", "/consent", "/ipd", "/lab", "/radiology"],
   [ROLES.NURSE]: ["/nurse", "/ipd", "/consent"],
-  [ROLES.LAB_TECH]: ["/lab"],
-  [ROLES.RADIOLOGY_TECH]: ["/radiology"],
+  [ROLES.LAB_TECH]: ["/lab", "/admin/maintenance"],
+  [ROLES.RADIOLOGY_TECH]: ["/radiology", "/admin/maintenance"],
   [ROLES.PHARMACIST]: ["/pharmacy", "/inventory"],
   [ROLES.EMERGENCY]: ["/emergency"],
-  [ROLES.SUPERVISOR]: ["/consent", "/reports", "/emergency"],
-  [ROLES.ADMIN]: ["/admin", "/billing", "/reports", "/audit-viewer"],
-  [ROLES.HOD]: ["/reports", "/queue-display"],
-  [ROLES.AUDITOR]: ["/audit-viewer", "/reports"],
+  // The existing /emergency page registers a new THID and its POST endpoint
+  // intentionally excludes supervisors. Their maker-checker promotion APIs
+  // need a separate records-authority screen; advertising the registration
+  // screen here produced a guaranteed 403 on its only action.
+  [ROLES.SUPERVISOR]: ["/reports"],
+  // Admin gets /hod because the hod-dashboard endpoints accept "admin" too.
+  // The screen itself explains that an account with no department has nothing
+  // to scope to, rather than inventing a cross-department picker.
+  [ROLES.ADMIN]: ["/admin", "/billing", "/reports", "/audit-viewer", "/hod"],
+  // /inventory is NOT decoration here. Indent approval is gated
+  // `require_roles("hod")` — HOD ONLY — and the approve/reject buttons live on
+  // Inventory -> Indents. Without this prefix the one action only a department
+  // head can perform was unreachable by every department head.
+  [ROLES.HOD]: ["/hod", "/queue-display", "/inventory"],
+  [ROLES.AUDITOR]: ["/audit-viewer", "/reports", "/admin/data-protection"],
   [ROLES.PATIENT]: ["/patient-portal"],
-  [ROLES.SUPERADMIN]: ["/admin", "/reports"],
+  [ROLES.SUPERADMIN]: ["/workspace-unavailable"],
 };
 
 /**

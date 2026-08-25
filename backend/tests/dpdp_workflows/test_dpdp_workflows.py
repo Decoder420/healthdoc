@@ -381,6 +381,19 @@ async def test_dpdp_http_role_gate_and_idempotent_grievance_create(
     assert retry.json()["id"] == first.json()["id"]
 
 
+async def test_auditor_can_read_the_consent_manager_register(db, seed):
+    """The auditor governance screen must not fail on its fourth parallel read."""
+    _department, _room, actor = seed
+
+    async with _http_client(db, actor=actor, roles=["auditor"]) as client:
+        allowed = await client.get("/dpdp/consent-managers")
+    assert allowed.status_code == 200, allowed.text
+
+    async with _http_client(db, actor=actor, roles=["doctor"]) as client:
+        forbidden = await client.get("/dpdp/consent-managers")
+    assert forbidden.status_code == 403
+
+
 def test_dpdp_models_map_the_existing_tables():
     assert DataProtectionOfficer.__tablename__ == "data_protection_officers"
     assert PatientGrievance.__tablename__ == "patient_grievances"

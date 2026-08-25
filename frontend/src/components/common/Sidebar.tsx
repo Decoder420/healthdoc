@@ -37,6 +37,9 @@ type NavItem = {
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
+  // Head of department. Eight endpoints existed for this role with no route and
+  // no nav entry, so an HOD logged in and had nowhere to go.
+  { href: "/hod", label: "Department dashboard", icon: LayoutDashboard, area: "clinical" },
   { href: "/receptionist/registration", label: "Registration", icon: UserRound, area: "front_desk" },
   { href: "/receptionist/patient-search", label: "Patient search", icon: Search, area: "front_desk" },
   { href: "/receptionist/queue", label: "Queue", icon: Users, area: "front_desk" },
@@ -61,6 +64,10 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/admin", label: "Administration", icon: LayoutDashboard, area: "admin" },
   { href: "/admin/departments", label: "Departments & rooms", icon: Building2, area: "admin" },
   { href: "/admin/abdm-sync", label: "ABDM identity links", icon: Shield, area: "admin" },
+  // DPDP obligations: the named DPO, the grievance register, consent managers.
+  // All three tables shipped in 0022a with nothing able to read or write them.
+  { href: "/admin/data-protection", label: "Data protection", icon: Shield, area: "admin" },
+  { href: "/admin/maintenance", label: "Equipment maintenance", icon: Building2, area: "admin" },
 ];
 
 const AREA_LABELS: Record<NavItem["area"], string> = {

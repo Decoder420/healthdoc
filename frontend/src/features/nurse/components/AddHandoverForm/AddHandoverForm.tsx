@@ -1,36 +1,35 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import FormSection from "../../../../components/forms/FormSection";
-import SelectField from "../../../../components/forms/SelectField";
-import TextField from "../../../../components/forms/TextField";
-import TextAreaField from "../../../../components/forms/TextAreaField";
-import FormActions from "../../../../components/forms/FormActions";
+import FormSection from "@/components/forms/FormSection";
+import SelectField from "@/components/forms/SelectField";
+import TextField from "@/components/forms/TextField";
+import TextAreaField from "@/components/forms/TextAreaField";
+import FormActions from "@/components/forms/FormActions";
 
 import { AddHandoverFormProps } from "./AddHandoverForm.types";
-
 import { DEFAULT_VALUES, SHIFTS } from "./constants";
-
 import { addHandoverSchema, AddHandoverSchema } from "./validation";
 
 export default function AddHandoverForm({
   admissionId,
   isSubmitting = false,
-  onSubmit,
+  recipientOptions = [],
 }: AddHandoverFormProps) {
+  const [useManualUuid, setUseManualUuid] = useState(recipientOptions.length === 0);
+
   const {
     register,
-    handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<AddHandoverSchema>({
     resolver: zodResolver(addHandoverSchema),
-
     defaultValues: {
       ...DEFAULT_VALUES,
       admission_id: admissionId,
@@ -41,25 +40,42 @@ export default function AddHandoverForm({
     setValue("admission_id", admissionId);
   }, [admissionId, setValue]);
 
+  useEffect(() => {
+    if (recipientOptions.length === 0) setUseManualUuid(true);
+  }, [recipientOptions.length]);
+
+  const selectedRecipient = watch("handed_over_to");
+
+  const pickerOptions = useMemo(
+    () => [
+      { value: "", label: "Select receiving nurse…" },
+      ...recipientOptions,
+      { value: "__manual__", label: "Enter user UUID manually…" },
+    ],
+    [recipientOptions],
+  );
+
   const handleReset = () => {
     reset({
       ...DEFAULT_VALUES,
       admission_id: admissionId,
     });
+    setUseManualUuid(recipientOptions.length === 0);
   };
 
-
-  const submitHandler = async (data: AddHandoverSchema) => {
-  const success = await onSubmit(data);
-  if (success) handleReset();
- };
- 
   return (
     <FormSection
       title="Patient Handover"
-      description="Record shift handover details (SBAR format)."
+      description="Not available — no published nurse handover read/write contract."
     >
-      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+      <p className="mb-4 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        Disabled in this build. Shift handover (SBAR) needs FastAPI routes for
+        `nursing_handover_notes` before it can be filed from this screen.
+      </p>
+      <form
+        onSubmit={(e) => e.preventDefault()}
+        className="pointer-events-none space-y-6 opacity-50"
+      >
         <div className="grid gap-5 md:grid-cols-2">
           <SelectField
             label="Shift"
@@ -71,14 +87,36 @@ export default function AddHandoverForm({
             error={errors.shift}
           />
 
-          {/* NOTE: this should become a nurse-picker (SelectField) once a nurse
-              user-list source is available; kept as a UUID text input for now. */}
-          <TextField
-            label="Handed Over To (Nurse ID)"
-            placeholder="Nurse's user UUID"
-            registration={register("handed_over_to")}
-            error={errors.handed_over_to}
-          />
+          {recipientOptions.length > 0 && !useManualUuid ? (
+            <div className="space-y-2">
+              <SelectField
+                label="Handed over to"
+                options={pickerOptions}
+                registration={register("handed_over_to", {
+                  onChange: (event) => {
+                    const value = (event.target as HTMLSelectElement).value;
+                    if (value === "__manual__") {
+                      setUseManualUuid(true);
+                      setValue("handed_over_to", "");
+                    }
+                  },
+                })}
+                error={errors.handed_over_to}
+              />
+              {selectedRecipient && selectedRecipient !== "__manual__" ? (
+                <p className="text-xs text-muted-foreground font-mono">{selectedRecipient}</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <TextField
+                label="Handed over to (user UUID)"
+                placeholder="Receiving nurse users.id"
+                registration={register("handed_over_to")}
+                error={errors.handed_over_to}
+              />
+            </div>
+          )}
         </div>
 
         <TextAreaField

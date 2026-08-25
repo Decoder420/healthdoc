@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addPatientMovement as addPatientMovementRequest } from "@/features/nurse/services/nurse.service";
+import { addPatientMovement as addPatientMovementRequest } from "@/features/nurse/api/nursing";
 import type { AddPatientMovementSchema } from "./validation";
 
 export function useAddPatientMovement() {

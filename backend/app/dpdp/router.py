@@ -301,7 +301,10 @@ async def create_consent_manager(
 @router.get(
     "/consent-managers",
     response_model=list[ConsentManagerOut],
-    dependencies=[Depends(require_roles("admin"))],
+    # Auditors can read the rest of the governance register and the frontend
+    # route is intentionally available to them. Keeping this one list
+    # admin-only made that screen fail with 403 after its other reads passed.
+    dependencies=[Depends(require_roles("admin", "auditor"))],
 )
 async def list_consent_managers(
     user: CurrentDbUser,

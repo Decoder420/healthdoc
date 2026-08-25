@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import Typography from "@mui/material/Typography";
 
 import { ConsultationWorkspace } from "@/features/doctor";
 import { getQueueToken } from "@/features/doctor/api";
@@ -22,14 +22,17 @@ import type { EncounterContext } from "@/features/doctor/types";
  */
 export default function Page() {
   const [context, setContext] = useState<EncounterContext | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "instruction" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const tokenId = new URLSearchParams(window.location.search).get("token");
 
     if (!tokenId) {
-      setError("Open a patient from the live OPD queue to start a consultation.");
+      setMessage({
+        tone: "instruction",
+        text: "Open a patient from the live OPD queue to start a consultation.",
+      });
       setContext(null);
       return;
     }
@@ -39,11 +42,11 @@ export default function Page() {
         const token = await getQueueToken(tokenId);
         if (cancelled) return;
         if (!token) {
-          setError("Queue token not found.");
+          setMessage({ tone: "error", text: "Queue token not found." });
           setContext(null);
           return;
         }
-        setError(null);
+        setMessage(null);
         setContext({
           visit_id: token.visit_id,
           patient_id: token.patient_id,
@@ -58,7 +61,10 @@ export default function Page() {
         });
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load encounter context");
+        setMessage({
+          tone: "error",
+          text: e instanceof Error ? e.message : "Failed to load encounter context",
+        });
         setContext(null);
       }
     })();
@@ -70,8 +76,22 @@ export default function Page() {
 
   return (
     <Box sx={doctorPageSx}>
-      {error ? (
-        <Alert severity="error">{error}</Alert>
+      {message ? (
+        <Box
+          role={message.tone === "error" ? "alert" : undefined}
+          sx={{
+            border: "1px solid",
+            borderColor: message.tone === "error" ? "error.light" : "divider",
+            borderRadius: 2,
+            bgcolor: message.tone === "error" ? "rgba(211, 47, 47, 0.08)" : "background.paper",
+            p: 3,
+          }}
+        >
+          <Typography component="h1" sx={{ fontSize: "1.25rem", fontWeight: 700 }}>
+            {message.tone === "error" ? "Consultation unavailable" : "Start a consultation"}
+          </Typography>
+          <Typography sx={{ mt: 1, color: "text.secondary" }}>{message.text}</Typography>
+        </Box>
       ) : !context ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
           <CircularProgress size={28} />
