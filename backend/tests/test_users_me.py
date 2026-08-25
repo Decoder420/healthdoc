@@ -134,3 +134,70 @@ async def test_users_me_is_registered_before_the_user_id_route():
         "/users/me must be registered before /users/{user_id}, or 'me' is parsed "
         "as a UUID and the route 422s"
     )
+
+
+# --- department, added for the HOD dashboard ---------------------------------
+#
+# The dashboard is per-department and the session had no way to say which
+# department the caller belongs to. The alternative was a picker, and a picker
+# would be wrong: the hod-dashboard endpoints are gated on role and scoped only
+# to the caller's FACILITY, so a picker would let the head of Medicine read
+# Surgery's workload and pending approvals.
+
+async def _department(db, facility_id: uuid.UUID, name: str = "General Medicine"):
+    from app.departments.models import Department
+
+    department = Department(
+        id=uuid.uuid4(), name=name, code=f"D{uuid.uuid4().hex[:4].upper()}",
+        facility_id=facility_id,
+    )
+    db.add(department)
+    await db.flush()
+    return department
+
+
+async def test_me_returns_the_callers_department(db):
+    """What the HOD dashboard scopes itself by."""
+    facility, user = await _facility_and_user(db, ["hod"])
+    department = await _department(db, facility.id)
+    user.department_id = department.id
+    await db.flush()
+
+    result = await me_router.get_me(_Caller(user.id, facility.id, ["hod"]), db=db)
+
+    assert result.department is not None
+    assert result.department.id == department.id
+    assert result.department.name == "General Medicine"
+    assert result.department.code == department.code
+
+
+async def test_a_user_with_no_department_still_gets_a_response(db):
+    """THE REASON THE JOIN IS OUTER.
+
+    users.department_id is nullable — admin and auditor belong to no one
+    department. An inner join would make /users/me return 404 for them, turning
+    "has no department" into "has no account", on the endpoint every screen
+    calls first. The whole app would fail to load for an admin.
+    """
+    facility, user = await _facility_and_user(db, ["admin"])
+
+    result = await me_router.get_me(_Caller(user.id, facility.id, ["admin"]), db=db)
+
+    assert result.department is None
+    assert result.id == user.id, "the rest of the payload is unaffected"
+    assert result.facility.id == facility.id
+
+
+async def test_the_department_payload_stays_narrow(db):
+    """MeOut's own docstring says it is deliberately narrow because every screen
+    for every role reads it. The department is id, code and name — what a screen
+    needs to scope and label itself — and nothing about the department's staff,
+    rooms or configuration."""
+    facility, user = await _facility_and_user(db, ["hod"])
+    department = await _department(db, facility.id)
+    user.department_id = department.id
+    await db.flush()
+
+    result = await me_router.get_me(_Caller(user.id, facility.id, ["hod"]), db=db)
+
+    assert set(result.department.model_dump()) == {"id", "code", "name"}

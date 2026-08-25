@@ -37,6 +37,9 @@ type NavItem = {
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
+  // Head of department. Eight endpoints existed for this role with no route and
+  // no nav entry, so an HOD logged in and had nowhere to go.
+  { href: "/hod", label: "Department dashboard", icon: LayoutDashboard, area: "clinical" },
   { href: "/receptionist/registration", label: "Registration", icon: UserRound, area: "front_desk" },
   { href: "/receptionist/patient-search", label: "Patient search", icon: Search, area: "front_desk" },
   { href: "/receptionist/queue", label: "Queue", icon: Users, area: "front_desk" },

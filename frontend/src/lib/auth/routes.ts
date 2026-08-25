@@ -22,7 +22,7 @@ const DEFAULT_ROUTES: Record<Role, string> = {
   [ROLES.EMERGENCY]: "/emergency",
   [ROLES.SUPERVISOR]: "/reports",
   [ROLES.ADMIN]: "/admin",
-  [ROLES.HOD]: "/reports",
+  [ROLES.HOD]: "/hod",
   [ROLES.AUDITOR]: "/audit-viewer",
   [ROLES.PATIENT]: "/patient-portal",
   [ROLES.SUPERADMIN]: "/admin",
@@ -43,8 +43,15 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   [ROLES.PHARMACIST]: ["/pharmacy", "/inventory"],
   [ROLES.EMERGENCY]: ["/emergency"],
   [ROLES.SUPERVISOR]: ["/consent", "/reports", "/emergency"],
-  [ROLES.ADMIN]: ["/admin", "/billing", "/reports", "/audit-viewer"],
-  [ROLES.HOD]: ["/reports", "/queue-display"],
+  // Admin gets /hod because the hod-dashboard endpoints accept "admin" too.
+  // The screen itself explains that an account with no department has nothing
+  // to scope to, rather than inventing a cross-department picker.
+  [ROLES.ADMIN]: ["/admin", "/billing", "/reports", "/audit-viewer", "/hod"],
+  // /inventory is NOT decoration here. Indent approval is gated
+  // `require_roles("hod")` — HOD ONLY — and the approve/reject buttons live on
+  // Inventory -> Indents. Without this prefix the one action only a department
+  // head can perform was unreachable by every department head.
+  [ROLES.HOD]: ["/hod", "/reports", "/queue-display", "/inventory"],
   [ROLES.AUDITOR]: ["/audit-viewer", "/reports"],
   [ROLES.PATIENT]: ["/patient-portal"],
   [ROLES.SUPERADMIN]: ["/admin", "/reports"],
