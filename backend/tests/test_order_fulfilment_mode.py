@@ -28,8 +28,9 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import func, select
 
+from app.common.facility_modules import FacilityModule
 from app.opd.models import Visit
 from app.orders import service
 from app.orders.schemas import OrderCreate
@@ -68,12 +69,19 @@ async def encounter(db, seed):
 
 
 async def _disable(db, facility_id, module_code: str) -> None:
-    await db.execute(
-        text("""
-            INSERT INTO facility_modules (id, facility_id, module_code, is_enabled)
-            VALUES (:id, :facility_id, :module_code, false)
-        """),
-        {"id": uuid.uuid4(), "facility_id": facility_id, "module_code": module_code},
+    """Switch a module off via the mapped model, not raw SQL.
+
+    A bare `:param` in text() carries no type information, so a UUID reaches
+    the driver untouched — fine on asyncpg, "type 'UUID' is not supported" on
+    sqlite3. This fixture runs on the shared SQLite `db`.
+    """
+    db.add(
+        FacilityModule(
+            id=uuid.uuid4(),
+            facility_id=facility_id,
+            module_code=module_code,
+            is_enabled=False,
+        )
     )
     await db.flush()
 
@@ -182,8 +190,9 @@ async def test_no_row_means_enabled(db, encounter):
     """
     enc, patient, doctor, facility_id = encounter
     rows = (await db.execute(
-        text("SELECT count(*) FROM facility_modules WHERE facility_id = :f"),
-        {"f": facility_id},
+        select(func.count())
+        .select_from(FacilityModule)
+        .where(FacilityModule.facility_id == facility_id)
     )).scalar_one()
     assert rows == 0, "precondition: this facility has toggled nothing"
 
