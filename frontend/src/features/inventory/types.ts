@@ -188,3 +188,88 @@ export interface AdjustmentListRow {
   second_approver_name: string | null;
   created_at: string;
 }
+
+/* ------------------------------------------------- procurement upstream */
+/*
+ * Purchase orders and stock transfers. Shapes from app/inventory/schemas.py.
+ *
+ * Quantities are Decimal server-side, so STRINGS on the wire. Never parseFloat
+ * one for display — a quantity that has been through a float is a quantity you
+ * cannot reconcile against the stock ledger.
+ */
+
+export type PurchaseOrderStatus =
+  | "draft"
+  | "approved"
+  | "sent"
+  | "partially_received"
+  | "received"
+  | "cancelled";
+
+/** Only these three are reachable via the transition endpoint. */
+export type PurchaseOrderTransition = "approved" | "sent" | "cancelled";
+
+export interface PurchaseOrderItem {
+  id: string;
+  item_id: string;
+  item_name: string;
+  quantity: string;
+  /** How much has arrived on verified GRNs. Drives the outstanding figure. */
+  received_quantity: string;
+  unit_price: string | null;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  po_number: string;
+  supplier_id: string;
+  supplier_name: string;
+  status: PurchaseOrderStatus;
+  approved_by: string | null;
+  expected_date: string | null;
+  created_at: string;
+  updated_at: string;
+  items: PurchaseOrderItem[];
+}
+
+export interface CreatePurchaseOrderInput {
+  supplier_id: string;
+  expected_date: string | null;
+  items: Array<{ item_id: string; quantity: string; unit_price: string | null }>;
+}
+
+export type StockTransferStatus =
+  | "draft"
+  | "dispatched"
+  | "received"
+  | "cancelled";
+
+export interface StockTransferItem {
+  id: string;
+  item_id: string;
+  item_name: string;
+  /** Transfers move a SPECIFIC batch, not a quantity of an item — expiry
+   *  travels with the goods, so the batch is part of what is being moved. */
+  batch_id: string;
+  batch_number: string;
+  quantity: string;
+}
+
+export interface StockTransfer {
+  id: string;
+  from_location_id: string;
+  from_location_name: string;
+  to_location_id: string;
+  to_location_name: string;
+  status: StockTransferStatus;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  items: StockTransferItem[];
+}
+
+export interface CreateStockTransferInput {
+  from_location_id: string;
+  to_location_id: string;
+  items: Array<{ item_id: string; batch_id: string; quantity: string }>;
+}

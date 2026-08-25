@@ -12,6 +12,13 @@ import { api, newIdempotencyKey } from "@/lib/api";
 
 import type {
   Adjustment,
+  CreatePurchaseOrderInput,
+  CreateStockTransferInput,
+  PurchaseOrder,
+  PurchaseOrderStatus,
+  PurchaseOrderTransition,
+  StockTransfer,
+  StockTransferStatus,
   AdjustmentListRow,
   AdjustmentStatus,
   GrnListRow,
@@ -179,4 +186,90 @@ export async function listAdjustments(status?: AdjustmentStatus): Promise<Adjust
     `/pharmacy/adjustments?${statusQuery(status)}`,
   );
   return response.items;
+}
+
+/* ------------------------------------------------- procurement upstream */
+/*
+ * admin/pharmacist gated. Paged reads: page_size is capped at 100 server-side.
+ */
+
+export async function listPurchaseOrders(status?: PurchaseOrderStatus): Promise<PurchaseOrder[]> {
+  const params = new URLSearchParams({ page: "1", page_size: "50" });
+  if (status) params.set("status", status);
+  const response = await api<{ items: PurchaseOrder[] }>(
+    `/inventory/purchase-orders?${params.toString()}`,
+  );
+  return response.items;
+}
+
+export function createPurchaseOrder(input: CreatePurchaseOrderInput): Promise<PurchaseOrder> {
+  return api<PurchaseOrder>("/inventory/purchase-orders", {
+    method: "POST",
+    body: JSON.stringify(input),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+/**
+ * draft -> approved -> sent, or cancelled.
+ *
+ * `received` and `partially_received` are NOT reachable here and are absent
+ * from the type: those are set by the server when a GRN linked to this order is
+ * verified. A screen that let a clerk mark an order received by hand would let
+ * the paperwork claim goods arrived that no GRN ever recorded.
+ */
+export function transitionPurchaseOrder(
+  purchaseOrderId: string,
+  targetStatus: PurchaseOrderTransition,
+): Promise<PurchaseOrder> {
+  return api<PurchaseOrder>(`/inventory/purchase-orders/${purchaseOrderId}/transition`, {
+    method: "POST",
+    body: JSON.stringify({ target_status: targetStatus }),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+export async function listStockTransfers(status?: StockTransferStatus): Promise<StockTransfer[]> {
+  const params = new URLSearchParams({ page: "1", page_size: "50" });
+  if (status) params.set("status", status);
+  const response = await api<{ items: StockTransfer[] }>(
+    `/inventory/stock-transfers?${params.toString()}`,
+  );
+  return response.items;
+}
+
+export function createStockTransfer(input: CreateStockTransferInput): Promise<StockTransfer> {
+  return api<StockTransfer>("/inventory/stock-transfers", {
+    method: "POST",
+    body: JSON.stringify(input),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+/** Stock leaves the source location. */
+export function dispatchStockTransfer(transferId: string): Promise<StockTransfer> {
+  return api<StockTransfer>(`/inventory/stock-transfers/${transferId}/dispatch`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+/** Stock arrives at the destination. Separate from dispatch on purpose: goods
+ *  in transit belong to neither location, and collapsing the two steps would
+ *  make a lost consignment invisible. */
+export function receiveStockTransfer(transferId: string): Promise<StockTransfer> {
+  return api<StockTransfer>(`/inventory/stock-transfers/${transferId}/receive`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+export function cancelStockTransfer(transferId: string): Promise<StockTransfer> {
+  return api<StockTransfer>(`/inventory/stock-transfers/${transferId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    idempotencyKey: newIdempotencyKey(),
+  });
 }
