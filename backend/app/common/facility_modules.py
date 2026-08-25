@@ -57,6 +57,19 @@ class FacilityModule(Base, UUIDPk, Timestamps):
     )
     module_code: Mapped[str] = mapped_column(String(50), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    #: PASS config EXPLICITLY WHEN INSERTING UNDER THE SQLite TEST FIXTURE.
+    #:
+    #: The server_default is the PostgreSQL literal "'{}'::jsonb", which matches
+    #: migration 0027 and is correct for the real database. SQLite has no such
+    #: syntax: it stores the eleven characters verbatim and then fails to decode
+    #: them on read-back with
+    #:     JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    #: which names neither this column nor this table.
+    #:
+    #: Supplying `config={}` on insert means the server_default never fires, so
+    #: the row is portable. Left as-is rather than switched to a Python-side
+    #: default because the migration is the source of truth for the shipped
+    #: schema, and matching it is worth more than convenience in a fixture.
     config: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="'{}'::jsonb")
     enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

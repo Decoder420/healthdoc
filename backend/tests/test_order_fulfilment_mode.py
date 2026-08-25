@@ -81,6 +81,12 @@ async def _disable(db, facility_id, module_code: str) -> None:
             facility_id=facility_id,
             module_code=module_code,
             is_enabled=False,
+            # config MUST be passed explicitly here. Its server_default is the
+            # PostgreSQL literal "'{}'::jsonb"; SQLite stores that string
+            # verbatim and then fails to json.loads() it on read-back:
+            #   JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+            # Supplying the value means the server_default never fires.
+            config={},
         )
     )
     await db.flush()
@@ -92,6 +98,11 @@ async def _place(db, encounter, patient, doctor, order_type: str):
         OrderCreate(
             encounter_id=encounter.id,
             patient_id=patient.id,
+            # Required when calling the service directly: orders.created_by is
+            # NOT NULL and it is the ROUTER that normally supplies the actor
+            # from the token. Every other test in tests/test_orders.py passes it
+            # the same way.
+            created_by=doctor.id,
             order_type=order_type,
             priority="routine",
         ),
