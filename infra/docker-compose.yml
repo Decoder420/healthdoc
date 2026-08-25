@@ -150,6 +150,8 @@ services:
       # which is the same "failure that looks like nothing happened" this repo
       # keeps paying for.
       - ../scripts:/scripts:ro
+      - ../infra:/infra:ro
+      - ../docs:/docs:ro
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
