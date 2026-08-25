@@ -16,6 +16,18 @@ from app.common.db import SessionLocal
 
 FACILITY_ID = uuid.UUID("00000000-0000-0000-0000-000000000101")
 
+#: A department, so the HOD dashboard has something to scope to.
+#:
+#: /users/me returns the caller's department and the HOD screen is per-department;
+#: a seeded HOD with department_id NULL lands on "your account is not attached to
+#: a department" and the dashboard cannot be exercised at all — which is exactly
+#: where it stood until this seed existed.
+DEPARTMENT_ID = uuid.UUID("00000000-0000-0000-0000-000000000102")
+
+#: Users given DEPARTMENT_ID. Clinical roles belong to a department; admin and
+#: auditor deliberately do not, which is why /users/me's join is OUTER.
+DEPARTMENTAL_USERS = {"dev.hod", "dev.doctor", "dev.nurse"}
+
 DISPLAY_NAMES = {
     "dev.receptionist": "Dev Receptionist",
     "dev.doctor": "Dev Doctor",
@@ -25,6 +37,7 @@ DISPLAY_NAMES = {
     "dev.pharmacist": "Dev Pharmacist",
     "dev.admin": "Dev Admin",
     "dev.patient": "Dev Patient",
+    "dev.hod": "Dev Head of Department",
 }
 
 
@@ -54,6 +67,17 @@ async def seed(users: list[tuple[str, str]]) -> None:
             {"id": FACILITY_ID},
         )
 
+        await session.execute(
+            text(
+                """
+                INSERT INTO departments (id, name, code, facility_id)
+                VALUES (:id, 'General Medicine', 'GENMED', :facility_id)
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+                """
+            ),
+            {"id": DEPARTMENT_ID, "facility_id": FACILITY_ID},
+        )
+
         for username, subject in users:
             existing = (
                 await session.execute(
@@ -70,6 +94,7 @@ async def seed(users: list[tuple[str, str]]) -> None:
                                full_name = :full_name,
                                email = :email,
                                facility_id = :facility_id,
+                               department_id = :department_id,
                                is_active = true,
                                updated_at = now()
                          WHERE id = :id
@@ -81,6 +106,9 @@ async def seed(users: list[tuple[str, str]]) -> None:
                         "full_name": DISPLAY_NAMES.get(username, username),
                         "email": f"{username}@healthdoc.local",
                         "facility_id": FACILITY_ID,
+                        "department_id": (
+                            DEPARTMENT_ID if username in DEPARTMENTAL_USERS else None
+                        ),
                     },
                 )
                 continue
@@ -89,14 +117,17 @@ async def seed(users: list[tuple[str, str]]) -> None:
                 text(
                     """
                     INSERT INTO users
-                        (id, keycloak_sub, username, full_name, email, facility_id, is_active)
+                        (id, keycloak_sub, username, full_name, email, facility_id,
+                         department_id, is_active)
                     VALUES
-                        (:id, :subject, :username, :full_name, :email, :facility_id, true)
+                        (:id, :subject, :username, :full_name, :email, :facility_id,
+                         :department_id, true)
                     ON CONFLICT (keycloak_sub) DO UPDATE SET
                         username = EXCLUDED.username,
                         full_name = EXCLUDED.full_name,
                         email = EXCLUDED.email,
                         facility_id = EXCLUDED.facility_id,
+                        department_id = EXCLUDED.department_id,
                         is_active = true,
                         updated_at = now()
                     """

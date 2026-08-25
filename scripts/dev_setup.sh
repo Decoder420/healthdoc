@@ -193,6 +193,9 @@ RADIOLOGY_TECH_SUB=$(ensure_keycloak_user dev.radiology Dev "Radiology Technicia
 PHARMACIST_SUB=$(ensure_keycloak_user dev.pharmacist Dev Pharmacist pharmacist)
 ADMIN_SUB=$(ensure_keycloak_user dev.admin Dev Admin admin,supervisor)
 PATIENT_SUB=$(ensure_keycloak_user dev.patient Dev Patient patient)
+# The HOD role had eight backend endpoints, a dashboard, and no way to log in as
+# one — so none of it had ever been exercised by a human or a test.
+HOD_SUB=$(ensure_keycloak_user dev.hod Dev "Head of Department" hod)
 
 docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
   python -m scripts.seed_dev_data \
@@ -203,7 +206,8 @@ docker compose -f infra/docker-compose.yml --env-file .env exec -T backend \
     --user "dev.radiology=$RADIOLOGY_TECH_SUB" \
     --user "dev.pharmacist=$PHARMACIST_SUB" \
     --user "dev.admin=$ADMIN_SUB" \
-    --user "dev.patient=$PATIENT_SUB"
+    --user "dev.patient=$PATIENT_SUB" \
+    --user "dev.hod=$HOD_SUB"
 
 cat <<DONE
 
@@ -218,5 +222,5 @@ HealthDoc dev stack is up:
 
 Dev logins (Keycloak realm 'healthdoc', password 'devpass'):
   dev.receptionist / dev.doctor / dev.nurse / dev.labtech /
-  dev.radiology / dev.pharmacist / dev.admin / dev.patient
+  dev.radiology / dev.pharmacist / dev.admin / dev.patient / dev.hod
 DONE
