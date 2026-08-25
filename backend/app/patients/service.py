@@ -511,6 +511,7 @@ REPOINTED_ON_MERGE: frozenset[str] = frozenset(
         "vitals",
         "medication_administration",
         "clinical_incidents",
+        "patient_grievances",
         "patient_portal_bindings",
     }
 )
@@ -611,6 +612,7 @@ async def approve_merge(
     await _repoint_order_clinical_records(db, source=source, target=target)
     await _repoint_ot_schedules(db, source=source, target=target)
     await _repoint_clinical_incidents(db, source=source, target=target)
+    await _repoint_patient_grievances(db, source=source, target=target)
     await _repoint_medication_administration(db, source=source, target=target)
     await _repoint_vitals(db, source=source, target=target)
     await _repoint_admissions(db, source=source, target=target)
@@ -758,6 +760,20 @@ async def _reconcile_patient_portal_bindings(
             )
             .values(**values)
         )
+    await db.flush()
+
+
+async def _repoint_patient_grievances(
+    db: AsyncSession, *, source: Patient, target: Patient
+) -> None:
+    """Keep DPDP grievance history attached to the surviving patient record."""
+    from app.dpdp.models import PatientGrievance
+
+    await db.execute(
+        update(PatientGrievance)
+        .where(PatientGrievance.patient_id == source.id)
+        .values(patient_id=target.id)
+    )
     await db.flush()
 
 
