@@ -256,6 +256,14 @@ jobs:
         working-directory: frontend
         run: npm run test:print
 
+      # Every dashboard, per role: it must load, be reachable by that role, make
+      # at least one API call, and have none of them fail. Runs in this job to
+      # reuse the stack `make setup` already started — a separate job would boot
+      # PostgreSQL, Redis, MinIO and Keycloak a second time for the same check.
+      - name: Per-dashboard smoke
+        working-directory: frontend
+        run: npm run test:dashboards
+
       - name: Show service logs on failure
         if: failure()
         run: docker compose -f infra/docker-compose.yml --env-file .env logs --tail=200
