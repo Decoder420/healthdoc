@@ -23,14 +23,15 @@ disabled audience verification behind a "tighten later" comment. Both were
 found only when the file was read for the PyJWT migration, and both are now
 fixed. A checklist answered by grep is a checklist answered by grep.
 
-The security *architecture* is genuinely strong — TLS 1.3-only, full header set,
+The security *architecture* was already strong — TLS 1.3-only, full header set,
 AES-GCM at rest with key versioning, tokens never leaving memory, facility
-scoping backed by tests. What fails is inventory hygiene and one missing control.
+scoping backed by tests. What failed was inventory hygiene and two missing
+controls, and both are now in place.
 
 | Track | State |
 |---|---|
-| Cybersecurity (VAPT) | 2 blockers, 3 minor |
-| ABDM functional | **Cannot be assessed — the workflows do not exist yet** |
+| Cybersecurity (VAPT) | ✅ blockers closed · 1 minor open (M3) · dependency jump needs a test run |
+| ABDM functional | ❌ **Cannot be assessed — the workflows do not exist yet** |
 
 ---
 
@@ -83,7 +84,7 @@ comments that were still there months on; a startup failure does not forget.
 
 ---
 
-## Fixed during this assessment (`beb5ba7`)
+## Also fixed during this assessment (`beb5ba7`)
 
 **Unvalidated identifier interpolated into DDL.** `app/users/models.py` built a
 sequence name from `facilities.code` with only `.replace("-", "_")` applied — a
@@ -126,11 +127,11 @@ open in production. `ENVIRONMENT=production` added there.
 | SSRF | Every outbound URL derives from settings (`jwt_issuer`, `icd11_base_url`, `abdm_gateway_base_url`). No request data reaches a URL. |
 | Brute force | Keycloak: `bruteForceProtected`, `failureFactor: 5`, 15-minute lockout, non-permanent. Covered by `tests/test_auth_lockout_policy.py`. |
 | Rate limiting | nginx `limit_req` — 30 r/s API, 10 r/s auth, both burst-limited. |
-| Token handling | Access token in memory only — never cookie, never `localStorage` (`lib/auth/keycloak.ts:8`). Logout calls Keycloak `end_session`. |
+| Token handling | Access token in memory only — never cookie, never `localStorage` (`lib/auth/keycloak.ts:8`). Logout calls Keycloak `end_session`. Verification requires `exp`/`iat`/`sub`, selects the JWKS key by `kid`, and returns 503 (not 401) when the IdP is unreachable. |
 | TLS | `ssl_protocols TLSv1.3` only. |
 | Headers | HSTS (2 yr, `includeSubDomains`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, CSP with `frame-ancestors 'none'`. |
 | Data at rest | AES-GCM via `cryptography`; key **versioning** with multi-version read and rotation support; Aadhaar stored as HMAC blind index, never plaintext. |
-| Error leakage | No handler returns exception text. No `detail=str(exc)` anywhere. |
+| Error leakage | 401s return a flat `"Invalid token"`; the reason goes to the log. **This line previously claimed no handler leaked exception text and was wrong** — `app/auth/deps.py` raised `f"Invalid token: {exc}"`, which the originating grep missed because it was positional. Fixed and covered by `tests/test_jwt_verification.py::test_the_401_body_does_not_say_WHY`. |
 | Frontend deps | `npm audit --omit=dev` → **0 vulnerabilities**. |
 | Audit trail | Append-only `audit_logs` with per-facility hash chaining, enforced by DB triggers (update/delete raise). |
 
