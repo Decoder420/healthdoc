@@ -52,6 +52,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/nurse/emar", label: "eMAR", icon: ClipboardList, area: "clinical" },
   { href: "/ipd", label: "IPD", icon: Building2, area: "clinical" },
   { href: "/emergency", label: "Emergency", icon: Stethoscope, area: "clinical" },
+  { href: "/supervisor/merges", label: "Identity merges", icon: Shield, area: "audit" },
   { href: "/consent", label: "Consent", icon: FileText, area: "clinical" },
   { href: "/lab", label: "Laboratory", icon: FlaskConical, area: "diagnostics" },
   { href: "/radiology", label: "Radiology", icon: Radio, area: "diagnostics" },

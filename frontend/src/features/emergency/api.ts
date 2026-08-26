@@ -19,6 +19,21 @@ export interface EmergencyPatient {
   facility_id: string;
 }
 
+/** Mirrors backend PromotionOut / patient_merge_log for THID→UHID. */
+export interface PromotionLog {
+  id: string;
+  source_type: string;
+  source_patient_id: string;
+  target_patient_id: string;
+  requested_by: string;
+  requested_at: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  status: string;
+  reason: string | null;
+  unmerge_reason: string | null;
+}
+
 export function registerEmergencyPatient(
   payload: EmergencyPatientInput,
 ): Promise<EmergencyPatient> {
@@ -26,5 +41,38 @@ export function registerEmergencyPatient(
     method: "POST",
     idempotencyKey: newIdempotencyKey(),
     body: JSON.stringify(payload),
+  });
+}
+
+/** Supervisor A: open a pending THID→UHID promotion (maker). */
+export function requestThidPromotion(
+  patientId: string,
+  reason?: string,
+): Promise<PromotionLog> {
+  return api<PromotionLog>(`/emergency/patients/${patientId}/promote`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+/** Supervisor B: approve — different person from requester (checker). */
+export function approveThidPromotion(mergeLogId: string): Promise<PromotionLog> {
+  return api<PromotionLog>(`/emergency/patients/promotions/${mergeLogId}/approve`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    idempotencyKey: newIdempotencyKey(),
+  });
+}
+
+/** Supervisor C: reverse an approved promotion — different from approver. */
+export function unmergeThidPromotion(
+  mergeLogId: string,
+  reason?: string,
+): Promise<PromotionLog> {
+  return api<PromotionLog>(`/emergency/patients/promotions/${mergeLogId}/unmerge`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+    idempotencyKey: newIdempotencyKey(),
   });
 }

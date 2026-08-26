@@ -20,7 +20,7 @@ const DEFAULT_ROUTES: Record<Role, string> = {
   [ROLES.RADIOLOGY_TECH]: "/radiology",
   [ROLES.PHARMACIST]: "/pharmacy/prescription-queue",
   [ROLES.EMERGENCY]: "/emergency",
-  [ROLES.SUPERVISOR]: "/reports",
+  [ROLES.SUPERVISOR]: "/supervisor/merges",
   [ROLES.ADMIN]: "/admin",
   [ROLES.HOD]: "/hod",
   [ROLES.AUDITOR]: "/audit-viewer",
@@ -47,9 +47,8 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   [ROLES.EMERGENCY]: ["/emergency"],
   // The existing /emergency page registers a new THID and its POST endpoint
   // intentionally excludes supervisors. Their maker-checker promotion APIs
-  // need a separate records-authority screen; advertising the registration
-  // screen here produced a guaranteed 403 on its only action.
-  [ROLES.SUPERVISOR]: ["/reports"],
+  // need a separate records-authority screen (#221) at /supervisor/merges.
+  [ROLES.SUPERVISOR]: ["/supervisor", "/reports"],
   // Admin gets /hod because the hod-dashboard endpoints accept "admin" too.
   // The screen itself explains that an account with no department has nothing
   // to scope to, rather than inventing a cross-department picker.
