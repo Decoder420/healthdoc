@@ -76,12 +76,38 @@ def _db_user_for(user: AuthUser) -> DbUser:
     )
 
 
-_test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
-_TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
+# Built on FIRST USE, not at import.
+#
+# This was `create_async_engine(TEST_DATABASE_URL, ...)` at module level. Once
+# TEST_DATABASE_URL stopped defaulting to a hardcoded localhost URL and became
+# None when unset, that line raised ArgumentError during CONFTEST IMPORT and
+# took the whole directory's collection down — a strictly worse failure than
+# the connection errors it replaced.
+#
+# A conftest must be importable in an environment where its tests cannot run.
+# The skip then goes in the fixture every test passes through, because a
+# `pytestmark` in a conftest applies to the conftest and not to the modules
+# beside it (see tests/pharmacy/conftest.py).
+_test_engine = None
+_TestSession = None
+
+
+def _session_factory():
+    global _test_engine, _TestSession
+    if _TestSession is None:
+        _test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+        _TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
+    return _TestSession
+
+
+def _require_postgres():
+    """Called by fixtures. Abstains instead of erroring when there is no DB."""
+    if not TEST_DATABASE_URL:
+        pytest.skip("needs real PostgreSQL — run `make test-pg` from the repo root")
 
 
 async def _test_get_db():
-    async with _TestSession() as session:
+    async with _session_factory()() as session:
         try:
             yield session
             await session.commit()
@@ -92,6 +118,7 @@ async def _test_get_db():
 
 @pytest.fixture
 def client_as():
+    _require_postgres()
     with TestClient(app) as client:
         def _make(user: AuthUser) -> TestClient:
             app.dependency_overrides[get_current_user] = lambda: user
@@ -160,6 +187,8 @@ async def _seed() -> None:
 
 @pytest.fixture(scope="session")
 def seeded_patient_id() -> str:
+    # Session-scoped and reachable without client_as, so it needs its own guard.
+    _require_postgres()
     import asyncio
     asyncio.run(_seed())
     return str(TEST_PATIENT_ID)

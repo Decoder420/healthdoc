@@ -17,6 +17,7 @@ What this proves:
 import json
 import os
 import platform
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -181,6 +182,19 @@ def log_restore_event(
 
 @pytest.fixture(scope="module")
 def backup_file():
+    # The script reaches Postgres through the `docker` CLI, falling back to
+    # pg_dump on PATH. Inside the backend container there is neither: no Docker
+    # socket, no postgresql-client. That is a missing TOOL, not a failing
+    # backup, and reporting it as a failure trains people to ignore this file.
+    #
+    # Same rule as the database fixtures: abstain when the environment cannot
+    # run the test, fail only when the thing under test is actually broken.
+    # On the host and in CI both paths exist, so this skip never fires there.
+    if not shutil.which("docker") and not shutil.which("pg_dump"):
+        pytest.skip(
+            "needs the docker CLI or pg_dump — run `make test-pg` from the host"
+        )
+
     result = subprocess.run(
         _bash_command(BACKUP_SCRIPT),
         cwd=REPO_ROOT,

@@ -9,27 +9,41 @@ Follows the same graceful-degradation pattern as integrations/icd11/client.py:
 a rural facility going offline must not break registration.
 """
 import logging
+import uuid
 from typing import Annotated
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import uuid
-
-from sqlalchemy import select
-
 from app.auth.deps import AuthUser, CurrentDbUser, get_current_user, require_roles
-from app.common.config import get_settings
 from app.common.db import get_db
 from app.common.security import encrypt_pii
+from app.integrations.abdm.client import (
+    AbdmAuthError,
+    AbdmNotConfigured,
+    AbdmRejected,
+    AbdmUnavailable,
+    get_abdm_client,
+)
 from app.outbox.service import enqueue
 from app.patients.models import Patient
 
 log = logging.getLogger("healthdoc.abdm")
 router = APIRouter(prefix="/abdm/abha", tags=["abdm"])
+
+#: The ABDM v3 path that verifies an ABHA number. DELIBERATELY None.
+#:
+#: The old value was wrong (`/v3/hip/token/on-generate` is a callback the
+#: gateway invokes on the HIP, not something a HIP posts to). The honest
+#: replacement is not a better-looking guess — a plausible constant is worse
+#: than an absent one, because the next person will believe it.
+#:
+#: While this is None the call is inert and says so. Set it from the ABDM v3
+#: specification as the first step of M1 and verification starts working; no
+#: other line needs to change.
+_VERIFY_PATH: str | None = None
 
 
 class AbhaCapture(BaseModel):
@@ -39,35 +53,89 @@ class AbhaCapture(BaseModel):
 
 
 async def _verify_with_gateway(abha_number: str) -> dict | None:
-    """Verify ABHA with ABDM gateway. Returns None if gateway is unreachable
-    (graceful degradation — offline facility must not break registration).
-    No PHI in logs, including on error paths."""
-    settings = get_settings()
+    """Verify an ABHA with the gateway. None means "not verified".
+
+    WHAT THIS USED TO DO, AND WHY IT MATTERS
+    ----------------------------------------
+    This built its own httpx call and sent `abdm_client_secret` in an
+    `Authorization: Bearer` header. The client secret is what you EXCHANGE for a
+    session token; it is not one. Every such call 401s — so ABHA verification had
+    never once succeeded, against the sandbox or anything else.
+
+    Nobody noticed because the old error handling ended in a bare
+    `except Exception: return None` that logged "proceeding offline". A
+    permanently broken integration and a facility with no internet produced
+    identical logs and identical behaviour. That is the whole lesson here:
+    graceful degradation that cannot distinguish "down" from "wrong" is not
+    resilience, it is a silencer.
+
+    It failed CLOSED, which is the one piece of luck — `gateway_verified` was
+    always False, so the caller marked patients `identity_unverified` rather
+    than falsely verified. No bad data was written. The cost was a dead feature
+    and a client secret on the wire in a form that could never authenticate.
+
+    WHAT IT DOES NOW
+    ----------------
+    Goes through `AbdmClient`, which is the only thing in this codebase allowed
+    to talk to the gateway: it obtains a real session token, caches it, sends
+    REQUEST-ID / TIMESTAMP / X-CM-ID, and raises a typed error per failure mode.
+
+    Three outcomes are now distinguishable in the logs, where before there was
+    one: not configured, gateway unavailable, and gateway said no.
+
+    STILL OUTSTANDING — read before trusting this
+    ---------------------------------------------
+    AUTH IS FIXED. THE ENDPOINT IS NOT. `_VERIFY_PATH` is None, so this returns
+    None without calling anything, and every ABHA is recorded unverified — the
+    same OUTCOME as before, reached honestly instead of via a doomed request
+    that leaked the client secret into an Authorization header.
+
+    Set `_VERIFY_PATH` from the ABDM v3 spec to turn verification on. That is
+    M1's first task and the only line that needs to change.
+    """
+    # Ordered most-certain-first: an unknown path and absent credentials are
+    # both facts we hold locally, and neither should reach the network.
+    if _VERIFY_PATH is None:
+        log.info("ABDM verify path not yet set from the v3 spec — "
+                 "ABHA recorded without gateway verification")
+        return None
+
+    client = get_abdm_client()
+
+    # Unconfigured is not a failure, and must not put a placeholder secret on
+    # the wire. Checked here rather than caught as AbdmNotConfigured so the
+    # request is never built at all.
+    if not client.is_configured:
+        log.info("ABDM not configured — ABHA recorded without gateway verification")
+        return None
+
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"{settings.abdm_gateway_base_url}/v3/hip/token/on-generate",
-                headers={
-                    "X-CM-ID": "sbx",
-                    "Authorization": f"Bearer {settings.abdm_client_secret}",
-                },
-                json={"abhaNumber": abha_number},
-            )
-            resp.raise_for_status()
-            return resp.json()
-    except httpx.ConnectError:
-        log.warning("ABDM gateway unreachable — proceeding offline (graceful degradation)")
+        response = await client.request("POST", _VERIFY_PATH, json={"abhaNumber": abha_number})
+    except AbdmNotConfigured:
+        log.info("ABDM not configured — ABHA recorded without gateway verification")
         return None
-    except httpx.TimeoutException:
-        log.warning("ABDM gateway timeout — proceeding offline (graceful degradation)")
+    except AbdmUnavailable:
+        # The genuine offline case this endpoint's degradation was written for.
+        log.warning("ABDM gateway unavailable — ABHA recorded unverified")
         return None
-    except httpx.HTTPStatusError as exc:
-        # No PHI in logs: log status only, not the body which may contain patient data
-        log.warning("ABDM gateway returned %s — proceeding offline", exc.response.status_code)
+    except AbdmAuthError:
+        # Ours to fix, not the network's. Logged at ERROR so it stops hiding
+        # inside the offline case the way the old code let it.
+        log.error("ABDM rejected our credentials — ABHA verification is DOWN, not offline")
         return None
-    except Exception:
-        log.exception("Unexpected ABDM gateway error — proceeding offline")
+    except AbdmRejected as exc:
+        # The gateway answered and declined. Status only; the body can carry PHI.
+        log.warning("ABDM declined ABHA verification (%s)", exc.status_code)
         return None
+
+    body = response.body
+    # A 2xx whose body is not an object is not a verification. Returning it
+    # would make `gateway_result is not None` true on a bare `null` or `""`.
+    if not isinstance(body, dict):
+        log.warning("ABDM returned %s with a non-object body — treating as unverified",
+                    response.status_code)
+        return None
+    return body
 
 
 
