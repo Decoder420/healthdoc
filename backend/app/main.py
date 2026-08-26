@@ -46,11 +46,27 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
+#: Interactive docs and the OpenAPI schema are DEV-ONLY.
+#:
+#: /openapi.json hands an attacker the complete inventory of this API: every
+#: route, every parameter name and type, every response model. That is the
+#: reconnaissance step of an assessment, and WASA scanners flag an exposed
+#: schema as information disclosure — a finding that must be closed before a
+#: Safe-to-Host certificate is issued.
+#:
+#: Gated on `environment` rather than removed, because the contract checker and
+#: the frontend client generator both read /openapi.json locally. Anything
+#: other than an explicit dev/test environment gets None, which makes FastAPI
+#: serve 404 for all three routes: the default is closed.
+_DOCS_ENVIRONMENTS = {"dev", "test", "local"}
+_docs_enabled = settings.environment.strip().lower() in _DOCS_ENVIRONMENTS
+
 app = FastAPI(
     title="HealthDoc HMIS API",
     version="0.1.0",
-    docs_url=f"{settings.api_prefix}/docs",
-    openapi_url=f"{settings.api_prefix}/openapi.json",
+    docs_url=f"{settings.api_prefix}/docs" if _docs_enabled else None,
+    redoc_url=f"{settings.api_prefix}/redoc" if _docs_enabled else None,
+    openapi_url=f"{settings.api_prefix}/openapi.json" if _docs_enabled else None,
     lifespan=_lifespan,
 )
 app.add_middleware(EnvelopeMiddleware)
