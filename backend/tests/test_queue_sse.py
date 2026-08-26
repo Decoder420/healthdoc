@@ -1,4 +1,4 @@
-﻿"""Tests for the public queue display SSE stream (queue/router.py's
+"""Tests for the public queue display SSE stream (queue/router.py's
 queue_display_stream).
 
 Runs against a REAL server rather than an in-process ASGITransport, so the
