@@ -30,7 +30,7 @@ controls, and both are now in place.
 
 | Track | State |
 |---|---|
-| Cybersecurity (VAPT) | ✅ blockers closed · 1 minor open (M3) · dependency jump needs a test run |
+| Cybersecurity (VAPT) | ✅ blockers closed · 1 minor open (M3) · **909 tests pass on the upgraded stack** |
 | ABDM functional | ❌ **Cannot be assessed — the workflows do not exist yet** |
 
 ---
@@ -171,10 +171,9 @@ for an assessment of an integration that is one-sixth built.
 
 ## What remains
 
-1. **Verify the dependency jump.** FastAPI 0.115 → 0.141 and Starlette 0.46 → 1.6 is a
-   major-version leap. The app uses raw ASGI middleware (`starlette.types`,
-   `MutableHeaders`) which is stable API, but this has **not been run against the
-   suite** — `make test-pg` is the gate, and it may surface breakage.
+1. ~~Verify the dependency jump.~~ ✅ Done — FastAPI 0.115 → 0.141 and Starlette
+   0.46 → 1.6 broke nothing. **909 passed.** Re-verify CVEs any time with
+   `make audit-deps`.
 2. **Set `JWT_AUDIENCE=healthdoc-backend`** in production, after a Keycloak
    re-import picks up the audience mapper. Production will not boot without it.
 3. **M3 — CSP `'unsafe-inline'`.** The only remaining scanner finding.
