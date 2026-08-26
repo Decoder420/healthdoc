@@ -136,18 +136,46 @@ async def test_the_aadhaar_number_is_encrypted_on_the_wire(monkeypatch, rsa_key)
     assert _decrypt(rsa_key, gw.last_body["loginId"]) == AADHAAR
 
 
-async def test_the_aadhaar_number_is_not_stored_in_the_otp_session(monkeypatch, fake_redis):
+#: Everything an OTP session is allowed to persist. Deliberately exhaustive.
+#:
+#: The first version of this test searched the stored blob for any twelve-digit
+#: run, reasoning that Aadhaar is twelve digits. It failed on FACILITY_A —
+#: "11111111-1111-1111-1111-111111111111" contains one. The regex was matching
+#: the shape of the data rather than its meaning, which is the same mistake as
+#: asserting on log prose: coincidence and violation look identical.
+#:
+#: An exact field set is stronger anyway. A regex asks "does anything look like
+#: an Aadhaar"; this asks "is there a field here nobody agreed to store", which
+#: catches a leak under ANY name, in any format, including a hashed or
+#: truncated one that no pattern would match.
+_ALLOWED_SESSION_FIELDS = {
+    "session_id",
+    "abdm_txn_id",
+    "purpose",
+    "facility_id",
+    "started_by",
+    "patient_id",
+    "created_at",
+}
+
+
+async def test_the_otp_session_stores_no_field_nobody_agreed_to(monkeypatch, fake_redis):
     _gateway(monkeypatch, [{"txnId": "abdm-txn-1"}])
 
     await service.request_aadhaar_otp(
         aadhaar=AADHAAR, facility_id=FACILITY_A, started_by=STAFF
     )
 
-    stored = " ".join(fake_redis.store.values())
-    assert AADHAAR not in stored, "the Aadhaar number was persisted to Redis"
-    # Nor any 12-digit run, in case a future field carries it under a new name.
-    import re
-    assert not re.search(r"\d{12}", stored), f"a 12-digit value reached Redis: {stored}"
+    assert fake_redis.store, "nothing was written — the test is not exercising storage"
+    for raw in fake_redis.store.values():
+        stored = json.loads(raw)
+        unexpected = set(stored) - _ALLOWED_SESSION_FIELDS
+        assert not unexpected, (
+            f"the OTP session gained field(s) {sorted(unexpected)}. If one of them "
+            f"carries identity material, it now outlives the request in Redis."
+        )
+        # And the number itself, by value, wherever it might have been put.
+        assert AADHAAR not in raw, "the Aadhaar number was persisted to Redis"
 
 
 async def test_the_aadhaar_number_is_never_logged(monkeypatch, caplog):
