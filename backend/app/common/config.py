@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     minio_bucket_files: str = "hd-files"
     minio_bucket_reports: str = "hd-reports"
 
-    abdm_gateway_base_url: str = "https://dev.abdm.gov.in/gateway"
+    # ABDM v3 OpenAPI paths already include /api/hiecm/gateway/v3. Keep the
+    # origin here so joining a path cannot silently produce /gateway/v3/*.
+    abdm_gateway_base_url: str = "https://dev.abdm.gov.in"
     abdm_client_id: str = "change-me"
     abdm_client_secret: str = "change-me"
     abdm_hfr_facility_id: str = "change-me"

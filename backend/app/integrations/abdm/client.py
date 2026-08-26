@@ -176,7 +176,7 @@ class AbdmClient:
         client_id: str | None = None,
         client_secret: str | None = None,
         cm_id: str | None = None,
-        session_path: str = "/v3/sessions",
+        session_path: str = "/api/hiecm/gateway/v3/sessions",
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: httpx.Timeout | None = None,
     ) -> None:
