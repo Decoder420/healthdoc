@@ -42,10 +42,19 @@ if sys.platform == "win32":
     # it doesn't get missed when the repo eventually upgrades past 3.13.
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # pyright: ignore[reportDeprecated]
 
-TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/healthdoc_test",
-)
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+#: Unset means ABSTAIN, not "try localhost and fail".
+#:
+#: This used to default to a hardcoded localhost URL. Every runner that
+#: matters sets the variable — ci.yml line 91 and the Makefile's test-pg —
+#: so the fallback never once pointed at a real database. What it did do was
+#: guarantee a connection ATTEMPT from inside the backend container, where
+#: localhost is the container: 221 errors that looked like a broken suite and
+#: were only a missing environment. The two hardcoded defaults across these
+#: files did not even agree on credentials.
+#:
+#: Matches tests/pharmacy/conftest.py, which had this right already.
 
 
 @pytest_asyncio.fixture
@@ -59,6 +68,10 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     closed" crash. A fresh engine/pool per test costs a bit of
     connection-setup time but never crosses a loop boundary.
     """
+    # The skip belongs in the fixture: a `pytestmark` in a CONFTEST applies
+    # to the conftest, not to the modules beside it. See pharmacy/conftest.py.
+    if not TEST_DATABASE_URL:
+        pytest.skip("needs real PostgreSQL — run `make test-pg` from the repo root")
     eng = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     yield eng
     await eng.dispose()
