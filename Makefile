@@ -6,6 +6,12 @@ COMPOSE := docker compose -f infra/docker-compose.yml --env-file .env
 # Tests that need a real PostgreSQL read TEST_DATABASE_URL and are skipped
 # without it. Built from .env so it follows POSTGRES_PORT (55432 here, not the
 # 5432 CI uses) instead of hardcoding a port that is wrong on this machine.
+#
+# "and are skipped without it" was aspirational until 2026-08-25: seven
+# conftests defaulted to a hardcoded localhost URL instead of abstaining, so
+# `make test` in the container produced 221 connection errors rather than 221
+# skips. The comment described the intent and the code did something else.
+# Both now say the same thing.
 -include .env
 export
 TEST_DB := $(POSTGRES_DB)_test
@@ -55,8 +61,8 @@ migrate:          ## Apply DB migrations
 revision:         ## New migration: make revision m="add foo table"
 	$(COMPOSE) exec backend alembic revision --autogenerate -m "$(m)"
 
-test:             ## Backend tests
-	$(COMPOSE) exec backend pytest -q
+test:             ## Backend tests: make test p=tests/foo.py k=test_name
+	$(COMPOSE) exec backend pytest $(if $(k),-k "$(k)",) $(if $(p),$(p),) -q
 
 test-db:          ## Create + migrate the test database (idempotent)
 	@$(COMPOSE) exec -T postgres psql -U $(POSTGRES_USER) -d postgres -tc \

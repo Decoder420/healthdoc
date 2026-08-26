@@ -66,14 +66,40 @@ def _db_user_for(user: AuthUser) -> DbUser:
 # NullPool opens and closes a connection per checkout, so nothing survives a
 # loop boundary. Slower, irrelevant at this scale, and the alternative is
 # disposing a global engine from a foreign loop, which is worse.
-_test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
-_TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
+# Built on FIRST USE, not at import.
+#
+# This was `create_async_engine(TEST_DATABASE_URL, ...)` at module level. Once
+# TEST_DATABASE_URL stopped defaulting to a hardcoded localhost URL and became
+# None when unset, that line raised ArgumentError during CONFTEST IMPORT and
+# took the whole directory's collection down — a strictly worse failure than
+# the connection errors it replaced.
+#
+# A conftest must be importable in an environment where its tests cannot run.
+# The skip then goes in the fixture every test passes through, because a
+# `pytestmark` in a conftest applies to the conftest and not to the modules
+# beside it (see tests/pharmacy/conftest.py).
+_test_engine = None
+_TestSession = None
+
+
+def _session_factory():
+    global _test_engine, _TestSession
+    if _TestSession is None:
+        _test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+        _TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
+    return _TestSession
+
+
+def _require_postgres():
+    """Called by fixtures. Abstains instead of erroring when there is no DB."""
+    if not TEST_DATABASE_URL:
+        pytest.skip("needs real PostgreSQL — run `make test-pg` from the repo root")
 
 
 async def _test_get_db():
     """Mirrors app.common.db.get_db exactly — commit on success, roll back on
     error — so the handlers behave identically to production."""
-    async with _TestSession() as session:
+    async with _session_factory()() as session:
         try:
             yield session
             await session.commit()
@@ -84,6 +110,7 @@ async def _test_get_db():
 
 @pytest.fixture
 def client_as():
+    _require_postgres()
     """One TestClient, entered as a context manager, per test.
 
     The `with` matters more than it looks. Outside a context manager,
@@ -120,5 +147,6 @@ def seeded_order_id() -> str:
     dead code until app/orders/models.py became importable, which is why the
     tests could previously pass a random UUID.
     """
+    _require_postgres()
     from tests._lab_seed import seed_order_chain
     return seed_order_chain([u.sub for u in (DOCTOR, LAB_TECH, RADIOLOGIST, RADIOLOGY_TECH)])

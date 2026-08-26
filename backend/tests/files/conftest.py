@@ -34,6 +34,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from datetime import date, datetime, timezone
 
+import pytest
 import pytest_asyncio
 import sqlalchemy as sa
 from sqlalchemy import text
@@ -50,10 +51,19 @@ if sys.platform == "win32":
 # was previously hardcoded to the `healthdoc` dev database by mistake —
 # real bug, not a style nit: tests were writing scratch rows into the
 # actual dev DB instead of the disposable healthdoc_test one.
-TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://healthdoc:change-me@localhost:5432/healthdoc_test",
-)
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+
+#: Unset means ABSTAIN, not "try localhost and fail".
+#:
+#: This used to default to a hardcoded localhost URL. Every runner that
+#: matters sets the variable — ci.yml line 91 and the Makefile's test-pg —
+#: so the fallback never once pointed at a real database. What it did do was
+#: guarantee a connection ATTEMPT from inside the backend container, where
+#: localhost is the container: 221 errors that looked like a broken suite and
+#: were only a missing environment. The two hardcoded defaults across these
+#: files did not even agree on credentials.
+#:
+#: Matches tests/pharmacy/conftest.py, which had this right already.
 
 
 @pytest_asyncio.fixture
@@ -70,6 +80,10 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
     is what the old docstring said should happen "once the chain is
     unbroken".
     """
+    # The skip belongs in the fixture: a `pytestmark` in a CONFTEST applies
+    # to the conftest, not to the modules beside it. See pharmacy/conftest.py.
+    if not TEST_DATABASE_URL:
+        pytest.skip("needs real PostgreSQL — run `make test-pg` from the repo root")
     eng = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     yield eng
     await eng.dispose()
