@@ -16,6 +16,14 @@ class Settings(BaseSettings):
 
     jwt_issuer: str = "https://localhost/auth/realms/healthdoc"
     jwt_jwks_url: str | None = None
+    #: Expected `aud` on every access token. Unset disables the check.
+    #:
+    #: Keycloak only emits a resource-server audience when a client has an
+    #: audience protocol mapper, so this stays unset until the realm is
+    #: re-imported — enabling it against a realm that does not emit the claim
+    #: locks out every user. app/main.py refuses to boot in production while it
+    #: is unset, so the permissive default cannot reach production.
+    jwt_audience: str | None = None
     oidc_audience: str = "account"
     keycloak_base_url: str = "http://keycloak:8080/auth"
     keycloak_realm: str = "healthdoc"
