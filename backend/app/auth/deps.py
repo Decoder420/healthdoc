@@ -25,9 +25,11 @@ import uuid
 from typing import Annotated
 
 import httpx
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt import InvalidTokenError
+from jwt.algorithms import RSAAlgorithm
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,14 +72,24 @@ async def get_current_user(
     if creds is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
     try:
+        token = creds.credentials
+        header = jwt.get_unverified_header(token)
+        jwks = await _get_jwks()
+        matching = next(
+            (key for key in jwks.get("keys", []) if key.get("kid") == header.get("kid")),
+            None,
+        )
+        if matching is None:
+            raise InvalidTokenError("No matching JWKS key for token kid")
+        public_key = RSAAlgorithm.from_jwk(matching)
         claims = jwt.decode(
-            creds.credentials,
-            await _get_jwks(),
+            token,
+            public_key,
             algorithms=["RS256"],
             issuer=get_settings().jwt_issuer,
-            options={"verify_aud": False}, # tighten per-client in W2 hardening
+            options={"verify_aud": False},  # tighten per-client in W2 hardening
         )
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid token: {exc}") from exc
     return AuthUser(
         sub=claims["sub"],
