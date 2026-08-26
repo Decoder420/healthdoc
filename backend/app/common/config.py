@@ -46,6 +46,31 @@ class Settings(BaseSettings):
     # sandbox; production is 'abdm'. Wrong value returns a 400 the gateway
     # does not explain, so it is configuration rather than a constant.
     abdm_x_cm_id: str = "sbx"
+
+    #: ABDM's PUBLIC certificate, used to encrypt Aadhaar numbers, mobile
+    #: numbers and OTPs before transmission (see abdm/identity/crypto.py).
+    #: Public key material, not a secret — but it rotates, so it is
+    #: configuration rather than a constant. Accepts a PUBLIC KEY or a
+    #: CERTIFICATE block; `\n` escapes are normalised.
+    abdm_public_key_pem: str | None = None
+
+    #: ABHA enrolment/login lives on a DIFFERENT host from the HIECM gateway.
+    #: The session endpoint is on abdm_gateway_base_url; enrolment is here.
+    #: Sandbox and production differ, so neither is hardcoded.
+    abdm_abha_base_url: str = "https://abhasbx.abdm.gov.in/abha/api"
+
+    #: v3 enrolment/login paths, relative to abdm_abha_base_url.
+    #:
+    #: CONFIRM THESE AGAINST THE SANDBOX BEFORE TRUSTING THEM. They are
+    #: settings rather than constants precisely because they are the part of
+    #: M1 most likely to be wrong: the previous ABHA call in this repo used
+    #: `/v3/hip/token/on-generate`, which is a callback ABDM invokes on a HIP
+    #: rather than an endpoint a HIP posts to, and it 401'd silently for the
+    #: life of the file. A wrong path here is an env change, not a release.
+    abdm_path_enrol_request_otp: str = "/v3/enrollment/request/otp"
+    abdm_path_enrol_by_aadhaar: str = "/v3/enrollment/enrol/byAadhaar"
+    abdm_path_login_request_otp: str = "/v3/profile/login/request/otp"
+    abdm_path_login_verify: str = "/v3/profile/login/verify"
     
     aadhaar_hmac_key: str = "change-me-in-env"
     aadhaar_encryption_key: str = "change-me-in-env"
