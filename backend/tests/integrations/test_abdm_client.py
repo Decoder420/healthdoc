@@ -17,6 +17,7 @@ What these prove, in the order the failures would actually bite:
 from __future__ import annotations
 
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -32,6 +33,7 @@ from app.integrations.abdm.client import (
 pytestmark = pytest.mark.asyncio
 
 CREDS = {"client_id": "test-client", "client_secret": "test-secret"}
+SESSION_PATH = "/api/hiecm/gateway/v3/sessions"
 
 
 def _client(handler, **kw) -> AbdmClient:
@@ -72,12 +74,41 @@ async def test_placeholder_credentials_raise_before_any_request():
 
 
 # ----------------------------------------------------------------------- token
+async def test_session_uses_the_official_v3_contract():
+    """Keep origin/path joining aligned with ABDM's current gateway OpenAPI."""
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["body"] = json.loads(request.read())
+        seen["headers"] = request.headers
+        return httpx.Response(202, json={"accessToken": "tok-1", "expiresIn": 1200})
+
+    client = AbdmClient(
+        base_url="https://dev.abdm.gov.in",
+        transport=httpx.MockTransport(handler),
+        **CREDS,
+    )
+    token = await client._token()
+
+    assert token == "tok-1"
+    assert seen["url"] == "https://dev.abdm.gov.in/api/hiecm/gateway/v3/sessions"
+    assert seen["body"] == {
+        "clientId": "test-client",
+        "clientSecret": "test-secret",
+        "grantType": "client_credentials",
+    }
+    assert seen["headers"]["X-CM-ID"] == "sbx"
+    assert seen["headers"]["REQUEST-ID"]
+    assert seen["headers"]["TIMESTAMP"].endswith("Z")
+
+
 async def test_token_is_fetched_once_and_reused():
     sessions = 0
 
     def handler(request):
         nonlocal sessions
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             sessions += 1
             return _session_ok(request)
         return httpx.Response(200, json={"ok": True})
@@ -100,7 +131,7 @@ async def test_concurrent_cold_start_makes_one_session_call():
 
     async def handler(request):
         nonlocal sessions
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             sessions += 1
             await asyncio.sleep(0.05)  # make the race wide enough to lose
             return _session_ok(request)
@@ -116,7 +147,7 @@ async def test_expired_token_is_refetched():
 
     def handler(request):
         nonlocal sessions
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             sessions += 1
             # expiresIn below the safety margin => already stale on arrival
             return httpx.Response(200, json={"accessToken": f"tok-{sessions}", "expiresIn": 1})
@@ -130,7 +161,7 @@ async def test_expired_token_is_refetched():
 
 async def test_session_without_access_token_is_unavailable_not_crash():
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return httpx.Response(200, json={"unexpected": "shape"})
         return httpx.Response(200, json={})
 
@@ -159,7 +190,7 @@ async def test_401_on_call_refreshes_once_then_succeeds():
 
     def handler(request):
         nonlocal sessions, call_attempts
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             sessions += 1
             return httpx.Response(200, json={"accessToken": f"tok-{sessions}", "expiresIn": 1800})
         call_attempts += 1
@@ -180,7 +211,7 @@ async def test_second_401_raises_rather_than_looping():
 
     def handler(request):
         nonlocal sessions, attempts
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             sessions += 1
             return httpx.Response(200, json={"accessToken": "tok", "expiresIn": 1800})
         attempts += 1
@@ -203,7 +234,7 @@ async def test_transport_failure_is_unavailable():
 
 async def test_5xx_is_unavailable():
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return _session_ok(request)
         return httpx.Response(503, text="upstream down")
 
@@ -213,7 +244,7 @@ async def test_5xx_is_unavailable():
 
 async def test_4xx_is_rejected_and_carries_the_gateway_explanation():
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return _session_ok(request)
         return httpx.Response(400, json={"code": "ABDM-1042", "message": "invalid abha address"})
 
@@ -229,7 +260,7 @@ async def test_authenticated_calls_carry_every_required_header():
     seen = {}
 
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return _session_ok(request)
         seen.update(request.headers)
         return httpx.Response(200, json={})
@@ -250,7 +281,7 @@ async def test_request_id_is_returned_for_the_audit_row():
     sent = {}
 
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return _session_ok(request)
         sent["rid"] = request.headers["REQUEST-ID"]
         return httpx.Response(200, json={})
@@ -265,7 +296,7 @@ async def test_caller_supplied_request_id_is_used_for_idempotent_retry():
     seen = []
 
     def handler(request):
-        if request.url.path == "/v3/sessions":
+        if request.url.path == SESSION_PATH:
             return _session_ok(request)
         seen.append(request.headers["REQUEST-ID"])
         return httpx.Response(200, json={})
