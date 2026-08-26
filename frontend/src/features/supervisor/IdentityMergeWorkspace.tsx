@@ -32,6 +32,24 @@ function errorMessage(reason: unknown): string {
     if (code === "promotion_already_pending") {
       return "A promotion is already pending for this patient.";
     }
+    if (code === "patient_not_found") {
+      return "No THID patient with that ID exists in this facility.";
+    }
+    if (code === "merge_log_not_found") {
+      return "No identity merge with that ID exists in this facility.";
+    }
+    if (code === "not_pending") {
+      return "This identity merge is no longer pending approval.";
+    }
+    if (code === "not_approved") {
+      return "Only an approved identity merge can be unmerged.";
+    }
+    if (code === "patient_already_promoted" || code === "patient_already_has_uhid") {
+      return "This patient already has a permanent UHID.";
+    }
+    if (reason.code === 422) {
+      return "Check that the patient or merge-log ID is a valid UUID.";
+    }
     return reason.message;
   }
   return "Request failed";
@@ -85,7 +103,6 @@ export function IdentityMergeWorkspace() {
     try {
       const log = await requestThidPromotion(id, reason);
       setLastLog(log);
-      setMergeLogId(log.id);
     } catch (reasonCaught) {
       setError(errorMessage(reasonCaught));
     } finally {
@@ -111,11 +128,13 @@ export function IdentityMergeWorkspace() {
   async function onUnmerge(event: FormEvent) {
     event.preventDefault();
     const id = mergeLogId.trim();
-    if (!id) return;
+    const explanation = reason.trim();
+    if (!id || !explanation) return;
+    if (!window.confirm("Unmerge this identity promotion and clear its assigned UHID?")) return;
     setBusy(true);
     resetFeedback();
     try {
-      setLastLog(await unmergeThidPromotion(id, reason));
+      setLastLog(await unmergeThidPromotion(id, explanation));
     } catch (reasonCaught) {
       setError(errorMessage(reasonCaught));
     } finally {
@@ -134,19 +153,18 @@ export function IdentityMergeWorkspace() {
       <div>
         <h1 className="text-3xl font-semibold">Identity merges</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Supervisor records authority (#221): THID→UHID promotion with
-          maker–checker confirm. Request and approve must be different people;
-          unmerge must not be the approver. Superadmin cannot run this flow.
+          THID→UHID promotion with maker–checker confirmation. Request and
+          approval must be completed by different supervisors; unmerge must not
+          be performed by the approver. Superadmin cannot run this flow.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Merge steps">
+      <nav className="flex flex-wrap gap-2" aria-label="Identity merge steps">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
-            role="tab"
-            aria-selected={tab === item.id}
+            aria-pressed={tab === item.id}
             className={`rounded-md px-3 py-2 text-sm font-medium ${
               tab === item.id
                 ? "bg-primary text-primary-foreground"
@@ -160,7 +178,7 @@ export function IdentityMergeWorkspace() {
             {item.label}
           </button>
         ))}
-      </div>
+      </nav>
 
       {error ? (
         <p role="alert" className="rounded-md bg-danger-muted p-3 text-sm text-danger">
@@ -175,8 +193,8 @@ export function IdentityMergeWorkspace() {
           <h2 className="text-lg font-medium">Request THID→UHID promotion</h2>
           <p className="text-sm text-muted-foreground">
             Paste the patient ID from emergency registration. Only charts on the
-            THID identity path can be promoted. Patient search is
-            receptionist/admin only — supervisors use this ID.
+            THID identity path can be promoted. Patient search is not available
+            to records supervisors; use the ID from the emergency handoff.
           </p>
           <label className="block space-y-1 text-sm">
             <span className="text-muted-foreground">Patient ID</span>
@@ -255,11 +273,12 @@ export function IdentityMergeWorkspace() {
               className="w-full rounded-md border border-border px-3 py-2"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              required
             />
           </label>
           <button
             type="submit"
-            disabled={busy || !mergeLogId.trim()}
+            disabled={busy || !mergeLogId.trim() || !reason.trim()}
             className="rounded-md bg-danger px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? "Unmerging…" : "Unmerge promotion"}

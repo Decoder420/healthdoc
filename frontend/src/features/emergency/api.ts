@@ -52,7 +52,7 @@ export function requestThidPromotion(
   return api<PromotionLog>(`/emergency/patients/${patientId}/promote`, {
     method: "POST",
     body: JSON.stringify({ reason: reason?.trim() || null }),
-    idempotencyKey: null,
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
@@ -61,7 +61,7 @@ export function approveThidPromotion(mergeLogId: string): Promise<PromotionLog> 
   return api<PromotionLog>(`/emergency/patients/promotions/${mergeLogId}/approve`, {
     method: "POST",
     body: JSON.stringify({}),
-    idempotencyKey: null,
+    idempotencyKey: newIdempotencyKey(),
   });
 }
 
@@ -73,6 +73,6 @@ export function unmergeThidPromotion(
   return api<PromotionLog>(`/emergency/patients/promotions/${mergeLogId}/unmerge`, {
     method: "POST",
     body: JSON.stringify({ reason: reason?.trim() || null }),
-    idempotencyKey: null,
+    idempotencyKey: newIdempotencyKey(),
   });
 }

@@ -48,7 +48,7 @@ const ROUTE_PREFIXES: Record<Role, readonly string[]> = {
   // The existing /emergency page registers a new THID and its POST endpoint
   // intentionally excludes supervisors. Their maker-checker promotion APIs
   // need a separate records-authority screen (#221) at /supervisor/merges.
-  [ROLES.SUPERVISOR]: ["/supervisor", "/reports", "/consent"],
+  [ROLES.SUPERVISOR]: ["/supervisor", "/reports"],
   // Admin gets /hod because the hod-dashboard endpoints accept "admin" too.
   // The screen itself explains that an account with no department has nothing
   // to scope to, rather than inventing a cross-department picker.

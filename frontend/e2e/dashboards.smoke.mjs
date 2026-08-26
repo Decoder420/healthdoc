@@ -166,8 +166,18 @@ const ROLE_DASHBOARDS = [
   {
     name: "supervisor",
     username: "dev.supervisor",
-    landingPath: "/reports",
-    dashboards: [{ path: "/reports", expectCalls: true }],
+    landingPath: "/supervisor/merges",
+    dashboards: [
+      {
+        path: "/supervisor/merges",
+        // This workspace is intentionally mutation-driven: it cannot call an
+        // identity API until a supervisor supplies a patient or merge-log ID.
+        expectCalls: false,
+        expectedText: "Identity merges",
+        exercise: "supervisorMergeTabs",
+      },
+      { path: "/reports", expectCalls: true },
+    ],
   },
   {
     name: "hod",
@@ -341,10 +351,31 @@ async function exercisePatientConsent(page) {
   );
 }
 
+async function exerciseSupervisorMergeTabs(page) {
+  const steps = [["2. Approve", "Approve pending promotion"], ["3. Unmerge", "Unmerge approved promotion"]];
+  for (const [label, heading] of steps) {
+    await page.evaluate((wanted) => {
+      const button = [...document.querySelectorAll("#main-content button")].find(
+        (candidate) => candidate.textContent?.trim() === wanted,
+      );
+      button?.click();
+    }, label);
+    await page.waitForFunction(
+      (wanted) => document.querySelector("#main-content h2")?.textContent === wanted,
+      { timeout: 10_000 },
+      heading,
+    );
+  }
+}
+
 async function runConfiguredExercise(page, dashboard) {
   if (!dashboard.exercise) return;
   if (dashboard.exercise === "patientConsent") {
     await exercisePatientConsent(page);
+    return;
+  }
+  if (dashboard.exercise === "supervisorMergeTabs") {
+    await exerciseSupervisorMergeTabs(page);
     return;
   }
   throw new Error(`unknown dashboard exercise ${dashboard.exercise}`);
